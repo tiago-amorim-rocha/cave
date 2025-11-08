@@ -62,7 +62,7 @@ export class MarchingSquares {
   /**
    * Generate contour polylines using topology-driven edge walking
    */
-  generateContours(dirtyAABB?: AABB | null): Vec2[][] {
+  generateContours(dirtyAABB?: AABB | null, expandCells: number = 1): Vec2[][] {
     if (!dirtyAABB) {
       dirtyAABB = this.field.getDirtyWorldAABB();
     }
@@ -77,12 +77,12 @@ export class MarchingSquares {
       };
     }
 
-    // Convert world AABB to grid AABB, expand by 1 cell for boundary handling
+    // Convert world AABB to grid AABB, expand by expandCells for boundary handling
     const h = this.field.config.gridPitch;
-    let minGridX = Math.max(0, Math.floor(dirtyAABB.minX / h) - 1);
-    let minGridY = Math.max(0, Math.floor(dirtyAABB.minY / h) - 1);
-    let maxGridX = Math.min(this.field.gridWidth - 2, Math.ceil(dirtyAABB.maxX / h) + 1);
-    let maxGridY = Math.min(this.field.gridHeight - 2, Math.ceil(dirtyAABB.maxY / h) + 1);
+    let minGridX = Math.max(0, Math.floor(dirtyAABB.minX / h) - expandCells);
+    let minGridY = Math.max(0, Math.floor(dirtyAABB.minY / h) - expandCells);
+    let maxGridX = Math.min(this.field.gridWidth - 2, Math.ceil(dirtyAABB.maxX / h) + expandCells);
+    let maxGridY = Math.min(this.field.gridHeight - 2, Math.ceil(dirtyAABB.maxY / h) + expandCells);
 
     if (this.debug) {
       console.log(`[MarchingSquares] Scanning grid (${minGridX},${minGridY}) to (${maxGridX},${maxGridY})`);
