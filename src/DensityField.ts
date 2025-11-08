@@ -1,4 +1,5 @@
 import type { AABB, WorldConfig } from './types';
+import { PerlinNoise } from './PerlinNoise';
 
 /**
  * Density field backed by Uint8Array
@@ -26,6 +27,55 @@ export class DensityField {
    */
   reset(): void {
     this.data.fill(255);
+    this.markAllDirty();
+  }
+
+  /**
+   * Generate procedural caves using Perlin noise
+   *
+   * @param seed - Random seed for reproducible generation
+   * @param scale - Noise scale (smaller = larger features)
+   * @param octaves - Number of noise layers
+   * @param threshold - Cave threshold (higher = more caves, range: -1 to 1)
+   */
+  generateCaves(seed?: number, scale: number = 0.05, octaves: number = 4, threshold: number = 0.1): void {
+    const noise = new PerlinNoise(seed);
+
+    for (let gy = 0; gy < this.gridHeight; gy++) {
+      for (let gx = 0; gx < this.gridWidth; gx++) {
+        // Convert grid coordinates to world coordinates
+        const worldX = gx * this.config.gridPitch;
+        const worldY = gy * this.config.gridPitch;
+
+        // Sample noise at this position
+        const noiseValue = noise.octaveNoise(
+          worldX * scale,
+          worldY * scale,
+          octaves,
+          0.5,  // persistence
+          2.0   // lacunarity
+        );
+
+        // Map noise value to density
+        // noise is in range [-1, 1]
+        // If noise > threshold, create cave (low density)
+        // If noise <= threshold, create rock (high density)
+
+        let density: number;
+        if (noiseValue > threshold) {
+          // Cave area - very low density
+          density = 0;
+        } else {
+          // Rock area - map from threshold to -1 => 128 to 255
+          // This creates a gradient at cave edges for smooth marching squares
+          const t = (noiseValue - threshold) / (threshold + 1); // normalize to [0, 1]
+          density = Math.floor(128 + t * 127);
+        }
+
+        this.data[gy * this.gridWidth + gx] = density;
+      }
+    }
+
     this.markAllDirty();
   }
 
