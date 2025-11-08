@@ -7,6 +7,7 @@ import { LoopCache } from './LoopCache';
 import { Physics } from './Physics';
 import { Player } from './Player';
 import { simplifyPolylines } from './PolylineSimplifier';
+import { chaikinSmooth } from './ChaikinSmoothing';
 import type { WorldConfig } from './types';
 import type { Point } from './PolylineSimplifier';
 import Matter from 'matter-js';
@@ -335,7 +336,7 @@ class CarvableCaves {
 
     console.log(`[FullHeal] Classified ${allPolylines.length} loops: ${rockLoops.length} rock, ${allPolylines.length - rockLoops.length} cave`);
 
-    // Simplify and update physics bodies (using minimal simplification to preserve collision detail)
+    // Step 1: Simplify to reduce vertex count
     const simplifiedPolylines = simplifyPolylines(
       rockLoops.map(polyline => polyline.map(v => ({ x: v.x, y: v.y } as Point))),
       0.08, // epsilon in metres - slightly gentler to reduce jagged edges
@@ -343,9 +344,16 @@ class CarvableCaves {
     );
 
     console.log(`[FullHeal] Simplified ${rockLoops.length} rock polylines (avg reduction: ${this.calculateReduction(rockLoops, simplifiedPolylines).toFixed(1)}%)`);
-    console.log(`[FullHeal] Total vertices: ${simplifiedPolylines.reduce((sum, p) => sum + p.length, 0)}`);
 
-    this.physics.setCaveContours(simplifiedPolylines);
+    // Step 2: Apply Chaikin smoothing for non-toothy edges
+    // Use gentle ratio (0.15) to keep within ~0.05m of original, avoiding thin wall tunneling
+    const smoothedPolylines = simplifiedPolylines.map(poly =>
+      chaikinSmooth(poly, 0.15, true)
+    );
+
+    console.log(`[FullHeal] Smoothed polylines, total vertices: ${smoothedPolylines.reduce((sum, p) => sum + p.length, 0)}`);
+
+    this.physics.setCaveContours(smoothedPolylines);
 
     this.densityField.clearDirty();
 

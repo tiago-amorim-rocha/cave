@@ -13,7 +13,7 @@ import type { Point } from './PolylineSimplifier';
 export class Physics {
   public engine: Matter.Engine;
   public world: Matter.World;
-  private caveBody: Matter.Body | null = null;
+  private caveBody: Matter.Body | null = null; // Parent body containing all cave parts
 
   constructor() {
     // Create Matter.js engine
@@ -38,6 +38,7 @@ export class Physics {
 
   /**
    * Create static collision bodies from cave contours
+   * Uses a single parent body with multiple parts for efficient management
    * @param contours - Array of polylines representing cave walls
    */
   setCaveContours(contours: Point[][]): void {
@@ -51,8 +52,8 @@ export class Physics {
       return;
     }
 
-    // Convert contours to Matter.js vertices format
-    const bodies: Matter.Body[] = [];
+    // Convert contours to Matter.js body parts
+    const parts: Matter.Body[] = [];
 
     for (const contour of contours) {
       if (contour.length < 3) continue;
@@ -82,13 +83,13 @@ export class Physics {
               isStatic: true,
               friction: 0.3,
               restitution: 0.1,
-              label: 'cave-wall',
+              label: 'cave-wall-part',
             },
             true // flagInternal - removes collinear points
           );
 
           if (body) {
-            bodies.push(body);
+            parts.push(body);
           }
         } catch (e) {
           console.warn('Failed to create polygon body from contour:', e);
@@ -114,16 +115,30 @@ export class Physics {
               restitution: 0.1,
               label: 'cave-wall-edge',
             });
-            bodies.push(edge);
+            parts.push(edge);
           }
         }
       }
     }
 
-    // Add all cave bodies to world
-    if (bodies.length > 0) {
-      Matter.World.add(this.world, bodies);
-      console.log(`Created ${bodies.length} physics bodies from ${contours.length} contours`);
+    // Create single parent body with all parts
+    if (parts.length > 0) {
+      // Create a simple parent body at origin
+      const parent = Matter.Body.create({
+        isStatic: true,
+        friction: 0.3,
+        restitution: 0.1,
+        label: 'cave-terrain',
+      });
+
+      // Combine all parts into the parent body
+      Matter.Body.setParts(parent, [parent, ...parts]);
+
+      // Add parent to world
+      Matter.World.add(this.world, parent);
+      this.caveBody = parent;
+
+      console.log(`Created cave terrain body with ${parts.length} parts from ${contours.length} contours`);
     }
   }
 
