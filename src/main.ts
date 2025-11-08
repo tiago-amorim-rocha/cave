@@ -204,18 +204,19 @@ class CarvableCaves {
   }
 
   /**
-   * Spawn a test ball at random position
+   * Spawn a test ball at player position
    */
   private spawnTestBall(): void {
-    // Random position in upper half of world
-    const x = Math.random() * 40 + 5; // 5-45m
-    const y = Math.random() * 10 + 5; // 5-15m (upper half)
+    // Spawn at player position with slight offset upward
+    const playerPos = this.player.getPosition();
+    const x = playerPos.x;
+    const y = playerPos.y - 1; // 1m above player
     const radius = 0.5;
 
     const ball = Matter.Bodies.circle(x, y, radius, {
       isStatic: false,
       friction: 0.3,
-      restitution: 0.5,
+      restitution: 0.3,
       density: 0.001,
       label: 'test-ball',
     });
@@ -223,7 +224,7 @@ class CarvableCaves {
     Matter.World.add(this.physics.world, ball);
     this.ballBodies.push(ball);
 
-    console.log(`[Test] Spawned ball at (${x.toFixed(1)}, ${y.toFixed(1)})`);
+    console.log(`[Test] Spawned ball at player position (${x.toFixed(1)}, ${y.toFixed(1)})`);
   }
 
   private loop = (): void => {
@@ -231,7 +232,14 @@ class CarvableCaves {
 
     // Calculate delta time for physics
     const now = performance.now();
-    const deltaMs = this.lastPhysicsTime > 0 ? now - this.lastPhysicsTime : 16.67; // Default to 60fps
+
+    // Initialize lastPhysicsTime on first frame
+    if (this.lastPhysicsTime === 0) {
+      this.lastPhysicsTime = now;
+      return; // Skip first frame to avoid huge delta
+    }
+
+    const deltaMs = now - this.lastPhysicsTime;
     this.lastPhysicsTime = now;
 
     // Update FPS
