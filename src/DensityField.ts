@@ -150,6 +150,49 @@ export class DensityField {
       console.log(`  (${s.x.toFixed(1)}, ${s.y.toFixed(1)}): noise=${s.noise.toFixed(3)}, density=${s.density} [${aboveISO}]`);
     });
 
+    // Add solid rock border to ensure all caves are enclosed
+    // This prevents open loops at boundaries
+    const borderWidth = 5; // cells
+    console.log(`[CaveGen] Adding ${borderWidth}-cell solid rock border...`);
+
+    let borderCellsSet = 0;
+
+    // Top and bottom borders
+    for (let gx = 0; gx < this.gridWidth; gx++) {
+      for (let by = 0; by < borderWidth; by++) {
+        // Top border
+        if (by < this.gridHeight) {
+          this.data[by * this.gridWidth + gx] = 255;
+          borderCellsSet++;
+        }
+        // Bottom border
+        const bottomY = this.gridHeight - 1 - by;
+        if (bottomY >= 0 && bottomY < this.gridHeight) {
+          this.data[bottomY * this.gridWidth + gx] = 255;
+          borderCellsSet++;
+        }
+      }
+    }
+
+    // Left and right borders
+    for (let gy = 0; gy < this.gridHeight; gy++) {
+      for (let bx = 0; bx < borderWidth; bx++) {
+        // Left border
+        if (bx < this.gridWidth) {
+          this.data[gy * this.gridWidth + bx] = 255;
+          borderCellsSet++;
+        }
+        // Right border
+        const rightX = this.gridWidth - 1 - bx;
+        if (rightX >= 0 && rightX < this.gridWidth) {
+          this.data[gy * this.gridWidth + rightX] = 255;
+          borderCellsSet++;
+        }
+      }
+    }
+
+    console.log(`[CaveGen] Border complete! Set ${borderCellsSet} cells to solid rock (255)`);
+
     this.markAllDirty();
   }
 
