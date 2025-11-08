@@ -19,6 +19,7 @@ class CarvableCaves {
   private brushSettings: BrushSettings;
 
   private needsRemesh = true;
+  private isLiveCarving = false; // Track if we're currently carving
   private animationFrameId = 0;
 
   // Performance tracking
@@ -87,11 +88,13 @@ class CarvableCaves {
       console.log('Input handler initialized');
 
       this.inputHandler.onCarve = () => {
+        this.isLiveCarving = true;
         this.needsRemesh = true;
       };
 
       this.inputHandler.onCarveEnd = () => {
-        this.needsRemesh = true; // Final remesh
+        this.isLiveCarving = false;
+        this.needsRemesh = true; // Final remesh with dirty region optimization
       };
 
       // Setup UI
@@ -214,9 +217,23 @@ class CarvableCaves {
 
   private remesh(): void {
     try {
-      const polylines = this.marchingSquares.generateContours();
+      let polylines: import('./types').Vec2[][];
+
+      if (this.isLiveCarving) {
+        // During live carving: expand dirty region aggressively to avoid boundary artifacts
+        // Contours may extend well beyond the immediate brush area
+        polylines = this.marchingSquares.generateContours(undefined, 50);
+      } else {
+        // Final remesh or initial: minimal expansion (default)
+        polylines = this.marchingSquares.generateContours(undefined, 1);
+      }
+
       this.renderer.updatePolylines(polylines);
-      this.densityField.clearDirty();
+
+      // Only clear dirty region on final remesh
+      if (!this.isLiveCarving) {
+        this.densityField.clearDirty();
+      }
     } catch (error) {
       console.error('Error during remesh:', error);
     }
