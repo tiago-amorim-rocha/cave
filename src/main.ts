@@ -229,8 +229,9 @@ class CarvableCaves {
   }
 }
 
-// Initialize debug console
+// Initialize debug console and show it by default
 const debugConsole = new DebugConsole();
+debugConsole.show(); // Open by default for debugging
 
 // Wire up debug button
 const debugButton = document.getElementById('debug-button');
@@ -251,19 +252,30 @@ if (debugButton) {
   console.error('Debug button NOT found!');
 }
 
-// Log build timestamp to verify version
+// Generate build version and display it
 const BUILD_TIME = new Date().toISOString();
+const BUILD_HASH = BUILD_TIME.substring(11, 19).replace(/:/g, ''); // Extract HHMMSS as version
+const VERSION_STRING = `v${BUILD_HASH}`;
+
+// Display version in UI
+const versionElement = document.getElementById('version');
+if (versionElement) {
+  versionElement.textContent = VERSION_STRING;
+}
+
 console.log('===========================================');
 console.log('Carvable Caves PWA');
+console.log('Version:', VERSION_STRING);
 console.log('Build time:', BUILD_TIME);
 console.log('===========================================');
 console.log('');
-console.log('🐛 Click the bug button to open debug console');
+console.log('Debug console is open by default');
+console.log('🐛 Click the bug button to toggle it');
 console.log('');
 console.log('If stuck on old version:');
-console.log('1. Hard refresh: Ctrl+Shift+R (or Cmd+Shift+R)');
-console.log('2. Clear cache: DevTools > Application > Clear storage');
-console.log('3. Unregister SW: DevTools > Application > Service Workers > Unregister');
+console.log('1. Force quit Safari and reopen');
+console.log('2. Delete PWA from home screen and reinstall');
+console.log('3. Settings > Safari > Clear History and Website Data');
 console.log('');
 
 // Start the application
