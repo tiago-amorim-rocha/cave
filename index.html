@@ -305,10 +305,28 @@
 
   <div id="version">Loading...</div>
 
+  <!-- Simple on-screen log (no module needed) -->
+  <div id="simple-log" style="position: fixed; top: 50px; left: 10px; right: 10px; bottom: 10px; background: rgba(0,0,0,0.95); color: #0f0; font-family: monospace; font-size: 10px; padding: 10px; overflow-y: auto; z-index: 10003; border: 2px solid #0f0; display: none;"></div>
+
   <button id="update-button" title="Update available! Click to reload">🔄</button>
   <button id="debug-button" title="Toggle debug console">🐛</button>
 
   <script>
+    // Simple on-screen logger
+    const simpleLog = document.getElementById('simple-log');
+    simpleLog.style.display = 'block'; // Show it immediately
+
+    function log(msg) {
+      const line = document.createElement('div');
+      line.textContent = new Date().toLocaleTimeString() + ': ' + msg;
+      simpleLog.appendChild(line);
+      simpleLog.scrollTop = simpleLog.scrollHeight;
+      console.log(msg);
+    }
+
+    // Make log available globally
+    window.log = log;
+
     // Immediately update version before anything else
     const now = new Date();
     const hours = now.getHours().toString().padStart(2, '0');
@@ -316,29 +334,35 @@
     const secs = now.getSeconds().toString().padStart(2, '0');
     const version = 'v' + hours + mins + secs;
     document.getElementById('version').textContent = version;
-    console.log('Version:', version, 'Time:', now.toISOString());
-    console.log('Location:', window.location.href);
-    console.log('Base URL:', document.baseURI);
+    log('Version: ' + version);
+    log('Time: ' + now.toISOString());
+    log('Location: ' + window.location.href);
+    log('Base URL: ' + document.baseURI);
 
     // Check if modules are supported
     const supportsModules = 'noModule' in HTMLScriptElement.prototype;
-    console.log('ES Modules supported:', supportsModules);
+    log('ES Modules supported: ' + supportsModules);
 
     // Catch any errors
     window.onerror = function(msg, url, line, col, error) {
-      const errorMsg = 'ERROR: ' + msg + '\nURL: ' + url + '\nLine: ' + line;
-      alert(errorMsg);
-      console.error('Global error:', msg, url, line, error);
+      log('ERROR: ' + msg);
+      log('URL: ' + url);
+      log('Line: ' + line);
       return false;
     };
 
     // Check if module loads
     setTimeout(() => {
       if (!window.APP_LOADED) {
-        alert('Module failed to load!\nCheck console for details.');
-        console.error('Module did not set window.APP_LOADED flag');
+        log('!!! MODULE FAILED TO LOAD !!!');
+        log('The TypeScript module did not execute');
+        log('This means the JS file is not loading from GitHub Pages');
+      } else {
+        log('Module loaded successfully!');
       }
     }, 3000);
+
+    log('--- Waiting for module to load... ---');
   </script>
   <script type="module" src="/src/main.ts"></script>
 </body>
