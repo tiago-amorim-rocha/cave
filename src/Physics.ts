@@ -19,7 +19,7 @@ export class Physics {
     // Create Matter.js engine
     // Use lighter gravity for game feel (not realistic physics)
     this.engine = Matter.Engine.create({
-      gravity: { x: 0, y: 1 }, // 1 unit/s² - lighter for gameplay
+      gravity: { x: 0, y: 0.1 }, // 0.1 unit/s² - very gentle for better control
     });
     this.world = this.engine.world;
   }

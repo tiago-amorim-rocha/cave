@@ -339,7 +339,7 @@ class CarvableCaves {
     // Step 1: Simplify to reduce vertex count
     const simplifiedPolylines = simplifyPolylines(
       rockLoops.map(polyline => polyline.map(v => ({ x: v.x, y: v.y } as Point))),
-      0.08, // epsilon in metres - slightly gentler to reduce jagged edges
+      0.02, // epsilon in metres - much gentler to follow cave edges closely
       true // closed loops
     );
 
@@ -388,7 +388,7 @@ class CarvableCaves {
     ny /= len;
 
     // Flip normal based on winding direction so it points inward
-    if (area < 0) {
+    if (area >= 0) {
       nx = -nx;
       ny = -ny;
     }
