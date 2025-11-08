@@ -1,0 +1,65 @@
+name: Cleanup old Claude branches
+
+on:
+  schedule:
+    # Run at 1am UTC every day
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all branches
+
+      - name: Delete old claude branches
+        run: |
+          echo "Finding claude/** branches older than 24 hours..."
+
+          # Get current time in seconds since epoch
+          NOW=$(date +%s)
+          CUTOFF=$((NOW - 86400)) # 24 hours ago
+
+          # Get all remote claude branches
+          git fetch origin
+          BRANCHES=$(git branch -r | grep 'origin/claude/' | sed 's/origin\///' | grep -v HEAD || true)
+
+          if [ -z "$BRANCHES" ]; then
+            echo "No claude/** branches found"
+            exit 0
+          fi
+
+          DELETED_COUNT=0
+          SKIPPED_COUNT=0
+
+          for BRANCH in $BRANCHES; do
+            # Get the last commit date for this branch
+            LAST_COMMIT_DATE=$(git log -1 --format=%ct origin/$BRANCH 2>/dev/null || echo "0")
+
+            if [ "$LAST_COMMIT_DATE" = "0" ]; then
+              echo "⚠️  Skipping $BRANCH (could not get commit date)"
+              SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+              continue
+            fi
+
+            # Check if branch is older than 24 hours
+            if [ "$LAST_COMMIT_DATE" -lt "$CUTOFF" ]; then
+              echo "🗑️  Deleting $BRANCH (last commit: $(date -d @$LAST_COMMIT_DATE '+%Y-%m-%d %H:%M:%S'))"
+              git push origin --delete "$BRANCH" 2>&1 || echo "⚠️  Failed to delete $BRANCH"
+              DELETED_COUNT=$((DELETED_COUNT + 1))
+            else
+              echo "✅ Keeping $BRANCH (last commit: $(date -d @$LAST_COMMIT_DATE '+%Y-%m-%d %H:%M:%S'))"
+              SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+            fi
+          done
+
+          echo ""
+          echo "Summary:"
+          echo "- Deleted: $DELETED_COUNT branches"
+          echo "- Kept: $SKIPPED_COUNT branches"
