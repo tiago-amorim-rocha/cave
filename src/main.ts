@@ -37,8 +37,8 @@ class CarvableCaves {
 
       // World configuration
       const worldConfig: WorldConfig = {
-        width: 100, // metres (halved from 200)
-        height: 60, // metres (halved from 120)
+        width: 50, // metres (halved)
+        height: 30, // metres (halved)
         gridPitch: 0.1, // metres (h)
         isoValue: 128
       };
@@ -58,11 +58,11 @@ class CarvableCaves {
       }
       console.log('Canvas found:', this.canvas);
 
-      // Initialize camera (centered on world)
+      // Initialize camera (centered on world, zoomed out 2x)
       this.camera = new Camera(
         worldConfig.width / 2,
         worldConfig.height / 2,
-        50 // initial PPM (pixels per metre)
+        25 // initial PPM (pixels per metre) - 2x zoomed out from 50
       );
       console.log('Camera initialized:', this.camera.getState());
 

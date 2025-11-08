@@ -120,15 +120,34 @@ export class DensityField {
     const cavePercent = (caveCells / totalCells * 100).toFixed(1);
     const rockPercent = (rockCells / totalCells * 100).toFixed(1);
 
+    // Count density distribution
+    const densityBuckets = new Map<number, number>();
+    for (let i = 0; i < this.data.length; i++) {
+      const d = this.data[i];
+      densityBuckets.set(d, (densityBuckets.get(d) || 0) + 1);
+    }
+    const uniqueDensities = Array.from(densityBuckets.keys()).sort((a, b) => a - b);
+
     console.log('[CaveGen] Generation complete!');
     console.log(`  Total cells: ${totalCells}`);
-    console.log(`  Cave cells: ${caveCells} (${cavePercent}%)`);
-    console.log(`  Rock cells: ${rockCells} (${rockPercent}%)`);
+    console.log(`  Cave cells (density=0): ${caveCells} (${cavePercent}%)`);
+    console.log(`  Rock cells (density>0): ${rockCells} (${rockPercent}%)`);
+    console.log(`  Noise type: GRAYSCALE (continuous values from -1 to 1)`);
     console.log(`  Noise range: [${minNoise.toFixed(3)}, ${maxNoise.toFixed(3)}]`);
+    console.log(`  Density type: GRAYSCALE (0=cave, 128-255=rock gradient)`);
     console.log(`  Density range: [${minDensity}, ${maxDensity}]`);
+    console.log(`  Unique density values: ${uniqueDensities.length}`);
+    console.log(`  ISO value for marching squares: ${this.config.isoValue}`);
+    if (uniqueDensities.length <= 20) {
+      console.log(`  All density values: [${uniqueDensities.join(', ')}]`);
+    } else {
+      console.log(`  First 10 densities: [${uniqueDensities.slice(0, 10).join(', ')}]`);
+      console.log(`  Last 10 densities: [${uniqueDensities.slice(-10).join(', ')}]`);
+    }
     console.log('[CaveGen] Sample positions:');
     samples.forEach(s => {
-      console.log(`  (${s.x.toFixed(1)}, ${s.y.toFixed(1)}): noise=${s.noise.toFixed(3)}, density=${s.density}`);
+      const aboveISO = s.density >= this.config.isoValue ? 'ROCK' : 'CAVE';
+      console.log(`  (${s.x.toFixed(1)}, ${s.y.toFixed(1)}): noise=${s.noise.toFixed(3)}, density=${s.density} [${aboveISO}]`);
     });
 
     this.markAllDirty();
