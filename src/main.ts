@@ -434,6 +434,96 @@ try {
   throw error;
 }
 
+// ===================================================
+// Version checking for cache busting
+// ===================================================
+let currentVersion: { timestamp: number; buildId: string } | null = null;
+
+async function checkForUpdates(): Promise<boolean> {
+  try {
+    const response = await fetch('/cave/version.json', {
+      cache: 'no-cache',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
+
+    if (!response.ok) {
+      console.warn('Failed to fetch version.json');
+      return false;
+    }
+
+    const newVersion = await response.json();
+
+    // First time - store current version
+    if (!currentVersion) {
+      currentVersion = newVersion;
+      console.log('Current version:', newVersion);
+      return false;
+    }
+
+    // Check if version changed
+    if (newVersion.buildId !== currentVersion.buildId ||
+        newVersion.timestamp !== currentVersion.timestamp) {
+      console.log('New version detected!', {
+        current: currentVersion,
+        new: newVersion
+      });
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Error checking version:', error);
+    return false;
+  }
+}
+
+// Check for updates every 30 seconds
+function startVersionPolling() {
+  // Initial check
+  checkForUpdates().then(hasUpdate => {
+    if (hasUpdate) {
+      showUpdateButton();
+    }
+  });
+
+  // Poll every 30 seconds
+  setInterval(async () => {
+    const hasUpdate = await checkForUpdates();
+    if (hasUpdate) {
+      showUpdateButton();
+    }
+  }, 30000);
+}
+
+function showUpdateButton() {
+  const updateButton = document.getElementById('update-button');
+  if (updateButton && !updateButton.classList.contains('visible')) {
+    updateButton.classList.add('visible');
+    console.log('Update button shown - new version available!');
+  }
+}
+
+function reloadApp() {
+  // Clear all caches and reload
+  if ('caches' in window && window.caches) {
+    window.caches.keys().then(names => {
+      names.forEach(name => window.caches.delete(name));
+    }).then(() => {
+      window.location.reload();
+    });
+  } else {
+    // No cache API, just reload
+    (window as Window).location.reload();
+  }
+}
+
+// ===================================================
+// Service Worker Registration
+// ===================================================
+
 // Register service worker for PWA with update detection
 if ('serviceWorker' in navigator) {
   // Use vite-plugin-pwa's virtual module for service worker registration
@@ -441,26 +531,44 @@ if ('serviceWorker' in navigator) {
     const updateButton = document.getElementById('update-button');
 
     const updateSW = registerSW({
+      immediate: true,
       onNeedRefresh() {
         // Show the update button when a new version is available
-        if (updateButton) {
-          updateButton.classList.add('visible');
-        }
+        console.log('Service worker detected update');
+        showUpdateButton();
       },
       onOfflineReady() {
         console.log('App ready to work offline');
+      },
+      onRegisteredSW(swUrl, registration) {
+        console.log('Service Worker registered:', swUrl);
+
+        // Check for updates every 60 seconds
+        if (registration) {
+          setInterval(() => {
+            console.log('Checking for service worker updates...');
+            registration.update();
+          }, 60000);
+        }
       }
     });
 
     // Handle update button click
     if (updateButton) {
       updateButton.addEventListener('click', () => {
-        updateSW(true); // Update and reload
+        console.log('Update button clicked - reloading app');
+        updateSW(true).then(() => {
+          reloadApp();
+        });
       });
     }
-  }).catch(() => {
+  }).catch((error) => {
     // Service worker registration failed (expected in dev mode)
+    console.log('Service worker registration skipped:', error?.message || 'dev mode');
   });
 }
+
+// Start version polling (independent of service worker)
+startVersionPolling();
 
 export { app };
