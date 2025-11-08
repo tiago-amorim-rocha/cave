@@ -100,6 +100,7 @@ export class Renderer {
     this.ctx.save();
 
     // Fill rock (inside contours)
+    // Use 'evenodd' fill rule to handle nested contours (rock islands within caves)
     this.ctx.fillStyle = '#8b7355';
     this.ctx.beginPath();
 
@@ -117,7 +118,7 @@ export class Renderer {
       this.ctx.closePath();
     }
 
-    this.ctx.fill();
+    this.ctx.fill('evenodd');
 
     // Stroke outlines
     this.ctx.strokeStyle = '#4a3f35';
