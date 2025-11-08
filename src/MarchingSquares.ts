@@ -101,14 +101,31 @@ export class MarchingSquares {
     if (v01 >= this.isoValue) caseIndex |= 8;
 
     // Handle ambiguous cases 5 and 10 with asymptotic decider
-    if (caseIndex === 5 || caseIndex === 10) {
+    let edgePairs: number[][];
+    if (caseIndex === 5) {
+      // Case 5 (0101): BL and TR solid (diagonal)
       const center = (v00 + v10 + v11 + v01) / 4;
       if (center >= this.isoValue) {
-        caseIndex = caseIndex === 5 ? 10 : 5;
+        // Connected: one segment left to right
+        edgePairs = [[3, 1]];
+      } else {
+        // Saddle: two segments crossing
+        edgePairs = [[3, 0], [1, 2]];
       }
+    } else if (caseIndex === 10) {
+      // Case 10 (1010): BR and TL solid (opposite diagonal)
+      const center = (v00 + v10 + v11 + v01) / 4;
+      if (center >= this.isoValue) {
+        // Connected: one segment bottom to top
+        edgePairs = [[0, 2]];
+      } else {
+        // Saddle: two segments crossing
+        edgePairs = [[0, 1], [2, 3]];
+      }
+    } else {
+      edgePairs = MARCHING_SQUARES_CASES[caseIndex];
     }
 
-    const edgePairs = MARCHING_SQUARES_CASES[caseIndex];
     if (edgePairs.length === 0) return;
 
     // Get cell world coordinates
