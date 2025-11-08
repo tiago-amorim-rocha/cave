@@ -17,8 +17,9 @@ export class Physics {
 
   constructor() {
     // Create Matter.js engine
+    // Use lighter gravity for game feel (not realistic physics)
     this.engine = Matter.Engine.create({
-      gravity: { x: 0, y: 9.81 }, // 9.81 m/s² downward
+      gravity: { x: 0, y: 1 }, // 1 unit/s² - lighter for gameplay
     });
     this.world = this.engine.world;
   }
@@ -28,8 +29,11 @@ export class Physics {
    * @param deltaMs - Time step in milliseconds
    */
   update(deltaMs: number): void {
+    // Cap delta to prevent huge jumps (max 33ms = ~30fps minimum)
+    const cappedDelta = Math.min(deltaMs, 33);
+
     // Matter.js expects delta in milliseconds
-    Matter.Engine.update(this.engine, deltaMs);
+    Matter.Engine.update(this.engine, cappedDelta);
   }
 
   /**
