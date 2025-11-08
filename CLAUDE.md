@@ -3,6 +3,8 @@
 ## Overview
 A Progressive Web App for carving smooth 2D caves using Marching Squares algorithm. Built with TypeScript + Vite, optimized for iOS devices. Works offline and can be installed via "Add to Home Screen".
 
+<!-- Test deployment workflow -->
+
 ## Tech Stack
 - **Build**: Vite 5 + TypeScript
 - **PWA**: vite-plugin-pwa with Workbox
