@@ -110,6 +110,8 @@ export class MarchingSquares {
     // Step 2: Walk topology to trace closed loops
     const polylines: Vec2[][] = [];
     let tracedEdges = 0;
+    let closedCount = 0;
+    let openCount = 0;
 
     for (const [cellKey, info] of this.cellInfo) {
       const [gx, gy] = cellKey.split(',').map(Number);
@@ -120,24 +122,53 @@ export class MarchingSquares {
         if (this.visited.has(edgeKey)) continue;
 
         // Start a new contour walk from this edge
-        const loop = this.traceLoop(gx, gy, pairIdx);
-        if (loop && loop.length > 2) {
-          polylines.push(loop);
-          tracedEdges += loop.length;
+        const result = this.traceLoop(gx, gy, pairIdx);
+        if (result && result.loop.length > 2) {
+          polylines.push(result.loop);
+          tracedEdges += result.loop.length;
+          if (result.closed) {
+            closedCount++;
+          } else {
+            openCount++;
+          }
         }
       }
     }
 
     if (this.debug) {
       console.log(`[MarchingSquares] Traced ${polylines.length} contours (${tracedEdges} vertices total):`);
-      polylines.forEach((p, i) => {
-        const isClosed = Math.abs(p[0].x - p[p.length - 1].x) < 0.001 &&
-                         Math.abs(p[0].y - p[p.length - 1].y) < 0.001;
-        console.log(`  Loop ${i}: ${p.length} vertices, ${isClosed ? 'CLOSED ✓' : 'OPEN ✗'}`);
-      });
+      console.log(`  Closed: ${closedCount}, Open: ${openCount}`);
+      if (openCount > 0) {
+        console.warn(`  WARNING: ${openCount} open contours detected (should be 0 for interior regions)`);
+      }
     }
 
     return polylines;
+  }
+
+  /**
+   * Get or compute cell info on-demand (with caching and bounds checking)
+   */
+  private getCellInfo(gx: number, gy: number): CellInfo | null {
+    // Check bounds
+    if (gx < 0 || gy < 0 || gx >= this.field.gridWidth - 1 || gy >= this.field.gridHeight - 1) {
+      return null;
+    }
+
+    const key = this.cellKey(gx, gy);
+    let info = this.cellInfo.get(key);
+
+    if (!info) {
+      // Compute on-demand
+      info = this.buildCellInfo(gx, gy);
+      if (info.edgePairs.length > 0) {
+        this.cellInfo.set(key, info);
+      } else {
+        return null; // No crossings in this cell
+      }
+    }
+
+    return info;
   }
 
   /**
@@ -183,27 +214,35 @@ export class MarchingSquares {
   /**
    * Trace a closed loop starting from a specific edge pair in a cell
    */
-  private traceLoop(startGx: number, startGy: number, startPairIdx: number): Vec2[] | null {
+  private traceLoop(startGx: number, startGy: number, startPairIdx: number): { loop: Vec2[]; closed: boolean } | null {
     const loop: Vec2[] = [];
     let gx = startGx;
     let gy = startGy;
     let pairIdx = startPairIdx;
     let enterEdge: number | null = null; // Which edge we entered from
 
+    const startKey = this.edgeKey(startGx, startGy, startPairIdx);
+    let closed = false;
     let steps = 0;
     const maxSteps = 100000; // Safety limit
 
     while (steps < maxSteps) {
       const key = this.edgeKey(gx, gy, pairIdx);
+
+      // Check if we've returned to start (after at least one step)
+      if (steps > 0 && key === startKey) {
+        closed = true;
+        break;
+      }
+
       if (this.visited.has(key)) {
-        // We've completed the loop
+        // Already visited this edge
         break;
       }
 
       this.visited.add(key);
 
-      const cellKey = this.cellKey(gx, gy);
-      const info = this.cellInfo.get(cellKey);
+      const info = this.getCellInfo(gx, gy);
       if (!info) {
         if (this.debug) {
           console.warn(`No cell info for (${gx},${gy})`);
@@ -259,8 +298,7 @@ export class MarchingSquares {
       enterEdge = this.oppositeEdge(exitEdge);
 
       // Find which edge pair in the neighbor cell contains enterEdge
-      const nextKey = this.cellKey(gx, gy);
-      const nextInfo = this.cellInfo.get(nextKey);
+      const nextInfo = this.getCellInfo(gx, gy);
       if (!nextInfo) {
         if (this.debug) {
           console.warn(`No cell info for neighbor (${gx},${gy})`);
@@ -285,20 +323,6 @@ export class MarchingSquares {
       }
 
       steps++;
-
-      // Check if we've returned to start
-      if (gx === startGx && gy === startGy && pairIdx === startPairIdx) {
-        // Remove last vertex if it's a duplicate of the first
-        if (loop.length > 1) {
-          const first = loop[0];
-          const last = loop[loop.length - 1];
-          const dist = Math.sqrt((first.x - last.x) ** 2 + (first.y - last.y) ** 2);
-          if (dist < 0.001) {
-            loop.pop(); // Remove duplicate
-          }
-        }
-        break;
-      }
     }
 
     if (steps >= maxSteps) {
@@ -306,7 +330,12 @@ export class MarchingSquares {
       return null;
     }
 
-    return loop.length > 2 ? loop : null;
+    // If closed, append first vertex to end so first==last
+    if (closed && loop.length > 0) {
+      loop.push({ ...loop[0] });
+    }
+
+    return loop.length > 2 ? { loop, closed } : null;
   }
 
   /**
