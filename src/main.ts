@@ -327,14 +327,22 @@ class CarvableCaves {
     const allPolylines = allLoops.map(l => l.vertices);
     this.renderer.updatePolylines(allPolylines);
 
+    // Filter to only rock loops (not cave holes) using density field sampling
+    const rockLoops = allPolylines.filter(loop => {
+      if (loop.length < 3) return false;
+      return this.isRockLoop(loop);
+    });
+
+    console.log(`[FullHeal] Classified ${allPolylines.length} loops: ${rockLoops.length} rock, ${allPolylines.length - rockLoops.length} cave`);
+
     // Simplify and update physics bodies (using minimal simplification to preserve collision detail)
     const simplifiedPolylines = simplifyPolylines(
-      allPolylines.map(polyline => polyline.map(v => ({ x: v.x, y: v.y } as Point))),
-      0.1, // epsilon in metres (1x grid pitch - minimal simplification for accurate collisions)
+      rockLoops.map(polyline => polyline.map(v => ({ x: v.x, y: v.y } as Point))),
+      0.08, // epsilon in metres - slightly gentler to reduce jagged edges
       true // closed loops
     );
 
-    console.log(`[FullHeal] Simplified ${allPolylines.length} polylines (avg reduction: ${this.calculateReduction(allPolylines, simplifiedPolylines).toFixed(1)}%)`);
+    console.log(`[FullHeal] Simplified ${rockLoops.length} rock polylines (avg reduction: ${this.calculateReduction(rockLoops, simplifiedPolylines).toFixed(1)}%)`);
     console.log(`[FullHeal] Total vertices: ${simplifiedPolylines.reduce((sum, p) => sum + p.length, 0)}`);
 
     this.physics.setCaveContours(simplifiedPolylines);
@@ -343,6 +351,50 @@ class CarvableCaves {
 
     const elapsed = performance.now() - startTime;
     console.log(`[FullHeal] Complete. ${allLoops.length} loops in ${elapsed.toFixed(1)}ms`);
+  }
+
+  /**
+   * Determine if a loop represents solid rock or a cave hole
+   * Uses signed area and density sampling to classify
+   */
+  private isRockLoop(loop: { x: number; y: number }[]): boolean {
+    if (loop.length < 3) return false;
+
+    // Calculate signed area to determine winding direction
+    let area = 0;
+    for (let i = 0; i < loop.length; i++) {
+      const p = loop[i];
+      const q = loop[(i + 1) % loop.length];
+      area += (p.x * q.y - q.x * p.y);
+    }
+
+    // Sample a point slightly inside the loop
+    const p0 = loop[0];
+    const p1 = loop[1];
+
+    // Calculate left normal to first edge
+    let nx = p1.y - p0.y;
+    let ny = -(p1.x - p0.x);
+    const len = Math.hypot(nx, ny) || 1;
+    nx /= len;
+    ny /= len;
+
+    // Flip normal based on winding direction so it points inward
+    if (area < 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+
+    // Sample point 5cm inside the loop
+    const sampleX = p0.x + nx * 0.05;
+    const sampleY = p0.y + ny * 0.05;
+
+    // Check density at sample point
+    const { gridX, gridY } = this.densityField.worldToGrid(sampleX, sampleY);
+    const density = this.densityField.get(gridX, gridY);
+
+    // Rock if density >= isoValue (128)
+    return density >= 128;
   }
 
   /**
