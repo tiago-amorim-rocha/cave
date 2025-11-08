@@ -85,7 +85,7 @@ export class Physics {
               restitution: 0.1,
               label: 'cave-wall-part',
             },
-            true // flagInternal - removes collinear points
+            false // flagInternal - DISABLED to keep all vertices for debugging
           );
 
           if (body) {
