@@ -136,7 +136,15 @@ export class InputHandler {
   }
 
   private onTouchStart(e: TouchEvent): void {
+    // Check if touch is on a UI element (button, slider, etc)
+    const target = e.target as HTMLElement;
+    if (target && target !== this.canvas) {
+      console.log('Touch on UI element, ignoring:', target.id || target.tagName);
+      return; // Let the UI element handle it
+    }
+
     e.preventDefault();
+    console.log('Canvas touch start');
 
     const rect = this.canvas.getBoundingClientRect();
 
@@ -165,6 +173,12 @@ export class InputHandler {
   }
 
   private onTouchMove(e: TouchEvent): void {
+    // Check if touch started on a UI element
+    const target = e.target as HTMLElement;
+    if (target && target !== this.canvas) {
+      return; // Let the UI element handle it
+    }
+
     e.preventDefault();
 
     const rect = this.canvas.getBoundingClientRect();
@@ -216,6 +230,12 @@ export class InputHandler {
   }
 
   private onTouchEnd(e: TouchEvent): void {
+    // Check if touch is on a UI element
+    const target = e.target as HTMLElement;
+    if (target && target !== this.canvas) {
+      return; // Let the UI element handle it
+    }
+
     e.preventDefault();
 
     // Update touches

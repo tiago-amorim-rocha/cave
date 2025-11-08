@@ -123,10 +123,17 @@
       font-weight: 600;
       cursor: pointer;
       touch-action: manipulation;
+      pointer-events: auto;
+      position: relative;
+      z-index: 1;
+      -webkit-tap-highlight-color: rgba(76, 175, 80, 0.3);
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     button:active {
       background: #45a049;
+      transform: scale(0.98);
     }
 
     #stats {
