@@ -39,7 +39,32 @@ export class DensityField {
    * @param threshold - Cave threshold (higher = more caves, range: -1 to 1)
    */
   generateCaves(seed?: number, scale: number = 0.05, octaves: number = 4, threshold: number = 0.1): void {
+    console.log('[CaveGen] Starting cave generation with parameters:');
+    console.log(`  seed: ${seed ?? 'random'}`);
+    console.log(`  scale: ${scale}`);
+    console.log(`  octaves: ${octaves}`);
+    console.log(`  threshold: ${threshold}`);
+    console.log(`  grid size: ${this.gridWidth} x ${this.gridHeight}`);
+
     const noise = new PerlinNoise(seed);
+
+    // Statistics tracking
+    let caveCells = 0;
+    let rockCells = 0;
+    let minNoise = Infinity;
+    let maxNoise = -Infinity;
+    let minDensity = Infinity;
+    let maxDensity = -Infinity;
+
+    // Sample some positions for debugging
+    const samples: Array<{x: number, y: number, noise: number, density: number}> = [];
+    const samplePositions = [
+      { gx: 0, gy: 0 },
+      { gx: Math.floor(this.gridWidth / 4), gy: Math.floor(this.gridHeight / 4) },
+      { gx: Math.floor(this.gridWidth / 2), gy: Math.floor(this.gridHeight / 2) },
+      { gx: Math.floor(3 * this.gridWidth / 4), gy: Math.floor(3 * this.gridHeight / 4) },
+      { gx: this.gridWidth - 1, gy: this.gridHeight - 1 }
+    ];
 
     for (let gy = 0; gy < this.gridHeight; gy++) {
       for (let gx = 0; gx < this.gridWidth; gx++) {
@@ -56,6 +81,10 @@ export class DensityField {
           2.0   // lacunarity
         );
 
+        // Track noise range
+        minNoise = Math.min(minNoise, noiseValue);
+        maxNoise = Math.max(maxNoise, noiseValue);
+
         // Map noise value to density
         // noise is in range [-1, 1]
         // If noise > threshold, create cave (low density)
@@ -65,16 +94,42 @@ export class DensityField {
         if (noiseValue > threshold) {
           // Cave area - very low density
           density = 0;
+          caveCells++;
         } else {
           // Rock area - map from threshold to -1 => 128 to 255
           // This creates a gradient at cave edges for smooth marching squares
           const t = (threshold - noiseValue) / (threshold + 1); // normalize to [0, 1]
           density = Math.floor(128 + t * 127);
+          rockCells++;
         }
 
+        // Track density range
+        minDensity = Math.min(minDensity, density);
+        maxDensity = Math.max(maxDensity, density);
+
         this.data[gy * this.gridWidth + gx] = density;
+
+        // Collect samples for debugging
+        if (samplePositions.some(s => s.gx === gx && s.gy === gy)) {
+          samples.push({ x: worldX, y: worldY, noise: noiseValue, density });
+        }
       }
     }
+
+    const totalCells = this.gridWidth * this.gridHeight;
+    const cavePercent = (caveCells / totalCells * 100).toFixed(1);
+    const rockPercent = (rockCells / totalCells * 100).toFixed(1);
+
+    console.log('[CaveGen] Generation complete!');
+    console.log(`  Total cells: ${totalCells}`);
+    console.log(`  Cave cells: ${caveCells} (${cavePercent}%)`);
+    console.log(`  Rock cells: ${rockCells} (${rockPercent}%)`);
+    console.log(`  Noise range: [${minNoise.toFixed(3)}, ${maxNoise.toFixed(3)}]`);
+    console.log(`  Density range: [${minDensity}, ${maxDensity}]`);
+    console.log('[CaveGen] Sample positions:');
+    samples.forEach(s => {
+      console.log(`  (${s.x.toFixed(1)}, ${s.y.toFixed(1)}): noise=${s.noise.toFixed(3)}, density=${s.density}`);
+    });
 
     this.markAllDirty();
   }
