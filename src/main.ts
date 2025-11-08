@@ -187,6 +187,14 @@ class CarvableCaves {
         }
       });
     }
+
+    const debugPhysicsBodiesCheckbox = document.getElementById('debug-physics') as HTMLInputElement;
+    if (debugPhysicsBodiesCheckbox) {
+      debugPhysicsBodiesCheckbox.addEventListener('change', () => {
+        this.renderer.showPhysicsBodies = debugPhysicsBodiesCheckbox.checked;
+        console.log(`[DEBUG] Physics bodies visualization: ${debugPhysicsBodiesCheckbox.checked ? 'ON' : 'OFF'}`);
+      });
+    }
   }
 
   private start(): void {
@@ -251,9 +259,10 @@ class CarvableCaves {
       this.needsRemesh = false;
     }
 
-    // Render with player and all balls
+    // Render with player, all balls, and physics bodies
     const playerPos = this.player.getPosition();
-    this.renderer.render(playerPos, this.player.getRadius(), this.ballBodies);
+    const allBodies = this.physics.getAllBodies();
+    this.renderer.render(playerPos, this.player.getRadius(), this.ballBodies, allBodies);
   };
 
   private remesh(): void {

@@ -12,6 +12,7 @@ export class Renderer {
   private polylines: Vec2[][] = [];
   public showGrid: boolean = false;
   public showVertices: boolean = false;
+  public showPhysicsBodies: boolean = false;
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -62,8 +63,9 @@ export class Renderer {
    * @param playerPosition - Optional player position to render
    * @param playerRadius - Optional player radius
    * @param balls - Optional array of ball bodies to render
+   * @param physicsBodies - Optional array of all physics bodies for debug rendering
    */
-  render(playerPosition?: { x: number; y: number }, playerRadius?: number, balls?: any[]): void {
+  render(playerPosition?: { x: number; y: number }, playerRadius?: number, balls?: any[], physicsBodies?: any[]): void {
     try {
       const dpr = window.devicePixelRatio || 1;
       const width = this.canvas.width / dpr;
@@ -80,6 +82,11 @@ export class Renderer {
 
       // Draw polylines
       this.drawPolylines(width, height);
+
+      // Draw physics bodies (debugging)
+      if (this.showPhysicsBodies && physicsBodies && physicsBodies.length > 0) {
+        this.drawPhysicsBodies(width, height, physicsBodies);
+      }
 
       // Draw player
       if (playerPosition && playerRadius) {
@@ -146,6 +153,58 @@ export class Renderer {
     }
 
     this.ctx.restore();
+  }
+
+  /**
+   * Draw physics bodies as wireframes (debug mode)
+   */
+  private drawPhysicsBodies(canvasWidth: number, canvasHeight: number, bodies: any[]): void {
+    this.ctx.save();
+
+    this.ctx.strokeStyle = '#00ff00'; // Bright green for physics bodies
+    this.ctx.lineWidth = 2;
+    this.ctx.setLineDash([5, 5]); // Dashed line
+
+    for (const body of bodies) {
+      // Skip non-static bodies (player, balls)
+      if (!body.isStatic) continue;
+
+      // Draw each part of the body
+      if (body.parts && body.parts.length > 1) {
+        // Compound body - draw each part
+        for (let i = 1; i < body.parts.length; i++) {
+          this.drawBodyPart(canvasWidth, canvasHeight, body.parts[i]);
+        }
+      } else {
+        // Simple body
+        this.drawBodyPart(canvasWidth, canvasHeight, body);
+      }
+    }
+
+    this.ctx.setLineDash([]); // Reset dash
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw a single body part
+   */
+  private drawBodyPart(canvasWidth: number, canvasHeight: number, part: any): void {
+    if (!part.vertices || part.vertices.length < 2) return;
+
+    this.ctx.beginPath();
+
+    const firstVertex = part.vertices[0];
+    const firstScreen = this.camera.worldToScreen(firstVertex.x, firstVertex.y, canvasWidth, canvasHeight);
+    this.ctx.moveTo(firstScreen.x, firstScreen.y);
+
+    for (let i = 1; i < part.vertices.length; i++) {
+      const vertex = part.vertices[i];
+      const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
+      this.ctx.lineTo(screen.x, screen.y);
+    }
+
+    this.ctx.closePath();
+    this.ctx.stroke();
   }
 
   /**
