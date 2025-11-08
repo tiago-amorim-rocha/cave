@@ -4,6 +4,7 @@ import { MarchingSquares } from './MarchingSquares';
 import { Renderer } from './Renderer';
 import { InputHandler } from './InputHandler';
 import { DebugConsole } from './DebugConsole';
+import { LoopCache } from './LoopCache';
 import type { WorldConfig, BrushSettings } from './types';
 
 /**
@@ -17,9 +18,12 @@ class CarvableCaves {
   private renderer: Renderer;
   private inputHandler: InputHandler;
   private brushSettings: BrushSettings;
+  private loopCache: LoopCache;
 
   private needsRemesh = true;
   private isLiveCarving = false; // Track if we're currently carving
+  private needsFullHeal = false; // Track if we need a full-world remesh
+  private lastFullHealTime = 0;
   private animationFrameId = 0;
 
   // Performance tracking
@@ -74,6 +78,10 @@ class CarvableCaves {
       this.marchingSquares = new MarchingSquares(this.densityField, worldConfig.isoValue);
       console.log('Marching squares initialized');
 
+      // Initialize loop cache
+      this.loopCache = new LoopCache();
+      console.log('Loop cache initialized');
+
       // Initialize renderer
       this.renderer = new Renderer(this.canvas, this.camera);
       console.log('Renderer initialized');
@@ -94,7 +102,8 @@ class CarvableCaves {
 
       this.inputHandler.onCarveEnd = () => {
         this.isLiveCarving = false;
-        this.needsRemesh = true; // Final remesh with dirty region optimization
+        this.needsRemesh = true;
+        this.needsFullHeal = true; // Full heal on pointer up
       };
 
       // Setup UI
@@ -217,36 +226,119 @@ class CarvableCaves {
 
   private remesh(): void {
     try {
-      let polylines: import('./types').Vec2[][];
+      const now = performance.now();
 
-      if (this.isLiveCarving) {
-        // During live carving: scan ENTIRE field
-        // Contours extend far beyond brush area when carving into solid rock
-        // The boundary between rock and air can span the entire field
-        const fullField = {
-          minX: 0,
-          minY: 0,
-          maxX: this.densityField.config.width,
-          maxY: this.densityField.config.height
-        };
-        polylines = this.marchingSquares.generateContours(fullField, 0);
+      // Check if we need a full heal (periodic or requested)
+      const timeSinceLastHeal = now - this.lastFullHealTime;
+      const needsPeriodicHeal = timeSinceLastHeal > 5000; // Every 5 seconds
+
+      if (this.needsFullHeal || needsPeriodicHeal || this.loopCache.count() === 0) {
+        // Full world remesh
+        this.fullHeal();
+        this.needsFullHeal = false;
+        this.lastFullHealTime = now;
       } else {
-        // Final remesh: use dirty region with adaptive expansion based on brush radius
-        // Pad = ceil(brushRadius/gridPitch) + 2
-        const h = this.densityField.config.gridPitch;
-        const pad = Math.ceil(this.brushSettings.radius / h) + 2;
-        polylines = this.marchingSquares.generateContours(undefined, pad);
-      }
-
-      this.renderer.updatePolylines(polylines);
-
-      // Clear dirty region after final remesh
-      if (!this.isLiveCarving) {
-        this.densityField.clearDirty();
+        // Incremental update
+        this.incrementalUpdate();
       }
     } catch (error) {
       console.error('Error during remesh:', error);
     }
+  }
+
+  /**
+   * Full world remesh - rebuild all loops
+   */
+  private fullHeal(): void {
+    console.log('[FullHeal] Rebuilding all loops...');
+    const startTime = performance.now();
+
+    // Clear cache
+    this.loopCache.clear();
+
+    // Generate all contours for entire field
+    const fullField = {
+      minX: 0,
+      minY: 0,
+      maxX: this.densityField.config.width,
+      maxY: this.densityField.config.height
+    };
+
+    const results = this.marchingSquares.generateContours(fullField, 0);
+
+    // Add all loops to cache
+    for (const result of results) {
+      if (result && result.loop && result.loop.length > 2) {
+        this.loopCache.addLoop(result.loop, result.closed);
+      }
+    }
+
+    // Update renderer with all loops
+    const allLoops = this.loopCache.getAllLoops();
+    this.renderer.updatePolylines(allLoops.map(l => l.vertices));
+
+    this.densityField.clearDirty();
+
+    const elapsed = performance.now() - startTime;
+    console.log(`[FullHeal] Complete. ${allLoops.length} loops in ${elapsed.toFixed(1)}ms`);
+  }
+
+  /**
+   * Incremental update - only update affected loops
+   */
+  private incrementalUpdate(): void {
+    const dirtyAABB = this.densityField.getDirtyWorldAABB();
+    if (!dirtyAABB) {
+      // No dirty region
+      return;
+    }
+
+    const startTime = performance.now();
+
+    // Expand dirty region for safety
+    const h = this.densityField.config.gridPitch;
+    const pad = Math.ceil(this.brushSettings.radius / h) + 2;
+    const expandedAABB = {
+      minX: Math.max(0, dirtyAABB.minX - pad * h),
+      minY: Math.max(0, dirtyAABB.minY - pad * h),
+      maxX: Math.min(this.densityField.config.width, dirtyAABB.maxX + pad * h),
+      maxY: Math.min(this.densityField.config.height, dirtyAABB.maxY + pad * h)
+    };
+
+    // Query loops that intersect dirty region
+    const affectedLoops = this.loopCache.queryAABB(expandedAABB);
+
+    console.log(`[Incremental] Dirty region: (${expandedAABB.minX.toFixed(1)},${expandedAABB.minY.toFixed(1)}) to (${expandedAABB.maxX.toFixed(1)},${expandedAABB.maxY.toFixed(1)})`);
+    console.log(`[Incremental] Affected loops: ${affectedLoops.length}`);
+
+    // Remove affected loops
+    for (const loop of affectedLoops) {
+      this.loopCache.removeLoop(loop.id);
+    }
+
+    // Generate new loops in dirty region
+    const results = this.marchingSquares.generateContours(expandedAABB, pad);
+
+    // Add new loops to cache
+    let newLoopCount = 0;
+    for (const result of results) {
+      if (result && result.loop && result.loop.length > 2) {
+        this.loopCache.addLoop(result.loop, result.closed);
+        newLoopCount++;
+      }
+    }
+
+    // Update renderer with all loops
+    const allLoops = this.loopCache.getAllLoops();
+    this.renderer.updatePolylines(allLoops.map(l => l.vertices));
+
+    // Clear dirty region
+    if (!this.isLiveCarving) {
+      this.densityField.clearDirty();
+    }
+
+    const elapsed = performance.now() - startTime;
+    console.log(`[Incremental] Updated ${affectedLoops.length}→${newLoopCount} loops in ${elapsed.toFixed(1)}ms (total: ${allLoops.length})`);
   }
 
   private updateFPS(): void {
