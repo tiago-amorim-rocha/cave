@@ -123,4 +123,14 @@ export class Player {
     // Player body is a circle with radius 0.5m
     return 0.5;
   }
+
+  /**
+   * Respawn player at new position
+   */
+  respawn(x: number, y: number): void {
+    Matter.Body.setPosition(this.body, { x, y });
+    Matter.Body.setVelocity(this.body, { x: 0, y: 0 });
+    Matter.Body.setAngularVelocity(this.body, 0);
+    console.log(`Player respawned at (${x.toFixed(1)}, ${y.toFixed(1)})`);
+  }
 }
