@@ -345,7 +345,10 @@ class CarvableCaves {
     // DEBUG: Skip simplification and smoothing - use raw contours
     const rawPolylines = rockLoops.map(polyline => polyline.map(v => ({ x: v.x, y: v.y } as Point)));
 
-    console.log(`[FullHeal] Using raw polylines (no optimization), total vertices: ${rawPolylines.reduce((sum, p) => sum + p.length, 0)}`);
+    const totalVertices = rawPolylines.reduce((sum, p) => sum + p.length, 0);
+    console.log(`[FullHeal] Using raw polylines (no optimization)`);
+    console.log(`[FullHeal] Total: ${rawPolylines.length} contours, ${totalVertices} vertices`);
+    console.log(`[FullHeal] Average vertices per contour: ${(totalVertices / rawPolylines.length).toFixed(1)}`);
 
     this.physics.setCaveContours(rawPolylines);
 

@@ -68,6 +68,8 @@ export class Physics {
         // Remove duplicate last point for Matter.js
         const verts = contour.slice(0, -1).map(p => ({ x: p.x, y: p.y }));
 
+        console.log(`[Physics] Creating body from contour with ${verts.length} input vertices`);
+
         try {
           // 1) Compute world-space centroid of the polygon
           const center = Matter.Vertices.centre(verts as any);
@@ -89,6 +91,16 @@ export class Physics {
           );
 
           if (body) {
+            // Count actual vertices in the created body
+            let totalVertices = 0;
+            if (body.parts && body.parts.length > 1) {
+              for (let i = 1; i < body.parts.length; i++) {
+                totalVertices += body.parts[i].vertices?.length || 0;
+              }
+            } else {
+              totalVertices = body.vertices?.length || 0;
+            }
+            console.log(`[Physics] Body created with ${totalVertices} actual vertices (input: ${verts.length}, reduction: ${((1 - totalVertices/verts.length) * 100).toFixed(1)}%)`);
             parts.push(body);
           }
         } catch (e) {
