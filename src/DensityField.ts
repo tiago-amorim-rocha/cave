@@ -312,4 +312,39 @@ export class DensityField {
       maxY: (this.dirtyAABB.maxY + 1) * this.config.gridPitch
     };
   }
+
+  /**
+   * Clear an elliptical spawn area to ensure player doesn't spawn in rock
+   * @param worldX - Center X position in world coordinates
+   * @param worldY - Center Y position in world coordinates
+   * @param radiusX - Horizontal radius in metres
+   * @param radiusY - Vertical radius in metres
+   */
+  clearSpawnArea(worldX: number, worldY: number, radiusX: number = 5, radiusY: number = 3): void {
+    const { gridX: centerGridX, gridY: centerGridY } = this.worldToGrid(worldX, worldY);
+    const radiusGridX = radiusX / this.config.gridPitch;
+    const radiusGridY = radiusY / this.config.gridPitch;
+
+    const minGridX = Math.max(0, Math.floor(centerGridX - radiusGridX));
+    const maxGridX = Math.min(this.gridWidth - 1, Math.ceil(centerGridX + radiusGridX));
+    const minGridY = Math.max(0, Math.floor(centerGridY - radiusGridY));
+    const maxGridY = Math.min(this.gridHeight - 1, Math.ceil(centerGridY + radiusGridY));
+
+    for (let gy = minGridY; gy <= maxGridY; gy++) {
+      for (let gx = minGridX; gx <= maxGridX; gx++) {
+        const dx = (gx - centerGridX) / radiusGridX;
+        const dy = (gy - centerGridY) / radiusGridY;
+        const distSq = dx * dx + dy * dy;
+
+        // Create elliptical cave area
+        if (distSq <= 1.0) {
+          this.set(gx, gy, 0); // Set to cave (0 density)
+        }
+      }
+    }
+
+    // Mark dirty region
+    this.expandDirtyAABB(minGridX, minGridY, maxGridX, maxGridY);
+    console.log(`[DensityField] Cleared spawn area at (${worldX.toFixed(1)}, ${worldY.toFixed(1)}) with radius (${radiusX}, ${radiusY})m`);
+  }
 }
