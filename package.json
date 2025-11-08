@@ -17,7 +17,7 @@
     "vite-plugin-pwa": "^0.17.5"
   },
   "dependencies": {
-    "matter-js": "^0.20.0",
+    "@dimforge/rapier2d-compat": "^0.19.3",
     "poly-decomp": "^0.3.0",
     "workbox-window": "^7.0.0"
   }
