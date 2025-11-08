@@ -74,6 +74,11 @@ class CarvableCaves {
         dataLength: this.densityField.data.length
       });
 
+      // Generate initial cave system
+      console.log('Generating procedural caves...');
+      this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
+      console.log('Caves generated!');
+
       // Initialize marching squares
       this.marchingSquares = new MarchingSquares(this.densityField, worldConfig.isoValue);
       console.log('Marching squares initialized');
@@ -155,16 +160,17 @@ class CarvableCaves {
       });
     }
 
-    // Reset button
+    // Reset button (now regenerates caves)
     const resetButton = document.getElementById('reset-button') as HTMLButtonElement;
     if (resetButton) {
       console.log('Reset button found, attaching event listeners');
 
       const handleReset = (e: Event) => {
-        console.log('Reset button activated');
+        console.log('Reset button activated - regenerating caves');
         e.preventDefault();
         e.stopPropagation();
-        this.densityField.reset();
+        // Generate new caves with random seed
+        this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
         this.needsRemesh = true;
       };
 

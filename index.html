@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="Caves">
   <meta name="theme-color" content="#1a1a1a">
 
-  <title>Carvable Caves</title>
+  <title>Procedural Caves</title>
   <!-- Auto-deploy test -->
 
   <style>
@@ -265,7 +265,11 @@
   <canvas id="canvas"></canvas>
 
   <div id="ui">
-    <h1>Carvable Caves</h1>
+    <h1>Procedural Caves</h1>
+
+    <div class="control-group">
+      <button id="reset-button">Generate New Cave</button>
+    </div>
 
     <div class="control-group">
       <label>
@@ -281,10 +285,6 @@
         <span class="value" id="brush-strength-value">30</span>
       </label>
       <input type="range" id="brush-strength" min="10" max="100" step="5" value="30">
-    </div>
-
-    <div class="control-group">
-      <button id="reset-button">Reset Cave</button>
     </div>
 
     <div class="control-group">
@@ -310,11 +310,12 @@
 
     <div class="instructions">
       <strong>Controls:</strong><br>
-      • Tap/Click + Drag: Carve cave<br>
-      • Hold Shift/Alt: Add rock<br>
+      • Click "Generate New Cave" for new layout<br>
       • Two-finger pinch: Zoom<br>
       • Right-click drag: Pan camera<br>
-      • Mouse wheel: Zoom
+      • Mouse wheel: Zoom<br>
+      • Tap/Click + Drag: Edit with brush (optional)<br>
+      • Hold Shift/Alt: Add rock mode
     </div>
   </div>
 
