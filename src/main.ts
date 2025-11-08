@@ -3,6 +3,7 @@ import { DensityField } from './DensityField';
 import { MarchingSquares } from './MarchingSquares';
 import { Renderer } from './Renderer';
 import { InputHandler } from './InputHandler';
+import { DebugConsole } from './DebugConsole';
 import type { WorldConfig, BrushSettings } from './types';
 
 /**
@@ -26,68 +27,89 @@ class CarvableCaves {
   private fps = 0;
 
   constructor() {
-    // World configuration
-    const worldConfig: WorldConfig = {
-      width: 200, // metres
-      height: 120, // metres
-      gridPitch: 0.1, // metres (h)
-      isoValue: 128
-    };
+    try {
+      console.log('Initializing CarvableCaves...');
 
-    // Brush settings
-    this.brushSettings = {
-      radius: 2, // metres
-      strength: 30 // 0-255
-    };
+      // World configuration
+      const worldConfig: WorldConfig = {
+        width: 200, // metres
+        height: 120, // metres
+        gridPitch: 0.1, // metres (h)
+        isoValue: 128
+      };
+      console.log('World config:', worldConfig);
 
-    // Setup canvas
-    this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    if (!this.canvas) {
-      throw new Error('Canvas not found');
+      // Brush settings
+      this.brushSettings = {
+        radius: 2, // metres
+        strength: 30 // 0-255
+      };
+      console.log('Brush settings:', this.brushSettings);
+
+      // Setup canvas
+      this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
+      if (!this.canvas) {
+        throw new Error('Canvas not found');
+      }
+      console.log('Canvas found:', this.canvas);
+
+      // Initialize camera (centered on world)
+      this.camera = new Camera(
+        worldConfig.width / 2,
+        worldConfig.height / 2,
+        50 // initial PPM (pixels per metre)
+      );
+      console.log('Camera initialized:', this.camera.getState());
+
+      // Initialize density field
+      this.densityField = new DensityField(worldConfig);
+      console.log('Density field initialized:', {
+        gridWidth: this.densityField.gridWidth,
+        gridHeight: this.densityField.gridHeight,
+        dataLength: this.densityField.data.length
+      });
+
+      // Initialize marching squares
+      this.marchingSquares = new MarchingSquares(this.densityField, worldConfig.isoValue);
+      console.log('Marching squares initialized');
+
+      // Initialize renderer
+      this.renderer = new Renderer(this.canvas, this.camera);
+      console.log('Renderer initialized');
+
+      // Initialize input handler
+      this.inputHandler = new InputHandler(
+        this.canvas,
+        this.camera,
+        this.densityField,
+        this.brushSettings
+      );
+      console.log('Input handler initialized');
+
+      this.inputHandler.onCarve = () => {
+        this.needsRemesh = true;
+      };
+
+      this.inputHandler.onCarveEnd = () => {
+        this.needsRemesh = true; // Final remesh
+      };
+
+      // Setup UI
+      this.setupUI();
+      console.log('UI setup complete');
+
+      // Window resize
+      window.addEventListener('resize', () => {
+        this.renderer.resize();
+      });
+
+      // Start render loop
+      this.start();
+      console.log('CarvableCaves initialized successfully!');
+    } catch (error) {
+      console.error('Failed to initialize CarvableCaves:', error);
+      throw error;
     }
-
-    // Initialize camera (centered on world)
-    this.camera = new Camera(
-      worldConfig.width / 2,
-      worldConfig.height / 2,
-      50 // initial PPM (pixels per metre)
-    );
-
-    // Initialize density field
-    this.densityField = new DensityField(worldConfig);
-
-    // Initialize marching squares
-    this.marchingSquares = new MarchingSquares(this.densityField, worldConfig.isoValue);
-
-    // Initialize renderer
-    this.renderer = new Renderer(this.canvas, this.camera);
-
-    // Initialize input handler
-    this.inputHandler = new InputHandler(
-      this.canvas,
-      this.camera,
-      this.densityField,
-      this.brushSettings
-    );
-
-    this.inputHandler.onCarve = () => {
-      this.needsRemesh = true;
-    };
-
-    this.inputHandler.onCarveEnd = () => {
-      this.needsRemesh = true; // Final remesh
-    };
-
-    // Setup UI
-    this.setupUI();
-
-    // Window resize
-    window.addEventListener('resize', () => {
-      this.renderer.resize();
-    });
-
-    // Start render loop
-    this.start();
   }
 
   private setupUI(): void {
@@ -132,6 +154,7 @@ class CarvableCaves {
   }
 
   private start(): void {
+    console.log('Starting render loop...');
     // Initial mesh generation
     this.remesh();
     this.loop();
@@ -154,9 +177,15 @@ class CarvableCaves {
   };
 
   private remesh(): void {
-    const polylines = this.marchingSquares.generateContours();
-    this.renderer.updatePolylines(polylines);
-    this.densityField.clearDirty();
+    try {
+      console.log('Remeshing...');
+      const polylines = this.marchingSquares.generateContours();
+      console.log(`Generated ${polylines.length} polylines`);
+      this.renderer.updatePolylines(polylines);
+      this.densityField.clearDirty();
+    } catch (error) {
+      console.error('Error during remesh:', error);
+    }
   }
 
   private updateFPS(): void {
@@ -190,8 +219,27 @@ class CarvableCaves {
   }
 }
 
+// Initialize debug console
+const debugConsole = new DebugConsole();
+
+// Wire up debug button
+const debugButton = document.getElementById('debug-button');
+if (debugButton) {
+  debugButton.addEventListener('click', () => {
+    debugConsole.toggle();
+  });
+}
+
 // Start the application
-const app = new CarvableCaves();
+console.log('Starting application...');
+let app: CarvableCaves;
+try {
+  app = new CarvableCaves();
+} catch (error) {
+  console.error('Fatal error during initialization:', error);
+  debugConsole.show();
+  throw error;
+}
 
 // Register service worker for PWA with update detection
 if ('serviceWorker' in navigator) {
