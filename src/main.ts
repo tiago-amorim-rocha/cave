@@ -220,17 +220,24 @@ class CarvableCaves {
       let polylines: import('./types').Vec2[][];
 
       if (this.isLiveCarving) {
-        // During live carving: expand dirty region aggressively to avoid boundary artifacts
-        // Contours may extend well beyond the immediate brush area
-        polylines = this.marchingSquares.generateContours(undefined, 50);
+        // During live carving: scan ENTIRE field
+        // Contours extend far beyond brush area when carving into solid rock
+        // The boundary between rock and air can span the entire field
+        const fullField = {
+          minX: 0,
+          minY: 0,
+          maxX: this.densityField.config.width,
+          maxY: this.densityField.config.height
+        };
+        polylines = this.marchingSquares.generateContours(fullField, 0);
       } else {
-        // Final remesh or initial: minimal expansion (default)
-        polylines = this.marchingSquares.generateContours(undefined, 1);
+        // Final remesh: use dirty region with expansion for efficiency
+        polylines = this.marchingSquares.generateContours(undefined, 50);
       }
 
       this.renderer.updatePolylines(polylines);
 
-      // Only clear dirty region on final remesh
+      // Clear dirty region after final remesh
       if (!this.isLiveCarving) {
         this.densityField.clearDirty();
       }
