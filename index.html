@@ -313,9 +313,9 @@
   <button id="debug-button" title="Toggle debug console">🐛</button>
 
   <script>
-    // Simple on-screen logger
+    // Simple on-screen logger (hidden by default)
     const simpleLog = document.getElementById('simple-log');
-    simpleLog.style.display = 'block'; // Show it immediately
+    let simpleLogVisible = false;
 
     function log(msg) {
       const line = document.createElement('div');
@@ -327,6 +327,17 @@
 
     // Make log available globally
     window.log = log;
+
+    // Toggle simple log with debug button until app loads
+    const debugBtn = document.getElementById('debug-button');
+    if (debugBtn) {
+      debugBtn.addEventListener('click', function() {
+        if (!window.APP_LOADED) {
+          simpleLogVisible = !simpleLogVisible;
+          simpleLog.style.display = simpleLogVisible ? 'block' : 'none';
+        }
+      });
+    }
 
     // Immediately update version before anything else
     const now = new Date();
@@ -344,11 +355,13 @@
     const supportsModules = 'noModule' in HTMLScriptElement.prototype;
     log('ES Modules supported: ' + supportsModules);
 
-    // Catch any errors
+    // Catch any errors - auto-show simple log on error
     window.onerror = function(msg, url, line, col, error) {
       log('ERROR: ' + msg);
       log('URL: ' + url);
       log('Line: ' + line);
+      simpleLog.style.display = 'block';
+      simpleLogVisible = true;
       return false;
     };
 
@@ -358,8 +371,15 @@
         log('!!! MODULE FAILED TO LOAD !!!');
         log('The TypeScript module did not execute');
         log('This means the JS file is not loading from GitHub Pages');
+        simpleLog.style.display = 'block';
+        simpleLogVisible = true;
       } else {
         log('Module loaded successfully!');
+        // Hide simple log after 1 second - DebugConsole takes over
+        setTimeout(() => {
+          simpleLog.style.display = 'none';
+          simpleLogVisible = false;
+        }, 1000);
       }
     }, 3000);
 
