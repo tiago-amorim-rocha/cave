@@ -1,14 +1,11 @@
 /**
  * Physics simulation using Matter.js
  * Manages the physics world, cave collision bodies, and player body
+ * Uses edge chains (thin rectangles) for collision boundaries - no poly-decomp needed
  */
 
 import Matter from 'matter-js';
-import decomp from 'poly-decomp';
 import type { Point } from './PolylineSimplifier';
-
-// Configure Matter.js to use poly-decomp for concave polygon decomposition
-(Matter.Common as any).setDecomp(decomp);
 
 export class Physics {
   public engine: Matter.Engine;
@@ -52,86 +49,44 @@ export class Physics {
       return;
     }
 
-    // Convert contours to Matter.js body parts
+    // Convert contours to Matter.js body parts using edge chains
+    // This preserves ALL vertices exactly and avoids poly-decomp simplification
     const parts: Matter.Body[] = [];
+    let totalEdges = 0;
 
     for (const contour of contours) {
-      if (contour.length < 3) continue;
+      if (contour.length < 2) continue;
 
-      // Check if contour is closed (first point equals last point)
-      const isClosed =
-        Math.abs(contour[0].x - contour[contour.length - 1].x) < 0.001 &&
-        Math.abs(contour[0].y - contour[contour.length - 1].y) < 0.001;
+      // Create edge chain for ALL contours (both open and closed)
+      // Each edge is a thin static rectangle
+      const edgeThickness = 0.05; // 5cm thick collision edges
 
-      if (isClosed && contour.length >= 4) {
-        // Closed contour - create polygon body
-        // Remove duplicate last point for Matter.js
-        const verts = contour.slice(0, -1).map(p => ({ x: p.x, y: p.y }));
+      for (let i = 0; i < contour.length - 1; i++) {
+        const p1 = contour[i];
+        const p2 = contour[i + 1];
 
-        console.log(`[Physics] Creating body from contour with ${verts.length} input vertices`);
+        const cx = (p1.x + p2.x) / 2;
+        const cy = (p1.y + p2.y) / 2;
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
 
-        try {
-          // 1) Compute world-space centroid of the polygon
-          const center = Matter.Vertices.centre(verts as any);
-
-          // 2) Make a local copy translated around the centroid (vertices relative to body position)
-          const local = verts.map(v => ({ x: v.x - center.x, y: v.y - center.y }));
-
-          // 3) Build the body positioned at the centroid with local vertices
-          const body = Matter.Bodies.fromVertices(
-            center.x, center.y, // Position at centroid
-            [local as any],
-            {
-              isStatic: true,
-              friction: 0.3,
-              restitution: 0.1,
-              label: 'cave-wall-part',
-            },
-            false // flagInternal - DISABLED to keep all vertices for debugging
-          );
-
-          if (body) {
-            // Count actual vertices in the created body
-            let totalVertices = 0;
-            if (body.parts && body.parts.length > 1) {
-              for (let i = 1; i < body.parts.length; i++) {
-                totalVertices += body.parts[i].vertices?.length || 0;
-              }
-            } else {
-              totalVertices = body.vertices?.length || 0;
-            }
-            console.log(`[Physics] Body created with ${totalVertices} actual vertices (input: ${verts.length}, reduction: ${((1 - totalVertices/verts.length) * 100).toFixed(1)}%)`);
-            parts.push(body);
-          }
-        } catch (e) {
-          console.warn('Failed to create polygon body from contour:', e);
-        }
-      } else {
-        // Open contour - create chain of edges
-        for (let i = 0; i < contour.length - 1; i++) {
-          const p1 = contour[i];
-          const p2 = contour[i + 1];
-
-          const cx = (p1.x + p2.x) / 2;
-          const cy = (p1.y + p2.y) / 2;
-          const dx = p2.x - p1.x;
-          const dy = p2.y - p1.y;
-          const length = Math.sqrt(dx * dx + dy * dy);
-          const angle = Math.atan2(dy, dx);
-
-          if (length > 0.01) {
-            const edge = Matter.Bodies.rectangle(cx, cy, length, 0.1, {
-              isStatic: true,
-              angle: angle,
-              friction: 0.3,
-              restitution: 0.1,
-              label: 'cave-wall-edge',
-            });
-            parts.push(edge);
-          }
+        if (length > 0.001) { // Skip very tiny segments
+          const edge = Matter.Bodies.rectangle(cx, cy, length, edgeThickness, {
+            isStatic: true,
+            angle: angle,
+            friction: 0.3,
+            restitution: 0.1,
+            label: 'cave-wall-edge',
+          });
+          parts.push(edge);
+          totalEdges++;
         }
       }
     }
+
+    console.log(`[Physics] Created ${totalEdges} edge colliders from ${contours.length} contours (100% vertex preservation)`);
 
     // Create single parent body with all parts
     if (parts.length > 0) {
