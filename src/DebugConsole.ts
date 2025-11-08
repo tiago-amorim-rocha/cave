@@ -53,6 +53,32 @@ export class DebugConsole {
     `;
     titleBar.innerHTML = '<span>Debug Console</span>';
 
+    // Button container for copy and close buttons
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = `
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    `;
+
+    // Copy button
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = '📋';
+    copyBtn.style.cssText = `
+      background: none;
+      border: none;
+      color: #000;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+    `;
+    copyBtn.title = 'Copy logs to clipboard';
+    copyBtn.onclick = () => this.copyLogs();
+    buttonContainer.appendChild(copyBtn);
+
+    // Close button
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';
     closeBtn.style.cssText = `
@@ -66,8 +92,9 @@ export class DebugConsole {
       height: 24px;
     `;
     closeBtn.onclick = () => this.hide();
-    titleBar.appendChild(closeBtn);
+    buttonContainer.appendChild(closeBtn);
 
+    titleBar.appendChild(buttonContainer);
     container.appendChild(titleBar);
 
     return container;
@@ -176,5 +203,24 @@ export class DebugConsole {
   clear(): void {
     this.logs = [];
     this.logContainer.innerHTML = '';
+  }
+
+  private async copyLogs(): Promise<void> {
+    const text = this.logs.join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      // Show feedback by temporarily changing button text
+      const copyBtn = this.container.querySelector('button[title="Copy logs to clipboard"]');
+      if (copyBtn) {
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = '✓';
+        setTimeout(() => {
+          copyBtn.textContent = originalText;
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Failed to copy logs:', error);
+      alert('Failed to copy logs to clipboard');
+    }
   }
 }

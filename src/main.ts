@@ -238,12 +238,11 @@ if ((window as any).log) {
   (window as any).log('✓ main.ts module loaded!');
 }
 
-// Initialize debug console and show it by default
+// Initialize debug console (hidden by default)
 let debugConsole: DebugConsole;
 try {
   debugConsole = new DebugConsole();
-  debugConsole.show(); // Open by default for debugging
-  console.log('Debug console created and shown');
+  console.log('Debug console created (hidden by default)');
 } catch (error) {
   console.error('Failed to create debug console:', error);
   alert('Failed to create debug console: ' + error);
@@ -273,8 +272,7 @@ console.log('===========================================');
 console.log('Carvable Caves PWA');
 console.log('===========================================');
 console.log('');
-console.log('Debug console is open by default');
-console.log('🐛 Click the bug button to toggle it');
+console.log('🐛 Click the bug button to open debug console');
 console.log('');
 console.log('If stuck on old version:');
 console.log('1. Force quit Safari and reopen');
