@@ -9,6 +9,7 @@ import { Player } from './Player';
 import { simplifyPolylines } from './PolylineSimplifier';
 import type { WorldConfig } from './types';
 import type { Point } from './PolylineSimplifier';
+import Matter from 'matter-js';
 
 /**
  * Main application
@@ -27,12 +28,14 @@ class CarvableCaves {
   private needsFullHeal = false; // Track if we need a full-world remesh
   private lastFullHealTime = 0;
   private animationFrameId = 0;
+  private lastBallSpawnTime = 0; // Track ball spawning
 
   // Performance tracking
   private frameCount = 0;
   private lastFpsTime = 0;
   private fps = 0;
   private lastPhysicsTime = 0;
+  private ballBodies: Matter.Body[] = []; // Track all balls for rendering
 
   constructor() {
     try {
@@ -134,6 +137,13 @@ class CarvableCaves {
         console.log('Reset button activated - regenerating caves');
         e.preventDefault();
         e.stopPropagation();
+
+        // Clear all test balls
+        for (const ball of this.ballBodies) {
+          Matter.World.remove(this.physics.world, ball);
+        }
+        this.ballBodies = [];
+
         // Generate new caves with random seed
         this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
         // Clear spawn chamber with floor
@@ -185,6 +195,29 @@ class CarvableCaves {
     this.loop();
   }
 
+  /**
+   * Spawn a test ball at random position
+   */
+  private spawnTestBall(): void {
+    // Random position in upper half of world
+    const x = Math.random() * 40 + 5; // 5-45m
+    const y = Math.random() * 10 + 5; // 5-15m (upper half)
+    const radius = 0.5;
+
+    const ball = Matter.Bodies.circle(x, y, radius, {
+      isStatic: false,
+      friction: 0.3,
+      restitution: 0.5,
+      density: 0.001,
+      label: 'test-ball',
+    });
+
+    Matter.World.add(this.physics.world, ball);
+    this.ballBodies.push(ball);
+
+    console.log(`[Test] Spawned ball at (${x.toFixed(1)}, ${y.toFixed(1)})`);
+  }
+
   private loop = (): void => {
     this.animationFrameId = requestAnimationFrame(this.loop);
 
@@ -202,10 +235,15 @@ class CarvableCaves {
     // Update physics simulation
     this.physics.update(deltaMs);
 
-    // Update camera to follow player
-    const playerPos = this.player.getPosition();
-    this.camera.x = playerPos.x;
-    this.camera.y = playerPos.y;
+    // Spawn test balls every 5 seconds
+    if (now - this.lastBallSpawnTime > 5000) {
+      this.spawnTestBall();
+      this.lastBallSpawnTime = now;
+    }
+
+    // Camera stays static (don't follow player)
+    // this.camera.x = playerPos.x;
+    // this.camera.y = playerPos.y;
 
     // Remesh if needed
     if (this.needsRemesh) {
@@ -213,8 +251,9 @@ class CarvableCaves {
       this.needsRemesh = false;
     }
 
-    // Render with player
-    this.renderer.render(playerPos, this.player.getRadius());
+    // Render with player and all balls
+    const playerPos = this.player.getPosition();
+    this.renderer.render(playerPos, this.player.getRadius(), this.ballBodies);
   };
 
   private remesh(): void {
@@ -271,14 +310,15 @@ class CarvableCaves {
     const allPolylines = allLoops.map(l => l.vertices);
     this.renderer.updatePolylines(allPolylines);
 
-    // Simplify and update physics bodies
+    // Simplify and update physics bodies (using minimal simplification to preserve collision detail)
     const simplifiedPolylines = simplifyPolylines(
       allPolylines.map(polyline => polyline.map(v => ({ x: v.x, y: v.y } as Point))),
-      0.3, // epsilon in metres (3x grid pitch)
+      0.1, // epsilon in metres (1x grid pitch - minimal simplification for accurate collisions)
       true // closed loops
     );
 
     console.log(`[FullHeal] Simplified ${allPolylines.length} polylines (avg reduction: ${this.calculateReduction(allPolylines, simplifiedPolylines).toFixed(1)}%)`);
+    console.log(`[FullHeal] Total vertices: ${simplifiedPolylines.reduce((sum, p) => sum + p.length, 0)}`);
 
     this.physics.setCaveContours(simplifiedPolylines);
 

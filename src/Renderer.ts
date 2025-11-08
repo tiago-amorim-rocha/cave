@@ -61,8 +61,9 @@ export class Renderer {
    * Render the scene
    * @param playerPosition - Optional player position to render
    * @param playerRadius - Optional player radius
+   * @param balls - Optional array of ball bodies to render
    */
-  render(playerPosition?: { x: number; y: number }, playerRadius?: number): void {
+  render(playerPosition?: { x: number; y: number }, playerRadius?: number, balls?: any[]): void {
     try {
       const dpr = window.devicePixelRatio || 1;
       const width = this.canvas.width / dpr;
@@ -83,6 +84,11 @@ export class Renderer {
       // Draw player
       if (playerPosition && playerRadius) {
         this.drawPlayer(width, height, playerPosition, playerRadius);
+      }
+
+      // Draw test balls
+      if (balls && balls.length > 0) {
+        this.drawBalls(width, height, balls);
       }
 
       // Draw vertices (debugging)
@@ -113,6 +119,31 @@ export class Renderer {
     this.ctx.strokeStyle = '#2e5f99';
     this.ctx.lineWidth = 2;
     this.ctx.stroke();
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw test balls
+   */
+  private drawBalls(canvasWidth: number, canvasHeight: number, balls: any[]): void {
+    this.ctx.save();
+
+    for (const ball of balls) {
+      const screen = this.camera.worldToScreen(ball.position.x, ball.position.y, canvasWidth, canvasHeight);
+      const screenRadius = ball.circleRadius * this.camera.zoom;
+
+      // Draw ball body (orange/yellow)
+      this.ctx.fillStyle = '#ff9800';
+      this.ctx.beginPath();
+      this.ctx.arc(screen.x, screen.y, screenRadius, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // Draw ball outline
+      this.ctx.strokeStyle = '#e65100';
+      this.ctx.lineWidth = 1;
+      this.ctx.stroke();
+    }
 
     this.ctx.restore();
   }
