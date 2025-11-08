@@ -135,12 +135,26 @@ export class MarchingSquares {
       }
     }
 
-    if (this.debug) {
-      console.log(`[MarchingSquares] Traced ${results.length} contours (${tracedEdges} vertices total):`);
-      console.log(`  Closed: ${closedCount}, Open: ${openCount}`);
-      if (openCount > 0) {
-        console.warn(`  WARNING: ${openCount} open contours detected (should be 0 for interior regions)`);
-      }
+    console.log(`[MarchingSquares] Traced ${results.length} contours (${tracedEdges} vertices total):`);
+    console.log(`  Closed loops: ${closedCount}`);
+    console.log(`  Open loops: ${openCount}`);
+    if (openCount > 0) {
+      console.warn(`  ⚠️  WARNING: ${openCount} OPEN CONTOURS DETECTED!`);
+      console.warn(`  This usually means loops hit boundaries or density gradients are too sharp`);
+
+      // Log details about open loops
+      results.forEach((result, idx) => {
+        if (!result.closed) {
+          const first = result.loop[0];
+          const last = result.loop[result.loop.length - 1];
+          const dist = Math.sqrt(
+            Math.pow(last.x - first.x, 2) + Math.pow(last.y - first.y, 2)
+          );
+          console.warn(`  Loop ${idx}: ${result.loop.length} vertices, gap=${dist.toFixed(3)}m`);
+          console.warn(`    First: (${first.x.toFixed(2)}, ${first.y.toFixed(2)})`);
+          console.warn(`    Last: (${last.x.toFixed(2)}, ${last.y.toFixed(2)})`);
+        }
+      });
     }
 
     return results;
@@ -326,8 +340,13 @@ export class MarchingSquares {
     }
 
     if (steps >= maxSteps) {
-      console.error(`Loop trace exceeded max steps`);
+      console.error(`[MarchingSquares] Loop trace exceeded max steps (${maxSteps})`);
       return null;
+    }
+
+    // Log why loop terminated if not closed
+    if (!closed && this.debug) {
+      console.warn(`[MarchingSquares] Open loop from (${startGx},${startGy}): ${steps} steps, ${loop.length} vertices`);
     }
 
     // If closed, append first vertex to end so first==last
