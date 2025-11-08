@@ -30,6 +30,8 @@ class CarvableCaves {
   private lastFullHealTime = 0;
   private animationFrameId = 0;
   private lastBallSpawnTime = 0; // Track ball spawning
+  private ballSpawnX = 0; // Ball spawn X position
+  private ballSpawnY = 0; // Ball spawn Y position
 
   // Performance tracking
   private frameCount = 0;
@@ -80,11 +82,17 @@ class CarvableCaves {
       this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
       console.log('Caves generated!');
 
-      // Clear spawn area at center-bottom with guaranteed floor
+      // Clear spawn area at center, moved higher up
       const spawnX = worldConfig.width / 2;
-      const spawnY = worldConfig.height * 0.7; // Lower third of world
-      this.densityField.clearSpawnArea(spawnX, spawnY, 10, 6, 2); // 10m wide, 6m tall, 2m floor
+      const spawnY = worldConfig.height * 0.5; // Middle of world (moved up from 0.7)
+      this.densityField.clearSpawnArea(spawnX, spawnY, 10, 6, 0); // 10m wide, 6m tall, no floor
       console.log(`Spawn chamber created at (${spawnX}, ${spawnY})`);
+
+      // Create separate ball spawn area higher up with carved empty space around it
+      this.ballSpawnX = spawnX;
+      this.ballSpawnY = spawnY - 3; // 3m above player spawn (halfway between terrain)
+      this.densityField.clearSpawnArea(this.ballSpawnX, this.ballSpawnY, 4, 4, 0); // 4m×4m cavity, no floor
+      console.log(`Ball spawn cavity created at (${this.ballSpawnX}, ${this.ballSpawnY})`);
 
       // Initialize marching squares
       this.marchingSquares = new MarchingSquares(this.densityField, worldConfig.isoValue);
@@ -148,10 +156,14 @@ class CarvableCaves {
 
         // Generate new caves with random seed
         this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
-        // Clear spawn chamber with floor
-        const spawnX = 50 / 2;
-        const spawnY = 30 * 0.7;
-        this.densityField.clearSpawnArea(spawnX, spawnY, 10, 6, 2);
+        // Clear spawn chamber (moved higher, no floor)
+        const spawnX = 25 / 2;
+        const spawnY = 15 * 0.5;
+        this.densityField.clearSpawnArea(spawnX, spawnY, 10, 6, 0);
+        // Create ball spawn cavity
+        this.ballSpawnX = spawnX;
+        this.ballSpawnY = spawnY - 3;
+        this.densityField.clearSpawnArea(this.ballSpawnX, this.ballSpawnY, 4, 4, 0);
         // Respawn player at cleared area
         this.player.respawn(spawnX, spawnY);
         this.needsRemesh = true;
@@ -206,13 +218,12 @@ class CarvableCaves {
   }
 
   /**
-   * Spawn a test ball at player position
+   * Spawn a test ball at dedicated ball spawn position (in carved empty space)
    */
   private spawnTestBall(): void {
-    // Spawn at player position with slight offset upward
-    const playerPos = this.player.getPosition();
-    const x = playerPos.x;
-    const y = playerPos.y - 1; // 1m above player
+    // Spawn at ball spawn position (in carved cavity above player)
+    const x = this.ballSpawnX;
+    const y = this.ballSpawnY;
     const radius = 0.5;
 
     const ball = Matter.Bodies.circle(x, y, radius, {
@@ -226,7 +237,7 @@ class CarvableCaves {
     Matter.World.add(this.physics.world, ball);
     this.ballBodies.push(ball);
 
-    console.log(`[Test] Spawned ball at player position (${x.toFixed(1)}, ${y.toFixed(1)})`);
+    console.log(`[Test] Spawned ball at ball spawn cavity (${x.toFixed(1)}, ${y.toFixed(1)})`);
   }
 
   private loop = (): void => {
