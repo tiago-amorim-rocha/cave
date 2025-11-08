@@ -62,7 +62,7 @@ export class MarchingSquares {
   /**
    * Generate contour polylines using topology-driven edge walking
    */
-  generateContours(dirtyAABB?: AABB | null, expandCells: number = 1): Vec2[][] {
+  generateContours(dirtyAABB?: AABB | null, expandCells: number = 1): { loop: Vec2[]; closed: boolean }[] {
     if (!dirtyAABB) {
       dirtyAABB = this.field.getDirtyWorldAABB();
     }
@@ -108,7 +108,7 @@ export class MarchingSquares {
     }
 
     // Step 2: Walk topology to trace closed loops
-    const polylines: Vec2[][] = [];
+    const results: { loop: Vec2[]; closed: boolean }[] = [];
     let tracedEdges = 0;
     let closedCount = 0;
     let openCount = 0;
@@ -124,7 +124,7 @@ export class MarchingSquares {
         // Start a new contour walk from this edge
         const result = this.traceLoop(gx, gy, pairIdx);
         if (result && result.loop.length > 2) {
-          polylines.push(result.loop);
+          results.push(result);
           tracedEdges += result.loop.length;
           if (result.closed) {
             closedCount++;
@@ -136,14 +136,14 @@ export class MarchingSquares {
     }
 
     if (this.debug) {
-      console.log(`[MarchingSquares] Traced ${polylines.length} contours (${tracedEdges} vertices total):`);
+      console.log(`[MarchingSquares] Traced ${results.length} contours (${tracedEdges} vertices total):`);
       console.log(`  Closed: ${closedCount}, Open: ${openCount}`);
       if (openCount > 0) {
         console.warn(`  WARNING: ${openCount} open contours detected (should be 0 for interior regions)`);
       }
     }
 
-    return polylines;
+    return results;
   }
 
   /**
