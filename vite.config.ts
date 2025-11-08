@@ -5,7 +5,7 @@ export default defineConfig({
   base: '/cave/',
   plugins: [
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['icon-512.svg'],
       manifest: {
         name: 'Carvable Caves',

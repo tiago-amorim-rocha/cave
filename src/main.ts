@@ -193,9 +193,31 @@ class CarvableCaves {
 // Start the application
 const app = new CarvableCaves();
 
-// Register service worker for PWA
+// Register service worker for PWA with update detection
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(() => {
+  // Use vite-plugin-pwa's virtual module for service worker registration
+  import('virtual:pwa-register').then(({ registerSW }) => {
+    const updateButton = document.getElementById('update-button');
+
+    const updateSW = registerSW({
+      onNeedRefresh() {
+        // Show the update button when a new version is available
+        if (updateButton) {
+          updateButton.classList.add('visible');
+        }
+      },
+      onOfflineReady() {
+        console.log('App ready to work offline');
+      }
+    });
+
+    // Handle update button click
+    if (updateButton) {
+      updateButton.addEventListener('click', () => {
+        updateSW(true); // Update and reload
+      });
+    }
+  }).catch(() => {
     // Service worker registration failed (expected in dev mode)
   });
 }
