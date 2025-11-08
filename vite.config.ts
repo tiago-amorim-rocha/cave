@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  base: '/cave/',
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
@@ -14,6 +15,8 @@ export default defineConfig({
         background_color: '#1a1a1a',
         display: 'standalone',
         orientation: 'any',
+        start_url: '/cave/',
+        scope: '/cave/',
         icons: [
           {
             src: 'icon-512.svg',
