@@ -146,10 +146,20 @@ class CarvableCaves {
     // Reset button
     const resetButton = document.getElementById('reset-button') as HTMLButtonElement;
     if (resetButton) {
-      resetButton.addEventListener('click', () => {
+      console.log('Reset button found, attaching event listeners');
+
+      const handleReset = (e: Event) => {
+        console.log('Reset button activated');
+        e.preventDefault();
+        e.stopPropagation();
         this.densityField.reset();
         this.needsRemesh = true;
-      });
+      };
+
+      resetButton.addEventListener('click', handleReset);
+      resetButton.addEventListener('touchend', handleReset, { passive: false });
+    } else {
+      console.error('Reset button NOT found!');
     }
   }
 
@@ -227,20 +237,16 @@ const debugButton = document.getElementById('debug-button');
 if (debugButton) {
   console.log('Debug button found, attaching event listeners');
 
-  // Add both click and touchstart for better iOS compatibility
-  debugButton.addEventListener('click', (e) => {
-    console.log('Debug button clicked');
+  const handleDebugToggle = (e: Event) => {
+    console.log('Debug button activated');
     e.preventDefault();
     e.stopPropagation();
     debugConsole.toggle();
-  });
+  };
 
-  debugButton.addEventListener('touchstart', (e) => {
-    console.log('Debug button touched');
-    e.preventDefault();
-    e.stopPropagation();
-    debugConsole.toggle();
-  }, { passive: false });
+  // Add both click and touchend for better iOS compatibility
+  debugButton.addEventListener('click', handleDebugToggle);
+  debugButton.addEventListener('touchend', handleDebugToggle, { passive: false });
 } else {
   console.error('Debug button NOT found!');
 }
