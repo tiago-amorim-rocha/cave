@@ -480,7 +480,7 @@ async function checkForUpdates(): Promise<boolean> {
   }
 }
 
-// Check for updates every 30 seconds
+// Check for updates every 5 seconds
 function startVersionPolling() {
   // Initial check
   checkForUpdates().then(hasUpdate => {
@@ -489,13 +489,13 @@ function startVersionPolling() {
     }
   });
 
-  // Poll every 30 seconds
+  // Poll every 5 seconds
   setInterval(async () => {
     const hasUpdate = await checkForUpdates();
     if (hasUpdate) {
       showUpdateButton();
     }
-  }, 30000);
+  }, 5000);
 }
 
 function showUpdateButton() {
