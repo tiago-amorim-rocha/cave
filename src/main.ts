@@ -36,6 +36,7 @@ class CarvableCaves {
   private lastFpsTime = 0;
   private fps = 0;
   private lastPhysicsTime = 0;
+  private physicsAccumulator = 0; // Accumulate time for 10fps physics
   private ballBodies: Matter.Body[] = []; // Track all balls for rendering
 
   constructor() {
@@ -249,8 +250,13 @@ class CarvableCaves {
     // Update player input
     this.player.update();
 
-    // Update physics simulation
-    this.physics.update(deltaMs);
+    // Update physics simulation at 10fps
+    this.physicsAccumulator += deltaMs;
+    const physicsTimeStep = 100; // 100ms = 10fps
+    if (this.physicsAccumulator >= physicsTimeStep) {
+      this.physics.update(physicsTimeStep);
+      this.physicsAccumulator -= physicsTimeStep;
+    }
 
     // Spawn test balls every 5 seconds
     if (now - this.lastBallSpawnTime > 5000) {
@@ -336,24 +342,12 @@ class CarvableCaves {
 
     console.log(`[FullHeal] Classified ${allPolylines.length} loops: ${rockLoops.length} rock, ${allPolylines.length - rockLoops.length} cave`);
 
-    // Step 1: Simplify to reduce vertex count
-    const simplifiedPolylines = simplifyPolylines(
-      rockLoops.map(polyline => polyline.map(v => ({ x: v.x, y: v.y } as Point))),
-      0.02, // epsilon in metres - much gentler to follow cave edges closely
-      true // closed loops
-    );
+    // DEBUG: Skip simplification and smoothing - use raw contours
+    const rawPolylines = rockLoops.map(polyline => polyline.map(v => ({ x: v.x, y: v.y } as Point)));
 
-    console.log(`[FullHeal] Simplified ${rockLoops.length} rock polylines (avg reduction: ${this.calculateReduction(rockLoops, simplifiedPolylines).toFixed(1)}%)`);
+    console.log(`[FullHeal] Using raw polylines (no optimization), total vertices: ${rawPolylines.reduce((sum, p) => sum + p.length, 0)}`);
 
-    // Step 2: Apply Chaikin smoothing for non-toothy edges
-    // Use gentle ratio (0.15) to keep within ~0.05m of original, avoiding thin wall tunneling
-    const smoothedPolylines = simplifiedPolylines.map(poly =>
-      chaikinSmooth(poly, 0.15, true)
-    );
-
-    console.log(`[FullHeal] Smoothed polylines, total vertices: ${smoothedPolylines.reduce((sum, p) => sum + p.length, 0)}`);
-
-    this.physics.setCaveContours(smoothedPolylines);
+    this.physics.setCaveContours(rawPolylines);
 
     this.densityField.clearDirty();
 
