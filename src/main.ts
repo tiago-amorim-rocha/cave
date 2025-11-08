@@ -231,8 +231,11 @@ class CarvableCaves {
         };
         polylines = this.marchingSquares.generateContours(fullField, 0);
       } else {
-        // Final remesh: use dirty region with expansion for efficiency
-        polylines = this.marchingSquares.generateContours(undefined, 50);
+        // Final remesh: use dirty region with adaptive expansion based on brush radius
+        // Pad = ceil(brushRadius/gridPitch) + 2
+        const h = this.densityField.config.gridPitch;
+        const pad = Math.ceil(this.brushSettings.radius / h) + 2;
+        polylines = this.marchingSquares.generateContours(undefined, pad);
       }
 
       this.renderer.updatePolylines(polylines);
