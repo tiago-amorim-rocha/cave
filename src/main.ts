@@ -161,6 +161,32 @@ class CarvableCaves {
     } else {
       console.error('Reset button NOT found!');
     }
+
+    // Debug checkboxes
+    const debugGridCheckbox = document.getElementById('debug-grid') as HTMLInputElement;
+    if (debugGridCheckbox) {
+      debugGridCheckbox.addEventListener('change', () => {
+        this.renderer.showGrid = debugGridCheckbox.checked;
+      });
+    }
+
+    const debugVerticesCheckbox = document.getElementById('debug-vertices') as HTMLInputElement;
+    if (debugVerticesCheckbox) {
+      debugVerticesCheckbox.addEventListener('change', () => {
+        this.renderer.showVertices = debugVerticesCheckbox.checked;
+      });
+    }
+
+    const debugConsoleLogCheckbox = document.getElementById('debug-console-log') as HTMLInputElement;
+    if (debugConsoleLogCheckbox) {
+      debugConsoleLogCheckbox.addEventListener('change', () => {
+        this.marchingSquares.setDebug(debugConsoleLogCheckbox.checked);
+        if (debugConsoleLogCheckbox.checked) {
+          console.log('[DEBUG MODE ENABLED] Remeshing to show debug output...');
+          this.needsRemesh = true;
+        }
+      });
+    }
   }
 
   private start(): void {

@@ -10,6 +10,8 @@ export class Renderer {
   private camera: Camera;
 
   private polylines: Vec2[][] = [];
+  public showGrid: boolean = false;
+  public showVertices: boolean = false;
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -69,10 +71,17 @@ export class Renderer {
       this.ctx.fillRect(0, 0, width, height);
 
       // Draw grid (optional, for debugging)
-      // this.drawGrid(width, height);
+      if (this.showGrid) {
+        this.drawGrid(width, height);
+      }
 
       // Draw polylines
       this.drawPolylines(width, height);
+
+      // Draw vertices (debugging)
+      if (this.showVertices) {
+        this.drawVertices(width, height);
+      }
 
       // Draw brush preview (optional, could add later)
     } catch (error) {
@@ -136,9 +145,52 @@ export class Renderer {
   }
 
   /**
+   * Draw vertices with labels
+   */
+  private drawVertices(canvasWidth: number, canvasHeight: number): void {
+    this.ctx.save();
+
+    for (const polyline of this.polylines) {
+      if (polyline.length === 0) continue;
+
+      // Draw start point (green)
+      const start = this.camera.worldToScreen(polyline[0].x, polyline[0].y, canvasWidth, canvasHeight);
+      this.ctx.fillStyle = '#00ff00';
+      this.ctx.beginPath();
+      this.ctx.arc(start.x, start.y, 5, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.fillText('START', start.x + 8, start.y);
+
+      // Draw end point (red)
+      const end = this.camera.worldToScreen(
+        polyline[polyline.length - 1].x,
+        polyline[polyline.length - 1].y,
+        canvasWidth,
+        canvasHeight
+      );
+      this.ctx.fillStyle = '#ff0000';
+      this.ctx.beginPath();
+      this.ctx.arc(end.x, end.y, 5, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.fillText('END', end.x + 8, end.y);
+
+      // Draw all vertices (yellow)
+      this.ctx.fillStyle = '#ffff00';
+      for (let i = 0; i < polyline.length; i++) {
+        const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
+        this.ctx.beginPath();
+        this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
    * Draw debug grid
    */
-  private _drawGrid(canvasWidth: number, canvasHeight: number): void {
+  private drawGrid(canvasWidth: number, canvasHeight: number): void {
     this.ctx.save();
     this.ctx.strokeStyle = '#333';
     this.ctx.lineWidth = 1;
