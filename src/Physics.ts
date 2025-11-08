@@ -65,13 +65,19 @@ export class Physics {
       if (isClosed && contour.length >= 4) {
         // Closed contour - create polygon body
         // Remove duplicate last point for Matter.js
-        const vertices = contour.slice(0, -1).map(p => ({ x: p.x, y: p.y }));
+        const verts = contour.slice(0, -1).map(p => ({ x: p.x, y: p.y }));
 
         try {
-          // Create polygon body (Matter.js will decompose if concave)
+          // 1) Compute world-space centroid of the polygon
+          const center = Matter.Vertices.centre(verts as any);
+
+          // 2) Make a local copy translated around the centroid (vertices relative to body position)
+          const local = verts.map(v => ({ x: v.x - center.x, y: v.y - center.y }));
+
+          // 3) Build the body positioned at the centroid with local vertices
           const body = Matter.Bodies.fromVertices(
-            0, 0, // Position (will be adjusted by vertices)
-            [vertices],
+            center.x, center.y, // Position at centroid
+            [local as any],
             {
               isStatic: true,
               friction: 0.3,
