@@ -156,6 +156,46 @@
       color: #4CAF50;
       font-weight: 600;
     }
+
+    #update-button {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
+      right: env(safe-area-inset-right, 10px);
+      background: rgba(76, 175, 80, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      border: none;
+      cursor: pointer;
+      font-size: 24px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      pointer-events: auto;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    #update-button:active {
+      background: rgba(69, 160, 73, 0.95);
+    }
+
+    #update-button.visible {
+      display: flex;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+      50% {
+        transform: scale(1.1);
+        box-shadow: 0 4px 16px rgba(76, 175, 80, 0.6);
+      }
+    }
   </style>
 </head>
 <body>
@@ -200,6 +240,8 @@
       <span>MEM: <span id="memory-value">0</span> MB</span>
     </div>
   </div>
+
+  <button id="update-button" title="Update available! Click to reload">🔄</button>
 
   <script type="module" src="/src/main.ts"></script>
 </body>
