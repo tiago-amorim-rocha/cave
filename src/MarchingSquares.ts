@@ -2,19 +2,16 @@ import type { DensityField } from './DensityField';
 import type { AABB, Vec2 } from './types';
 
 /**
- * Marching Squares with linear edge interpolation
- * Outputs closed polylines representing contours at the iso-value
+ * Marching Squares with topology-driven edge walking
+ * Guarantees closed contours by walking cell-to-cell instead of stitching segments
  */
 
-interface Edge {
-  x: number; // world coords
-  y: number;
-}
-
 /**
- * Marching Squares lookup table
- * Each entry is an array of edge pairs: [startEdge, endEdge]
+ * Marching Squares case table
+ * Each entry maps edge pairs that are connected: [edge1, edge2]
  * Edges: 0=bottom, 1=right, 2=top, 3=left
+ *
+ * For ambiguous cases 5 and 10, we use asymptotic decider at runtime
  */
 const MARCHING_SQUARES_CASES: number[][][] = [
   [],              // 0: 0000
@@ -22,12 +19,12 @@ const MARCHING_SQUARES_CASES: number[][][] = [
   [[0, 1]],        // 2: 0010
   [[3, 1]],        // 3: 0011
   [[1, 2]],        // 4: 0100
-  [[3, 0], [1, 2]], // 5: 0101 - ambiguous (using asymptotic decider)
+  [[3, 0], [1, 2]], // 5: 0101 - ambiguous (saddle)
   [[0, 2]],        // 6: 0110
   [[3, 2]],        // 7: 0111
   [[2, 3]],        // 8: 1000
   [[0, 2]],        // 9: 1001
-  [[0, 1], [2, 3]], // 10: 1010 - ambiguous (using asymptotic decider)
+  [[0, 1], [2, 3]], // 10: 1010 - ambiguous (saddle)
   [[1, 2]],        // 11: 1011
   [[1, 3]],        // 12: 1100
   [[0, 1]],        // 13: 1101
@@ -35,10 +32,23 @@ const MARCHING_SQUARES_CASES: number[][][] = [
   []               // 15: 1111
 ];
 
+interface CellInfo {
+  caseIndex: number;
+  edgePairs: number[][];
+  v00: number;
+  v10: number;
+  v11: number;
+  v01: number;
+}
+
 export class MarchingSquares {
   field: DensityField;
   isoValue: number;
   debug: boolean = false;
+
+  // Topology tracking
+  private cellInfo: Map<string, CellInfo> = new Map();
+  private visited: Set<string> = new Set();
 
   constructor(field: DensityField, isoValue: number) {
     this.field = field;
@@ -50,7 +60,7 @@ export class MarchingSquares {
   }
 
   /**
-   * Generate contour polylines for the dirty region (or entire field if no dirty region)
+   * Generate contour polylines using topology-driven edge walking
    */
   generateContours(dirtyAABB?: AABB | null): Vec2[][] {
     if (!dirtyAABB) {
@@ -67,38 +77,63 @@ export class MarchingSquares {
       };
     }
 
-    // Convert world AABB to grid AABB
-    const minGridX = Math.max(0, Math.floor(dirtyAABB.minX / this.field.config.gridPitch));
-    const minGridY = Math.max(0, Math.floor(dirtyAABB.minY / this.field.config.gridPitch));
-    const maxGridX = Math.min(this.field.gridWidth - 2, Math.ceil(dirtyAABB.maxX / this.field.config.gridPitch));
-    const maxGridY = Math.min(this.field.gridHeight - 2, Math.ceil(dirtyAABB.maxY / this.field.config.gridPitch));
+    // Convert world AABB to grid AABB, expand by 1 cell for boundary handling
+    const h = this.field.config.gridPitch;
+    let minGridX = Math.max(0, Math.floor(dirtyAABB.minX / h) - 1);
+    let minGridY = Math.max(0, Math.floor(dirtyAABB.minY / h) - 1);
+    let maxGridX = Math.min(this.field.gridWidth - 2, Math.ceil(dirtyAABB.maxX / h) + 1);
+    let maxGridY = Math.min(this.field.gridHeight - 2, Math.ceil(dirtyAABB.maxY / h) + 1);
 
     if (this.debug) {
       console.log(`[MarchingSquares] Scanning grid (${minGridX},${minGridY}) to (${maxGridX},${maxGridY})`);
     }
 
-    // Build edge map
-    const edges = new Map<string, Edge>();
+    // Step 1: Build cell info for all cells in region
+    this.cellInfo.clear();
+    this.visited.clear();
 
+    let totalCrossings = 0;
     for (let gy = minGridY; gy <= maxGridY; gy++) {
       for (let gx = minGridX; gx <= maxGridX; gx++) {
-        this.processCell(gx, gy, edges);
+        const info = this.buildCellInfo(gx, gy);
+        if (info.edgePairs.length > 0) {
+          this.cellInfo.set(this.cellKey(gx, gy), info);
+          totalCrossings += info.edgePairs.length;
+        }
       }
     }
 
     if (this.debug) {
-      console.log(`[MarchingSquares] Generated ${edges.size} edges`);
+      console.log(`[MarchingSquares] Found ${this.cellInfo.size} cells with crossings (${totalCrossings} edge pairs)`);
     }
 
-    // Stitch edges into polylines
-    const polylines = this.stitchPolylines(edges);
+    // Step 2: Walk topology to trace closed loops
+    const polylines: Vec2[][] = [];
+    let tracedEdges = 0;
+
+    for (const [cellKey, info] of this.cellInfo) {
+      const [gx, gy] = cellKey.split(',').map(Number);
+
+      // Try each edge pair in this cell
+      for (let pairIdx = 0; pairIdx < info.edgePairs.length; pairIdx++) {
+        const edgeKey = this.edgeKey(gx, gy, pairIdx);
+        if (this.visited.has(edgeKey)) continue;
+
+        // Start a new contour walk from this edge
+        const loop = this.traceLoop(gx, gy, pairIdx);
+        if (loop && loop.length > 2) {
+          polylines.push(loop);
+          tracedEdges += loop.length;
+        }
+      }
+    }
 
     if (this.debug) {
-      console.log(`[MarchingSquares] Stitched ${polylines.length} polylines:`);
+      console.log(`[MarchingSquares] Traced ${polylines.length} contours (${tracedEdges} vertices total):`);
       polylines.forEach((p, i) => {
         const isClosed = Math.abs(p[0].x - p[p.length - 1].x) < 0.001 &&
                          Math.abs(p[0].y - p[p.length - 1].y) < 0.001;
-        console.log(`  Polyline ${i}: ${p.length} vertices, ${isClosed ? 'CLOSED' : 'OPEN'}`);
+        console.log(`  Loop ${i}: ${p.length} vertices, ${isClosed ? 'CLOSED ✓' : 'OPEN ✗'}`);
       });
     }
 
@@ -106,11 +141,9 @@ export class MarchingSquares {
   }
 
   /**
-   * Process a single marching squares cell
+   * Build cell info with case determination
    */
-  private processCell(gx: number, gy: number, edges: Map<string, Edge>): void {
-    const h = this.field.config.gridPitch;
-
+  private buildCellInfo(gx: number, gy: number): CellInfo {
     // Get corner values
     const v00 = this.field.get(gx, gy);         // bottom-left
     const v10 = this.field.get(gx + 1, gy);     // bottom-right
@@ -127,69 +160,204 @@ export class MarchingSquares {
     // Handle ambiguous cases 5 and 10 with asymptotic decider
     let edgePairs: number[][];
     if (caseIndex === 5) {
-      // Case 5 (0101): BL and TR solid (diagonal)
       const center = (v00 + v10 + v11 + v01) / 4;
       const isConnected = center >= this.isoValue;
       if (this.debug) {
-        console.log(`Case 5 at (${gx},${gy}): v00=${v00} v10=${v10} v11=${v11} v01=${v01} center=${center.toFixed(1)} iso=${this.isoValue} → ${isConnected ? 'CONNECTED' : 'SADDLE'}`);
+        console.log(`Case 5 at (${gx},${gy}): center=${center.toFixed(1)} iso=${this.isoValue} → ${isConnected ? 'CONNECTED' : 'SADDLE'}`);
       }
-      if (isConnected) {
-        // Connected: one segment left to right
-        edgePairs = [[3, 1]];
-      } else {
-        // Saddle: two segments crossing
-        edgePairs = [[3, 0], [1, 2]];
-      }
+      edgePairs = isConnected ? [[3, 1]] : [[3, 0], [1, 2]];
     } else if (caseIndex === 10) {
-      // Case 10 (1010): BR and TL solid (opposite diagonal)
       const center = (v00 + v10 + v11 + v01) / 4;
       const isConnected = center >= this.isoValue;
       if (this.debug) {
-        console.log(`Case 10 at (${gx},${gy}): v00=${v00} v10=${v10} v11=${v11} v01=${v01} center=${center.toFixed(1)} iso=${this.isoValue} → ${isConnected ? 'CONNECTED' : 'SADDLE'}`);
+        console.log(`Case 10 at (${gx},${gy}): center=${center.toFixed(1)} iso=${this.isoValue} → ${isConnected ? 'CONNECTED' : 'SADDLE'}`);
       }
-      if (isConnected) {
-        // Connected: one segment bottom to top
-        edgePairs = [[0, 2]];
-      } else {
-        // Saddle: two segments crossing
-        edgePairs = [[0, 1], [2, 3]];
-      }
+      edgePairs = isConnected ? [[0, 2]] : [[0, 1], [2, 3]];
     } else {
       edgePairs = MARCHING_SQUARES_CASES[caseIndex];
     }
 
-    if (edgePairs.length === 0) return;
+    return { caseIndex, edgePairs, v00, v10, v11, v01 };
+  }
 
-    // Get cell world coordinates
-    const worldX = gx * h;
-    const worldY = gy * h;
+  /**
+   * Trace a closed loop starting from a specific edge pair in a cell
+   */
+  private traceLoop(startGx: number, startGy: number, startPairIdx: number): Vec2[] | null {
+    const loop: Vec2[] = [];
+    let gx = startGx;
+    let gy = startGy;
+    let pairIdx = startPairIdx;
+    let enterEdge: number | null = null; // Which edge we entered from
 
-    // Calculate edge intersection points with linear interpolation
-    const edgePoints: Edge[] = [];
+    let steps = 0;
+    const maxSteps = 100000; // Safety limit
 
-    // Edge 0: bottom (v00 to v10)
-    const t0 = this.interpolate(v00, v10);
-    edgePoints[0] = { x: worldX + t0 * h, y: worldY };
+    while (steps < maxSteps) {
+      const key = this.edgeKey(gx, gy, pairIdx);
+      if (this.visited.has(key)) {
+        // We've completed the loop
+        break;
+      }
 
-    // Edge 1: right (v10 to v11)
-    const t1 = this.interpolate(v10, v11);
-    edgePoints[1] = { x: worldX + h, y: worldY + t1 * h };
+      this.visited.add(key);
 
-    // Edge 2: top (v01 to v11)
-    const t2 = this.interpolate(v01, v11);
-    edgePoints[2] = { x: worldX + t2 * h, y: worldY + h };
+      const cellKey = this.cellKey(gx, gy);
+      const info = this.cellInfo.get(cellKey);
+      if (!info) {
+        if (this.debug) {
+          console.warn(`No cell info for (${gx},${gy})`);
+        }
+        break;
+      }
 
-    // Edge 3: left (v00 to v01)
-    const t3 = this.interpolate(v00, v01);
-    edgePoints[3] = { x: worldX, y: worldY + t3 * h };
+      const [e1, e2] = info.edgePairs[pairIdx];
+      const h = this.field.config.gridPitch;
+      const worldX = gx * h;
+      const worldY = gy * h;
 
-    // Add edge segments
-    for (const [startEdge, endEdge] of edgePairs) {
-      const start = edgePoints[startEdge];
-      const end = edgePoints[endEdge];
-      const key = this.edgeKey(start, end);
-      edges.set(key, end);
+      // Determine which edge we enter and exit from
+      let entryEdge: number;
+      let exitEdge: number;
+
+      if (enterEdge === null) {
+        // First cell - arbitrarily choose e1 as entry
+        entryEdge = e1;
+        exitEdge = e2;
+      } else {
+        // Subsequent cells - entry edge is known, find exit edge
+        if (e1 === enterEdge) {
+          entryEdge = e1;
+          exitEdge = e2;
+        } else if (e2 === enterEdge) {
+          entryEdge = e2;
+          exitEdge = e1;
+        } else {
+          if (this.debug) {
+            console.warn(`Enter edge ${enterEdge} doesn't match pair [${e1},${e2}] in cell (${gx},${gy})`);
+          }
+          break;
+        }
+      }
+
+      // Add vertex for the exit edge (this becomes the next cell's entry vertex)
+      const vertex = this.interpolateEdge(gx, gy, exitEdge, info, h, worldX, worldY);
+      loop.push(vertex);
+
+      // Move to neighbor cell through exit edge
+      const next = this.getNeighborThroughEdge(gx, gy, exitEdge);
+      if (!next) {
+        // Hit boundary
+        if (this.debug) {
+          console.warn(`Hit boundary at (${gx},${gy}) edge ${exitEdge}`);
+        }
+        break;
+      }
+
+      gx = next.gx;
+      gy = next.gy;
+      enterEdge = this.oppositeEdge(exitEdge);
+
+      // Find which edge pair in the neighbor cell contains enterEdge
+      const nextKey = this.cellKey(gx, gy);
+      const nextInfo = this.cellInfo.get(nextKey);
+      if (!nextInfo) {
+        if (this.debug) {
+          console.warn(`No cell info for neighbor (${gx},${gy})`);
+        }
+        break;
+      }
+
+      pairIdx = -1;
+      for (let i = 0; i < nextInfo.edgePairs.length; i++) {
+        const [ne1, ne2] = nextInfo.edgePairs[i];
+        if (ne1 === enterEdge || ne2 === enterEdge) {
+          pairIdx = i;
+          break;
+        }
+      }
+
+      if (pairIdx === -1) {
+        if (this.debug) {
+          console.warn(`No matching edge pair in neighbor (${gx},${gy}) for edge ${enterEdge}`);
+        }
+        break;
+      }
+
+      steps++;
+
+      // Check if we've returned to start
+      if (gx === startGx && gy === startGy && pairIdx === startPairIdx) {
+        // Remove last vertex if it's a duplicate of the first
+        if (loop.length > 1) {
+          const first = loop[0];
+          const last = loop[loop.length - 1];
+          const dist = Math.sqrt((first.x - last.x) ** 2 + (first.y - last.y) ** 2);
+          if (dist < 0.001) {
+            loop.pop(); // Remove duplicate
+          }
+        }
+        break;
+      }
     }
+
+    if (steps >= maxSteps) {
+      console.error(`Loop trace exceeded max steps`);
+      return null;
+    }
+
+    return loop.length > 2 ? loop : null;
+  }
+
+  /**
+   * Interpolate vertex position on a cell edge (with quantization for consistency)
+   */
+  private interpolateEdge(
+    gx: number,
+    gy: number,
+    edge: number,
+    info: CellInfo,
+    h: number,
+    worldX: number,
+    worldY: number
+  ): Vec2 {
+    const { v00, v10, v11, v01 } = info;
+
+    let t: number;
+    let x: number;
+    let y: number;
+
+    switch (edge) {
+      case 0: // bottom (v00 to v10)
+        t = this.interpolate(v00, v10);
+        x = worldX + t * h;
+        y = worldY;
+        break;
+      case 1: // right (v10 to v11)
+        t = this.interpolate(v10, v11);
+        x = worldX + h;
+        y = worldY + t * h;
+        break;
+      case 2: // top (v01 to v11)
+        t = this.interpolate(v01, v11);
+        x = worldX + t * h;
+        y = worldY + h;
+        break;
+      case 3: // left (v00 to v01)
+        t = this.interpolate(v00, v01);
+        x = worldX;
+        y = worldY + t * h;
+        break;
+      default:
+        throw new Error(`Invalid edge: ${edge}`);
+    }
+
+    // Quantize to avoid floating-point precision issues
+    const precision = 1000000;
+    x = Math.round(x * precision) / precision;
+    y = Math.round(y * precision) / precision;
+
+    return { x, y };
   }
 
   /**
@@ -197,69 +365,42 @@ export class MarchingSquares {
    */
   private interpolate(v0: number, v1: number): number {
     if (Math.abs(v1 - v0) < 0.001) return 0.5;
-    return (this.isoValue - v0) / (v1 - v0);
+    const t = (this.isoValue - v0) / (v1 - v0);
+    // Clamp to [0, 1]
+    return Math.max(0, Math.min(1, t));
   }
 
   /**
-   * Create a unique key for an edge
+   * Get neighbor cell through a given edge
    */
-  private edgeKey(start: Edge, end: Edge): string {
-    const x1 = start.x.toFixed(6);
-    const y1 = start.y.toFixed(6);
-    const x2 = end.x.toFixed(6);
-    const y2 = end.y.toFixed(6);
-    return `${x1},${y1}->${x2},${y2}`;
-  }
-
-  /**
-   * Stitch edges into closed polylines
-   */
-  private stitchPolylines(edges: Map<string, Edge>): Vec2[][] {
-    const polylines: Vec2[][] = [];
-    const visited = new Set<string>();
-
-    for (const [startKey, firstEnd] of edges) {
-      if (visited.has(startKey)) continue;
-
-      const polyline: Vec2[] = [];
-      let currentKey = startKey;
-      let currentEnd = firstEnd;
-
-      // Parse start point
-      const [startCoords] = currentKey.split('->');
-      const [sx, sy] = startCoords.split(',').map(Number);
-      polyline.push({ x: sx, y: sy });
-
-      // Follow the chain
-      while (currentEnd) {
-        visited.add(currentKey);
-        polyline.push({ x: currentEnd.x, y: currentEnd.y });
-
-        // Find next edge
-        let foundNext = false;
-        for (const [key, end] of edges) {
-          if (visited.has(key)) continue;
-
-          const [keyStart] = key.split('->');
-          const [kx, ky] = keyStart.split(',').map(Number);
-
-          // Check if this edge starts where we ended
-          if (Math.abs(kx - currentEnd.x) < 0.0001 && Math.abs(ky - currentEnd.y) < 0.0001) {
-            currentKey = key;
-            currentEnd = end;
-            foundNext = true;
-            break;
-          }
-        }
-
-        if (!foundNext) break;
-      }
-
-      if (polyline.length > 2) {
-        polylines.push(polyline);
-      }
+  private getNeighborThroughEdge(gx: number, gy: number, edge: number): { gx: number; gy: number } | null {
+    switch (edge) {
+      case 0: return { gx, gy: gy - 1 }; // bottom → move down
+      case 1: return { gx: gx + 1, gy }; // right → move right
+      case 2: return { gx, gy: gy + 1 }; // top → move up
+      case 3: return { gx: gx - 1, gy }; // left → move left
+      default: return null;
     }
+  }
 
-    return polylines;
+  /**
+   * Get opposite edge (for entering neighbor cell)
+   */
+  private oppositeEdge(edge: number): number {
+    return (edge + 2) % 4;
+  }
+
+  /**
+   * Create unique key for a cell
+   */
+  private cellKey(gx: number, gy: number): string {
+    return `${gx},${gy}`;
+  }
+
+  /**
+   * Create unique key for an edge pair in a cell
+   */
+  private edgeKey(gx: number, gy: number, pairIdx: number): string {
+    return `${gx},${gy},${pairIdx}`;
   }
 }
