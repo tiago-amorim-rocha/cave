@@ -45,13 +45,22 @@ export class MarchingSquares {
   }
 
   /**
-   * Generate contour polylines for the dirty region
+   * Generate contour polylines for the dirty region (or entire field if no dirty region)
    */
   generateContours(dirtyAABB?: AABB | null): Vec2[][] {
     if (!dirtyAABB) {
       dirtyAABB = this.field.getDirtyWorldAABB();
     }
-    if (!dirtyAABB) return [];
+
+    // If no dirty region, scan entire field
+    if (!dirtyAABB) {
+      dirtyAABB = {
+        minX: 0,
+        minY: 0,
+        maxX: this.field.config.width,
+        maxY: this.field.config.height
+      };
+    }
 
     // Convert world AABB to grid AABB
     const minGridX = Math.max(0, Math.floor(dirtyAABB.minX / this.field.config.gridPitch));
