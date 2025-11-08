@@ -52,35 +52,47 @@ export class Renderer {
    * Update polylines to render
    */
   updatePolylines(polylines: Vec2[][]): void {
+    console.log(`Renderer: Updating with ${polylines.length} polylines`);
     this.polylines = polylines;
+    if (polylines.length > 0) {
+      console.log(`First polyline has ${polylines[0].length} points`);
+    }
   }
 
   /**
    * Render the scene
    */
   render(): void {
-    const dpr = window.devicePixelRatio || 1;
-    const width = this.canvas.width / dpr;
-    const height = this.canvas.height / dpr;
+    try {
+      const dpr = window.devicePixelRatio || 1;
+      const width = this.canvas.width / dpr;
+      const height = this.canvas.height / dpr;
 
-    // Clear canvas
-    this.ctx.fillStyle = '#1a1a1a';
-    this.ctx.fillRect(0, 0, width, height);
+      // Clear canvas
+      this.ctx.fillStyle = '#1a1a1a';
+      this.ctx.fillRect(0, 0, width, height);
 
-    // Draw grid (optional, for debugging)
-    // this.drawGrid(width, height);
+      // Draw grid (optional, for debugging)
+      // this.drawGrid(width, height);
 
-    // Draw polylines
-    this.drawPolylines(width, height);
+      // Draw polylines
+      this.drawPolylines(width, height);
 
-    // Draw brush preview (optional, could add later)
+      // Draw brush preview (optional, could add later)
+    } catch (error) {
+      console.error('Error during render:', error);
+    }
   }
 
   /**
    * Draw contour polylines
    */
   private drawPolylines(canvasWidth: number, canvasHeight: number): void {
-    if (this.polylines.length === 0) return;
+    if (this.polylines.length === 0) {
+      console.log('Renderer: No polylines to draw');
+      return;
+    }
+    console.log(`Renderer: Drawing ${this.polylines.length} polylines`);
 
     this.ctx.save();
 

@@ -196,6 +196,30 @@
         box-shadow: 0 4px 16px rgba(76, 175, 80, 0.6);
       }
     }
+
+    #debug-button {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
+      left: calc(env(safe-area-inset-left, 10px) + 150px);
+      background: rgba(255, 152, 0, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      border: none;
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      pointer-events: auto;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    #debug-button:active {
+      background: rgba(245, 142, 0, 0.95);
+    }
   </style>
 </head>
 <body>
@@ -242,6 +266,7 @@
   </div>
 
   <button id="update-button" title="Update available! Click to reload">🔄</button>
+  <button id="debug-button" title="Toggle debug console">🐛</button>
 
   <script type="module" src="/src/main.ts"></script>
 </body>
