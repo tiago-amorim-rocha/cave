@@ -225,9 +225,24 @@ const debugConsole = new DebugConsole();
 // Wire up debug button
 const debugButton = document.getElementById('debug-button');
 if (debugButton) {
-  debugButton.addEventListener('click', () => {
+  console.log('Debug button found, attaching event listeners');
+
+  // Add both click and touchstart for better iOS compatibility
+  debugButton.addEventListener('click', (e) => {
+    console.log('Debug button clicked');
+    e.preventDefault();
+    e.stopPropagation();
     debugConsole.toggle();
   });
+
+  debugButton.addEventListener('touchstart', (e) => {
+    console.log('Debug button touched');
+    e.preventDefault();
+    e.stopPropagation();
+    debugConsole.toggle();
+  }, { passive: false });
+} else {
+  console.error('Debug button NOT found!');
 }
 
 // Log build timestamp to verify version
