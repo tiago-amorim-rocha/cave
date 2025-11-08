@@ -38,10 +38,15 @@ const MARCHING_SQUARES_CASES: number[][][] = [
 export class MarchingSquares {
   field: DensityField;
   isoValue: number;
+  debug: boolean = false;
 
   constructor(field: DensityField, isoValue: number) {
     this.field = field;
     this.isoValue = isoValue;
+  }
+
+  setDebug(enabled: boolean): void {
+    this.debug = enabled;
   }
 
   /**
@@ -68,6 +73,10 @@ export class MarchingSquares {
     const maxGridX = Math.min(this.field.gridWidth - 2, Math.ceil(dirtyAABB.maxX / this.field.config.gridPitch));
     const maxGridY = Math.min(this.field.gridHeight - 2, Math.ceil(dirtyAABB.maxY / this.field.config.gridPitch));
 
+    if (this.debug) {
+      console.log(`[MarchingSquares] Scanning grid (${minGridX},${minGridY}) to (${maxGridX},${maxGridY})`);
+    }
+
     // Build edge map
     const edges = new Map<string, Edge>();
 
@@ -77,8 +86,23 @@ export class MarchingSquares {
       }
     }
 
+    if (this.debug) {
+      console.log(`[MarchingSquares] Generated ${edges.size} edges`);
+    }
+
     // Stitch edges into polylines
-    return this.stitchPolylines(edges);
+    const polylines = this.stitchPolylines(edges);
+
+    if (this.debug) {
+      console.log(`[MarchingSquares] Stitched ${polylines.length} polylines:`);
+      polylines.forEach((p, i) => {
+        const isClosed = Math.abs(p[0].x - p[p.length - 1].x) < 0.001 &&
+                         Math.abs(p[0].y - p[p.length - 1].y) < 0.001;
+        console.log(`  Polyline ${i}: ${p.length} vertices, ${isClosed ? 'CLOSED' : 'OPEN'}`);
+      });
+    }
+
+    return polylines;
   }
 
   /**
@@ -105,7 +129,11 @@ export class MarchingSquares {
     if (caseIndex === 5) {
       // Case 5 (0101): BL and TR solid (diagonal)
       const center = (v00 + v10 + v11 + v01) / 4;
-      if (center >= this.isoValue) {
+      const isConnected = center >= this.isoValue;
+      if (this.debug) {
+        console.log(`Case 5 at (${gx},${gy}): v00=${v00} v10=${v10} v11=${v11} v01=${v01} center=${center.toFixed(1)} iso=${this.isoValue} → ${isConnected ? 'CONNECTED' : 'SADDLE'}`);
+      }
+      if (isConnected) {
         // Connected: one segment left to right
         edgePairs = [[3, 1]];
       } else {
@@ -115,7 +143,11 @@ export class MarchingSquares {
     } else if (caseIndex === 10) {
       // Case 10 (1010): BR and TL solid (opposite diagonal)
       const center = (v00 + v10 + v11 + v01) / 4;
-      if (center >= this.isoValue) {
+      const isConnected = center >= this.isoValue;
+      if (this.debug) {
+        console.log(`Case 10 at (${gx},${gy}): v00=${v00} v10=${v10} v11=${v11} v01=${v01} center=${center.toFixed(1)} iso=${this.isoValue} → ${isConnected ? 'CONNECTED' : 'SADDLE'}`);
+      }
+      if (isConnected) {
         // Connected: one segment bottom to top
         edgePairs = [[0, 2]];
       } else {
