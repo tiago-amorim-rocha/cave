@@ -230,6 +230,21 @@ if (debugButton) {
   });
 }
 
+// Log build timestamp to verify version
+const BUILD_TIME = new Date().toISOString();
+console.log('===========================================');
+console.log('Carvable Caves PWA');
+console.log('Build time:', BUILD_TIME);
+console.log('===========================================');
+console.log('');
+console.log('🐛 Click the bug button to open debug console');
+console.log('');
+console.log('If stuck on old version:');
+console.log('1. Hard refresh: Ctrl+Shift+R (or Cmd+Shift+R)');
+console.log('2. Clear cache: DevTools > Application > Clear storage');
+console.log('3. Unregister SW: DevTools > Application > Service Workers > Unregister');
+console.log('');
+
 // Start the application
 console.log('Starting application...');
 let app: CarvableCaves;
