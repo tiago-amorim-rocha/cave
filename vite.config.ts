@@ -6,8 +6,11 @@ export default defineConfig({
   publicDir: 'public',
   plugins: [
     VitePWA({
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       includeAssets: ['icon-512.svg'],
+      devOptions: {
+        enabled: false // Disable in dev to avoid confusion
+      },
       manifest: {
         name: 'Carvable Caves',
         short_name: 'Caves',
@@ -29,7 +32,23 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // Don't cache version.json - always fetch fresh
+        globIgnores: ['**/version.json'],
+        navigateFallback: null,
         runtimeCaching: [
+          {
+            // Always network-first for version.json
+            urlPattern: /version\.json$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'version-cache',
+              networkTimeoutSeconds: 3,
+              expiration: {
+                maxEntries: 1,
+                maxAgeSeconds: 0 // Don't cache
+              }
+            }
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',

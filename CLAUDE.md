@@ -75,15 +75,35 @@ Shared TypeScript types and interfaces.
 
 ## Cache Busting Strategy
 
-**Vite handles this automatically:**
-- Content-hashed filenames (e.g., `index-iwrH0seV.js`)
-- Hash changes when content changes
-- No manual cache busting needed
+**Multi-layered approach to ensure updates:**
 
-**Service Worker:**
-- Workbox precaches all assets
-- `registerType: 'autoUpdate'` for automatic updates
-- PWA updates when new service worker detected
+1. **Version Polling (30s interval)**:
+   - `version.json` generated on every build with timestamp and buildId
+   - Client fetches with cache-busting headers every 30 seconds
+   - Shows update button when new version detected
+   - Independent of service worker
+
+2. **Service Worker Updates**:
+   - `registerType: 'autoUpdate'` for immediate activation
+   - Service worker update checks every 60 seconds
+   - Workbox precaches all assets except version.json
+   - `version.json` uses NetworkFirst strategy (never cached)
+
+3. **Vite Content Hashing**:
+   - Content-hashed filenames (e.g., `index-iwrH0seV.js`)
+   - Hash changes when content changes
+   - Ensures browsers load new JS/CSS when updated
+
+4. **Update Button**:
+   - Circular button (🔄) appears when update detected
+   - Click to clear all caches and reload
+   - Pulsing animation to draw attention
+
+**Why this works:**
+- Version polling catches updates even if service worker is stuck
+- Service worker handles offline scenarios
+- Multiple detection methods provide redundancy
+- Explicit cache clearing prevents stale content
 
 ## Deployment
 
