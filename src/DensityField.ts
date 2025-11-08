@@ -68,7 +68,7 @@ export class DensityField {
         } else {
           // Rock area - map from threshold to -1 => 128 to 255
           // This creates a gradient at cave edges for smooth marching squares
-          const t = (noiseValue - threshold) / (threshold + 1); // normalize to [0, 1]
+          const t = (threshold - noiseValue) / (threshold + 1); // normalize to [0, 1]
           density = Math.floor(128 + t * 127);
         }
 
