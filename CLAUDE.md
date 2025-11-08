@@ -77,9 +77,9 @@ Shared TypeScript types and interfaces.
 
 **Multi-layered approach to ensure updates:**
 
-1. **Version Polling (30s interval)**:
+1. **Version Polling (5s interval)**:
    - `version.json` generated on every build with timestamp and buildId
-   - Client fetches with cache-busting headers every 30 seconds
+   - Client fetches with cache-busting headers every 5 seconds
    - Shows update button when new version detected
    - Independent of service worker
 
