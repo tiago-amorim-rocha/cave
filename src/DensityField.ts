@@ -331,16 +331,16 @@ export class DensityField {
     const minGridX = Math.max(0, Math.floor(centerGridX - widthGrid / 2));
     const maxGridX = Math.min(this.gridWidth - 1, Math.ceil(centerGridX + widthGrid / 2));
 
-    // Chamber goes upward from player spawn point
-    const minGridY = Math.max(0, Math.floor(centerGridY - heightGrid));
-    const maxGridY = Math.min(this.gridHeight - 1, Math.ceil(centerGridY));
+    // Chamber extends upward from player spawn point (empty space above player)
+    const chamberMinY = Math.max(0, Math.floor(centerGridY - heightGrid));
+    const chamberMaxY = Math.floor(centerGridY); // Include spawn point in chamber
 
-    // Floor is below the chamber
-    const floorMinY = Math.ceil(centerGridY);
-    const floorMaxY = Math.min(this.gridHeight - 1, Math.ceil(centerGridY + floorGrid));
+    // Floor is directly below the spawn point
+    const floorMinY = Math.ceil(centerGridY) + 1; // Start 1 cell below spawn
+    const floorMaxY = Math.min(this.gridHeight - 1, floorMinY + Math.ceil(floorGrid));
 
-    // Clear the chamber (cave)
-    for (let gy = minGridY; gy <= maxGridY; gy++) {
+    // Clear the chamber (cave/empty space)
+    for (let gy = chamberMinY; gy <= chamberMaxY; gy++) {
       for (let gx = minGridX; gx <= maxGridX; gx++) {
         this.set(gx, gy, 0); // Set to cave (0 density)
       }
@@ -354,7 +354,7 @@ export class DensityField {
     }
 
     // Mark dirty region (include both chamber and floor)
-    this.expandDirtyAABB(minGridX, minGridY, maxGridX, floorMaxY);
-    console.log(`[DensityField] Created spawn chamber at (${worldX.toFixed(1)}, ${worldY.toFixed(1)}) - ${width}m × ${height}m with ${floorThickness}m floor`);
+    this.expandDirtyAABB(minGridX, chamberMinY, maxGridX, floorMaxY);
+    console.log(`[DensityField] Created spawn chamber at (${worldX.toFixed(1)}, ${worldY.toFixed(1)}) - ${width}m × ${height}m cave with ${floorThickness}m floor below`);
   }
 }
