@@ -317,13 +317,28 @@
     const version = 'v' + hours + mins + secs;
     document.getElementById('version').textContent = version;
     console.log('Version:', version, 'Time:', now.toISOString());
+    console.log('Location:', window.location.href);
+    console.log('Base URL:', document.baseURI);
+
+    // Check if modules are supported
+    const supportsModules = 'noModule' in HTMLScriptElement.prototype;
+    console.log('ES Modules supported:', supportsModules);
 
     // Catch any errors
     window.onerror = function(msg, url, line, col, error) {
-      alert('ERROR: ' + msg + '\nLine: ' + line);
-      console.error('Global error:', msg, error);
+      const errorMsg = 'ERROR: ' + msg + '\nURL: ' + url + '\nLine: ' + line;
+      alert(errorMsg);
+      console.error('Global error:', msg, url, line, error);
       return false;
     };
+
+    // Check if module loads
+    setTimeout(() => {
+      if (!window.APP_LOADED) {
+        alert('Module failed to load!\nCheck console for details.');
+        console.error('Module did not set window.APP_LOADED flag');
+      }
+    }, 3000);
   </script>
   <script type="module" src="/src/main.ts"></script>
 </body>

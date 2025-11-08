@@ -231,6 +231,7 @@ class CarvableCaves {
 
 // Log that module is loading
 console.log('main.ts module loading...');
+(window as any).APP_LOADED = true;
 
 // Initialize debug console and show it by default
 let debugConsole: DebugConsole;
