@@ -4,7 +4,11 @@
  */
 
 import Matter from 'matter-js';
+import decomp from 'poly-decomp';
 import type { Point } from './PolylineSimplifier';
+
+// Configure Matter.js to use poly-decomp for concave polygon decomposition
+(Matter.Common as any).setDecomp(decomp);
 
 export class Physics {
   public engine: Matter.Engine;

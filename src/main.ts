@@ -97,10 +97,6 @@ class CarvableCaves {
       this.physics = new Physics();
       console.log('Physics initialized');
 
-      // Initialize player (spawn at cleared area)
-      this.player = new Player(this.physics, spawnX, spawnY);
-      console.log('Player initialized at spawn location');
-
       // Setup UI
       this.setupUI();
       console.log('UI setup complete');
@@ -109,6 +105,15 @@ class CarvableCaves {
       window.addEventListener('resize', () => {
         this.renderer.resize();
       });
+
+      // Generate initial mesh and physics bodies BEFORE creating player
+      console.log('Generating initial mesh and physics bodies...');
+      this.remesh();
+      console.log('Initial mesh generated');
+
+      // NOW create player after collision bodies exist
+      this.player = new Player(this.physics, spawnX, spawnY);
+      console.log(`Player initialized at spawn location (${spawnX}, ${spawnY})`);
 
       // Start render loop
       this.start();
@@ -135,6 +140,8 @@ class CarvableCaves {
         const spawnX = 50 / 2;
         const spawnY = 30 * 0.7;
         this.densityField.clearSpawnArea(spawnX, spawnY, 5, 3);
+        // Respawn player at cleared area
+        this.player.respawn(spawnX, spawnY);
         this.needsRemesh = true;
         this.needsFullHeal = true;
       };
@@ -174,8 +181,7 @@ class CarvableCaves {
 
   private start(): void {
     console.log('Starting render loop...');
-    // Initial mesh generation
-    this.remesh();
+    // Mesh was already generated during init
     this.loop();
   }
 
