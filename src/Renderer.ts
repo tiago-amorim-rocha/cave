@@ -52,11 +52,7 @@ export class Renderer {
    * Update polylines to render
    */
   updatePolylines(polylines: Vec2[][]): void {
-    console.log(`Renderer: Updating with ${polylines.length} polylines`);
     this.polylines = polylines;
-    if (polylines.length > 0) {
-      console.log(`First polyline has ${polylines[0].length} points`);
-    }
   }
 
   /**
@@ -89,10 +85,8 @@ export class Renderer {
    */
   private drawPolylines(canvasWidth: number, canvasHeight: number): void {
     if (this.polylines.length === 0) {
-      console.log('Renderer: No polylines to draw');
       return;
     }
-    console.log(`Renderer: Drawing ${this.polylines.length} polylines`);
 
     this.ctx.save();
 

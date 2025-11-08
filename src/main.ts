@@ -188,9 +188,7 @@ class CarvableCaves {
 
   private remesh(): void {
     try {
-      console.log('Remeshing...');
       const polylines = this.marchingSquares.generateContours();
-      console.log(`Generated ${polylines.length} polylines`);
       this.renderer.updatePolylines(polylines);
       this.densityField.clearDirty();
     } catch (error) {
