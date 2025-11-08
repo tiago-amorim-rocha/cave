@@ -59,8 +59,10 @@ export class Renderer {
 
   /**
    * Render the scene
+   * @param playerPosition - Optional player position to render
+   * @param playerRadius - Optional player radius
    */
-  render(): void {
+  render(playerPosition?: { x: number; y: number }, playerRadius?: number): void {
     try {
       const dpr = window.devicePixelRatio || 1;
       const width = this.canvas.width / dpr;
@@ -78,15 +80,41 @@ export class Renderer {
       // Draw polylines
       this.drawPolylines(width, height);
 
+      // Draw player
+      if (playerPosition && playerRadius) {
+        this.drawPlayer(width, height, playerPosition, playerRadius);
+      }
+
       // Draw vertices (debugging)
       if (this.showVertices) {
         this.drawVertices(width, height);
       }
-
-      // Draw brush preview (optional, could add later)
     } catch (error) {
       console.error('Error during render:', error);
     }
+  }
+
+  /**
+   * Draw the player
+   */
+  private drawPlayer(canvasWidth: number, canvasHeight: number, position: { x: number; y: number }, radius: number): void {
+    const screen = this.camera.worldToScreen(position.x, position.y, canvasWidth, canvasHeight);
+    const screenRadius = radius * this.camera.zoom;
+
+    this.ctx.save();
+
+    // Draw player body (circle)
+    this.ctx.fillStyle = '#4a9eff';
+    this.ctx.beginPath();
+    this.ctx.arc(screen.x, screen.y, screenRadius, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // Draw player outline
+    this.ctx.strokeStyle = '#2e5f99';
+    this.ctx.lineWidth = 2;
+    this.ctx.stroke();
+
+    this.ctx.restore();
   }
 
   /**

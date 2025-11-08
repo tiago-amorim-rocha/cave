@@ -2,10 +2,13 @@ import { Camera } from './Camera';
 import { DensityField } from './DensityField';
 import { MarchingSquares } from './MarchingSquares';
 import { Renderer } from './Renderer';
-import { InputHandler } from './InputHandler';
 import { DebugConsole } from './DebugConsole';
 import { LoopCache } from './LoopCache';
-import type { WorldConfig, BrushSettings } from './types';
+import { Physics } from './Physics';
+import { Player } from './Player';
+import { simplifyPolylines } from './PolylineSimplifier';
+import type { WorldConfig } from './types';
+import type { Point } from './PolylineSimplifier';
 
 /**
  * Main application
@@ -16,12 +19,11 @@ class CarvableCaves {
   private densityField: DensityField;
   private marchingSquares: MarchingSquares;
   private renderer: Renderer;
-  private inputHandler: InputHandler;
-  private brushSettings: BrushSettings;
   private loopCache: LoopCache;
+  private physics: Physics;
+  private player: Player;
 
   private needsRemesh = true;
-  private isLiveCarving = false; // Track if we're currently carving
   private needsFullHeal = false; // Track if we need a full-world remesh
   private lastFullHealTime = 0;
   private animationFrameId = 0;
@@ -30,6 +32,7 @@ class CarvableCaves {
   private frameCount = 0;
   private lastFpsTime = 0;
   private fps = 0;
+  private lastPhysicsTime = 0;
 
   constructor() {
     try {
@@ -43,13 +46,6 @@ class CarvableCaves {
         isoValue: 128
       };
       console.log('World config:', worldConfig);
-
-      // Brush settings
-      this.brushSettings = {
-        radius: 2, // metres
-        strength: 30 // 0-255
-      };
-      console.log('Brush settings:', this.brushSettings);
 
       // Setup canvas
       this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -79,6 +75,12 @@ class CarvableCaves {
       this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
       console.log('Caves generated!');
 
+      // Clear spawn area at center-bottom
+      const spawnX = worldConfig.width / 2;
+      const spawnY = worldConfig.height * 0.7; // Lower third of world
+      this.densityField.clearSpawnArea(spawnX, spawnY, 5, 3);
+      console.log(`Spawn area cleared at (${spawnX}, ${spawnY})`);
+
       // Initialize marching squares
       this.marchingSquares = new MarchingSquares(this.densityField, worldConfig.isoValue);
       console.log('Marching squares initialized');
@@ -91,25 +93,13 @@ class CarvableCaves {
       this.renderer = new Renderer(this.canvas, this.camera);
       console.log('Renderer initialized');
 
-      // Initialize input handler
-      this.inputHandler = new InputHandler(
-        this.canvas,
-        this.camera,
-        this.densityField,
-        this.brushSettings
-      );
-      console.log('Input handler initialized');
+      // Initialize physics
+      this.physics = new Physics();
+      console.log('Physics initialized');
 
-      this.inputHandler.onCarve = () => {
-        this.isLiveCarving = true;
-        this.needsRemesh = true;
-      };
-
-      this.inputHandler.onCarveEnd = () => {
-        this.isLiveCarving = false;
-        this.needsRemesh = true;
-        this.needsFullHeal = true; // Full heal on pointer up
-      };
+      // Initialize player (spawn at cleared area)
+      this.player = new Player(this.physics, spawnX, spawnY);
+      console.log('Player initialized at spawn location');
 
       // Setup UI
       this.setupUI();
@@ -130,37 +120,7 @@ class CarvableCaves {
   }
 
   private setupUI(): void {
-    // Brush radius slider
-    const radiusSlider = document.getElementById('brush-radius') as HTMLInputElement;
-    const radiusValue = document.getElementById('brush-radius-value') as HTMLSpanElement;
-
-    if (radiusSlider && radiusValue) {
-      radiusSlider.value = this.brushSettings.radius.toString();
-      radiusValue.textContent = this.brushSettings.radius.toFixed(1);
-
-      radiusSlider.addEventListener('input', () => {
-        this.brushSettings.radius = parseFloat(radiusSlider.value);
-        radiusValue.textContent = this.brushSettings.radius.toFixed(1);
-        this.inputHandler.setBrushSettings(this.brushSettings);
-      });
-    }
-
-    // Brush strength slider
-    const strengthSlider = document.getElementById('brush-strength') as HTMLInputElement;
-    const strengthValue = document.getElementById('brush-strength-value') as HTMLSpanElement;
-
-    if (strengthSlider && strengthValue) {
-      strengthSlider.value = this.brushSettings.strength.toString();
-      strengthValue.textContent = this.brushSettings.strength.toString();
-
-      strengthSlider.addEventListener('input', () => {
-        this.brushSettings.strength = parseInt(strengthSlider.value);
-        strengthValue.textContent = this.brushSettings.strength.toString();
-        this.inputHandler.setBrushSettings(this.brushSettings);
-      });
-    }
-
-    // Reset button (now regenerates caves)
+    // Reset button (regenerates caves and respawns player)
     const resetButton = document.getElementById('reset-button') as HTMLButtonElement;
     if (resetButton) {
       console.log('Reset button found, attaching event listeners');
@@ -171,7 +131,12 @@ class CarvableCaves {
         e.stopPropagation();
         // Generate new caves with random seed
         this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
+        // Clear spawn area
+        const spawnX = 50 / 2;
+        const spawnY = 30 * 0.7;
+        this.densityField.clearSpawnArea(spawnX, spawnY, 5, 3);
         this.needsRemesh = true;
+        this.needsFullHeal = true;
       };
 
       resetButton.addEventListener('click', handleReset);
@@ -217,8 +182,24 @@ class CarvableCaves {
   private loop = (): void => {
     this.animationFrameId = requestAnimationFrame(this.loop);
 
+    // Calculate delta time for physics
+    const now = performance.now();
+    const deltaMs = this.lastPhysicsTime > 0 ? now - this.lastPhysicsTime : 16.67; // Default to 60fps
+    this.lastPhysicsTime = now;
+
     // Update FPS
     this.updateFPS();
+
+    // Update player input
+    this.player.update();
+
+    // Update physics simulation
+    this.physics.update(deltaMs);
+
+    // Update camera to follow player
+    const playerPos = this.player.getPosition();
+    this.camera.x = playerPos.x;
+    this.camera.y = playerPos.y;
 
     // Remesh if needed
     if (this.needsRemesh) {
@@ -226,8 +207,8 @@ class CarvableCaves {
       this.needsRemesh = false;
     }
 
-    // Render
-    this.renderer.render();
+    // Render with player
+    this.renderer.render(playerPos, this.player.getRadius());
   };
 
   private remesh(): void {
@@ -281,7 +262,19 @@ class CarvableCaves {
 
     // Update renderer with all loops
     const allLoops = this.loopCache.getAllLoops();
-    this.renderer.updatePolylines(allLoops.map(l => l.vertices));
+    const allPolylines = allLoops.map(l => l.vertices);
+    this.renderer.updatePolylines(allPolylines);
+
+    // Simplify and update physics bodies
+    const simplifiedPolylines = simplifyPolylines(
+      allPolylines.map(polyline => polyline.map(v => ({ x: v.x, y: v.y } as Point))),
+      0.3, // epsilon in metres (3x grid pitch)
+      true // closed loops
+    );
+
+    console.log(`[FullHeal] Simplified ${allPolylines.length} polylines (avg reduction: ${this.calculateReduction(allPolylines, simplifiedPolylines).toFixed(1)}%)`);
+
+    this.physics.setCaveContours(simplifiedPolylines);
 
     this.densityField.clearDirty();
 
@@ -290,61 +283,26 @@ class CarvableCaves {
   }
 
   /**
+   * Calculate average vertex reduction percentage
+   */
+  private calculateReduction(original: any[][], simplified: Point[][]): number {
+    let totalOriginal = 0;
+    let totalSimplified = 0;
+    for (let i = 0; i < original.length; i++) {
+      totalOriginal += original[i].length;
+      totalSimplified += simplified[i]?.length || 0;
+    }
+    return totalOriginal > 0 ? ((totalOriginal - totalSimplified) / totalOriginal) * 100 : 0;
+  }
+
+  /**
    * Incremental update - only update affected loops
+   * For physics-enabled mode, we do a full heal to ensure physics bodies are correct
    */
   private incrementalUpdate(): void {
-    const dirtyAABB = this.densityField.getDirtyWorldAABB();
-    if (!dirtyAABB) {
-      // No dirty region
-      return;
-    }
-
-    const startTime = performance.now();
-
-    // Expand dirty region for safety
-    const h = this.densityField.config.gridPitch;
-    const pad = Math.ceil(this.brushSettings.radius / h) + 2;
-    const expandedAABB = {
-      minX: Math.max(0, dirtyAABB.minX - pad * h),
-      minY: Math.max(0, dirtyAABB.minY - pad * h),
-      maxX: Math.min(this.densityField.config.width, dirtyAABB.maxX + pad * h),
-      maxY: Math.min(this.densityField.config.height, dirtyAABB.maxY + pad * h)
-    };
-
-    // Query loops that intersect dirty region
-    const affectedLoops = this.loopCache.queryAABB(expandedAABB);
-
-    console.log(`[Incremental] Dirty region: (${expandedAABB.minX.toFixed(1)},${expandedAABB.minY.toFixed(1)}) to (${expandedAABB.maxX.toFixed(1)},${expandedAABB.maxY.toFixed(1)})`);
-    console.log(`[Incremental] Affected loops: ${affectedLoops.length}`);
-
-    // Remove affected loops
-    for (const loop of affectedLoops) {
-      this.loopCache.removeLoop(loop.id);
-    }
-
-    // Generate new loops in dirty region
-    const results = this.marchingSquares.generateContours(expandedAABB, pad);
-
-    // Add new loops to cache
-    let newLoopCount = 0;
-    for (const result of results) {
-      if (result && result.loop && result.loop.length > 2) {
-        this.loopCache.addLoop(result.loop, result.closed);
-        newLoopCount++;
-      }
-    }
-
-    // Update renderer with all loops
-    const allLoops = this.loopCache.getAllLoops();
-    this.renderer.updatePolylines(allLoops.map(l => l.vertices));
-
-    // Clear dirty region
-    if (!this.isLiveCarving) {
-      this.densityField.clearDirty();
-    }
-
-    const elapsed = performance.now() - startTime;
-    console.log(`[Incremental] Updated ${affectedLoops.length}→${newLoopCount} loops in ${elapsed.toFixed(1)}ms (total: ${allLoops.length})`);
+    // For now, just do a full heal since we have physics
+    // In the future, we could optimize this to only update affected physics bodies
+    this.fullHeal();
   }
 
   private updateFPS(): void {
