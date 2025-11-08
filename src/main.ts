@@ -75,11 +75,11 @@ class CarvableCaves {
       this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
       console.log('Caves generated!');
 
-      // Clear spawn area at center-bottom
+      // Clear spawn area at center-bottom with guaranteed floor
       const spawnX = worldConfig.width / 2;
       const spawnY = worldConfig.height * 0.7; // Lower third of world
-      this.densityField.clearSpawnArea(spawnX, spawnY, 5, 3);
-      console.log(`Spawn area cleared at (${spawnX}, ${spawnY})`);
+      this.densityField.clearSpawnArea(spawnX, spawnY, 10, 6, 2); // 10m wide, 6m tall, 2m floor
+      console.log(`Spawn chamber created at (${spawnX}, ${spawnY})`);
 
       // Initialize marching squares
       this.marchingSquares = new MarchingSquares(this.densityField, worldConfig.isoValue);
@@ -136,10 +136,10 @@ class CarvableCaves {
         e.stopPropagation();
         // Generate new caves with random seed
         this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
-        // Clear spawn area
+        // Clear spawn chamber with floor
         const spawnX = 50 / 2;
         const spawnY = 30 * 0.7;
-        this.densityField.clearSpawnArea(spawnX, spawnY, 5, 3);
+        this.densityField.clearSpawnArea(spawnX, spawnY, 10, 6, 2);
         // Respawn player at cleared area
         this.player.respawn(spawnX, spawnY);
         this.needsRemesh = true;

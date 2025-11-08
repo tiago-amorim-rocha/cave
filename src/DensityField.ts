@@ -314,37 +314,47 @@ export class DensityField {
   }
 
   /**
-   * Clear an elliptical spawn area to ensure player doesn't spawn in rock
+   * Clear a spawn chamber with a guaranteed floor platform
+   * Creates a rectangular room with solid floor below for player to spawn on
    * @param worldX - Center X position in world coordinates
-   * @param worldY - Center Y position in world coordinates
-   * @param radiusX - Horizontal radius in metres
-   * @param radiusY - Vertical radius in metres
+   * @param worldY - Center Y position in world coordinates (player spawn height)
+   * @param width - Chamber width in metres
+   * @param height - Chamber height in metres
+   * @param floorThickness - Thickness of floor platform in metres
    */
-  clearSpawnArea(worldX: number, worldY: number, radiusX: number = 5, radiusY: number = 3): void {
+  clearSpawnArea(worldX: number, worldY: number, width: number = 10, height: number = 6, floorThickness: number = 2): void {
     const { gridX: centerGridX, gridY: centerGridY } = this.worldToGrid(worldX, worldY);
-    const radiusGridX = radiusX / this.config.gridPitch;
-    const radiusGridY = radiusY / this.config.gridPitch;
+    const widthGrid = width / this.config.gridPitch;
+    const heightGrid = height / this.config.gridPitch;
+    const floorGrid = floorThickness / this.config.gridPitch;
 
-    const minGridX = Math.max(0, Math.floor(centerGridX - radiusGridX));
-    const maxGridX = Math.min(this.gridWidth - 1, Math.ceil(centerGridX + radiusGridX));
-    const minGridY = Math.max(0, Math.floor(centerGridY - radiusGridY));
-    const maxGridY = Math.min(this.gridHeight - 1, Math.ceil(centerGridY + radiusGridY));
+    const minGridX = Math.max(0, Math.floor(centerGridX - widthGrid / 2));
+    const maxGridX = Math.min(this.gridWidth - 1, Math.ceil(centerGridX + widthGrid / 2));
 
+    // Chamber goes upward from player spawn point
+    const minGridY = Math.max(0, Math.floor(centerGridY - heightGrid));
+    const maxGridY = Math.min(this.gridHeight - 1, Math.ceil(centerGridY));
+
+    // Floor is below the chamber
+    const floorMinY = Math.ceil(centerGridY);
+    const floorMaxY = Math.min(this.gridHeight - 1, Math.ceil(centerGridY + floorGrid));
+
+    // Clear the chamber (cave)
     for (let gy = minGridY; gy <= maxGridY; gy++) {
       for (let gx = minGridX; gx <= maxGridX; gx++) {
-        const dx = (gx - centerGridX) / radiusGridX;
-        const dy = (gy - centerGridY) / radiusGridY;
-        const distSq = dx * dx + dy * dy;
-
-        // Create elliptical cave area
-        if (distSq <= 1.0) {
-          this.set(gx, gy, 0); // Set to cave (0 density)
-        }
+        this.set(gx, gy, 0); // Set to cave (0 density)
       }
     }
 
-    // Mark dirty region
-    this.expandDirtyAABB(minGridX, minGridY, maxGridX, maxGridY);
-    console.log(`[DensityField] Cleared spawn area at (${worldX.toFixed(1)}, ${worldY.toFixed(1)}) with radius (${radiusX}, ${radiusY})m`);
+    // Create solid floor platform below
+    for (let gy = floorMinY; gy <= floorMaxY; gy++) {
+      for (let gx = minGridX; gx <= maxGridX; gx++) {
+        this.set(gx, gy, 255); // Set to solid rock (255 density)
+      }
+    }
+
+    // Mark dirty region (include both chamber and floor)
+    this.expandDirtyAABB(minGridX, minGridY, maxGridX, floorMaxY);
+    console.log(`[DensityField] Created spawn chamber at (${worldX.toFixed(1)}, ${worldY.toFixed(1)}) - ${width}m × ${height}m with ${floorThickness}m floor`);
   }
 }
