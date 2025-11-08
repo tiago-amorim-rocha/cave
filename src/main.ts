@@ -229,9 +229,20 @@ class CarvableCaves {
   }
 }
 
+// Log that module is loading
+console.log('main.ts module loading...');
+
 // Initialize debug console and show it by default
-const debugConsole = new DebugConsole();
-debugConsole.show(); // Open by default for debugging
+let debugConsole: DebugConsole;
+try {
+  debugConsole = new DebugConsole();
+  debugConsole.show(); // Open by default for debugging
+  console.log('Debug console created and shown');
+} catch (error) {
+  console.error('Failed to create debug console:', error);
+  alert('Failed to create debug console: ' + error);
+  throw error;
+}
 
 // Wire up debug button
 const debugButton = document.getElementById('debug-button');
@@ -252,21 +263,8 @@ if (debugButton) {
   console.error('Debug button NOT found!');
 }
 
-// Generate build version and display it
-const BUILD_TIME = new Date().toISOString();
-const BUILD_HASH = BUILD_TIME.substring(11, 19).replace(/:/g, ''); // Extract HHMMSS as version
-const VERSION_STRING = `v${BUILD_HASH}`;
-
-// Display version in UI
-const versionElement = document.getElementById('version');
-if (versionElement) {
-  versionElement.textContent = VERSION_STRING;
-}
-
 console.log('===========================================');
 console.log('Carvable Caves PWA');
-console.log('Version:', VERSION_STRING);
-console.log('Build time:', BUILD_TIME);
 console.log('===========================================');
 console.log('');
 console.log('Debug console is open by default');
