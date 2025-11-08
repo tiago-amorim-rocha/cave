@@ -4,13 +4,13 @@ import { MarchingSquares } from './MarchingSquares';
 import { Renderer } from './Renderer';
 import { DebugConsole } from './DebugConsole';
 import { LoopCache } from './LoopCache';
-import { Physics } from './Physics';
-import { Player } from './Player';
+import { RapierPhysics } from './RapierPhysics';
+import { RapierPlayer } from './RapierPlayer';
 import { simplifyPolylines } from './PolylineSimplifier';
 import { chaikinSmooth } from './ChaikinSmoothing';
 import type { WorldConfig } from './types';
 import type { Point } from './PolylineSimplifier';
-import Matter from 'matter-js';
+import RAPIER from '@dimforge/rapier2d-compat';
 
 /**
  * Main application
@@ -22,8 +22,8 @@ class CarvableCaves {
   private marchingSquares: MarchingSquares;
   private renderer: Renderer;
   private loopCache: LoopCache;
-  private physics: Physics;
-  private player: Player;
+  private physics: RapierPhysics;
+  private player!: RapierPlayer; // Initialized asynchronously in start()
 
   private needsRemesh = true;
   private needsFullHeal = false; // Track if we need a full-world remesh
@@ -37,7 +37,7 @@ class CarvableCaves {
   private fps = 0;
   private lastPhysicsTime = 0;
   private physicsAccumulator = 0; // Accumulate time for 10fps physics
-  private ballBodies: Matter.Body[] = []; // Track all balls for rendering
+  private ballBodies: RAPIER.RigidBody[] = []; // Track all balls for rendering
 
   constructor() {
     try {
@@ -96,9 +96,9 @@ class CarvableCaves {
       this.renderer = new Renderer(this.canvas, this.camera);
       console.log('Renderer initialized');
 
-      // Initialize physics
-      this.physics = new Physics();
-      console.log('Physics initialized');
+      // Initialize physics (will be initialized async in start())
+      this.physics = new RapierPhysics();
+      console.log('Physics created (pending async init)');
 
       // Setup UI
       this.setupUI();
@@ -109,18 +109,9 @@ class CarvableCaves {
         this.renderer.resize();
       });
 
-      // Generate initial mesh and physics bodies BEFORE creating player
-      console.log('Generating initial mesh and physics bodies...');
-      this.remesh();
-      console.log('Initial mesh generated');
-
-      // NOW create player after collision bodies exist
-      this.player = new Player(this.physics, spawnX, spawnY);
-      console.log(`Player initialized at spawn location (${spawnX}, ${spawnY})`);
-
-      // Start render loop
-      this.start();
-      console.log('CarvableCaves initialized successfully!');
+      // Start render loop (async initialization happens there)
+      this.start(spawnX, spawnY);
+      console.log('CarvableCaves initialization started...');
     } catch (error) {
       console.error('Failed to initialize CarvableCaves:', error);
       throw error;
@@ -140,7 +131,7 @@ class CarvableCaves {
 
         // Clear all test balls
         for (const ball of this.ballBodies) {
-          Matter.World.remove(this.physics.world, ball);
+          this.physics.removeBody(ball);
         }
         this.ballBodies = [];
 
@@ -195,10 +186,26 @@ class CarvableCaves {
     }
   }
 
-  private start(): void {
+  private async start(spawnX: number, spawnY: number): Promise<void> {
+    console.log('Starting async initialization...');
+
+    // Initialize Rapier physics
+    await this.physics.init();
+    console.log('Physics initialized');
+
+    // Generate initial mesh and physics bodies
+    console.log('Generating initial mesh and physics bodies...');
+    this.remesh();
+    console.log('Initial mesh generated');
+
+    // Create player after physics world is ready
+    this.player = new RapierPlayer(this.physics, spawnX, spawnY);
+    console.log(`Player initialized at spawn location (${spawnX}, ${spawnY})`);
+
+    // Start render loop
     console.log('Starting render loop...');
-    // Mesh was already generated during init
     this.loop();
+    console.log('CarvableCaves fully initialized!');
   }
 
   /**
@@ -211,15 +218,7 @@ class CarvableCaves {
     const y = margin + Math.random() * (15 - 2 * margin);
     const radius = 0.5;
 
-    const ball = Matter.Bodies.circle(x, y, radius, {
-      isStatic: false,
-      friction: 0.3,
-      restitution: 0.3,
-      density: 0.001,
-      label: 'test-ball',
-    });
-
-    Matter.World.add(this.physics.world, ball);
+    const ball = this.physics.createBall(x, y, radius);
     this.ballBodies.push(ball);
 
     console.log(`[Test] Spawned ball at random position (${x.toFixed(1)}, ${y.toFixed(1)})`);
@@ -227,6 +226,11 @@ class CarvableCaves {
 
   private loop = (): void => {
     this.animationFrameId = requestAnimationFrame(this.loop);
+
+    // Wait for player to be initialized
+    if (!this.player) {
+      return;
+    }
 
     // Calculate delta time for physics
     const now = performance.now();
@@ -246,13 +250,8 @@ class CarvableCaves {
     // Update player input
     this.player.update();
 
-    // Update physics simulation at 10fps
-    this.physicsAccumulator += deltaMs;
-    const physicsTimeStep = 100; // 100ms = 10fps
-    if (this.physicsAccumulator >= physicsTimeStep) {
-      this.physics.update(physicsTimeStep);
-      this.physicsAccumulator -= physicsTimeStep;
-    }
+    // Update physics simulation (Rapier handles fixed timestep internally)
+    this.physics.update(deltaMs);
 
     // Spawn test balls every 5 seconds
     if (now - this.lastBallSpawnTime > 5000) {
@@ -273,7 +272,26 @@ class CarvableCaves {
     // Render with player, all balls, and physics bodies
     const playerPos = this.player.getPosition();
     const allBodies = this.physics.getAllBodies();
-    this.renderer.render(playerPos, this.player.getRadius(), this.ballBodies, allBodies);
+
+    // Convert Rapier balls to format expected by Renderer
+    const ballsForRender = this.ballBodies.map(ball => {
+      const translation = ball.translation();
+      const collider = ball.collider(0);
+      const radius = collider ? (collider.shape as RAPIER.Ball).radius : 0.5;
+      return {
+        position: { x: translation.x, y: translation.y },
+        circleRadius: radius
+      };
+    });
+
+    // Convert Rapier bodies to format expected by Renderer (for physics debug)
+    const bodiesForRender = allBodies.map(body => ({
+      isStatic: !body.isDynamic(),
+      parts: [], // Not used for Rapier
+      vertices: [] // Not used for Rapier
+    }));
+
+    this.renderer.render(playerPos, this.player.getRadius(), ballsForRender, bodiesForRender);
   };
 
   private remesh(): void {
