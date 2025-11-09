@@ -47,8 +47,6 @@ class CarvableCaves {
 
   // Simplification control
   private simplificationEpsilon = 0; // 0 = no simplification
-  private currentAreaThreshold = 0; // Actual area threshold being used
-  private mappingMode: 'quadratic' | 'linear' | 'cubic' | 'exponential' = 'quadratic';
 
   constructor() {
     try {
@@ -354,7 +352,7 @@ class CarvableCaves {
     // Apply Visvalingam-Whyatt simplification if epsilon > 0
     let finalLoops = cleanedLoops;
     if (this.simplificationEpsilon > 0) {
-      const areaThreshold = this.epsilonToArea(this.simplificationEpsilon);
+      const areaThreshold = this.simplificationEpsilon * this.simplificationEpsilon; // ε²
       const asPoints = cleanedLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
       const simplified = simplifyPolylines(asPoints, areaThreshold, true);
       finalLoops = simplified.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
@@ -363,7 +361,7 @@ class CarvableCaves {
       const simplifyReduction = ((cleanedVertexCount - simplifiedCount) / cleanedVertexCount * 100);
       const totalReduction = ((trueOriginalCount - simplifiedCount) / trueOriginalCount * 100);
 
-      console.log(`  3. After Visvalingam-Whyatt simplification (ε=${this.simplificationEpsilon.toFixed(3)}m, area=${areaThreshold.toFixed(6)}m², mode=${this.mappingMode}): ${finalLoops.length} contours, ${simplifiedCount} vertices`);
+      console.log(`  3. After Visvalingam-Whyatt simplification (ε=${this.simplificationEpsilon.toFixed(3)}m, area=${areaThreshold.toFixed(6)}m²): ${finalLoops.length} contours, ${simplifiedCount} vertices`);
       console.log(`     → simplification reduction: ${simplifyReduction.toFixed(1)}% (${cleanedVertexCount - simplifiedCount} vertices removed)`);
       console.log(`     → TOTAL reduction: ${totalReduction.toFixed(1)}% (${trueOriginalCount - simplifiedCount} vertices removed)`);
     }
@@ -488,87 +486,8 @@ class CarvableCaves {
    */
   setSimplificationEpsilon(epsilon: number): void {
     this.simplificationEpsilon = epsilon;
-    this.currentAreaThreshold = this.epsilonToArea(epsilon);
     this.needsRemesh = true; // Trigger remesh check
     this.needsFullHeal = true; // Trigger full remesh
-  }
-
-  setMappingMode(mode: 'quadratic' | 'linear' | 'cubic' | 'exponential'): void {
-    const oldMode = this.mappingMode;
-    this.mappingMode = mode;
-
-    // Preserve the same area threshold by adjusting epsilon
-    if (this.currentAreaThreshold > 0) {
-      const newEpsilon = this.areaToEpsilon(this.currentAreaThreshold);
-      this.simplificationEpsilon = newEpsilon;
-
-      // Update the slider UI to reflect new epsilon
-      this.updateSliderValue(newEpsilon);
-
-      console.log(`Mode changed from ${oldMode} to ${mode}: area=${this.currentAreaThreshold.toFixed(6)}m² preserved, epsilon adjusted ${this.simplificationEpsilon.toFixed(3)}m → ${newEpsilon.toFixed(3)}m`);
-    }
-
-    this.needsRemesh = true; // Trigger remesh check
-    this.needsFullHeal = true; // Trigger full remesh
-  }
-
-  /**
-   * Convert epsilon (slider value in metres) to area threshold (m²) based on mapping mode
-   */
-  private epsilonToArea(epsilon: number): number {
-    if (epsilon === 0) return 0;
-
-    switch (this.mappingMode) {
-      case 'quadratic':
-        return epsilon * epsilon; // ε²
-      case 'linear':
-        return epsilon * 0.01; // ε × 0.01 for reasonable scale
-      case 'cubic':
-        return epsilon * epsilon * epsilon; // ε³
-      case 'exponential':
-        return Math.exp(epsilon) - 1; // e^ε - 1 (subtract 1 so e^0 = 0)
-      default:
-        return epsilon * epsilon;
-    }
-  }
-
-  /**
-   * Convert area threshold (m²) back to epsilon based on mapping mode (inverse mapping)
-   */
-  private areaToEpsilon(area: number): number {
-    if (area === 0) return 0;
-
-    switch (this.mappingMode) {
-      case 'quadratic':
-        return Math.sqrt(area); // ε = √area
-      case 'linear':
-        return area / 0.01; // ε = area / 0.01
-      case 'cubic':
-        return Math.cbrt(area); // ε = ∛area
-      case 'exponential':
-        return Math.log(area + 1); // ε = ln(area + 1)
-      default:
-        return Math.sqrt(area);
-    }
-  }
-
-  /**
-   * Update slider UI to reflect epsilon value
-   * Inverse of: epsilon = (value/100)^1.5
-   * Therefore: value = 100 * epsilon^(2/3)
-   */
-  private updateSliderValue(epsilon: number): void {
-    const slider = document.getElementById('simplification-slider') as HTMLInputElement;
-    const epsilonDisplay = document.getElementById('epsilon-value');
-
-    if (slider) {
-      const sliderValue = epsilon === 0 ? 0 : Math.round(100 * Math.pow(epsilon, 2/3));
-      slider.value = sliderValue.toString();
-    }
-
-    if (epsilonDisplay) {
-      epsilonDisplay.textContent = `${epsilon.toFixed(3)}m`;
-    }
   }
 }
 
@@ -646,13 +565,6 @@ debugConsole.onSimplificationChange = (epsilon: number) => {
   if (app) {
     app.setSimplificationEpsilon(epsilon);
     console.log(`Simplification epsilon changed to ${epsilon.toFixed(3)}m`);
-  }
-};
-
-debugConsole.onMappingModeChange = (mode: string) => {
-  if (app) {
-    app.setMappingMode(mode as 'quadratic' | 'linear' | 'cubic' | 'exponential');
-    console.log(`Area mapping mode changed to ${mode}`);
   }
 };
 

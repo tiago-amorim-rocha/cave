@@ -15,7 +15,6 @@ export class DebugConsole {
   public onToggleOriginalVertices?: (enabled: boolean) => void;
   public onToggleGrid?: (enabled: boolean) => void;
   public onSimplificationChange?: (epsilon: number) => void;
-  public onMappingModeChange?: (mode: string) => void;
 
   constructor() {
     this.container = this.createContainer();
@@ -221,66 +220,9 @@ export class DebugConsole {
     `;
     sliderDesc.textContent = 'VW simplification';
 
-    // Add epsilon mapping mode dropdown
-    const mappingRow = document.createElement('div');
-    mappingRow.style.cssText = `
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      margin-top: 4px;
-    `;
-
-    const mappingLabel = document.createElement('label');
-    mappingLabel.style.cssText = `
-      color: #4CAF50;
-      font-size: 8px;
-      flex-shrink: 0;
-      opacity: 0.7;
-    `;
-    mappingLabel.textContent = 'Mode:';
-
-    const mappingSelect = document.createElement('select');
-    mappingSelect.id = 'mapping-mode-select';
-    mappingSelect.style.cssText = `
-      background: rgba(0, 0, 0, 0.3);
-      color: #4CAF50;
-      border: 1px solid rgba(76, 175, 80, 0.3);
-      border-radius: 3px;
-      padding: 2px 4px;
-      font-family: 'Courier New', monospace;
-      font-size: 8px;
-      cursor: pointer;
-      flex: 1;
-    `;
-
-    const modes = [
-      { value: 'quadratic', label: 'ε²' },
-      { value: 'linear', label: 'ε×0.01' },
-      { value: 'cubic', label: 'ε³' },
-      { value: 'exponential', label: 'e^ε' }
-    ];
-
-    modes.forEach(mode => {
-      const option = document.createElement('option');
-      option.value = mode.value;
-      option.textContent = mode.label;
-      mappingSelect.appendChild(option);
-    });
-
-    mappingSelect.addEventListener('change', (e) => {
-      const target = e.target as HTMLSelectElement;
-      if (this.onMappingModeChange) {
-        this.onMappingModeChange(target.value);
-      }
-    });
-
-    mappingRow.appendChild(mappingLabel);
-    mappingRow.appendChild(mappingSelect);
-
     sliderRow.appendChild(sliderLabel);
     sliderRow.appendChild(slider);
     sliderRow.appendChild(sliderDesc);
-    sliderRow.appendChild(mappingRow);
     controlsContainer.appendChild(sliderRow);
 
     return controlsContainer;
