@@ -519,6 +519,12 @@ class CarvableCaves {
     this.needsRemesh = true; // Trigger remesh check
     this.needsFullHeal = true; // Trigger full remesh
   }
+
+  setISOSnapping(enabled: boolean): void {
+    this.marchingSquares.isoSnappingEnabled = enabled;
+    this.needsRemesh = true; // Trigger remesh check
+    this.needsFullHeal = true; // Trigger full remesh
+  }
 }
 
 // Log that module is loading
@@ -609,6 +615,13 @@ debugConsole.onChaikinIterationsChange = (iterations: number) => {
   if (app) {
     app.setChaikinIterations(iterations);
     console.log(`Chaikin iterations changed to ${iterations}`);
+  }
+};
+
+debugConsole.onToggleISOSnapping = (enabled: boolean) => {
+  if (app) {
+    app.setISOSnapping(enabled);
+    console.log(`ISO-snapping: ${enabled ? 'ON' : 'OFF'}`);
   }
 };
 

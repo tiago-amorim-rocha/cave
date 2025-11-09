@@ -45,10 +45,12 @@ export class MarchingSquares {
   field: DensityField;
   isoValue: number;
   debug: boolean = false;
+  isoSnappingEnabled: boolean = true; // Toggle ISO-snapping refinement
 
   // Topology tracking
   private cellInfo: Map<string, CellInfo> = new Map();
   private visited: Set<string> = new Set();
+  private isoSnapStats = { totalVertices: 0, totalAdjustment: 0, maxAdjustment: 0 };
 
   constructor(field: DensityField, isoValue: number) {
     this.field = field;
@@ -156,6 +158,15 @@ export class MarchingSquares {
         }
       });
     }
+
+    // Log ISO-snapping statistics
+    if (this.isoSnappingEnabled && this.isoSnapStats.totalVertices > 0) {
+      const avgAdjustment = this.isoSnapStats.totalAdjustment / this.isoSnapStats.totalVertices;
+      console.log(`[ISO-Snap] ${this.isoSnapStats.totalVertices} vertices, avg adjustment: ${(avgAdjustment * 1000).toFixed(2)}mm, max: ${(this.isoSnapStats.maxAdjustment * 1000).toFixed(2)}mm`);
+    }
+
+    // Reset stats for next run
+    this.isoSnapStats = { totalVertices: 0, totalAdjustment: 0, maxAdjustment: 0 };
 
     return results;
   }
@@ -421,28 +432,35 @@ export class MarchingSquares {
     }
 
     // Apply ISO-snapping: refine position to get closer to exact ISO surface
-    // Use iterative refinement (3 iterations typically enough)
     let tRefined = t;
-    for (let iter = 0; iter < 3; iter++) {
-      const xTest = edgeStart.x + tRefined * (edgeEnd.x - edgeStart.x);
-      const yTest = edgeStart.y + tRefined * (edgeEnd.y - edgeStart.y);
+    if (this.isoSnappingEnabled) {
+      for (let iter = 0; iter < 3; iter++) {
+        const xTest = edgeStart.x + tRefined * (edgeEnd.x - edgeStart.x);
+        const yTest = edgeStart.y + tRefined * (edgeEnd.y - edgeStart.y);
 
-      // Sample density at current position using bilinear interpolation
-      const sampledValue = this.sampleDensity(xTest, yTest, h);
+        // Sample density at current position using bilinear interpolation
+        const sampledValue = this.sampleDensity(xTest, yTest, h);
 
-      // Error from ISO value
-      const error = sampledValue - this.isoValue;
+        // Error from ISO value
+        const error = sampledValue - this.isoValue;
 
-      // If close enough, stop
-      if (Math.abs(error) < 1.0) break;
+        // If close enough, stop
+        if (Math.abs(error) < 1.0) break;
 
-      // Adjust t using gradient (derivative approximation)
-      // gradient ≈ (v1 - v0) / h
-      const gradient = (v1 - v0);
-      if (Math.abs(gradient) > 0.1) {
-        const adjustment = -error / gradient;
-        tRefined = Math.max(0, Math.min(1, tRefined + adjustment * 0.5)); // 0.5 = damping factor
+        // Adjust t using gradient (derivative approximation)
+        // gradient ≈ (v1 - v0) / h
+        const gradient = (v1 - v0);
+        if (Math.abs(gradient) > 0.1) {
+          const adjustment = -error / gradient;
+          tRefined = Math.max(0, Math.min(1, tRefined + adjustment * 0.5)); // 0.5 = damping factor
+        }
       }
+
+      // Track statistics
+      const adjustment = Math.abs(tRefined - t) * h; // Convert to world units
+      this.isoSnapStats.totalVertices++;
+      this.isoSnapStats.totalAdjustment += adjustment;
+      this.isoSnapStats.maxAdjustment = Math.max(this.isoSnapStats.maxAdjustment, adjustment);
     }
 
     // Use refined position
