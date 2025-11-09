@@ -5,6 +5,7 @@
  */
 
 import type { Point } from './types';
+import type { DensityField } from './DensityField';
 
 export type { Point };
 
@@ -233,7 +234,7 @@ export function chaikinSmoothPolylines(polylines: Point[][], iterations: number 
  */
 export function snapToISOSurface(
   polylines: Point[][],
-  densityField: any, // DensityField type
+  densityField: DensityField,
   isoValue: number,
   gridPitch: number,
   maxDisplacement: number = 0.5
@@ -304,7 +305,7 @@ export function snapToISOSurface(
 /**
  * Sample density field at arbitrary position using bilinear interpolation
  */
-function sampleDensityBilinear(worldX: number, worldY: number, field: any, gridPitch: number): number {
+function sampleDensityBilinear(worldX: number, worldY: number, field: DensityField, gridPitch: number): number {
   // Convert world coords to grid coords
   const gridX = worldX / gridPitch;
   const gridY = worldY / gridPitch;

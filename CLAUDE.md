@@ -408,6 +408,7 @@ node_modules/                        # Dependencies
 - Carving currently disabled (brush radius = 0)
 - Incremental updates not implemented (always full heal)
 - Player ground detection uses velocity heuristic (not raycasting)
+- Large main.ts file (878 lines) - see REFACTORING.md for breakdown recommendations
 
 ### Future Enhancements
 - [ ] Re-enable carving with physics body updates
