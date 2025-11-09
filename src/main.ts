@@ -35,7 +35,7 @@ class CarvableCaves {
 
   // Performance tracking
   private frameCount = 0;
-  private lastFpsTime = 0;
+  private lastFpsTime = performance.now();
   private fps = 0;
   private lastPhysicsTime = 0;
   private ballBodies: RAPIER.RigidBody[] = []; // Track all balls for rendering
@@ -359,6 +359,9 @@ class CarvableCaves {
       const fpsElement = document.getElementById('fps-value');
       if (fpsElement) {
         fpsElement.textContent = this.fps.toString();
+        console.log(`FPS updated: ${this.fps}`);
+      } else {
+        console.warn('fps-value element not found');
       }
 
       // Update memory display
@@ -366,6 +369,11 @@ class CarvableCaves {
       if (memoryElement && (performance as any).memory) {
         const memoryMB = ((performance as any).memory.usedJSHeapSize / 1024 / 1024).toFixed(1);
         memoryElement.textContent = memoryMB;
+        console.log(`Memory updated: ${memoryMB} MB`);
+      } else if (!memoryElement) {
+        console.warn('memory-value element not found');
+      } else {
+        console.warn('performance.memory API not available');
       }
     }
   }
