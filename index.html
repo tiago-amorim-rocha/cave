@@ -47,74 +47,7 @@
       z-index: 1;
     }
 
-    #ui {
-      position: fixed;
-      top: env(safe-area-inset-top, 10px);
-      left: env(safe-area-inset-left, 10px);
-      right: env(safe-area-inset-right, 10px);
-      background: rgba(26, 26, 26, 0.9);
-      backdrop-filter: blur(10px);
-      border-radius: 12px;
-      padding: 15px;
-      font-size: 14px;
-      pointer-events: auto;
-      max-width: 400px;
-      z-index: 100;
-    }
-
-    #ui h1 {
-      font-size: 18px;
-      margin-bottom: 12px;
-      font-weight: 600;
-    }
-
-    .control-group {
-      margin-bottom: 12px;
-    }
-
-    .control-group:last-child {
-      margin-bottom: 0;
-    }
-
-    label {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-      font-size: 13px;
-      color: #ccc;
-    }
-
-    input[type="range"] {
-      width: 100%;
-      height: 6px;
-      border-radius: 3px;
-      background: #333;
-      outline: none;
-      -webkit-appearance: none;
-    }
-
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #4CAF50;
-      cursor: pointer;
-    }
-
-    input[type="range"]::-moz-range-thumb {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #4CAF50;
-      cursor: pointer;
-      border: none;
-    }
-
     button {
-      width: 100%;
       padding: 12px;
       background: #4CAF50;
       color: white;
@@ -155,18 +88,6 @@
     .stat-row {
       display: flex;
       gap: 15px;
-    }
-
-    .instructions {
-      font-size: 12px;
-      color: #888;
-      margin-top: 10px;
-      line-height: 1.5;
-    }
-
-    .value {
-      color: #4CAF50;
-      font-weight: 600;
     }
 
     #version {
@@ -259,74 +180,10 @@
       background: rgba(245, 142, 0, 1);
       transform: scale(0.95);
     }
-
-    /* Force landscape mode by rotating when in portrait */
-    @media (orientation: portrait) {
-      body {
-        transform: rotate(90deg);
-        transform-origin: center center;
-        width: 100vh;
-        height: 100vw;
-        overflow: hidden;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        margin-left: -50vh;
-        margin-top: -50vw;
-      }
-
-      #canvas {
-        width: 100vh;
-        height: 100vw;
-      }
-    }
   </style>
 </head>
 <body>
   <canvas id="canvas"></canvas>
-
-  <div id="ui">
-    <h1>Cave Platformer</h1>
-
-    <div class="control-group">
-      <button id="reset-button">Generate New Cave</button>
-    </div>
-
-    <div class="control-group">
-      <label style="cursor: pointer; user-select: none;">
-        <span>
-          <input type="checkbox" id="debug-grid" style="width: auto; margin-right: 8px;">
-          Show Grid
-        </span>
-      </label>
-      <label style="cursor: pointer; user-select: none;">
-        <span>
-          <input type="checkbox" id="debug-vertices" style="width: auto; margin-right: 8px;">
-          Show Vertices
-        </span>
-      </label>
-      <label style="cursor: pointer; user-select: none;">
-        <span>
-          <input type="checkbox" id="debug-physics" style="width: auto; margin-right: 8px;">
-          Show Physics Bodies
-        </span>
-      </label>
-      <label style="cursor: pointer; user-select: none;">
-        <span>
-          <input type="checkbox" id="debug-console-log" style="width: auto; margin-right: 8px;">
-          Console Logging
-        </span>
-      </label>
-    </div>
-
-    <div class="instructions">
-      <strong>Controls:</strong><br>
-      • A/D or Arrow Keys: Move left/right<br>
-      • W/Space: Jump<br>
-      • Mouse wheel: Zoom<br>
-      • Static camera (for debugging physics)
-    </div>
-  </div>
 
   <div id="stats">
     <div class="stat-row">

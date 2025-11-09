@@ -18,10 +18,12 @@ export class InputHandler {
   private lastPointerX = 0;
   private lastPointerY = 0;
 
-  // For pinch zoom
+  // For touch handling
   private touches: Map<number, { x: number; y: number }> = new Map();
+  private previousTouches: Map<number, { x: number; y: number }> = new Map();
   private initialPinchDistance = 0;
   private initialZoom = 0;
+  private pinchCenter = { x: 0, y: 0 };
 
   // Carving throttle
   private lastCarveTime = 0;
@@ -131,39 +133,59 @@ export class InputHandler {
     this.camera.zoomAt(x, y, zoomDelta, this.canvas.width, this.canvas.height);
   }
 
+  private getTouchPosition(touch: Touch): { x: number; y: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
+    const y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
+    return { x, y };
+  }
+
   private onTouchStart(e: TouchEvent): void {
     // Check if touch is on a UI element (button, slider, etc)
     const target = e.target as HTMLElement;
     if (target && target !== this.canvas) {
-      console.log('Touch on UI element, ignoring:', target.id || target.tagName);
       return; // Let the UI element handle it
     }
 
     e.preventDefault();
-    console.log('Canvas touch start');
 
-    const rect = this.canvas.getBoundingClientRect();
+    // Store previous state
+    this.previousTouches.clear();
+    this.touches.forEach((pos, id) => {
+      this.previousTouches.set(id, { ...pos });
+    });
 
-    // Update touches
+    // Update current touches
+    this.touches.clear();
     for (let i = 0; i < e.touches.length; i++) {
       const touch = e.touches[i];
-      const x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
-      const y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
-      this.touches.set(touch.identifier, { x, y });
+      const pos = this.getTouchPosition(touch);
+      this.touches.set(touch.identifier, pos);
     }
 
     if (this.touches.size === 1) {
-      // Single touch: pan (carving disabled)
+      // Single touch: start panning
       const [touch] = this.touches.values();
       this.lastPointerX = touch.x;
       this.lastPointerY = touch.y;
       this.isPanning = true;
     } else if (this.touches.size === 2) {
       // Two touches: prepare for pinch zoom
+      this.isPanning = false;
       this.isCarving = false;
-      const [t1, t2] = Array.from(this.touches.values());
+
+      const touchArray = Array.from(this.touches.values());
+      const [t1, t2] = touchArray;
+
+      // Calculate initial pinch distance
       this.initialPinchDistance = Math.hypot(t2.x - t1.x, t2.y - t1.y);
       this.initialZoom = this.camera.zoom;
+
+      // Calculate pinch center point
+      this.pinchCenter = {
+        x: (t1.x + t2.x) / 2,
+        y: (t1.y + t2.y) / 2
+      };
     }
   }
 
@@ -176,45 +198,79 @@ export class InputHandler {
 
     e.preventDefault();
 
-    const rect = this.canvas.getBoundingClientRect();
+    // Store previous state
+    this.previousTouches.clear();
+    this.touches.forEach((pos, id) => {
+      this.previousTouches.set(id, { ...pos });
+    });
 
-    // Update touches
-    const oldTouches = new Map(this.touches);
+    // Update current touches
     this.touches.clear();
-
     for (let i = 0; i < e.touches.length; i++) {
       const touch = e.touches[i];
-      const x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
-      const y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
-      this.touches.set(touch.identifier, { x, y });
+      const pos = this.getTouchPosition(touch);
+      this.touches.set(touch.identifier, pos);
     }
 
-    if (this.touches.size === 1) {
-      // Single touch: pan only (no carving)
-      const [touch] = this.touches.values();
-      const [oldTouch] = oldTouches.values();
+    if (this.touches.size === 1 && this.previousTouches.size === 1) {
+      // Single touch: pan
+      const [touchId] = this.touches.keys();
+      const currentPos = this.touches.get(touchId)!;
+      const previousPos = this.previousTouches.get(touchId);
 
-      if (oldTouch) {
-        const dx = touch.x - oldTouch.x;
-        const dy = touch.y - oldTouch.y;
+      if (previousPos) {
+        const dx = currentPos.x - previousPos.x;
+        const dy = currentPos.y - previousPos.y;
         this.camera.pan(dx, dy);
       }
 
-      this.lastPointerX = touch.x;
-      this.lastPointerY = touch.y;
+      this.lastPointerX = currentPos.x;
+      this.lastPointerY = currentPos.y;
     } else if (this.touches.size === 2) {
       // Two touches: pinch zoom
-      const [t1, t2] = Array.from(this.touches.values());
+      const touchArray = Array.from(this.touches.values());
+      const [t1, t2] = touchArray;
+
+      // Calculate current distance
       const currentDistance = Math.hypot(t2.x - t1.x, t2.y - t1.y);
 
-      if (this.initialPinchDistance > 0) {
-        const scale = currentDistance / this.initialPinchDistance;
+      // Calculate current center
+      const currentCenter = {
+        x: (t1.x + t2.x) / 2,
+        y: (t1.y + t2.y) / 2
+      };
 
-        // Apply zoom
-        this.camera.zoom = Math.max(
+      if (this.initialPinchDistance > 0) {
+        // Calculate zoom scale
+        const scale = currentDistance / this.initialPinchDistance;
+        const newZoom = Math.max(
           this.camera.minZoom,
           Math.min(this.camera.maxZoom, this.initialZoom * scale)
         );
+
+        // Apply zoom centered on the pinch center
+        const zoomDelta = newZoom / this.camera.zoom;
+        this.camera.zoomAt(
+          this.pinchCenter.x,
+          this.pinchCenter.y,
+          zoomDelta,
+          this.canvas.width,
+          this.canvas.height
+        );
+      }
+
+      // Also pan based on center movement
+      if (this.previousTouches.size === 2) {
+        const prevTouchArray = Array.from(this.previousTouches.values());
+        const [p1, p2] = prevTouchArray;
+        const previousCenter = {
+          x: (p1.x + p2.x) / 2,
+          y: (p1.y + p2.y) / 2
+        };
+
+        const dx = currentCenter.x - previousCenter.x;
+        const dy = currentCenter.y - previousCenter.y;
+        this.camera.pan(dx, dy);
       }
     }
   }
@@ -228,17 +284,22 @@ export class InputHandler {
 
     e.preventDefault();
 
-    // Update touches
+    // Store previous state
+    this.previousTouches.clear();
+    this.touches.forEach((pos, id) => {
+      this.previousTouches.set(id, { ...pos });
+    });
+
+    // Update touches based on remaining touches
     this.touches.clear();
     for (let i = 0; i < e.touches.length; i++) {
       const touch = e.touches[i];
-      const rect = this.canvas.getBoundingClientRect();
-      const x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
-      const y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
-      this.touches.set(touch.identifier, { x, y });
+      const pos = this.getTouchPosition(touch);
+      this.touches.set(touch.identifier, pos);
     }
 
     if (this.touches.size === 0) {
+      // All touches ended
       if (this.isCarving) {
         this.onCarveEnd?.();
       }
@@ -246,11 +307,22 @@ export class InputHandler {
       this.isPanning = false;
       this.initialPinchDistance = 0;
     } else if (this.touches.size === 1) {
-      // Back to single touch
+      // Back to single touch: restart panning
       const [touch] = this.touches.values();
       this.lastPointerX = touch.x;
       this.lastPointerY = touch.y;
+      this.isPanning = true;
       this.initialPinchDistance = 0;
+    } else if (this.touches.size === 2) {
+      // Still have 2 touches, reinitialize pinch
+      const touchArray = Array.from(this.touches.values());
+      const [t1, t2] = touchArray;
+      this.initialPinchDistance = Math.hypot(t2.x - t1.x, t2.y - t1.y);
+      this.initialZoom = this.camera.zoom;
+      this.pinchCenter = {
+        x: (t1.x + t2.x) / 2,
+        y: (t1.y + t2.y) / 2
+      };
     }
   }
 
