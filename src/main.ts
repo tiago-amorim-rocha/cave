@@ -65,6 +65,9 @@ class CarvableCaves {
   private originalVertexCount = 0; // vertices from Marching Squares
   private finalVertexCount = 0; // vertices after full pipeline
 
+  // Control mode (true = character control, false = camera pan/zoom)
+  private characterControlMode = true;
+
   constructor() {
     try {
       console.log('Initializing CarvableCaves...');
@@ -132,7 +135,9 @@ class CarvableCaves {
       // Disable carving callbacks
       this.inputHandler.onCarve = undefined;
       this.inputHandler.onCarveEnd = undefined;
-      console.log('Input handler initialized (camera controls only)');
+      // Start in character control mode (camera controls disabled)
+      this.inputHandler.setCameraControlsEnabled(!this.characterControlMode);
+      console.log('Input handler initialized (camera controls disabled, character control mode)');
 
       // Initialize physics (will be initialized async in start())
       this.physics = new RapierPhysics();
@@ -264,9 +269,12 @@ class CarvableCaves {
       this.lastBallSpawnTime = now;
     }
 
-    // Camera stays static (don't follow player)
-    // this.camera.x = playerPos.x;
-    // this.camera.y = playerPos.y;
+    // Camera follows player in character control mode
+    const playerPos = this.player.getPosition();
+    if (this.characterControlMode) {
+      this.camera.x = playerPos.x;
+      this.camera.y = playerPos.y;
+    }
 
     // Remesh if needed
     if (this.needsRemesh) {
@@ -275,7 +283,6 @@ class CarvableCaves {
     }
 
     // Render with player, all balls, and physics debug
-    const playerPos = this.player.getPosition();
 
     // Convert Rapier balls to format expected by Renderer
     const ballsForRender = this.ballBodies.map(ball => {
@@ -620,6 +627,22 @@ class CarvableCaves {
   getPostSimplificationReduction(): number {
     return this.postSimplificationReduction;
   }
+
+  /**
+   * Toggle control mode between character control and camera pan/zoom
+   * @param enabled - true for character control, false for camera control
+   */
+  setControlMode(enabled: boolean): void {
+    this.characterControlMode = enabled;
+
+    // Enable/disable camera controls (inverse of character control mode)
+    this.inputHandler.setCameraControlsEnabled(!enabled);
+
+    // Show/hide virtual joystick
+    this.joystick.setVisible(enabled);
+
+    console.log(`[ControlMode] Switched to ${enabled ? 'CHARACTER' : 'CAMERA'} control mode`);
+  }
 }
 
 // Log that module is loading
@@ -732,6 +755,13 @@ debugConsole.onToggleISOSnappingPost = (enabled: boolean) => {
   if (app) {
     app.setISOSnappingPost(enabled);
     console.log(`ISO-snapping (post-optimization): ${enabled ? 'ON' : 'OFF'}`);
+  }
+};
+
+debugConsole.onToggleControlMode = (enabled: boolean) => {
+  if (app) {
+    app.setControlMode(enabled);
+    console.log(`Control mode: ${enabled ? 'CHARACTER' : 'CAMERA'}`);
   }
 };
 
