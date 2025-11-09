@@ -7,6 +7,12 @@ export interface Vec2 {
   y: number;
 }
 
+/**
+ * Point is an alias for Vec2 - used throughout the codebase
+ * for 2D coordinates in world units (metres)
+ */
+export type Point = Vec2;
+
 export interface AABB {
   minX: number;
   minY: number;

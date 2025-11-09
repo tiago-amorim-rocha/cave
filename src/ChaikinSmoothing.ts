@@ -3,10 +3,7 @@
  * Creates smoother curves by replacing each edge with two shorter edges
  */
 
-export interface Point {
-  x: number;
-  y: number;
-}
+import type { Point } from './types';
 
 /**
  * Apply one iteration of Chaikin corner-cutting smoothing
