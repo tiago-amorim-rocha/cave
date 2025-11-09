@@ -486,6 +486,7 @@ class CarvableCaves {
    */
   setSimplificationEpsilon(epsilon: number): void {
     this.simplificationEpsilon = epsilon;
+    this.needsRemesh = true; // Trigger remesh check
     this.needsFullHeal = true; // Trigger full remesh
   }
 
@@ -494,6 +495,7 @@ class CarvableCaves {
    */
   setAngleThreshold(angleDegrees: number): void {
     this.angleThresholdDeg = angleDegrees;
+    this.needsRemesh = true; // Trigger remesh check
     this.needsFullHeal = true; // Trigger full remesh
   }
 }
