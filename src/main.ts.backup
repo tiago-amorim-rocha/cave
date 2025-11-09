@@ -8,9 +8,10 @@ import { InputHandler } from './InputHandler';
 import { RapierPhysics } from './RapierPhysics';
 import { RapierPlayer } from './RapierPlayer';
 import { VirtualJoystick } from './VirtualJoystick';
-import { RemeshManager, type RemeshStats } from './RemeshManager';
-import { VersionChecker } from './VersionChecker';
-import type { WorldConfig, BrushSettings } from './types';
+import { simplifyPolylines } from './PolylineSimplifier';
+import { chaikinSmoothMultiple } from './ChaikinSmoothing';
+import { cleanLoop } from './physics/shapeUtils';
+import type { WorldConfig, BrushSettings, Point } from './types';
 import RAPIER from '@dimforge/rapier2d-compat';
 
 /**
@@ -27,9 +28,10 @@ class CarvableCaves {
   private physics: RapierPhysics;
   private player!: RapierPlayer; // Initialized asynchronously in start()
   private joystick: VirtualJoystick;
-  private remeshManager!: RemeshManager; // Initialized after physics
 
   private needsRemesh = true;
+  private needsFullHeal = false; // Track if we need a full-world remesh
+  private lastFullHealTime = 0;
   private animationFrameId = 0;
   private lastBallSpawnTime = 0; // Track ball spawning
 
@@ -38,6 +40,7 @@ class CarvableCaves {
   private lastFpsTime = 0;
   private fps = 0;
   private lastPhysicsTime = 0;
+  private physicsAccumulator = 0; // Accumulate time for 10fps physics
   private ballBodies: RAPIER.RigidBody[] = []; // Track all balls for rendering
 
   // Resize handling
@@ -176,7 +179,7 @@ class CarvableCaves {
       });
 
       // Start render loop (async initialization happens there)
-      this.start(spawnX, spawnY, worldConfig.gridPitch);
+      this.start(spawnX, spawnY);
       console.log('CarvableCaves initialization started...');
     } catch (error) {
       console.error('Failed to initialize CarvableCaves:', error);
@@ -189,29 +192,12 @@ class CarvableCaves {
     console.log('UI setup complete (debug console only)');
   }
 
-  private async start(spawnX: number, spawnY: number, gridPitch: number): Promise<void> {
+  private async start(spawnX: number, spawnY: number): Promise<void> {
     console.log('Starting async initialization...');
 
     // Initialize Rapier physics
     await this.physics.init();
     console.log('Physics initialized');
-
-    // Initialize remesh manager (after physics is ready)
-    this.remeshManager = new RemeshManager({
-      densityField: this.densityField,
-      marchingSquares: this.marchingSquares,
-      loopCache: this.loopCache,
-      physics: this.physics,
-      renderer: this.renderer,
-      optimizationOptions: {
-        gridPitch,
-        simplificationEpsilon: this.simplificationEpsilon,
-        chaikinEnabled: this.chaikinEnabled,
-        chaikinIterations: this.chaikinIterations,
-        simplificationEpsilonPost: this.simplificationEpsilonPost
-      }
-    });
-    console.log('Remesh manager initialized');
 
     // Generate initial mesh and physics bodies
     console.log('Generating initial mesh and physics bodies...');
@@ -325,25 +311,241 @@ class CarvableCaves {
   };
 
   private remesh(): void {
-    const stats = this.remeshManager.remesh();
+    try {
+      const now = performance.now();
 
-    if (stats) {
-      // Update local stats for UI
-      this.originalVertexCount = stats.originalVertexCount;
-      this.finalVertexCount = stats.finalVertexCount;
-      this.simplificationReduction = stats.simplificationReduction;
-      this.postSimplificationReduction = stats.postSimplificationReduction;
+      // Check if we need a full heal (periodic or requested)
+      const timeSinceLastHeal = now - this.lastFullHealTime;
+      const needsPeriodicHeal = timeSinceLastHeal > 5000; // Every 5 seconds
 
-      // Update debug console stats
-      if ((window as any).debugConsole) {
-        (window as any).debugConsole.updateStats(
-          this.originalVertexCount,
-          this.finalVertexCount,
-          this.simplificationReduction,
-          this.postSimplificationReduction
-        );
+      if (this.needsFullHeal || needsPeriodicHeal || this.loopCache.count() === 0) {
+        // Full world remesh
+        this.fullHeal();
+        this.needsFullHeal = false;
+        this.lastFullHealTime = now;
+      } else {
+        // Incremental update
+        this.incrementalUpdate();
+      }
+    } catch (error) {
+      console.error('Error during remesh:', error);
+    }
+  }
+
+  /**
+   * Full world remesh - rebuild all loops
+   */
+  private fullHeal(): void {
+    console.log('[FullHeal] Rebuilding all loops...');
+    const startTime = performance.now();
+
+    // Clear cache
+    this.loopCache.clear();
+
+    // Generate all contours for entire field
+    const fullField = {
+      minX: 0,
+      minY: 0,
+      maxX: this.densityField.config.width,
+      maxY: this.densityField.config.height
+    };
+
+    const results = this.marchingSquares.generateContours(fullField, 0);
+
+    // Add all loops to cache
+    for (const result of results) {
+      if (result && result.loop && result.loop.length > 2) {
+        this.loopCache.addLoop(result.loop, result.closed);
       }
     }
+
+    // Update renderer with all loops
+    const allLoops = this.loopCache.getAllLoops();
+    const allPolylines = allLoops.map(l => l.vertices);
+
+    // Filter to only rock loops (not cave holes) using density field sampling
+    const rockLoops = allPolylines.filter(loop => {
+      if (loop.length < 3) return false;
+      return this.isRockLoop(loop);
+    });
+
+    console.log(`[FullHeal] Classified ${allPolylines.length} loops: ${rockLoops.length} rock, ${allPolylines.length - rockLoops.length} cave`);
+
+    // Store TRUE ORIGINAL vertices before ANY optimization (for debug visualization)
+    const trueOriginalLoops = rockLoops.map(loop => loop.map(v => ({ x: v.x, y: v.y })));
+    const trueOriginalCount = trueOriginalLoops.reduce((sum, loop) => sum + loop.length, 0);
+
+    // Apply shape hygiene: dedupe, cull tiny edges, collapse collinear, ensure CCW
+    const gridPitch = this.densityField.config.gridPitch;
+
+    const cleanedLoops = rockLoops.map(loop => {
+      const asPoints = loop.map(v => ({ x: v.x, y: v.y } as Point));
+      return cleanLoop(asPoints, gridPitch); // dedupe + cullTinyEdges + ensureCCW
+    }).filter(loop => loop.length >= 3);
+
+    const cleanedVertexCount = cleanedLoops.reduce((sum, loop) => sum + loop.length, 0);
+    const cleanReduction = ((trueOriginalCount - cleanedVertexCount) / trueOriginalCount * 100);
+
+    console.log(`[FullHeal] Vertex optimization pipeline:`);
+    console.log(`  1. Marching Squares output: ${rockLoops.length} contours, ${trueOriginalCount} vertices`);
+    console.log(`  2. After cleanLoop (dedupe+hygiene): ${cleanedLoops.length} contours, ${cleanedVertexCount} vertices`);
+    console.log(`     → cleanLoop reduction: ${cleanReduction.toFixed(1)}% (${trueOriginalCount - cleanedVertexCount} vertices removed)`);
+
+    // Apply Visvalingam-Whyatt simplification if epsilon > 0
+    let finalLoops = cleanedLoops;
+    if (this.simplificationEpsilon > 0) {
+      const areaThreshold = this.simplificationEpsilon * this.simplificationEpsilon; // ε²
+      const asPoints = cleanedLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
+      const simplified = simplifyPolylines(asPoints, areaThreshold, true);
+      finalLoops = simplified.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+
+      const simplifiedCount = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+      const simplifyReduction = ((cleanedVertexCount - simplifiedCount) / cleanedVertexCount * 100);
+      const totalReduction = ((trueOriginalCount - simplifiedCount) / trueOriginalCount * 100);
+
+      // Store for UI display
+      this.simplificationReduction = simplifyReduction;
+
+      console.log(`  3. After Visvalingam-Whyatt simplification (ε=${this.simplificationEpsilon.toFixed(3)}m, area=${areaThreshold.toFixed(6)}m²): ${finalLoops.length} contours, ${simplifiedCount} vertices`);
+      console.log(`     → simplification reduction: ${simplifyReduction.toFixed(1)}% (${cleanedVertexCount - simplifiedCount} vertices removed)`);
+      console.log(`     → TOTAL reduction: ${totalReduction.toFixed(1)}% (${trueOriginalCount - simplifiedCount} vertices removed)`);
+    } else {
+      this.simplificationReduction = 0;
+    }
+
+    // Apply Chaikin smoothing if enabled
+    if (this.chaikinEnabled) {
+      const beforeChaikin = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+      const asPoints = finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
+      const smoothed = asPoints.map(loop => chaikinSmoothMultiple(loop, this.chaikinIterations, 0.25, true));
+      finalLoops = smoothed.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+
+      const afterChaikin = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+      const chaikinIncrease = ((afterChaikin - beforeChaikin) / beforeChaikin * 100);
+
+      console.log(`  4. After Chaikin smoothing (${this.chaikinIterations} iteration${this.chaikinIterations > 1 ? 's' : ''}): ${finalLoops.length} contours, ${afterChaikin} vertices`);
+      console.log(`     → vertex increase: +${chaikinIncrease.toFixed(1)}% (+${afterChaikin - beforeChaikin} vertices added for smoothness)`);
+    }
+
+    // Apply post-smoothing simplification to remove redundant vertices from Chaikin
+    if (this.simplificationEpsilonPost > 0) {
+      const beforePostSimplify = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+      const areaThresholdPost = this.simplificationEpsilonPost * this.simplificationEpsilonPost;
+
+      const asPoints = finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
+      const simplifiedPost = simplifyPolylines(asPoints, areaThresholdPost, true);
+      finalLoops = simplifiedPost.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+
+      const afterPostSimplify = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+      const postSimplifyReduction = ((beforePostSimplify - afterPostSimplify) / beforePostSimplify * 100);
+
+      // Store for UI display
+      this.postSimplificationReduction = postSimplifyReduction;
+
+      console.log(`  5. After post-smoothing simplification (ε=${this.simplificationEpsilonPost.toFixed(3)}m, area=${areaThresholdPost.toFixed(6)}m²): ${finalLoops.length} contours, ${afterPostSimplify} vertices`);
+      console.log(`     → post-smoothing reduction: ${postSimplifyReduction.toFixed(1)}% (${beforePostSimplify - afterPostSimplify} vertices removed from Chaikin redundancy)`);
+    } else {
+      this.postSimplificationReduction = 0;
+    }
+
+    // Store original for debug visualization
+    this.renderer.updateOriginalPolylines(trueOriginalLoops);
+
+    console.log(`  Average vertices per contour: ${(finalLoops.reduce((sum, loop) => sum + loop.length, 0) / finalLoops.length).toFixed(1)}`);
+
+    // Use final loops for both physics and rendering
+    this.physics.setCaveContours(finalLoops);
+
+    // Update renderer with final loops
+    const finalForRender = finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+    this.renderer.updatePolylines(finalForRender);
+
+    this.densityField.clearDirty();
+
+    const elapsed = performance.now() - startTime;
+    console.log(`[FullHeal] Complete. ${allLoops.length} loops in ${elapsed.toFixed(1)}ms`);
+
+    // Store vertex counts for UI display
+    this.originalVertexCount = trueOriginalCount;
+    this.finalVertexCount = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+
+    // Update debug console stats
+    if ((window as any).debugConsole) {
+      (window as any).debugConsole.updateStats(
+        this.originalVertexCount,
+        this.finalVertexCount,
+        this.simplificationReduction,
+        this.postSimplificationReduction
+      );
+    }
+  }
+
+  /**
+   * Determine if a loop represents solid rock or a cave hole
+   * Uses signed area and density sampling to classify
+   */
+  private isRockLoop(loop: { x: number; y: number }[]): boolean {
+    if (loop.length < 3) return false;
+
+    // Calculate signed area to determine winding direction
+    let area = 0;
+    for (let i = 0; i < loop.length; i++) {
+      const p = loop[i];
+      const q = loop[(i + 1) % loop.length];
+      area += (p.x * q.y - q.x * p.y);
+    }
+
+    // Sample a point slightly inside the loop
+    const p0 = loop[0];
+    const p1 = loop[1];
+
+    // Calculate left normal to first edge
+    let nx = p1.y - p0.y;
+    let ny = -(p1.x - p0.x);
+    const len = Math.hypot(nx, ny) || 1;
+    nx /= len;
+    ny /= len;
+
+    // Flip normal based on winding direction so it points inward
+    if (area >= 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+
+    // Sample point 5cm inside the loop
+    const sampleX = p0.x + nx * 0.05;
+    const sampleY = p0.y + ny * 0.05;
+
+    // Check density at sample point
+    const { gridX, gridY } = this.densityField.worldToGrid(sampleX, sampleY);
+    const density = this.densityField.get(gridX, gridY);
+
+    // Rock if density >= isoValue (128)
+    return density >= 128;
+  }
+
+  /**
+   * Calculate average vertex reduction percentage
+   * Note: This method is currently unused but kept for future use
+   */
+  private calculateReduction(original: Point[][], simplified: Point[][]): number {
+    let totalOriginal = 0;
+    let totalSimplified = 0;
+    for (let i = 0; i < original.length; i++) {
+      totalOriginal += original[i].length;
+      totalSimplified += simplified[i]?.length || 0;
+    }
+    return totalOriginal > 0 ? ((totalOriginal - totalSimplified) / totalOriginal) * 100 : 0;
+  }
+
+  /**
+   * Incremental update - only update affected loops
+   * For physics-enabled mode, we do a full heal to ensure physics bodies are correct
+   */
+  private incrementalUpdate(): void {
+    // For now, just do a full heal since we have physics
+    // In the future, we could optimize this to only update affected physics bodies
+    this.fullHeal();
   }
 
   private updateFPS(): void {
@@ -381,30 +583,26 @@ class CarvableCaves {
    */
   setSimplificationEpsilon(epsilon: number): void {
     this.simplificationEpsilon = epsilon;
-    this.remeshManager.updateOptimizationOptions({ simplificationEpsilon: epsilon });
-    this.needsRemesh = true;
-    this.remeshManager.requestFullHeal();
+    this.needsRemesh = true; // Trigger remesh check
+    this.needsFullHeal = true; // Trigger full remesh
   }
 
   setChaikinEnabled(enabled: boolean): void {
     this.chaikinEnabled = enabled;
-    this.remeshManager.updateOptimizationOptions({ chaikinEnabled: enabled });
-    this.needsRemesh = true;
-    this.remeshManager.requestFullHeal();
+    this.needsRemesh = true; // Trigger remesh check
+    this.needsFullHeal = true; // Trigger full remesh
   }
 
   setChaikinIterations(iterations: number): void {
     this.chaikinIterations = iterations;
-    this.remeshManager.updateOptimizationOptions({ chaikinIterations: iterations });
-    this.needsRemesh = true;
-    this.remeshManager.requestFullHeal();
+    this.needsRemesh = true; // Trigger remesh check
+    this.needsFullHeal = true; // Trigger full remesh
   }
 
   setSimplificationEpsilonPost(epsilon: number): void {
     this.simplificationEpsilonPost = epsilon;
-    this.remeshManager.updateOptimizationOptions({ simplificationEpsilonPost: epsilon });
-    this.needsRemesh = true;
-    this.remeshManager.requestFullHeal();
+    this.needsRemesh = true; // Trigger remesh check
+    this.needsFullHeal = true; // Trigger full remesh
   }
 
   getSimplificationReduction(): number {
@@ -573,10 +771,88 @@ try {
 // ===================================================
 // Version checking for cache busting
 // ===================================================
+let currentVersion: { timestamp: number; buildId: string } | null = null;
 
-const versionChecker = new VersionChecker();
-versionChecker.setUpdateCallback(VersionChecker.showUpdateButton);
-versionChecker.startPolling();
+async function checkForUpdates(): Promise<boolean> {
+  try {
+    const response = await fetch('/cave/version.json', {
+      cache: 'no-cache',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
+
+    if (!response.ok) {
+      console.warn('Failed to fetch version.json');
+      return false;
+    }
+
+    const newVersion = await response.json();
+
+    // First time - store current version
+    if (!currentVersion) {
+      currentVersion = newVersion;
+      console.log('Current version:', newVersion);
+      return false;
+    }
+
+    // Check if version changed
+    if (newVersion.buildId !== currentVersion.buildId ||
+        newVersion.timestamp !== currentVersion.timestamp) {
+      console.log('New version detected!', {
+        current: currentVersion,
+        new: newVersion
+      });
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Error checking version:', error);
+    return false;
+  }
+}
+
+// Check for updates every 5 seconds
+function startVersionPolling() {
+  // Initial check
+  checkForUpdates().then(hasUpdate => {
+    if (hasUpdate) {
+      showUpdateButton();
+    }
+  });
+
+  // Poll every 5 seconds
+  setInterval(async () => {
+    const hasUpdate = await checkForUpdates();
+    if (hasUpdate) {
+      showUpdateButton();
+    }
+  }, 5000);
+}
+
+function showUpdateButton() {
+  const updateButton = document.getElementById('update-button');
+  if (updateButton && !updateButton.classList.contains('visible')) {
+    updateButton.classList.add('visible');
+    console.log('Update button shown - new version available!');
+  }
+}
+
+function reloadApp() {
+  // Clear all caches and reload
+  if ('caches' in window && window.caches) {
+    window.caches.keys().then(names => {
+      names.forEach(name => window.caches.delete(name));
+    }).then(() => {
+      window.location.reload();
+    });
+  } else {
+    // No cache API, just reload
+    (window as Window).location.reload();
+  }
+}
 
 // ===================================================
 // Service Worker Registration
@@ -593,7 +869,7 @@ if ('serviceWorker' in navigator) {
       onNeedRefresh() {
         // Show the update button when a new version is available
         console.log('Service worker detected update');
-        VersionChecker.showUpdateButton();
+        showUpdateButton();
       },
       onOfflineReady() {
         console.log('App ready to work offline');
@@ -616,7 +892,7 @@ if ('serviceWorker' in navigator) {
       updateButton.addEventListener('click', () => {
         console.log('Update button clicked - reloading app');
         updateSW(true).then(() => {
-          VersionChecker.reloadApp();
+          reloadApp();
         });
       });
     }
@@ -625,5 +901,8 @@ if ('serviceWorker' in navigator) {
     console.log('Service worker registration skipped:', error?.message || 'dev mode');
   });
 }
+
+// Start version polling (independent of service worker)
+startVersionPolling();
 
 export { app };
