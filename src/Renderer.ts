@@ -1,5 +1,6 @@
 import type { Camera } from './Camera';
 import type { Vec2 } from './types';
+import type { DensityField } from './DensityField';
 
 /**
  * Canvas2D renderer with device-pixel-ratio awareness
@@ -11,7 +12,9 @@ export class Renderer {
 
   private polylines: Vec2[][] = [];
   private originalPolylines: Vec2[][] = []; // Store original vertices before optimization
+  private densityField: DensityField | null = null;
   public showGrid: boolean = false;
+  public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
   public showPhysicsBodies: boolean = false;
@@ -79,6 +82,13 @@ export class Renderer {
   }
 
   /**
+   * Set density field for debug visualization
+   */
+  setDensityField(field: DensityField): void {
+    this.densityField = field;
+  }
+
+  /**
    * Render the scene
    * @param playerPosition - Optional player position to render
    * @param playerRadius - Optional player radius
@@ -99,6 +109,11 @@ export class Renderer {
       // Clear canvas
       this.ctx.fillStyle = '#1a1a1a';
       this.ctx.fillRect(0, 0, width, height);
+
+      // Draw density field (optional, for debugging)
+      if (this.showDensityField && this.densityField) {
+        this.drawDensityField(width, height);
+      }
 
       // Draw grid (optional, for debugging)
       if (this.showGrid) {
@@ -354,6 +369,68 @@ export class Renderer {
         this.ctx.fill();
       }
     }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw density field as grayscale image
+   */
+  private drawDensityField(canvasWidth: number, canvasHeight: number): void {
+    if (!this.densityField) return;
+
+    this.ctx.save();
+
+    const field = this.densityField;
+    const gridWidth = field.gridWidth;
+    const gridHeight = field.gridHeight;
+
+    // Create ImageData for the density field
+    const imageData = this.ctx.createImageData(gridWidth, gridHeight);
+
+    // Fill ImageData with grayscale values from density field
+    for (let gy = 0; gy < gridHeight; gy++) {
+      for (let gx = 0; gx < gridWidth; gx++) {
+        const idx = gy * gridWidth + gx;
+        const density = field.data[idx]; // 0-255
+
+        // Convert to RGBA (grayscale)
+        const pixelIdx = idx * 4;
+        imageData.data[pixelIdx + 0] = density; // R
+        imageData.data[pixelIdx + 1] = density; // G
+        imageData.data[pixelIdx + 2] = density; // B
+        imageData.data[pixelIdx + 3] = 128; // A (50% transparent)
+      }
+    }
+
+    // Create temporary canvas to hold the ImageData
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = gridWidth;
+    tempCanvas.height = gridHeight;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return;
+
+    tempCtx.putImageData(imageData, 0, 0);
+
+    // Calculate world bounds of density field
+    const worldWidth = field.config.width;
+    const worldHeight = field.config.height;
+
+    // Convert world bounds to screen coordinates
+    const topLeft = this.camera.worldToScreen(0, 0, canvasWidth, canvasHeight);
+    const bottomRight = this.camera.worldToScreen(worldWidth, worldHeight, canvasWidth, canvasHeight);
+
+    const screenWidth = bottomRight.x - topLeft.x;
+    const screenHeight = bottomRight.y - topLeft.y;
+
+    // Draw the density field image scaled to world coordinates
+    this.ctx.drawImage(
+      tempCanvas,
+      topLeft.x,
+      topLeft.y,
+      screenWidth,
+      screenHeight
+    );
 
     this.ctx.restore();
   }

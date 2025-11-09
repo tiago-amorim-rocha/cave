@@ -14,6 +14,7 @@ export class DebugConsole {
   public onToggleOptimizedVertices?: (enabled: boolean) => void;
   public onToggleOriginalVertices?: (enabled: boolean) => void;
   public onToggleGrid?: (enabled: boolean) => void;
+  public onToggleDensityField?: (enabled: boolean) => void;
   public onSimplificationChange?: (epsilon: number) => void;
   public onSimplificationPostChange?: (epsilon: number) => void;
   public onToggleChaikin?: (enabled: boolean) => void;
@@ -127,6 +128,7 @@ export class DebugConsole {
       { label: 'Optimized Vertices', key: 'optimized', callback: 'onToggleOptimizedVertices', checked: false },
       { label: 'Original Vertices', key: 'original', callback: 'onToggleOriginalVertices', checked: false },
       { label: 'Grid', key: 'grid', callback: 'onToggleGrid', checked: false },
+      { label: 'Density Field', key: 'density', callback: 'onToggleDensityField', checked: false },
       { label: 'ISO-Snap (Post)', key: 'isosnappost', callback: 'onToggleISOSnappingPost', checked: true }
     ];
 

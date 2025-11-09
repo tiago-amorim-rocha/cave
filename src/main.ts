@@ -119,6 +119,7 @@ class CarvableCaves {
 
       // Initialize renderer
       this.renderer = new Renderer(this.canvas, this.camera);
+      this.renderer.setDensityField(this.densityField); // For debug visualization
       console.log('Renderer initialized');
 
       // Initialize input handler (camera controls only, no brushing)
@@ -667,6 +668,13 @@ debugConsole.onToggleGrid = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showGrid = enabled;
     console.log(`Grid visualization: ${enabled ? 'ON' : 'OFF'}`);
+  }
+};
+
+debugConsole.onToggleDensityField = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showDensityField = enabled;
+    console.log(`Density field visualization: ${enabled ? 'ON' : 'OFF'}`);
   }
 };
 
