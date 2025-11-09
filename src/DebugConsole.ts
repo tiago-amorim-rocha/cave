@@ -18,6 +18,7 @@ export class DebugConsole {
   public onToggleChaikin?: (enabled: boolean) => void;
   public onChaikinIterationsChange?: (iterations: number) => void;
   public onToggleISOSnapping?: (enabled: boolean) => void;
+  public onToggleISOSnappingPost?: (enabled: boolean) => void;
 
   constructor() {
     this.container = this.createContainer();
@@ -126,7 +127,8 @@ export class DebugConsole {
       { label: 'Optimized Vertices', key: 'optimized', callback: 'onToggleOptimizedVertices', checked: false },
       { label: 'Original Vertices', key: 'original', callback: 'onToggleOriginalVertices', checked: false },
       { label: 'Grid', key: 'grid', callback: 'onToggleGrid', checked: false },
-      { label: 'ISO-Snapping', key: 'isosnap', callback: 'onToggleISOSnapping', checked: true }
+      { label: 'ISO-Snapping', key: 'isosnap', callback: 'onToggleISOSnapping', checked: true },
+      { label: 'ISO-Snap (Post)', key: 'isosnappost', callback: 'onToggleISOSnappingPost', checked: true }
     ];
 
     toggles.forEach(({ label, key, callback, checked }) => {

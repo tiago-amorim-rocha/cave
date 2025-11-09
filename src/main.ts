@@ -7,7 +7,7 @@ import { LoopCache } from './LoopCache';
 import { InputHandler } from './InputHandler';
 import { RapierPhysics } from './RapierPhysics';
 import { RapierPlayer } from './RapierPlayer';
-import { simplifyPolylines } from './PolylineSimplifier';
+import { simplifyPolylines, snapToISOSurface } from './PolylineSimplifier';
 import { chaikinSmoothMultiple } from './ChaikinSmoothing';
 import { cleanLoop } from './physics/shapeUtils';
 import type { WorldConfig, BrushSettings } from './types';
@@ -51,6 +51,9 @@ class CarvableCaves {
   // Chaikin smoothing control
   private chaikinEnabled = false;
   private chaikinIterations = 1;
+
+  // Post-optimization ISO-snapping control
+  private isoSnappingPostEnabled = true;
 
   constructor() {
     try {
@@ -382,6 +385,12 @@ class CarvableCaves {
 
       console.log(`  4. After Chaikin smoothing (${this.chaikinIterations} iteration${this.chaikinIterations > 1 ? 's' : ''}): ${finalLoops.length} contours, ${afterChaikin} vertices`);
       console.log(`     → vertex increase: +${chaikinIncrease.toFixed(1)}% (+${afterChaikin - beforeChaikin} vertices added for smoothness)`);
+
+      // Apply ISO-snapping to correct vertex drift from smoothing
+      if (this.isoSnappingPostEnabled) {
+        const snapped = snapToISOSurface(finalLoops, this.densityField, 128, gridPitch, 0.5);
+        finalLoops = snapped;
+      }
     }
 
     // Store original for debug visualization
@@ -525,6 +534,12 @@ class CarvableCaves {
     this.needsRemesh = true; // Trigger remesh check
     this.needsFullHeal = true; // Trigger full remesh
   }
+
+  setISOSnappingPost(enabled: boolean): void {
+    this.isoSnappingPostEnabled = enabled;
+    this.needsRemesh = true; // Trigger remesh check
+    this.needsFullHeal = true; // Trigger full remesh
+  }
 }
 
 // Log that module is loading
@@ -622,6 +637,13 @@ debugConsole.onToggleISOSnapping = (enabled: boolean) => {
   if (app) {
     app.setISOSnapping(enabled);
     console.log(`ISO-snapping: ${enabled ? 'ON' : 'OFF'}`);
+  }
+};
+
+debugConsole.onToggleISOSnappingPost = (enabled: boolean) => {
+  if (app) {
+    app.setISOSnappingPost(enabled);
+    console.log(`ISO-snapping (post-optimization): ${enabled ? 'ON' : 'OFF'}`);
   }
 };
 
