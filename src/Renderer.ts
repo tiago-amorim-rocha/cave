@@ -37,16 +37,12 @@ export class Renderer {
     const width = window.innerWidth;
     const height = window.innerHeight;
 
-    console.log(`[Canvas] Resizing to ${width}x${height} (window inner size)`);
-    console.log(`[Canvas] DPR: ${dpr}`);
-    console.log(`[Canvas] Screen: ${window.screen.width}x${window.screen.height}`);
-    console.log(`[Canvas] Orientation: ${window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'}`);
+    const orientation = width > height ? 'landscape' : 'portrait';
+    console.log(`[Canvas] ${width}x${height} (${orientation}, DPR=${dpr}, buffer=${width * dpr}x${height * dpr})`);
 
     // Set canvas internal resolution
     this.canvas.width = width * dpr;
     this.canvas.height = height * dpr;
-
-    console.log(`[Canvas] Buffer size: ${this.canvas.width}x${this.canvas.height}`);
 
     // Reset transform before scaling (important for resize)
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
