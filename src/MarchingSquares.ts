@@ -358,7 +358,7 @@ export class MarchingSquares {
   }
 
   /**
-   * Interpolate vertex position on a cell edge (with quantization for consistency)
+   * Interpolate vertex position on a cell edge with ISO-snapping refinement
    */
   private interpolateEdge(
     gx: number,
@@ -374,31 +374,80 @@ export class MarchingSquares {
     let t: number;
     let x: number;
     let y: number;
+    let edgeStart: Vec2;
+    let edgeEnd: Vec2;
+    let v0: number;
+    let v1: number;
 
     switch (edge) {
       case 0: // bottom (v00 to v10)
         t = this.interpolate(v00, v10);
         x = worldX + t * h;
         y = worldY;
+        edgeStart = { x: worldX, y: worldY };
+        edgeEnd = { x: worldX + h, y: worldY };
+        v0 = v00;
+        v1 = v10;
         break;
       case 1: // right (v10 to v11)
         t = this.interpolate(v10, v11);
         x = worldX + h;
         y = worldY + t * h;
+        edgeStart = { x: worldX + h, y: worldY };
+        edgeEnd = { x: worldX + h, y: worldY + h };
+        v0 = v10;
+        v1 = v11;
         break;
       case 2: // top (v01 to v11)
         t = this.interpolate(v01, v11);
         x = worldX + t * h;
         y = worldY + h;
+        edgeStart = { x: worldX, y: worldY + h };
+        edgeEnd = { x: worldX + h, y: worldY + h };
+        v0 = v01;
+        v1 = v11;
         break;
       case 3: // left (v00 to v01)
         t = this.interpolate(v00, v01);
         x = worldX;
         y = worldY + t * h;
+        edgeStart = { x: worldX, y: worldY };
+        edgeEnd = { x: worldX, y: worldY + h };
+        v0 = v00;
+        v1 = v01;
         break;
       default:
         throw new Error(`Invalid edge: ${edge}`);
     }
+
+    // Apply ISO-snapping: refine position to get closer to exact ISO surface
+    // Use iterative refinement (3 iterations typically enough)
+    let tRefined = t;
+    for (let iter = 0; iter < 3; iter++) {
+      const xTest = edgeStart.x + tRefined * (edgeEnd.x - edgeStart.x);
+      const yTest = edgeStart.y + tRefined * (edgeEnd.y - edgeStart.y);
+
+      // Sample density at current position using bilinear interpolation
+      const sampledValue = this.sampleDensity(xTest, yTest, h);
+
+      // Error from ISO value
+      const error = sampledValue - this.isoValue;
+
+      // If close enough, stop
+      if (Math.abs(error) < 1.0) break;
+
+      // Adjust t using gradient (derivative approximation)
+      // gradient ≈ (v1 - v0) / h
+      const gradient = (v1 - v0);
+      if (Math.abs(gradient) > 0.1) {
+        const adjustment = -error / gradient;
+        tRefined = Math.max(0, Math.min(1, tRefined + adjustment * 0.5)); // 0.5 = damping factor
+      }
+    }
+
+    // Use refined position
+    x = edgeStart.x + tRefined * (edgeEnd.x - edgeStart.x);
+    y = edgeStart.y + tRefined * (edgeEnd.y - edgeStart.y);
 
     // Quantize to avoid floating-point precision issues
     const precision = 1000000;
@@ -406,6 +455,36 @@ export class MarchingSquares {
     y = Math.round(y * precision) / precision;
 
     return { x, y };
+  }
+
+  /**
+   * Sample density field at arbitrary world position using bilinear interpolation
+   */
+  private sampleDensity(worldX: number, worldY: number, h: number): number {
+    // Convert world coords to grid coords
+    const gridX = worldX / h;
+    const gridY = worldY / h;
+
+    // Get integer cell coordinates
+    const gx0 = Math.floor(gridX);
+    const gy0 = Math.floor(gridY);
+    const gx1 = gx0 + 1;
+    const gy1 = gy0 + 1;
+
+    // Fractional parts for interpolation
+    const fx = gridX - gx0;
+    const fy = gridY - gy0;
+
+    // Get corner values (with bounds checking)
+    const v00 = this.field.get(gx0, gy0);
+    const v10 = this.field.get(gx1, gy0);
+    const v01 = this.field.get(gx0, gy1);
+    const v11 = this.field.get(gx1, gy1);
+
+    // Bilinear interpolation
+    const v0 = v00 * (1 - fx) + v10 * fx;
+    const v1 = v01 * (1 - fx) + v11 * fx;
+    return v0 * (1 - fy) + v1 * fy;
   }
 
   /**
