@@ -9,6 +9,7 @@ import { RapierPhysics } from './RapierPhysics';
 import { RapierPlayer } from './RapierPlayer';
 import { simplifyPolylines } from './PolylineSimplifier';
 import { chaikinSmooth } from './ChaikinSmoothing';
+import { cleanLoop } from './physics/shapeUtils';
 import type { WorldConfig, BrushSettings } from './types';
 import type { Point } from './PolylineSimplifier';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -98,19 +99,16 @@ class CarvableCaves {
       this.renderer = new Renderer(this.canvas, this.camera);
       console.log('Renderer initialized');
 
-      // Initialize input handler
+      // Initialize input handler (camera controls only, no brushing)
       const brushSettings: BrushSettings = {
-        radius: 1.0, // metres
-        strength: 255
+        radius: 0, // Disabled
+        strength: 0
       };
       this.inputHandler = new InputHandler(this.canvas, this.camera, this.densityField, brushSettings);
-      this.inputHandler.onCarve = () => {
-        this.needsRemesh = true;
-      };
-      this.inputHandler.onCarveEnd = () => {
-        this.needsFullHeal = true;
-      };
-      console.log('Input handler initialized');
+      // Disable carving callbacks
+      this.inputHandler.onCarve = undefined;
+      this.inputHandler.onCarveEnd = undefined;
+      console.log('Input handler initialized (camera controls only)');
 
       // Initialize physics (will be initialized async in start())
       this.physics = new RapierPhysics();
@@ -360,7 +358,6 @@ class CarvableCaves {
     // Update renderer with all loops
     const allLoops = this.loopCache.getAllLoops();
     const allPolylines = allLoops.map(l => l.vertices);
-    this.renderer.updatePolylines(allPolylines);
 
     // Filter to only rock loops (not cave holes) using density field sampling
     const rockLoops = allPolylines.filter(loop => {
@@ -370,15 +367,30 @@ class CarvableCaves {
 
     console.log(`[FullHeal] Classified ${allPolylines.length} loops: ${rockLoops.length} rock, ${allPolylines.length - rockLoops.length} cave`);
 
-    // DEBUG: Skip simplification and smoothing - use raw contours
-    const rawPolylines = rockLoops.map(polyline => polyline.map(v => ({ x: v.x, y: v.y } as Point)));
+    // Apply shape hygiene: dedupe, cull tiny edges, collapse collinear, ensure CCW
+    const gridPitch = this.densityField.config.gridPitch;
+    const originalVertexCount = rockLoops.reduce((sum, loop) => sum + loop.length, 0);
 
-    const totalVertices = rawPolylines.reduce((sum, p) => sum + p.length, 0);
-    console.log(`[FullHeal] Using raw polylines (no optimization)`);
-    console.log(`[FullHeal] Total: ${rawPolylines.length} contours, ${totalVertices} vertices`);
-    console.log(`[FullHeal] Average vertices per contour: ${(totalVertices / rawPolylines.length).toFixed(1)}`);
+    const cleanedLoops = rockLoops.map(loop => {
+      const asPoints = loop.map(v => ({ x: v.x, y: v.y } as Point));
+      return cleanLoop(asPoints, gridPitch);
+    }).filter(loop => loop.length >= 3); // Remove degenerate loops
 
-    this.physics.setCaveContours(rawPolylines);
+    const cleanedVertexCount = cleanedLoops.reduce((sum, loop) => sum + loop.length, 0);
+    const reduction = ((originalVertexCount - cleanedVertexCount) / originalVertexCount * 100).toFixed(1);
+
+    console.log(`[FullHeal] Shape hygiene applied:`);
+    console.log(`  Before: ${rockLoops.length} contours, ${originalVertexCount} vertices`);
+    console.log(`  After:  ${cleanedLoops.length} contours, ${cleanedVertexCount} vertices`);
+    console.log(`  Reduction: ${reduction}% vertices removed`);
+    console.log(`  Average vertices per contour: ${(cleanedVertexCount / cleanedLoops.length).toFixed(1)}`);
+
+    // Use cleaned loops for both physics and rendering
+    this.physics.setCaveContours(cleanedLoops);
+
+    // Update renderer with cleaned loops
+    const cleanedForRender = cleanedLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+    this.renderer.updatePolylines(cleanedForRender);
 
     this.densityField.clearDirty();
 
