@@ -2,8 +2,11 @@ import type { Camera } from './Camera';
 import type { DensityField } from './DensityField';
 import type { BrushSettings } from './types';
 
+type Point = { x: number; y: number };
+
 /**
- * Handle touch/mouse input for pan, zoom, and carving
+ * Handle pointer input for pan, zoom, and carving using modern Pointer Events API
+ * Based on industry best practices for canvas gesture handling
  */
 export class InputHandler {
   private canvas: HTMLCanvasElement;
@@ -11,17 +14,19 @@ export class InputHandler {
   private densityField: DensityField;
   private brushSettings: BrushSettings;
 
-  private isPanning = false;
-  private isCarving = false;
+  // Pointer tracking (unified for mouse, touch, pen)
+  private pointers = new Map<number, Point>();
+
+  // Pinch zoom state
+  private startDist = 0;
+  private startScale = 1;
+  private startCentroid: Point | null = null;
+
+  // Single pointer pan state
+  private lastPanPoint: Point | null = null;
+
+  // Modifier keys
   private addMode = false; // true = add, false = subtract
-
-  private lastPointerX = 0;
-  private lastPointerY = 0;
-
-  // For touch handling - simplified approach
-  private lastTouchDistance = 0;
-  private lastTouchCenter = { x: 0, y: 0 };
-  private lastZoom = 0;
 
   // Carving throttle
   private lastCarveTime = 0;
@@ -46,17 +51,15 @@ export class InputHandler {
   }
 
   private setupListeners(): void {
-    // Mouse events
-    this.canvas.addEventListener('mousedown', this.onPointerDown.bind(this));
-    this.canvas.addEventListener('mousemove', this.onPointerMove.bind(this));
-    this.canvas.addEventListener('mouseup', this.onPointerUp.bind(this));
-    this.canvas.addEventListener('wheel', this.onWheel.bind(this));
+    // Pointer events (unified for touch/mouse/pen)
+    this.canvas.addEventListener('pointerdown', this.onPointerDown.bind(this));
+    this.canvas.addEventListener('pointermove', this.onPointerMove.bind(this));
+    this.canvas.addEventListener('pointerup', this.onPointerUp.bind(this));
+    this.canvas.addEventListener('pointercancel', this.onPointerUp.bind(this));
+    this.canvas.addEventListener('pointerleave', this.onPointerLeave.bind(this));
 
-    // Touch events
-    this.canvas.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
-    this.canvas.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
-    this.canvas.addEventListener('touchend', this.onTouchEnd.bind(this), { passive: false });
-    this.canvas.addEventListener('touchcancel', this.onTouchEnd.bind(this), { passive: false });
+    // Wheel for mouse zoom
+    this.canvas.addEventListener('wheel', this.onWheel.bind(this));
 
     // Keyboard for modifier keys
     window.addEventListener('keydown', this.onKeyDown.bind(this));
@@ -78,220 +81,205 @@ export class InputHandler {
     }
   }
 
-  private onPointerDown(e: MouseEvent): void {
+  private toLocal(e: PointerEvent): Point {
     const rect = this.canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (this.canvas.width / rect.width);
-    const y = (e.clientY - rect.top) * (this.canvas.height / rect.height);
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+  }
 
-    this.lastPointerX = x;
-    this.lastPointerY = y;
+  private onPointerDown(e: PointerEvent): void {
+    // Check if pointer is on a UI element
+    const target = e.target as HTMLElement;
+    if (target && target !== this.canvas) {
+      return;
+    }
 
-    if (e.button === 0 || e.button === 2) {
-      // Left click or right click: pan (carving disabled)
-      this.isPanning = true;
+    e.preventDefault();
+
+    // Capture this pointer to receive all future events even if it moves off canvas
+    this.canvas.setPointerCapture(e.pointerId);
+
+    const point = this.toLocal(e);
+    this.pointers.set(e.pointerId, point);
+
+    if (this.pointers.size === 1) {
+      // Single pointer - start pan
+      this.lastPanPoint = point;
+    } else if (this.pointers.size === 2) {
+      // Two pointers - start pinch
+      this.beginPinch();
     }
   }
 
-  private onPointerMove(e: MouseEvent): void {
-    const rect = this.canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (this.canvas.width / rect.width);
-    const y = (e.clientY - rect.top) * (this.canvas.height / rect.height);
+  private onPointerMove(e: PointerEvent): void {
+    if (!this.pointers.has(e.pointerId)) return;
 
-    const dx = x - this.lastPointerX;
-    const dy = y - this.lastPointerY;
+    e.preventDefault();
 
-    if (this.isPanning) {
-      this.camera.pan(dx, dy);
+    const point = this.toLocal(e);
+    this.pointers.set(e.pointerId, point);
+
+    if (this.pointers.size === 1) {
+      // Single pointer pan
+      this.pan(point);
+    } else if (this.pointers.size === 2) {
+      // Two pointer pinch
+      this.pinch();
     }
-
-    if (this.isCarving) {
-      this.carveAt(x, y);
-    }
-
-    this.lastPointerX = x;
-    this.lastPointerY = y;
   }
 
-  private onPointerUp(_e: MouseEvent): void {
-    if (this.isCarving) {
-      this.isCarving = false;
-      this.onCarveEnd?.();
+  private onPointerUp(e: PointerEvent): void {
+    e.preventDefault();
+
+    this.pointers.delete(e.pointerId);
+
+    if (this.canvas.hasPointerCapture(e.pointerId)) {
+      this.canvas.releasePointerCapture(e.pointerId);
     }
-    this.isPanning = false;
+
+    // Reset states
+    this.lastPanPoint = null;
+    this.startCentroid = null;
+
+    // If we still have pointers, restart gesture
+    if (this.pointers.size === 1) {
+      const [point] = this.pointers.values();
+      this.lastPanPoint = point;
+    } else if (this.pointers.size === 2) {
+      this.beginPinch();
+    }
+  }
+
+  private onPointerLeave(e: PointerEvent): void {
+    // Only handle if we've lost capture
+    if (!this.canvas.hasPointerCapture(e.pointerId)) {
+      this.pointers.delete(e.pointerId);
+      this.lastPanPoint = null;
+      this.startCentroid = null;
+    }
   }
 
   private onWheel(e: WheelEvent): void {
     e.preventDefault();
 
-    const rect = this.canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (this.canvas.width / rect.width);
-    const y = (e.clientY - rect.top) * (this.canvas.height / rect.height);
+    const point = {
+      x: e.clientX - this.canvas.getBoundingClientRect().left,
+      y: e.clientY - this.canvas.getBoundingClientRect().top
+    };
 
     const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
-    this.camera.zoomAt(x, y, zoomDelta, this.canvas.width, this.canvas.height);
+    this.zoomAt(point, zoomDelta);
   }
 
-  private getTouchPosition(touch: Touch): { x: number; y: number } {
-    const rect = this.canvas.getBoundingClientRect();
-    const x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
-    const y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
-    return { x, y };
-  }
+  // Calculate centroid (midpoint) of all pointers
+  private centroid(): Point {
+    const points = [...this.pointers.values()];
+    if (points.length === 0) return { x: 0, y: 0 };
+    if (points.length === 1) return points[0];
 
-  private getTouchCenter(touches: TouchList): { x: number; y: number } {
-    if (touches.length === 1) {
-      return this.getTouchPosition(touches[0]);
-    }
-    const t1 = this.getTouchPosition(touches[0]);
-    const t2 = this.getTouchPosition(touches[1]);
     return {
-      x: (t1.x + t2.x) / 2,
-      y: (t1.y + t2.y) / 2
+      x: (points[0].x + points[1].x) / 2,
+      y: (points[0].y + points[1].y) / 2
     };
   }
 
-  private getTouchDistance(touches: TouchList): number {
-    if (touches.length < 2) return 0;
-    const t1 = this.getTouchPosition(touches[0]);
-    const t2 = this.getTouchPosition(touches[1]);
-    return Math.hypot(t2.x - t1.x, t2.y - t1.y);
+  // Calculate distance between two pointers
+  private distance(): number {
+    const points = [...this.pointers.values()];
+    if (points.length < 2) return 0;
+
+    const dx = points[0].x - points[1].x;
+    const dy = points[0].y - points[1].y;
+    return Math.hypot(dx, dy);
   }
 
-  private onTouchStart(e: TouchEvent): void {
-    // Check if touch is on a UI element
-    const target = e.target as HTMLElement;
-    if (target && target !== this.canvas) {
+  // Convert screen coordinates to world coordinates
+  private screenToWorld(p: Point): Point {
+    const dpr = window.devicePixelRatio || 1;
+    const canvasWidth = this.canvas.width / dpr;
+    const canvasHeight = this.canvas.height / dpr;
+
+    return this.camera.screenToWorld(p.x, p.y, canvasWidth, canvasHeight);
+  }
+
+  // Initialize pinch gesture state
+  private beginPinch(): void {
+    this.startDist = this.distance();
+    this.startScale = this.camera.zoom;
+    this.startCentroid = this.centroid();
+    this.lastPanPoint = null; // Disable single-finger pan during pinch
+  }
+
+  // Handle pinch zoom gesture
+  private pinch(): void {
+    if (!this.startCentroid) {
+      this.beginPinch();
       return;
     }
 
-    e.preventDefault();
+    const currentCentroid = this.centroid();
+    const currentDist = this.distance();
 
-    const touches = e.touches;
+    if (this.startDist < 1) return; // Avoid division by zero
 
-    if (touches.length === 1) {
-      // Single touch: pan
-      const pos = this.getTouchPosition(touches[0]);
-      this.lastPointerX = pos.x;
-      this.lastPointerY = pos.y;
-      this.isPanning = true;
-    } else if (touches.length === 2) {
-      // Two fingers: pinch zoom
-      this.isPanning = false;
-      this.isCarving = false;
+    // Calculate scale factor
+    const scaleFactor = currentDist / this.startDist;
+    const targetScale = this.startScale * scaleFactor;
 
-      // Store initial state
-      this.lastTouchCenter = this.getTouchCenter(touches);
-      this.lastTouchDistance = this.getTouchDistance(touches);
-      this.lastZoom = this.camera.zoom;
-    }
-  }
-
-  private onTouchMove(e: TouchEvent): void {
-    const target = e.target as HTMLElement;
-    if (target && target !== this.canvas) {
-      return;
-    }
-
-    e.preventDefault();
-
-    const touches = e.touches;
-
-    if (touches.length === 1 && this.isPanning) {
-      // Single finger pan
-      const pos = this.getTouchPosition(touches[0]);
-      const dx = pos.x - this.lastPointerX;
-      const dy = pos.y - this.lastPointerY;
-
-      this.camera.pan(dx, dy);
-
-      this.lastPointerX = pos.x;
-      this.lastPointerY = pos.y;
-    } else if (touches.length === 2) {
-      // Two finger pinch zoom
-      const currentCenter = this.getTouchCenter(touches);
-      const currentDistance = this.getTouchDistance(touches);
-
-      if (this.lastTouchDistance > 0) {
-        // Calculate scale change
-        const scale = currentDistance / this.lastTouchDistance;
-
-        // Apply zoom centered on the last touch center (not current center)
-        // This prevents drift by keeping the zoom anchored to where the pinch started
-        const zoomDelta = scale;
-        this.camera.zoomAt(
-          this.lastTouchCenter.x,
-          this.lastTouchCenter.y,
-          zoomDelta,
-          this.canvas.width,
-          this.canvas.height
-        );
-
-        // Pan based on center movement (allows panning while pinching)
-        const dx = currentCenter.x - this.lastTouchCenter.x;
-        const dy = currentCenter.y - this.lastTouchCenter.y;
-        this.camera.pan(dx, dy);
-      }
-
-      // Update for next frame
-      this.lastTouchCenter = currentCenter;
-      this.lastTouchDistance = currentDistance;
-    }
-  }
-
-  private onTouchEnd(e: TouchEvent): void {
-    const target = e.target as HTMLElement;
-    if (target && target !== this.canvas) {
-      return;
-    }
-
-    e.preventDefault();
-
-    const touches = e.touches;
-
-    if (touches.length === 0) {
-      // All touches ended
-      if (this.isCarving) {
-        this.onCarveEnd?.();
-      }
-      this.isCarving = false;
-      this.isPanning = false;
-      this.lastTouchDistance = 0;
-    } else if (touches.length === 1) {
-      // Back to single touch - restart pan
-      const pos = this.getTouchPosition(touches[0]);
-      this.lastPointerX = pos.x;
-      this.lastPointerY = pos.y;
-      this.isPanning = true;
-      this.lastTouchDistance = 0;
-    } else if (touches.length === 2) {
-      // Still 2 touches - reinitialize pinch state
-      this.lastTouchCenter = this.getTouchCenter(touches);
-      this.lastTouchDistance = this.getTouchDistance(touches);
-      this.lastZoom = this.camera.zoom;
-    }
-  }
-
-  private carveAt(screenX: number, screenY: number): void {
-    // Throttle carving
-    const now = performance.now();
-    if (now - this.lastCarveTime < this.carveThrottleMs) {
-      return;
-    }
-    this.lastCarveTime = now;
-
-    // Convert screen to world coords
-    const worldPos = this.camera.screenToWorld(screenX, screenY, this.canvas.width, this.canvas.height);
-
-    // Apply brush
-    this.densityField.applyBrush(
-      worldPos.x,
-      worldPos.y,
-      this.brushSettings.radius,
-      this.brushSettings.strength,
-      this.addMode
+    // Clamp to camera limits
+    const newScale = Math.max(
+      this.camera.minZoom,
+      Math.min(this.camera.maxZoom, targetScale)
     );
 
-    this.onCarve?.();
+    // Get world position at current centroid BEFORE zoom
+    const worldBefore = this.screenToWorld(currentCentroid);
+
+    // Apply new zoom
+    this.camera.zoom = newScale;
+
+    // Get world position at current centroid AFTER zoom
+    const worldAfter = this.screenToWorld(currentCentroid);
+
+    // Adjust camera position to keep the same world point under the centroid
+    this.camera.x += (worldBefore.x - worldAfter.x);
+    this.camera.y += (worldBefore.y - worldAfter.y);
+  }
+
+  // Handle single pointer pan
+  private pan(currentPoint: Point): void {
+    if (!this.lastPanPoint) {
+      this.lastPanPoint = currentPoint;
+      return;
+    }
+
+    const dx = currentPoint.x - this.lastPanPoint.x;
+    const dy = currentPoint.y - this.lastPanPoint.y;
+
+    // Pan in screen space
+    this.camera.pan(dx, dy);
+
+    this.lastPanPoint = currentPoint;
+  }
+
+  // Zoom at a specific screen point
+  private zoomAt(screenPoint: Point, zoomDelta: number): void {
+    const dpr = window.devicePixelRatio || 1;
+    const canvasWidth = this.canvas.width / dpr;
+    const canvasHeight = this.canvas.height / dpr;
+
+    this.camera.zoomAt(screenPoint.x, screenPoint.y, zoomDelta, canvasWidth, canvasHeight);
+  }
+
+  /**
+   * Called once per frame to process any pending input updates
+   * This is where we would handle batched input if needed
+   */
+  public update(): void {
+    // Currently input is processed immediately in event handlers
+    // This method exists for future rAF-based input batching if needed
   }
 
   setBrushSettings(settings: BrushSettings): void {
