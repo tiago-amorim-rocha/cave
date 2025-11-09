@@ -55,6 +55,9 @@ class CarvableCaves {
   // Post-optimization ISO-snapping control
   private isoSnappingPostEnabled = true;
 
+  // Post-smoothing simplification control (removes redundant vertices from Chaikin)
+  private simplificationEpsilonPost = 0; // 0 = no post-smoothing simplification
+
   constructor() {
     try {
       console.log('Initializing CarvableCaves...');
@@ -393,6 +396,22 @@ class CarvableCaves {
       }
     }
 
+    // Apply post-smoothing simplification to remove redundant vertices from Chaikin
+    if (this.simplificationEpsilonPost > 0) {
+      const beforePostSimplify = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+      const areaThresholdPost = this.simplificationEpsilonPost * this.simplificationEpsilonPost;
+
+      const asPoints = finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
+      const simplifiedPost = simplifyPolylines(asPoints, areaThresholdPost, true);
+      finalLoops = simplifiedPost.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+
+      const afterPostSimplify = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+      const postSimplifyReduction = ((beforePostSimplify - afterPostSimplify) / beforePostSimplify * 100);
+
+      console.log(`  5. After post-smoothing simplification (ε=${this.simplificationEpsilonPost.toFixed(3)}m, area=${areaThresholdPost.toFixed(6)}m²): ${finalLoops.length} contours, ${afterPostSimplify} vertices`);
+      console.log(`     → post-smoothing reduction: ${postSimplifyReduction.toFixed(1)}% (${beforePostSimplify - afterPostSimplify} vertices removed from Chaikin redundancy)`);
+    }
+
     // Store original for debug visualization
     this.renderer.updateOriginalPolylines(trueOriginalLoops);
 
@@ -540,6 +559,12 @@ class CarvableCaves {
     this.needsRemesh = true; // Trigger remesh check
     this.needsFullHeal = true; // Trigger full remesh
   }
+
+  setSimplificationEpsilonPost(epsilon: number): void {
+    this.simplificationEpsilonPost = epsilon;
+    this.needsRemesh = true; // Trigger remesh check
+    this.needsFullHeal = true; // Trigger full remesh
+  }
 }
 
 // Log that module is loading
@@ -616,6 +641,13 @@ debugConsole.onSimplificationChange = (epsilon: number) => {
   if (app) {
     app.setSimplificationEpsilon(epsilon);
     console.log(`Simplification epsilon changed to ${epsilon.toFixed(3)}m`);
+  }
+};
+
+debugConsole.onSimplificationPostChange = (epsilon: number) => {
+  if (app) {
+    app.setSimplificationEpsilonPost(epsilon);
+    console.log(`Post-smoothing simplification epsilon changed to ${epsilon.toFixed(3)}m`);
   }
 };
 

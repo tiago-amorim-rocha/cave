@@ -15,6 +15,7 @@ export class DebugConsole {
   public onToggleOriginalVertices?: (enabled: boolean) => void;
   public onToggleGrid?: (enabled: boolean) => void;
   public onSimplificationChange?: (epsilon: number) => void;
+  public onSimplificationPostChange?: (epsilon: number) => void;
   public onToggleChaikin?: (enabled: boolean) => void;
   public onChaikinIterationsChange?: (iterations: number) => void;
   public onToggleISOSnapping?: (enabled: boolean) => void;
@@ -231,6 +232,66 @@ export class DebugConsole {
     sliderRow.appendChild(slider);
     sliderRow.appendChild(sliderDesc);
     controlsContainer.appendChild(sliderRow);
+
+    // Add post-smoothing simplification slider
+    const sliderRowPost = document.createElement('div');
+    sliderRowPost.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(76, 175, 80, 0.2);
+    `;
+
+    const sliderLabelPost = document.createElement('div');
+    sliderLabelPost.style.cssText = `
+      color: #4CAF50;
+      font-size: 9px;
+      display: flex;
+      justify-content: space-between;
+      opacity: 0.8;
+    `;
+    sliderLabelPost.innerHTML = '<span>Post-Smoothing (ε)</span><span id="epsilon-post-value">0.000m</span>';
+
+    const sliderPost = document.createElement('input');
+    sliderPost.type = 'range';
+    sliderPost.id = 'simplification-post-slider';
+    sliderPost.min = '0';
+    sliderPost.max = '83';
+    sliderPost.value = '0';
+    sliderPost.step = '1';
+    sliderPost.style.cssText = `
+      width: 100%;
+      cursor: pointer;
+    `;
+
+    sliderPost.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement;
+      const value = parseInt(target.value);
+      // Map 0-83 to 0-0.755m exponentially for finer control at low values
+      const epsilon = value === 0 ? 0 : Math.pow(value / 100, 1.5);
+      const epsilonDisplay = document.getElementById('epsilon-post-value');
+      if (epsilonDisplay) {
+        epsilonDisplay.textContent = `${epsilon.toFixed(3)}m`;
+      }
+      if (this.onSimplificationPostChange) {
+        this.onSimplificationPostChange(epsilon);
+      }
+    });
+
+    const sliderDescPost = document.createElement('div');
+    sliderDescPost.style.cssText = `
+      color: rgba(76, 175, 80, 0.5);
+      font-size: 8px;
+      margin-top: 1px;
+    `;
+    sliderDescPost.textContent = 'Remove Chaikin redundancy';
+
+    sliderRowPost.appendChild(sliderLabelPost);
+    sliderRowPost.appendChild(sliderPost);
+    sliderRowPost.appendChild(sliderDescPost);
+    controlsContainer.appendChild(sliderRowPost);
 
     // Add Chaikin smoothing controls
     const chaikinSection = document.createElement('div');
