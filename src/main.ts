@@ -506,8 +506,9 @@ class CarvableCaves {
 
   /**
    * Calculate average vertex reduction percentage
+   * Note: This method is currently unused but kept for future use
    */
-  private calculateReduction(original: any[][], simplified: Point[][]): number {
+  private calculateReduction(original: Point[][], simplified: Point[][]): number {
     let totalOriginal = 0;
     let totalSimplified = 0;
     for (let i = 0; i < original.length; i++) {

@@ -6,7 +6,8 @@
 
 import RAPIER from '@dimforge/rapier2d-compat';
 import { RapierEngine } from './physics/engine';
-import type { Point } from './PolylineSimplifier';
+import type { Point } from './types';
+import type { Camera } from './Camera';
 
 /**
  * Wrapper to maintain compatibility with existing code while using Rapier
@@ -130,7 +131,7 @@ export class RapierPhysics {
   /**
    * Draw debug visualization
    */
-  debugDraw(ctx: CanvasRenderingContext2D, camera: any, canvasWidth: number, canvasHeight: number): void {
+  debugDraw(ctx: CanvasRenderingContext2D, camera: Camera, canvasWidth: number, canvasHeight: number): void {
     this.engine.debugDraw(ctx, camera, canvasWidth, canvasHeight);
   }
 }
