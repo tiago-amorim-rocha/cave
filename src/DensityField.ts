@@ -85,33 +85,39 @@ export class DensityField {
         minNoise = Math.min(minNoise, noiseValue);
         maxNoise = Math.max(maxNoise, noiseValue);
 
-        // Map noise value to density
+        // Map noise value to density with continuous gradient
         // noise is in range [-1, 1]
-        // If noise > threshold, create cave (low density)
-        // If noise <= threshold, create rock (high density)
+        // threshold controls cave/rock ratio (higher = more caves)
+        //
+        // This creates a CONTINUOUS density field for smooth marching squares:
+        // - noiseValue = threshold → density = 128 (ISO surface)
+        // - noiseValue > threshold → density < 128 (cave)
+        // - noiseValue < threshold → density > 128 (rock)
+        //
+        // This allows linear interpolation to find arbitrary crossing points,
+        // producing smooth curves with any angle (not just multiples of 45°)
 
-        let density: number;
-        if (noiseValue > threshold) {
-          // Cave area - very low density
-          density = 0;
-          caveCells++;
-        } else {
-          // Rock area - map from threshold to -1 => 128 to 255
-          // This creates a gradient at cave edges for smooth marching squares
-          const t = (threshold - noiseValue) / (threshold + 1); // normalize to [0, 1]
-          density = Math.floor(128 + t * 127);
+        const density = Math.floor(128 + (threshold - noiseValue) * 127.5);
+
+        // Clamp to valid range [0, 255]
+        const clampedDensity = Math.max(0, Math.min(255, density));
+
+        // Track cave vs rock cells based on ISO threshold
+        if (clampedDensity >= this.config.isoValue) {
           rockCells++;
+        } else {
+          caveCells++;
         }
 
-        // Track density range
-        minDensity = Math.min(minDensity, density);
-        maxDensity = Math.max(maxDensity, density);
+        this.data[gy * this.gridWidth + gx] = clampedDensity;
 
-        this.data[gy * this.gridWidth + gx] = density;
+        // Track density range
+        minDensity = Math.min(minDensity, clampedDensity);
+        maxDensity = Math.max(maxDensity, clampedDensity);
 
         // Collect samples for debugging
         if (samplePositions.some(s => s.gx === gx && s.gy === gy)) {
-          samples.push({ x: worldX, y: worldY, noise: noiseValue, density });
+          samples.push({ x: worldX, y: worldY, noise: noiseValue, density: clampedDensity });
         }
       }
     }
