@@ -8,7 +8,7 @@ import { InputHandler } from './InputHandler';
 import { RapierPhysics } from './RapierPhysics';
 import { RapierPlayer } from './RapierPlayer';
 import { simplifyPolylines } from './PolylineSimplifier';
-import { chaikinSmooth } from './ChaikinSmoothing';
+import { chaikinSmoothMultiple } from './ChaikinSmoothing';
 import { cleanLoop } from './physics/shapeUtils';
 import type { WorldConfig, BrushSettings } from './types';
 import type { Point } from './PolylineSimplifier';
@@ -47,6 +47,10 @@ class CarvableCaves {
 
   // Simplification control
   private simplificationEpsilon = 0; // 0 = no simplification
+
+  // Chaikin smoothing control
+  private chaikinEnabled = false;
+  private chaikinIterations = 1;
 
   constructor() {
     try {
@@ -366,6 +370,20 @@ class CarvableCaves {
       console.log(`     → TOTAL reduction: ${totalReduction.toFixed(1)}% (${trueOriginalCount - simplifiedCount} vertices removed)`);
     }
 
+    // Apply Chaikin smoothing if enabled
+    if (this.chaikinEnabled) {
+      const beforeChaikin = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+      const asPoints = finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
+      const smoothed = asPoints.map(loop => chaikinSmoothMultiple(loop, this.chaikinIterations, 0.25, true));
+      finalLoops = smoothed.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+
+      const afterChaikin = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+      const chaikinIncrease = ((afterChaikin - beforeChaikin) / beforeChaikin * 100);
+
+      console.log(`  4. After Chaikin smoothing (${this.chaikinIterations} iteration${this.chaikinIterations > 1 ? 's' : ''}): ${finalLoops.length} contours, ${afterChaikin} vertices`);
+      console.log(`     → vertex increase: +${chaikinIncrease.toFixed(1)}% (+${afterChaikin - beforeChaikin} vertices added for smoothness)`);
+    }
+
     // Store original for debug visualization
     this.renderer.updateOriginalPolylines(trueOriginalLoops);
 
@@ -489,6 +507,18 @@ class CarvableCaves {
     this.needsRemesh = true; // Trigger remesh check
     this.needsFullHeal = true; // Trigger full remesh
   }
+
+  setChaikinEnabled(enabled: boolean): void {
+    this.chaikinEnabled = enabled;
+    this.needsRemesh = true; // Trigger remesh check
+    this.needsFullHeal = true; // Trigger full remesh
+  }
+
+  setChaikinIterations(iterations: number): void {
+    this.chaikinIterations = iterations;
+    this.needsRemesh = true; // Trigger remesh check
+    this.needsFullHeal = true; // Trigger full remesh
+  }
 }
 
 // Log that module is loading
@@ -565,6 +595,20 @@ debugConsole.onSimplificationChange = (epsilon: number) => {
   if (app) {
     app.setSimplificationEpsilon(epsilon);
     console.log(`Simplification epsilon changed to ${epsilon.toFixed(3)}m`);
+  }
+};
+
+debugConsole.onToggleChaikin = (enabled: boolean) => {
+  if (app) {
+    app.setChaikinEnabled(enabled);
+    console.log(`Chaikin smoothing: ${enabled ? 'ON' : 'OFF'}`);
+  }
+};
+
+debugConsole.onChaikinIterationsChange = (iterations: number) => {
+  if (app) {
+    app.setChaikinIterations(iterations);
+    console.log(`Chaikin iterations changed to ${iterations}`);
   }
 };
 
