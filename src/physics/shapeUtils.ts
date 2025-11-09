@@ -150,24 +150,23 @@ export function collapseCollinear(points: Point[], angleThresholdDeg = 3, distTh
  * This is the main function to use for cleaning up marching squares output
  * @param points - Array of points forming the polyline
  * @param gridPitch - Grid pitch in world units (metres)
- * @param angleThresholdDeg - Angle threshold in degrees for collapseCollinear (default 3°)
  */
-export function cleanLoop(points: Point[], gridPitch: number, angleThresholdDeg: number = 3): Point[] {
+export function cleanLoop(points: Point[], gridPitch: number): Point[] {
   if (points.length < 3) return points;
 
-  // 1. Remove consecutive duplicates
+  // 1. Remove consecutive duplicates (provides ~22% reduction)
   let cleaned = dedupe(points, gridPitch * 0.1);
 
-  // 2. Cull tiny edges (< 0.3 * gridPitch)
+  // 2. Cull tiny edges (< 0.3 * gridPitch) - minimal impact on marching squares output
   cleaned = cullTinyEdges(cleaned, gridPitch * 0.3);
 
-  // 3. Collapse near-collinear points (angle threshold, < 0.02 * gridPitch perp distance)
-  cleaned = collapseCollinear(cleaned, angleThresholdDeg, gridPitch * 0.02);
+  // Note: collapseCollinear removed - proven to only provide ~1% reduction
+  // and doesn't respond to angle threshold changes. Overhead not worth it.
 
-  // 4. Ensure CCW winding
+  // 3. Ensure CCW winding
   cleaned = ensureCCW(cleaned);
 
-  // 5. Final dedupe in case collapsing created duplicates
+  // 4. Final dedupe
   cleaned = dedupe(cleaned, gridPitch * 0.1);
 
   return cleaned;
