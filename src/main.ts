@@ -45,6 +45,9 @@ class CarvableCaves {
   // Resize handling
   private pendingResize = false;
 
+  // Simplification control
+  private simplificationEpsilon = 0; // 0 = no Douglas-Peucker simplification
+
   constructor() {
     try {
       console.log('Initializing CarvableCaves...');
@@ -326,13 +329,12 @@ class CarvableCaves {
 
     console.log(`[FullHeal] Classified ${allPolylines.length} loops: ${rockLoops.length} rock, ${allPolylines.length - rockLoops.length} cave`);
 
-    // Store original vertices before optimization (for debug visualization)
-    const originalLoopsForDebug = rockLoops.map(loop => loop.map(v => ({ x: v.x, y: v.y })));
-    this.renderer.updateOriginalPolylines(originalLoopsForDebug);
+    // Store TRUE ORIGINAL vertices before ANY optimization (for debug visualization)
+    const trueOriginalLoops = rockLoops.map(loop => loop.map(v => ({ x: v.x, y: v.y })));
+    const trueOriginalCount = trueOriginalLoops.reduce((sum, loop) => sum + loop.length, 0);
 
     // Apply shape hygiene: dedupe, cull tiny edges, collapse collinear, ensure CCW
     const gridPitch = this.densityField.config.gridPitch;
-    const originalVertexCount = rockLoops.reduce((sum, loop) => sum + loop.length, 0);
 
     const cleanedLoops = rockLoops.map(loop => {
       const asPoints = loop.map(v => ({ x: v.x, y: v.y } as Point));
@@ -340,20 +342,40 @@ class CarvableCaves {
     }).filter(loop => loop.length >= 3); // Remove degenerate loops
 
     const cleanedVertexCount = cleanedLoops.reduce((sum, loop) => sum + loop.length, 0);
-    const reduction = ((originalVertexCount - cleanedVertexCount) / originalVertexCount * 100).toFixed(1);
+    const cleanReduction = ((trueOriginalCount - cleanedVertexCount) / trueOriginalCount * 100);
 
-    console.log(`[FullHeal] Shape hygiene applied:`);
-    console.log(`  Before: ${rockLoops.length} contours, ${originalVertexCount} vertices`);
-    console.log(`  After:  ${cleanedLoops.length} contours, ${cleanedVertexCount} vertices`);
-    console.log(`  Reduction: ${reduction}% vertices removed`);
-    console.log(`  Average vertices per contour: ${(cleanedVertexCount / cleanedLoops.length).toFixed(1)}`);
+    console.log(`[FullHeal] Vertex optimization pipeline:`);
+    console.log(`  1. Marching Squares output: ${rockLoops.length} contours, ${trueOriginalCount} vertices`);
+    console.log(`  2. After cleanLoop(): ${cleanedLoops.length} contours, ${cleanedVertexCount} vertices`);
+    console.log(`     → cleanLoop reduction: ${cleanReduction.toFixed(1)}% (${trueOriginalCount - cleanedVertexCount} vertices removed)`);
 
-    // Use cleaned loops for both physics and rendering
-    this.physics.setCaveContours(cleanedLoops);
+    // Apply Douglas-Peucker simplification if epsilon > 0
+    let finalLoops = cleanedLoops;
+    if (this.simplificationEpsilon > 0) {
+      const asPoints = cleanedLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
+      const simplified = simplifyPolylines(asPoints, this.simplificationEpsilon, true);
+      finalLoops = simplified.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
 
-    // Update renderer with cleaned loops
-    const cleanedForRender = cleanedLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
-    this.renderer.updatePolylines(cleanedForRender);
+      const simplifiedCount = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+      const simplifyReduction = ((cleanedVertexCount - simplifiedCount) / cleanedVertexCount * 100);
+      const totalReduction = ((trueOriginalCount - simplifiedCount) / trueOriginalCount * 100);
+
+      console.log(`  3. After Douglas-Peucker (ε=${this.simplificationEpsilon.toFixed(3)}m): ${finalLoops.length} contours, ${simplifiedCount} vertices`);
+      console.log(`     → Douglas-Peucker reduction: ${simplifyReduction.toFixed(1)}% (${cleanedVertexCount - simplifiedCount} vertices removed)`);
+      console.log(`     → TOTAL reduction: ${totalReduction.toFixed(1)}% (${trueOriginalCount - simplifiedCount} vertices removed)`);
+    }
+
+    // Store original for debug visualization
+    this.renderer.updateOriginalPolylines(trueOriginalLoops);
+
+    console.log(`  Average vertices per contour: ${(finalLoops.reduce((sum, loop) => sum + loop.length, 0) / finalLoops.length).toFixed(1)}`);
+
+    // Use final loops for both physics and rendering
+    this.physics.setCaveContours(finalLoops);
+
+    // Update renderer with final loops
+    const finalForRender = finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+    this.renderer.updatePolylines(finalForRender);
 
     this.densityField.clearDirty();
 
@@ -457,6 +479,14 @@ class CarvableCaves {
       cancelAnimationFrame(this.animationFrameId);
     }
   }
+
+  /**
+   * Update simplification epsilon and remesh
+   */
+  setSimplificationEpsilon(epsilon: number): void {
+    this.simplificationEpsilon = epsilon;
+    this.needsFullHeal = true; // Trigger full remesh
+  }
 }
 
 // Log that module is loading
@@ -526,6 +556,13 @@ debugConsole.onToggleGrid = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showGrid = enabled;
     console.log(`Grid visualization: ${enabled ? 'ON' : 'OFF'}`);
+  }
+};
+
+debugConsole.onSimplificationChange = (epsilon: number) => {
+  if (app) {
+    app.setSimplificationEpsilon(epsilon);
+    console.log(`Simplification epsilon changed to ${epsilon.toFixed(3)}m`);
   }
 };
 
