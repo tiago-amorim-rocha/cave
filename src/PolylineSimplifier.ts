@@ -1,6 +1,7 @@
 /**
- * Douglas-Peucker algorithm for polyline simplification
- * Reduces vertex count while preserving shape within epsilon tolerance
+ * Visvalingam-Whyatt algorithm for polyline simplification
+ * Reduces vertex count while preserving shape by removing vertices with smallest triangle areas
+ * Better curve preservation compared to Douglas-Peucker
  */
 
 export interface Point {
@@ -9,57 +10,44 @@ export interface Point {
 }
 
 /**
- * Perpendicular distance from point to line segment
+ * Calculate signed area of triangle formed by three points
+ * Returns absolute area value (always positive)
  */
-function perpendicularDistance(point: Point, lineStart: Point, lineEnd: Point): number {
-  const dx = lineEnd.x - lineStart.x;
-  const dy = lineEnd.y - lineStart.y;
-
-  // Handle degenerate case where line segment is a point
-  const mag = Math.sqrt(dx * dx + dy * dy);
-  if (mag < 1e-10) {
-    const pdx = point.x - lineStart.x;
-    const pdy = point.y - lineStart.y;
-    return Math.sqrt(pdx * pdx + pdy * pdy);
-  }
-
-  // Distance = |cross product| / |line segment|
-  const cross = Math.abs(dx * (lineStart.y - point.y) - dy * (lineStart.x - point.x));
-  return cross / mag;
+function triangleArea(p1: Point, p2: Point, p3: Point): number {
+  // Shoelace formula: area = 0.5 * |x1(y2-y3) + x2(y3-y1) + x3(y1-y2)|
+  const area = Math.abs(
+    p1.x * (p2.y - p3.y) +
+    p2.x * (p3.y - p1.y) +
+    p3.x * (p1.y - p2.y)
+  ) / 2;
+  return area;
 }
 
 /**
- * Douglas-Peucker recursive simplification
+ * Node in the linked list for efficient vertex removal
  */
-function douglasPeuckerRecursive(points: Point[], epsilon: number, startIdx: number, endIdx: number, keep: boolean[]): void {
-  if (endIdx <= startIdx + 1) {
-    return;
-  }
-
-  // Find point with maximum distance from line segment
-  let maxDist = 0;
-  let maxIdx = startIdx;
-
-  for (let i = startIdx + 1; i < endIdx; i++) {
-    const dist = perpendicularDistance(points[i], points[startIdx], points[endIdx]);
-    if (dist > maxDist) {
-      maxDist = dist;
-      maxIdx = i;
-    }
-  }
-
-  // If max distance is greater than epsilon, recursively simplify
-  if (maxDist > epsilon) {
-    keep[maxIdx] = true;
-    douglasPeuckerRecursive(points, epsilon, startIdx, maxIdx, keep);
-    douglasPeuckerRecursive(points, epsilon, maxIdx, endIdx, keep);
-  }
+interface VWNode {
+  point: Point;
+  effectiveArea: number;
+  prev: VWNode | null;
+  next: VWNode | null;
+  removed: boolean;
 }
 
 /**
- * Simplify a polyline using Douglas-Peucker algorithm
+ * Calculate effective area for a vertex (triangle with neighbors)
+ */
+function calculateEffectiveArea(node: VWNode): number {
+  if (!node.prev || !node.next) {
+    return Infinity; // Can't remove endpoints
+  }
+  return triangleArea(node.prev.point, node.point, node.next.point);
+}
+
+/**
+ * Simplify a polyline using Visvalingam-Whyatt algorithm
  * @param points - Array of points forming the polyline
- * @param epsilon - Maximum distance tolerance (in world units)
+ * @param epsilon - Minimum triangle area threshold (in world units squared)
  * @param closed - Whether the polyline is closed (first point = last point)
  * @returns Simplified polyline
  */
@@ -68,19 +56,75 @@ export function simplifyPolyline(points: Point[], epsilon: number, closed: boole
     return points.slice();
   }
 
-  // Initialize keep array - always keep first and last points
-  const keep = new Array(points.length).fill(false);
-  keep[0] = true;
-  keep[points.length - 1] = true;
+  // Convert epsilon from linear distance to area threshold
+  // epsilon is in metres, so epsilon^2 gives us area in m²
+  const areaThreshold = epsilon * epsilon;
 
-  // Run Douglas-Peucker
-  douglasPeuckerRecursive(points, epsilon, 0, points.length - 1, keep);
+  // Build linked list of nodes
+  const nodes: VWNode[] = points.map(point => ({
+    point: { x: point.x, y: point.y },
+    effectiveArea: 0,
+    prev: null,
+    next: null,
+    removed: false
+  }));
 
-  // Build simplified result
+  // Link nodes
+  for (let i = 0; i < nodes.length; i++) {
+    if (i > 0) nodes[i].prev = nodes[i - 1];
+    if (i < nodes.length - 1) nodes[i].next = nodes[i + 1];
+  }
+
+  // For closed polylines, link first and last
+  if (closed && nodes.length > 2) {
+    nodes[0].prev = nodes[nodes.length - 1];
+    nodes[nodes.length - 1].next = nodes[0];
+  }
+
+  // Calculate initial effective areas
+  for (const node of nodes) {
+    node.effectiveArea = calculateEffectiveArea(node);
+  }
+
+  // Remove vertices with smallest areas until threshold met
+  while (true) {
+    // Find node with smallest effective area
+    let minNode: VWNode | null = null;
+    let minArea = Infinity;
+
+    for (const node of nodes) {
+      if (!node.removed && node.effectiveArea < minArea) {
+        minArea = node.effectiveArea;
+        minNode = node;
+      }
+    }
+
+    // Stop if no removable vertex found or minimum area exceeds threshold
+    if (!minNode || minArea >= areaThreshold) {
+      break;
+    }
+
+    // Remove the vertex
+    minNode.removed = true;
+
+    // Update linked list
+    if (minNode.prev) minNode.prev.next = minNode.next;
+    if (minNode.next) minNode.next.prev = minNode.prev;
+
+    // Recalculate effective areas for affected neighbors
+    if (minNode.prev) {
+      minNode.prev.effectiveArea = calculateEffectiveArea(minNode.prev);
+    }
+    if (minNode.next) {
+      minNode.next.effectiveArea = calculateEffectiveArea(minNode.next);
+    }
+  }
+
+  // Build result from non-removed nodes
   const result: Point[] = [];
-  for (let i = 0; i < points.length; i++) {
-    if (keep[i]) {
-      result.push(points[i]);
+  for (const node of nodes) {
+    if (!node.removed) {
+      result.push(node.point);
     }
   }
 
@@ -88,7 +132,7 @@ export function simplifyPolyline(points: Point[], epsilon: number, closed: boole
   if (closed && result.length > 0) {
     const first = result[0];
     const last = result[result.length - 1];
-    if (first.x !== last.x || first.y !== last.y) {
+    if (Math.abs(first.x - last.x) > 1e-10 || Math.abs(first.y - last.y) > 1e-10) {
       result.push({ x: first.x, y: first.y });
     }
   }

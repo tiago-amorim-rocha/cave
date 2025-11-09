@@ -231,7 +231,7 @@ export class DebugConsole {
       font-size: 10px;
       margin-top: 2px;
     `;
-    sliderDesc.textContent = 'Douglas-Peucker simplification';
+    sliderDesc.textContent = 'Visvalingam-Whyatt simplification';
 
     sliderRow.appendChild(sliderLabel);
     sliderRow.appendChild(slider);
