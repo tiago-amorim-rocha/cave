@@ -375,6 +375,7 @@ export class DebugConsole {
     const chaikinCheckbox = document.createElement('input');
     chaikinCheckbox.type = 'checkbox';
     chaikinCheckbox.id = 'chaikin-toggle';
+    chaikinCheckbox.checked = true; // Enabled by default for organic cave shapes
     chaikinCheckbox.style.cssText = `
       cursor: pointer;
       width: 12px;
@@ -418,14 +419,14 @@ export class DebugConsole {
       justify-content: space-between;
       opacity: 0.8;
     `;
-    iterationsLabel.innerHTML = '<span>Iterations</span><span id="chaikin-iterations-value">1</span>';
+    iterationsLabel.innerHTML = '<span>Iterations</span><span id="chaikin-iterations-value">2</span>';
 
     const iterationsSlider = document.createElement('input');
     iterationsSlider.type = 'range';
     iterationsSlider.id = 'chaikin-iterations-slider';
     iterationsSlider.min = '1';
     iterationsSlider.max = '4';
-    iterationsSlider.value = '1';
+    iterationsSlider.value = '2';
     iterationsSlider.step = '1';
     iterationsSlider.style.cssText = `
       width: 100%;

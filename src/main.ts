@@ -46,15 +46,15 @@ class CarvableCaves {
   // Resize handling
   private pendingResize = false;
 
-  // Simplification control
-  private simplificationEpsilon = 0; // 0 = no simplification
+  // Simplification control (disabled by default - Chaikin smoothing works better)
+  private simplificationEpsilon = 0; // 0 = no pre-Chaikin simplification
 
-  // Chaikin smoothing control
-  private chaikinEnabled = false;
-  private chaikinIterations = 1;
+  // Chaikin smoothing control (enabled by default for organic cave shapes)
+  private chaikinEnabled = true;
+  private chaikinIterations = 2;
 
   // Post-smoothing simplification control (removes redundant vertices from Chaikin)
-  private simplificationEpsilonPost = 0; // 0 = no post-smoothing simplification
+  private simplificationEpsilonPost = 0.05; // metres - optimal balance of smoothness and vertex count
 
   // Reduction statistics for UI display
   private simplificationReduction = 0; // percentage
@@ -73,7 +73,7 @@ class CarvableCaves {
       const worldConfig: WorldConfig = {
         width: 50, // metres
         height: 30, // metres
-        gridPitch: 0.2, // metres (h)
+        gridPitch: 0.25, // metres (h)
         isoValue: 128
       };
       console.log('World config:', worldConfig);
