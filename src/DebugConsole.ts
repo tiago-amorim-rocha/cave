@@ -39,7 +39,7 @@ export class DebugConsole {
       position: fixed;
       top: 10px;
       right: 10px;
-      width: 280px;
+      width: 140px;
       max-height: 90vh;
       background: rgba(0, 0, 0, 0.15);
       border: 1px solid rgba(76, 175, 80, 0.3);
