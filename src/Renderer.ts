@@ -337,31 +337,22 @@ export class Renderer {
   }
 
   /**
-   * Draw original (unoptimized) vertices as thin lines
+   * Draw original (unoptimized) vertices as tiny points
    */
   private drawOriginalVertices(canvasWidth: number, canvasHeight: number): void {
     this.ctx.save();
 
-    // Draw all original vertices as thin cyan lines
-    this.ctx.strokeStyle = '#00ffff';
-    this.ctx.lineWidth = 1;
-
+    // Draw all original vertices as tiny cyan points (1px radius)
+    this.ctx.fillStyle = '#00ffff';
     for (const polyline of this.originalPolylines) {
-      if (polyline.length < 2) continue;
+      if (polyline.length === 0) continue;
 
-      this.ctx.beginPath();
-
-      // Move to first point
-      const firstScreen = this.camera.worldToScreen(polyline[0].x, polyline[0].y, canvasWidth, canvasHeight);
-      this.ctx.moveTo(firstScreen.x, firstScreen.y);
-
-      // Draw lines to subsequent points
-      for (let i = 1; i < polyline.length; i++) {
+      for (let i = 0; i < polyline.length; i++) {
         const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
-        this.ctx.lineTo(screen.x, screen.y);
+        this.ctx.beginPath();
+        this.ctx.arc(screen.x, screen.y, 1, 0, Math.PI * 2);
+        this.ctx.fill();
       }
-
-      this.ctx.stroke();
     }
 
     this.ctx.restore();
