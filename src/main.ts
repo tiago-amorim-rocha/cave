@@ -8,7 +8,7 @@ import { InputHandler } from './InputHandler';
 import { RapierPhysics } from './RapierPhysics';
 import { RapierPlayer } from './RapierPlayer';
 import { VirtualJoystick } from './VirtualJoystick';
-import { simplifyPolylines, snapToISOSurface } from './PolylineSimplifier';
+import { simplifyPolylines } from './PolylineSimplifier';
 import { chaikinSmoothMultiple } from './ChaikinSmoothing';
 import { cleanLoop } from './physics/shapeUtils';
 import type { WorldConfig, BrushSettings, Point } from './types';
@@ -53,9 +53,6 @@ class CarvableCaves {
   private chaikinEnabled = false;
   private chaikinIterations = 1;
 
-  // Post-optimization ISO-snapping control
-  private isoSnappingPostEnabled = true;
-
   // Post-smoothing simplification control (removes redundant vertices from Chaikin)
   private simplificationEpsilonPost = 0; // 0 = no post-smoothing simplification
 
@@ -76,7 +73,7 @@ class CarvableCaves {
       const worldConfig: WorldConfig = {
         width: 50, // metres
         height: 30, // metres
-        gridPitch: 0.2, // metres (h) - higher resolution with ISO-snapping
+        gridPitch: 0.2, // metres (h)
         isoValue: 128
       };
       console.log('World config:', worldConfig);
@@ -428,12 +425,6 @@ class CarvableCaves {
 
       console.log(`  4. After Chaikin smoothing (${this.chaikinIterations} iteration${this.chaikinIterations > 1 ? 's' : ''}): ${finalLoops.length} contours, ${afterChaikin} vertices`);
       console.log(`     → vertex increase: +${chaikinIncrease.toFixed(1)}% (+${afterChaikin - beforeChaikin} vertices added for smoothness)`);
-
-      // Apply ISO-snapping to correct vertex drift from smoothing
-      if (this.isoSnappingPostEnabled) {
-        const snapped = snapToISOSurface(finalLoops, this.densityField, 128, gridPitch, 0.5);
-        finalLoops = snapped;
-      }
     }
 
     // Apply post-smoothing simplification to remove redundant vertices from Chaikin
@@ -608,12 +599,6 @@ class CarvableCaves {
     this.needsFullHeal = true; // Trigger full remesh
   }
 
-  setISOSnappingPost(enabled: boolean): void {
-    this.isoSnappingPostEnabled = enabled;
-    this.needsRemesh = true; // Trigger remesh check
-    this.needsFullHeal = true; // Trigger full remesh
-  }
-
   setSimplificationEpsilonPost(epsilon: number): void {
     this.simplificationEpsilonPost = epsilon;
     this.needsRemesh = true; // Trigger remesh check
@@ -748,13 +733,6 @@ debugConsole.onChaikinIterationsChange = (iterations: number) => {
   if (app) {
     app.setChaikinIterations(iterations);
     console.log(`Chaikin iterations changed to ${iterations}`);
-  }
-};
-
-debugConsole.onToggleISOSnappingPost = (enabled: boolean) => {
-  if (app) {
-    app.setISOSnappingPost(enabled);
-    console.log(`ISO-snapping (post-optimization): ${enabled ? 'ON' : 'OFF'}`);
   }
 };
 
