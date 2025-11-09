@@ -15,6 +15,7 @@ export class DebugConsole {
   public onToggleOriginalVertices?: (enabled: boolean) => void;
   public onToggleGrid?: (enabled: boolean) => void;
   public onSimplificationChange?: (epsilon: number) => void;
+  public onAngleThresholdChange?: (angleDegrees: number) => void;
 
   constructor() {
     this.container = this.createContainer();
@@ -179,9 +180,9 @@ export class DebugConsole {
       controlsContainer.appendChild(toggleRow);
     });
 
-    // Add simplification slider
-    const sliderRow = document.createElement('div');
-    sliderRow.style.cssText = `
+    // Add angle threshold slider
+    const angleSliderRow = document.createElement('div');
+    angleSliderRow.style.cssText = `
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -190,28 +191,83 @@ export class DebugConsole {
       border-top: 1px solid #333;
     `;
 
-    const sliderLabel = document.createElement('div');
-    sliderLabel.style.cssText = `
+    const angleSliderLabel = document.createElement('div');
+    angleSliderLabel.style.cssText = `
       color: #4CAF50;
       font-size: 11px;
       display: flex;
       justify-content: space-between;
     `;
-    sliderLabel.innerHTML = '<span>Simplification (ε)</span><span id="epsilon-value">0.00m</span>';
+    angleSliderLabel.innerHTML = '<span>Angle Threshold</span><span id="angle-value">3.0°</span>';
 
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.id = 'simplification-slider';
-    slider.min = '0';
-    slider.max = '50';
-    slider.value = '0';
-    slider.step = '1';
-    slider.style.cssText = `
+    const angleSlider = document.createElement('input');
+    angleSlider.type = 'range';
+    angleSlider.id = 'angle-slider';
+    angleSlider.min = '0';
+    angleSlider.max = '45';
+    angleSlider.value = '3';
+    angleSlider.step = '1';
+    angleSlider.style.cssText = `
       width: 100%;
       cursor: pointer;
     `;
 
-    slider.addEventListener('input', (e) => {
+    angleSlider.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement;
+      const angleDegrees = parseInt(target.value);
+      const angleDisplay = document.getElementById('angle-value');
+      if (angleDisplay) {
+        angleDisplay.textContent = `${angleDegrees.toFixed(1)}°`;
+      }
+      if (this.onAngleThresholdChange) {
+        this.onAngleThresholdChange(angleDegrees);
+      }
+    });
+
+    const angleSliderDesc = document.createElement('div');
+    angleSliderDesc.style.cssText = `
+      color: #888;
+      font-size: 10px;
+      margin-top: 2px;
+    `;
+    angleSliderDesc.textContent = 'collapseCollinear angle (runs 1st)';
+
+    angleSliderRow.appendChild(angleSliderLabel);
+    angleSliderRow.appendChild(angleSlider);
+    angleSliderRow.appendChild(angleSliderDesc);
+    controlsContainer.appendChild(angleSliderRow);
+
+    // Add distance simplification slider
+    const distSliderRow = document.createElement('div');
+    distSliderRow.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 8px;
+    `;
+
+    const distSliderLabel = document.createElement('div');
+    distSliderLabel.style.cssText = `
+      color: #4CAF50;
+      font-size: 11px;
+      display: flex;
+      justify-content: space-between;
+    `;
+    distSliderLabel.innerHTML = '<span>Distance Threshold (ε)</span><span id="epsilon-value">0.000m</span>';
+
+    const distSlider = document.createElement('input');
+    distSlider.type = 'range';
+    distSlider.id = 'simplification-slider';
+    distSlider.min = '0';
+    distSlider.max = '50';
+    distSlider.value = '0';
+    distSlider.step = '1';
+    distSlider.style.cssText = `
+      width: 100%;
+      cursor: pointer;
+    `;
+
+    distSlider.addEventListener('input', (e) => {
       const target = e.target as HTMLInputElement;
       const value = parseInt(target.value);
       // Map 0-50 to 0-0.5m exponentially for finer control at low values
@@ -225,18 +281,18 @@ export class DebugConsole {
       }
     });
 
-    const sliderDesc = document.createElement('div');
-    sliderDesc.style.cssText = `
+    const distSliderDesc = document.createElement('div');
+    distSliderDesc.style.cssText = `
       color: #888;
       font-size: 10px;
       margin-top: 2px;
     `;
-    sliderDesc.textContent = 'Douglas-Peucker simplification epsilon';
+    distSliderDesc.textContent = 'Douglas-Peucker distance (runs 2nd)';
 
-    sliderRow.appendChild(sliderLabel);
-    sliderRow.appendChild(slider);
-    sliderRow.appendChild(sliderDesc);
-    controlsContainer.appendChild(sliderRow);
+    distSliderRow.appendChild(distSliderLabel);
+    distSliderRow.appendChild(distSlider);
+    distSliderRow.appendChild(distSliderDesc);
+    controlsContainer.appendChild(distSliderRow);
 
     return controlsContainer;
   }

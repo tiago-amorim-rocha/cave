@@ -47,6 +47,7 @@ class CarvableCaves {
 
   // Simplification control
   private simplificationEpsilon = 0; // 0 = no Douglas-Peucker simplification
+  private angleThresholdDeg = 3; // Angle threshold for collapseCollinear (default 3°)
 
   constructor() {
     try {
@@ -338,7 +339,7 @@ class CarvableCaves {
 
     const cleanedLoops = rockLoops.map(loop => {
       const asPoints = loop.map(v => ({ x: v.x, y: v.y } as Point));
-      return cleanLoop(asPoints, gridPitch);
+      return cleanLoop(asPoints, gridPitch, this.angleThresholdDeg);
     }).filter(loop => loop.length >= 3); // Remove degenerate loops
 
     const cleanedVertexCount = cleanedLoops.reduce((sum, loop) => sum + loop.length, 0);
@@ -346,7 +347,7 @@ class CarvableCaves {
 
     console.log(`[FullHeal] Vertex optimization pipeline:`);
     console.log(`  1. Marching Squares output: ${rockLoops.length} contours, ${trueOriginalCount} vertices`);
-    console.log(`  2. After cleanLoop(): ${cleanedLoops.length} contours, ${cleanedVertexCount} vertices`);
+    console.log(`  2. After cleanLoop(angle=${this.angleThresholdDeg}°): ${cleanedLoops.length} contours, ${cleanedVertexCount} vertices`);
     console.log(`     → cleanLoop reduction: ${cleanReduction.toFixed(1)}% (${trueOriginalCount - cleanedVertexCount} vertices removed)`);
 
     // Apply Douglas-Peucker simplification if epsilon > 0
@@ -487,6 +488,14 @@ class CarvableCaves {
     this.simplificationEpsilon = epsilon;
     this.needsFullHeal = true; // Trigger full remesh
   }
+
+  /**
+   * Update angle threshold and remesh
+   */
+  setAngleThreshold(angleDegrees: number): void {
+    this.angleThresholdDeg = angleDegrees;
+    this.needsFullHeal = true; // Trigger full remesh
+  }
 }
 
 // Log that module is loading
@@ -556,6 +565,13 @@ debugConsole.onToggleGrid = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showGrid = enabled;
     console.log(`Grid visualization: ${enabled ? 'ON' : 'OFF'}`);
+  }
+};
+
+debugConsole.onAngleThresholdChange = (angleDegrees: number) => {
+  if (app) {
+    app.setAngleThreshold(angleDegrees);
+    console.log(`Angle threshold changed to ${angleDegrees}°`);
   }
 };
 
