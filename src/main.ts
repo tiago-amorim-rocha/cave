@@ -58,6 +58,10 @@ class CarvableCaves {
   // Post-smoothing simplification control (removes redundant vertices from Chaikin)
   private simplificationEpsilonPost = 0; // 0 = no post-smoothing simplification
 
+  // Reduction statistics for UI display
+  private simplificationReduction = 0; // percentage
+  private postSimplificationReduction = 0; // percentage
+
   constructor() {
     try {
       console.log('Initializing CarvableCaves...');
@@ -371,9 +375,14 @@ class CarvableCaves {
       const simplifyReduction = ((cleanedVertexCount - simplifiedCount) / cleanedVertexCount * 100);
       const totalReduction = ((trueOriginalCount - simplifiedCount) / trueOriginalCount * 100);
 
+      // Store for UI display
+      this.simplificationReduction = simplifyReduction;
+
       console.log(`  3. After Visvalingam-Whyatt simplification (ε=${this.simplificationEpsilon.toFixed(3)}m, area=${areaThreshold.toFixed(6)}m²): ${finalLoops.length} contours, ${simplifiedCount} vertices`);
       console.log(`     → simplification reduction: ${simplifyReduction.toFixed(1)}% (${cleanedVertexCount - simplifiedCount} vertices removed)`);
       console.log(`     → TOTAL reduction: ${totalReduction.toFixed(1)}% (${trueOriginalCount - simplifiedCount} vertices removed)`);
+    } else {
+      this.simplificationReduction = 0;
     }
 
     // Apply Chaikin smoothing if enabled
@@ -408,8 +417,13 @@ class CarvableCaves {
       const afterPostSimplify = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
       const postSimplifyReduction = ((beforePostSimplify - afterPostSimplify) / beforePostSimplify * 100);
 
+      // Store for UI display
+      this.postSimplificationReduction = postSimplifyReduction;
+
       console.log(`  5. After post-smoothing simplification (ε=${this.simplificationEpsilonPost.toFixed(3)}m, area=${areaThresholdPost.toFixed(6)}m²): ${finalLoops.length} contours, ${afterPostSimplify} vertices`);
       console.log(`     → post-smoothing reduction: ${postSimplifyReduction.toFixed(1)}% (${beforePostSimplify - afterPostSimplify} vertices removed from Chaikin redundancy)`);
+    } else {
+      this.postSimplificationReduction = 0;
     }
 
     // Store original for debug visualization
@@ -428,6 +442,14 @@ class CarvableCaves {
 
     const elapsed = performance.now() - startTime;
     console.log(`[FullHeal] Complete. ${allLoops.length} loops in ${elapsed.toFixed(1)}ms`);
+
+    // Update debug console reduction stats
+    if ((window as any).debugConsole) {
+      (window as any).debugConsole.updateReductionStats(
+        this.simplificationReduction,
+        this.postSimplificationReduction
+      );
+    }
   }
 
   /**
@@ -565,6 +587,14 @@ class CarvableCaves {
     this.needsRemesh = true; // Trigger remesh check
     this.needsFullHeal = true; // Trigger full remesh
   }
+
+  getSimplificationReduction(): number {
+    return this.simplificationReduction;
+  }
+
+  getPostSimplificationReduction(): number {
+    return this.postSimplificationReduction;
+  }
 }
 
 // Log that module is loading
@@ -580,6 +610,7 @@ if ((window as any).log) {
 let debugConsole: DebugConsole;
 try {
   debugConsole = new DebugConsole();
+  (window as any).debugConsole = debugConsole; // Make accessible for stats updates
   console.log('Debug console created (hidden by default)');
 } catch (error) {
   console.error('Failed to create debug console:', error);

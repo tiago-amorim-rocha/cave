@@ -192,7 +192,7 @@ export class DebugConsole {
       justify-content: space-between;
       opacity: 0.8;
     `;
-    sliderLabel.innerHTML = '<span>Simplification (ε)</span><span id="epsilon-value">0.000m</span>';
+    sliderLabel.innerHTML = '<span>Simplification (ε)</span><span id="epsilon-value">0.000m <span id="epsilon-reduction" style="opacity: 0.6;"></span></span>';
 
     const slider = document.createElement('input');
     slider.type = 'range';
@@ -252,7 +252,7 @@ export class DebugConsole {
       justify-content: space-between;
       opacity: 0.8;
     `;
-    sliderLabelPost.innerHTML = '<span>Post-Smoothing (ε)</span><span id="epsilon-post-value">0.000m</span>';
+    sliderLabelPost.innerHTML = '<span>Post-Smoothing (ε)</span><span id="epsilon-post-value">0.000m <span id="epsilon-post-reduction" style="opacity: 0.6;"></span></span>';
 
     const sliderPost = document.createElement('input');
     sliderPost.type = 'range';
@@ -520,6 +520,18 @@ export class DebugConsole {
     } catch (error) {
       console.error('Failed to copy logs:', error);
       alert('Failed to copy logs to clipboard');
+    }
+  }
+
+  updateReductionStats(simplificationReduction: number, postSimplificationReduction: number): void {
+    const epsilonReduction = document.getElementById('epsilon-reduction');
+    if (epsilonReduction) {
+      epsilonReduction.textContent = simplificationReduction > 0 ? `(-${simplificationReduction.toFixed(1)}%)` : '';
+    }
+
+    const epsilonPostReduction = document.getElementById('epsilon-post-reduction');
+    if (epsilonPostReduction) {
+      epsilonPostReduction.textContent = postSimplificationReduction > 0 ? `(-${postSimplificationReduction.toFixed(1)}%)` : '';
     }
   }
 }
