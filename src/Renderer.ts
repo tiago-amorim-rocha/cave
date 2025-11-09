@@ -63,9 +63,14 @@ export class Renderer {
    * @param playerPosition - Optional player position to render
    * @param playerRadius - Optional player radius
    * @param balls - Optional array of ball bodies to render
-   * @param physicsBodies - Optional array of all physics bodies for debug rendering
+   * @param physicsDebugDraw - Optional callback to draw physics debug
    */
-  render(playerPosition?: { x: number; y: number }, playerRadius?: number, balls?: any[], physicsBodies?: any[]): void {
+  render(
+    playerPosition?: { x: number; y: number },
+    playerRadius?: number,
+    balls?: any[],
+    physicsDebugDraw?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void
+  ): void {
     try {
       const dpr = window.devicePixelRatio || 1;
       const width = this.canvas.width / dpr;
@@ -83,9 +88,9 @@ export class Renderer {
       // Draw polylines
       this.drawPolylines(width, height);
 
-      // Draw physics bodies (debugging)
-      if (this.showPhysicsBodies && physicsBodies && physicsBodies.length > 0) {
-        this.drawPhysicsBodies(width, height, physicsBodies);
+      // Draw physics bodies (debugging) - use custom debug draw
+      if (this.showPhysicsBodies && physicsDebugDraw) {
+        physicsDebugDraw(this.ctx, width, height);
       }
 
       // Draw player
