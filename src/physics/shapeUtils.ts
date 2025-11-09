@@ -148,8 +148,11 @@ export function collapseCollinear(points: Point[], angleThresholdDeg = 3, distTh
 /**
  * Apply all shape hygiene operations in sequence
  * This is the main function to use for cleaning up marching squares output
+ * @param points - Array of points forming the polyline
+ * @param gridPitch - Grid pitch in world units (metres)
+ * @param angleThresholdDeg - Angle threshold in degrees for collapseCollinear (default 3°)
  */
-export function cleanLoop(points: Point[], gridPitch: number): Point[] {
+export function cleanLoop(points: Point[], gridPitch: number, angleThresholdDeg: number = 3): Point[] {
   if (points.length < 3) return points;
 
   // 1. Remove consecutive duplicates
@@ -158,8 +161,8 @@ export function cleanLoop(points: Point[], gridPitch: number): Point[] {
   // 2. Cull tiny edges (< 0.3 * gridPitch)
   cleaned = cullTinyEdges(cleaned, gridPitch * 0.3);
 
-  // 3. Collapse near-collinear points (< 3°, < 0.02 * gridPitch perp distance)
-  cleaned = collapseCollinear(cleaned, 3, gridPitch * 0.02);
+  // 3. Collapse near-collinear points (angle threshold, < 0.02 * gridPitch perp distance)
+  cleaned = collapseCollinear(cleaned, angleThresholdDeg, gridPitch * 0.02);
 
   // 4. Ensure CCW winding
   cleaned = ensureCCW(cleaned);
