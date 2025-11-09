@@ -1,13 +1,10 @@
 name: Deploy to GitHub Pages
 
 on:
-  push:
-    branches:
-      - main
   workflow_run:
     workflows: ["Auto-promote to main"]
     types: [completed]
-    
+
 permissions:
   contents: read
   pages: write
