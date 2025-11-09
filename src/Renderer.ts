@@ -10,8 +10,10 @@ export class Renderer {
   private camera: Camera;
 
   private polylines: Vec2[][] = [];
+  private originalPolylines: Vec2[][] = []; // Store original vertices before optimization
   public showGrid: boolean = false;
-  public showVertices: boolean = false;
+  public showVertices: boolean = false; // Show optimized vertices
+  public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
   public showPhysicsBodies: boolean = false;
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
@@ -70,6 +72,13 @@ export class Renderer {
   }
 
   /**
+   * Update original (unoptimized) polylines for debug visualization
+   */
+  updateOriginalPolylines(polylines: Vec2[][]): void {
+    this.originalPolylines = polylines;
+  }
+
+  /**
    * Render the scene
    * @param playerPosition - Optional player position to render
    * @param playerRadius - Optional player radius
@@ -117,6 +126,11 @@ export class Renderer {
       // Draw vertices (debugging)
       if (this.showVertices) {
         this.drawVertices(width, height);
+      }
+
+      // Draw original vertices (debugging)
+      if (this.showOriginalVertices) {
+        this.drawOriginalVertices(width, height);
       }
     } catch (error) {
       console.error('Error during render:', error);
@@ -280,7 +294,7 @@ export class Renderer {
   }
 
   /**
-   * Draw vertices with labels
+   * Draw optimized vertices with labels
    */
   private drawVertices(canvasWidth: number, canvasHeight: number): void {
     this.ctx.save();
@@ -315,6 +329,28 @@ export class Renderer {
         const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
         this.ctx.beginPath();
         this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw original (unoptimized) vertices as points
+   */
+  private drawOriginalVertices(canvasWidth: number, canvasHeight: number): void {
+    this.ctx.save();
+
+    // Draw all original vertices as cyan points
+    this.ctx.fillStyle = '#00ffff';
+    for (const polyline of this.originalPolylines) {
+      if (polyline.length === 0) continue;
+
+      for (let i = 0; i < polyline.length; i++) {
+        const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
+        this.ctx.beginPath();
+        this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
         this.ctx.fill();
       }
     }

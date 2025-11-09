@@ -4,13 +4,22 @@
 export class DebugConsole {
   private container: HTMLDivElement;
   private logContainer: HTMLDivElement;
+  private controlsContainer: HTMLDivElement;
   private isVisible = false;
   private logs: string[] = [];
   private maxLogs = 100;
 
+  // Toggle callbacks
+  public onTogglePhysicsMesh?: (enabled: boolean) => void;
+  public onToggleOptimizedVertices?: (enabled: boolean) => void;
+  public onToggleOriginalVertices?: (enabled: boolean) => void;
+  public onToggleGrid?: (enabled: boolean) => void;
+
   constructor() {
     this.container = this.createContainer();
+    this.controlsContainer = this.createControlsContainer();
     this.logContainer = this.createLogContainer();
+    this.container.appendChild(this.controlsContainer);
     this.container.appendChild(this.logContainer);
     document.body.appendChild(this.container);
 
@@ -98,6 +107,78 @@ export class DebugConsole {
     container.appendChild(titleBar);
 
     return container;
+  }
+
+  private createControlsContainer(): HTMLDivElement {
+    const controlsContainer = document.createElement('div');
+    controlsContainer.style.cssText = `
+      background: rgba(20, 20, 20, 0.9);
+      padding: 12px;
+      border-bottom: 1px solid #4CAF50;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    `;
+
+    // Title
+    const title = document.createElement('div');
+    title.textContent = 'Debug Visualization';
+    title.style.cssText = `
+      color: #4CAF50;
+      font-weight: bold;
+      margin-bottom: 4px;
+    `;
+    controlsContainer.appendChild(title);
+
+    // Create toggles
+    const toggles = [
+      { label: 'Physics Mesh', key: 'physics', callback: 'onTogglePhysicsMesh' },
+      { label: 'Optimized Vertices', key: 'optimized', callback: 'onToggleOptimizedVertices' },
+      { label: 'Original Vertices', key: 'original', callback: 'onToggleOriginalVertices' },
+      { label: 'Grid', key: 'grid', callback: 'onToggleGrid' }
+    ];
+
+    toggles.forEach(({ label, key, callback }) => {
+      const toggleRow = document.createElement('div');
+      toggleRow.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      `;
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = `debug-${key}`;
+      checkbox.style.cssText = `
+        cursor: pointer;
+        width: 16px;
+        height: 16px;
+      `;
+
+      checkbox.addEventListener('change', (e) => {
+        const target = e.target as HTMLInputElement;
+        const callbackName = callback as keyof DebugConsole;
+        const fn = this[callbackName];
+        if (typeof fn === 'function') {
+          (fn as (enabled: boolean) => void).call(this, target.checked);
+        }
+      });
+
+      const labelEl = document.createElement('label');
+      labelEl.htmlFor = `debug-${key}`;
+      labelEl.textContent = label;
+      labelEl.style.cssText = `
+        color: #0f0;
+        cursor: pointer;
+        user-select: none;
+      `;
+
+      toggleRow.appendChild(checkbox);
+      toggleRow.appendChild(labelEl);
+      controlsContainer.appendChild(toggleRow);
+    });
+
+    return controlsContainer;
   }
 
   private createLogContainer(): HTMLDivElement {
