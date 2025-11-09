@@ -146,3 +146,77 @@ export function simplifyPolyline(points: Point[], areaThreshold: number, closed:
 export function simplifyPolylines(polylines: Point[][], areaThreshold: number, closed: boolean = false): Point[][] {
   return polylines.map(polyline => simplifyPolyline(polyline, areaThreshold, closed));
 }
+
+/**
+ * Chaikin smoothing algorithm - corner cutting for smooth curves
+ * Each iteration replaces each edge with two points at 1/4 and 3/4 positions
+ * @param points - Array of points forming the polyline
+ * @param iterations - Number of smoothing iterations (1-3 recommended)
+ * @param closed - Whether the polyline is closed
+ * @returns Smoothed polyline
+ */
+export function chaikinSmooth(points: Point[], iterations: number = 1, closed: boolean = false): Point[] {
+  if (points.length < 3 || iterations === 0) {
+    return points.slice();
+  }
+
+  let smoothed = points.slice();
+
+  for (let iter = 0; iter < iterations; iter++) {
+    const newPoints: Point[] = [];
+
+    // For closed curves, process all edges including the wrap-around edge
+    const numEdges = closed ? smoothed.length : smoothed.length - 1;
+
+    for (let i = 0; i < numEdges; i++) {
+      const p0 = smoothed[i];
+      const p1 = smoothed[(i + 1) % smoothed.length];
+
+      // Create two points at 1/4 and 3/4 along the edge
+      const q = {
+        x: 0.75 * p0.x + 0.25 * p1.x,
+        y: 0.75 * p0.y + 0.25 * p1.y
+      };
+
+      const r = {
+        x: 0.25 * p0.x + 0.75 * p1.x,
+        y: 0.25 * p0.y + 0.75 * p1.y
+      };
+
+      newPoints.push(q);
+      newPoints.push(r);
+    }
+
+    // For open curves, keep the original endpoints
+    if (!closed && newPoints.length > 0) {
+      // Replace first point with original start
+      newPoints[0] = { x: points[0].x, y: points[0].y };
+      // Replace last point with original end
+      newPoints[newPoints.length - 1] = { x: points[points.length - 1].x, y: points[points.length - 1].y };
+    }
+
+    smoothed = newPoints;
+  }
+
+  // For closed polylines, ensure first and last are the same
+  if (closed && smoothed.length > 0) {
+    const first = smoothed[0];
+    const last = smoothed[smoothed.length - 1];
+    if (Math.abs(first.x - last.x) > 1e-10 || Math.abs(first.y - last.y) > 1e-10) {
+      smoothed.push({ x: first.x, y: first.y });
+    }
+  }
+
+  return smoothed;
+}
+
+/**
+ * Apply Chaikin smoothing to multiple polylines
+ * @param polylines - Array of polylines to smooth
+ * @param iterations - Number of smoothing iterations
+ * @param closed - Whether polylines are closed
+ * @returns Smoothed polylines
+ */
+export function chaikinSmoothPolylines(polylines: Point[][], iterations: number = 1, closed: boolean = false): Point[][] {
+  return polylines.map(polyline => chaikinSmooth(polyline, iterations, closed));
+}

@@ -15,7 +15,8 @@ export class DebugConsole {
   public onToggleOriginalVertices?: (enabled: boolean) => void;
   public onToggleGrid?: (enabled: boolean) => void;
   public onSimplificationChange?: (epsilon: number) => void;
-  public onMappingModeChange?: (mode: string) => void;
+  public onToggleChaikin?: (enabled: boolean) => void;
+  public onChaikinIterationsChange?: (iterations: number) => void;
 
   constructor() {
     this.container = this.createContainer();
@@ -221,67 +222,116 @@ export class DebugConsole {
     `;
     sliderDesc.textContent = 'VW simplification';
 
-    // Add epsilon mapping mode dropdown
-    const mappingRow = document.createElement('div');
-    mappingRow.style.cssText = `
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      margin-top: 4px;
-    `;
-
-    const mappingLabel = document.createElement('label');
-    mappingLabel.style.cssText = `
-      color: #4CAF50;
-      font-size: 8px;
-      flex-shrink: 0;
-      opacity: 0.7;
-    `;
-    mappingLabel.textContent = 'Mode:';
-
-    const mappingSelect = document.createElement('select');
-    mappingSelect.id = 'mapping-mode-select';
-    mappingSelect.style.cssText = `
-      background: rgba(0, 0, 0, 0.3);
-      color: #4CAF50;
-      border: 1px solid rgba(76, 175, 80, 0.3);
-      border-radius: 3px;
-      padding: 2px 4px;
-      font-family: 'Courier New', monospace;
-      font-size: 8px;
-      cursor: pointer;
-      flex: 1;
-    `;
-
-    const modes = [
-      { value: 'quadratic', label: 'ε²' },
-      { value: 'linear', label: 'ε×0.01' },
-      { value: 'cubic', label: 'ε³' },
-      { value: 'exponential', label: 'e^ε' }
-    ];
-
-    modes.forEach(mode => {
-      const option = document.createElement('option');
-      option.value = mode.value;
-      option.textContent = mode.label;
-      mappingSelect.appendChild(option);
-    });
-
-    mappingSelect.addEventListener('change', (e) => {
-      const target = e.target as HTMLSelectElement;
-      if (this.onMappingModeChange) {
-        this.onMappingModeChange(target.value);
-      }
-    });
-
-    mappingRow.appendChild(mappingLabel);
-    mappingRow.appendChild(mappingSelect);
-
     sliderRow.appendChild(sliderLabel);
     sliderRow.appendChild(slider);
     sliderRow.appendChild(sliderDesc);
-    sliderRow.appendChild(mappingRow);
     controlsContainer.appendChild(sliderRow);
+
+    // Add Chaikin smoothing controls
+    const chaikinSection = document.createElement('div');
+    chaikinSection.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(76, 175, 80, 0.2);
+    `;
+
+    // Chaikin toggle
+    const chaikinToggleRow = document.createElement('div');
+    chaikinToggleRow.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    `;
+
+    const chaikinCheckbox = document.createElement('input');
+    chaikinCheckbox.type = 'checkbox';
+    chaikinCheckbox.id = 'chaikin-toggle';
+    chaikinCheckbox.style.cssText = `
+      cursor: pointer;
+      width: 12px;
+      height: 12px;
+    `;
+
+    chaikinCheckbox.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      if (this.onToggleChaikin) {
+        this.onToggleChaikin(target.checked);
+      }
+    });
+
+    const chaikinLabel = document.createElement('label');
+    chaikinLabel.htmlFor = 'chaikin-toggle';
+    chaikinLabel.textContent = 'Chaikin Smoothing';
+    chaikinLabel.style.cssText = `
+      color: #4CAF50;
+      cursor: pointer;
+      user-select: none;
+      font-size: 10px;
+    `;
+
+    chaikinToggleRow.appendChild(chaikinCheckbox);
+    chaikinToggleRow.appendChild(chaikinLabel);
+    chaikinSection.appendChild(chaikinToggleRow);
+
+    // Chaikin iterations slider
+    const iterationsRow = document.createElement('div');
+    iterationsRow.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    `;
+
+    const iterationsLabel = document.createElement('div');
+    iterationsLabel.style.cssText = `
+      color: #4CAF50;
+      font-size: 9px;
+      display: flex;
+      justify-content: space-between;
+      opacity: 0.8;
+    `;
+    iterationsLabel.innerHTML = '<span>Iterations</span><span id="chaikin-iterations-value">1</span>';
+
+    const iterationsSlider = document.createElement('input');
+    iterationsSlider.type = 'range';
+    iterationsSlider.id = 'chaikin-iterations-slider';
+    iterationsSlider.min = '1';
+    iterationsSlider.max = '4';
+    iterationsSlider.value = '1';
+    iterationsSlider.step = '1';
+    iterationsSlider.style.cssText = `
+      width: 100%;
+      cursor: pointer;
+    `;
+
+    iterationsSlider.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement;
+      const iterations = parseInt(target.value);
+      const iterationsDisplay = document.getElementById('chaikin-iterations-value');
+      if (iterationsDisplay) {
+        iterationsDisplay.textContent = iterations.toString();
+      }
+      if (this.onChaikinIterationsChange) {
+        this.onChaikinIterationsChange(iterations);
+      }
+    });
+
+    const iterationsDesc = document.createElement('div');
+    iterationsDesc.style.cssText = `
+      color: rgba(76, 175, 80, 0.5);
+      font-size: 8px;
+      margin-top: 1px;
+    `;
+    iterationsDesc.textContent = 'Corner-cutting smoothing';
+
+    iterationsRow.appendChild(iterationsLabel);
+    iterationsRow.appendChild(iterationsSlider);
+    iterationsRow.appendChild(iterationsDesc);
+    chaikinSection.appendChild(iterationsRow);
+
+    controlsContainer.appendChild(chaikinSection);
 
     return controlsContainer;
   }
