@@ -326,6 +326,10 @@ class CarvableCaves {
 
     console.log(`[FullHeal] Classified ${allPolylines.length} loops: ${rockLoops.length} rock, ${allPolylines.length - rockLoops.length} cave`);
 
+    // Store original vertices before optimization (for debug visualization)
+    const originalLoopsForDebug = rockLoops.map(loop => loop.map(v => ({ x: v.x, y: v.y })));
+    this.renderer.updateOriginalPolylines(originalLoopsForDebug);
+
     // Apply shape hygiene: dedupe, cull tiny edges, collapse collinear, ensure CCW
     const gridPitch = this.densityField.config.gridPitch;
     const originalVertexCount = rockLoops.reduce((sum, loop) => sum + loop.length, 0);
@@ -494,6 +498,37 @@ if (debugButton) {
   console.error('Debug button NOT found!');
 }
 
+// Wire up debug console toggle callbacks to renderer (will be set after app is created)
+let appRenderer: Renderer | null = null;
+
+debugConsole.onTogglePhysicsMesh = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showPhysicsBodies = enabled;
+    console.log(`Physics mesh visualization: ${enabled ? 'ON' : 'OFF'}`);
+  }
+};
+
+debugConsole.onToggleOptimizedVertices = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showVertices = enabled;
+    console.log(`Optimized vertices visualization: ${enabled ? 'ON' : 'OFF'}`);
+  }
+};
+
+debugConsole.onToggleOriginalVertices = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showOriginalVertices = enabled;
+    console.log(`Original vertices visualization: ${enabled ? 'ON' : 'OFF'}`);
+  }
+};
+
+debugConsole.onToggleGrid = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showGrid = enabled;
+    console.log(`Grid visualization: ${enabled ? 'ON' : 'OFF'}`);
+  }
+};
+
 console.log('===========================================');
 console.log('Carvable Caves PWA');
 console.log('===========================================');
@@ -511,6 +546,8 @@ console.log('Starting application...');
 let app: CarvableCaves;
 try {
   app = new CarvableCaves();
+  // Expose renderer to debug console callbacks
+  appRenderer = (app as any).renderer;
 } catch (error) {
   console.error('Fatal error during initialization:', error);
   debugConsole.show();
