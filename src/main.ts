@@ -72,7 +72,7 @@ class CarvableCaves {
       const worldConfig: WorldConfig = {
         width: 50, // metres
         height: 30, // metres
-        gridPitch: 0.25, // metres (h) - coarser grid with ISO-snapping for performance
+        gridPitch: 0.2, // metres (h) - higher resolution with ISO-snapping
         isoValue: 128
       };
       console.log('World config:', worldConfig);
