@@ -126,4 +126,11 @@ export class RapierPhysics {
   setDebugEnabled(enabled: boolean): void {
     this.engine.setDebugEnabled(enabled);
   }
+
+  /**
+   * Draw debug visualization
+   */
+  debugDraw(ctx: CanvasRenderingContext2D, camera: any, canvasWidth: number, canvasHeight: number): void {
+    this.engine.debugDraw(ctx, camera, canvasWidth, canvasHeight);
+  }
 }

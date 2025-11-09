@@ -4,11 +4,12 @@ import { MarchingSquares } from './MarchingSquares';
 import { Renderer } from './Renderer';
 import { DebugConsole } from './DebugConsole';
 import { LoopCache } from './LoopCache';
+import { InputHandler } from './InputHandler';
 import { RapierPhysics } from './RapierPhysics';
 import { RapierPlayer } from './RapierPlayer';
 import { simplifyPolylines } from './PolylineSimplifier';
 import { chaikinSmooth } from './ChaikinSmoothing';
-import type { WorldConfig } from './types';
+import type { WorldConfig, BrushSettings } from './types';
 import type { Point } from './PolylineSimplifier';
 import RAPIER from '@dimforge/rapier2d-compat';
 
@@ -22,6 +23,7 @@ class CarvableCaves {
   private marchingSquares: MarchingSquares;
   private renderer: Renderer;
   private loopCache: LoopCache;
+  private inputHandler: InputHandler;
   private physics: RapierPhysics;
   private player!: RapierPlayer; // Initialized asynchronously in start()
 
@@ -45,8 +47,8 @@ class CarvableCaves {
 
       // World configuration
       const worldConfig: WorldConfig = {
-        width: 25, // metres (quartered from original)
-        height: 15, // metres (quartered from original)
+        width: 50, // metres
+        height: 30, // metres
         gridPitch: 0.1, // metres (h)
         isoValue: 128
       };
@@ -96,6 +98,20 @@ class CarvableCaves {
       this.renderer = new Renderer(this.canvas, this.camera);
       console.log('Renderer initialized');
 
+      // Initialize input handler
+      const brushSettings: BrushSettings = {
+        radius: 1.0, // metres
+        strength: 255
+      };
+      this.inputHandler = new InputHandler(this.canvas, this.camera, this.densityField, brushSettings);
+      this.inputHandler.onCarve = () => {
+        this.needsRemesh = true;
+      };
+      this.inputHandler.onCarveEnd = () => {
+        this.needsFullHeal = true;
+      };
+      console.log('Input handler initialized');
+
       // Initialize physics (will be initialized async in start())
       this.physics = new RapierPhysics();
       console.log('Physics created (pending async init)');
@@ -138,8 +154,8 @@ class CarvableCaves {
         // Generate new caves with random seed
         this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
         // Respawn player at center
-        const spawnX = 25 / 2;
-        const spawnY = 15 / 2;
+        const spawnX = 50 / 2;
+        const spawnY = 30 / 2;
         this.player.respawn(spawnX, spawnY);
         this.needsRemesh = true;
         this.needsFullHeal = true;
@@ -181,6 +197,7 @@ class CarvableCaves {
     if (debugPhysicsBodiesCheckbox) {
       debugPhysicsBodiesCheckbox.addEventListener('change', () => {
         this.renderer.showPhysicsBodies = debugPhysicsBodiesCheckbox.checked;
+        this.physics.setDebugEnabled(debugPhysicsBodiesCheckbox.checked);
         console.log(`[DEBUG] Physics bodies visualization: ${debugPhysicsBodiesCheckbox.checked ? 'ON' : 'OFF'}`);
       });
     }
@@ -214,8 +231,8 @@ class CarvableCaves {
   private spawnTestBall(): void {
     // Spawn at random position (avoiding border areas)
     const margin = 2; // Stay 2m away from edges
-    const x = margin + Math.random() * (25 - 2 * margin);
-    const y = margin + Math.random() * (15 - 2 * margin);
+    const x = margin + Math.random() * (50 - 2 * margin);
+    const y = margin + Math.random() * (30 - 2 * margin);
     const radius = 0.5;
 
     const ball = this.physics.createBall(x, y, radius);
@@ -269,9 +286,8 @@ class CarvableCaves {
       this.needsRemesh = false;
     }
 
-    // Render with player, all balls, and physics bodies
+    // Render with player, all balls, and physics debug
     const playerPos = this.player.getPosition();
-    const allBodies = this.physics.getAllBodies();
 
     // Convert Rapier balls to format expected by Renderer
     const ballsForRender = this.ballBodies.map(ball => {
@@ -284,14 +300,12 @@ class CarvableCaves {
       };
     });
 
-    // Convert Rapier bodies to format expected by Renderer (for physics debug)
-    const bodiesForRender = allBodies.map(body => ({
-      isStatic: !body.isDynamic(),
-      parts: [], // Not used for Rapier
-      vertices: [] // Not used for Rapier
-    }));
+    // Create physics debug draw callback
+    const physicsDebugDraw = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+      this.physics.debugDraw(ctx, this.camera, width, height);
+    };
 
-    this.renderer.render(playerPos, this.player.getRadius(), ballsForRender, bodiesForRender);
+    this.renderer.render(playerPos, this.player.getRadius(), ballsForRender, physicsDebugDraw);
   };
 
   private remesh(): void {

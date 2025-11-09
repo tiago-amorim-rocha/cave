@@ -158,10 +158,8 @@ export class RapierEngine implements PhysicsEngine {
         this.terrainColliders.push(collider);
         totalSegments++;
 
-        // Store for debug rendering
-        if (this.debugEnabled) {
-          this.debugSegments.push({ p1: { x: p1.x, y: p1.y }, p2: { x: p2.x, y: p2.y } });
-        }
+        // Store for debug rendering (always store, debug flag just controls drawing)
+        this.debugSegments.push({ p1: { x: p1.x, y: p1.y }, p2: { x: p2.x, y: p2.y } });
       }
     }
 
