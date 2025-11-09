@@ -45,12 +45,10 @@ export class MarchingSquares {
   field: DensityField;
   isoValue: number;
   debug: boolean = false;
-  isoSnappingEnabled: boolean = true; // Toggle ISO-snapping refinement
 
   // Topology tracking
   private cellInfo: Map<string, CellInfo> = new Map();
   private visited: Set<string> = new Set();
-  private isoSnapStats = { totalVertices: 0, totalAdjustment: 0, maxAdjustment: 0 };
 
   constructor(field: DensityField, isoValue: number) {
     this.field = field;
@@ -158,15 +156,6 @@ export class MarchingSquares {
         }
       });
     }
-
-    // Log ISO-snapping statistics
-    if (this.isoSnappingEnabled && this.isoSnapStats.totalVertices > 0) {
-      const avgAdjustment = this.isoSnapStats.totalAdjustment / this.isoSnapStats.totalVertices;
-      console.log(`[ISO-Snap] ${this.isoSnapStats.totalVertices} vertices, avg adjustment: ${(avgAdjustment * 1000).toFixed(2)}mm, max: ${(this.isoSnapStats.maxAdjustment * 1000).toFixed(2)}mm`);
-    }
-
-    // Reset stats for next run
-    this.isoSnapStats = { totalVertices: 0, totalAdjustment: 0, maxAdjustment: 0 };
 
     return results;
   }
@@ -431,41 +420,9 @@ export class MarchingSquares {
         throw new Error(`Invalid edge: ${edge}`);
     }
 
-    // Apply ISO-snapping: refine position to get closer to exact ISO surface
-    let tRefined = t;
-    if (this.isoSnappingEnabled) {
-      for (let iter = 0; iter < 3; iter++) {
-        const xTest = edgeStart.x + tRefined * (edgeEnd.x - edgeStart.x);
-        const yTest = edgeStart.y + tRefined * (edgeEnd.y - edgeStart.y);
-
-        // Sample density at current position using bilinear interpolation
-        const sampledValue = this.sampleDensity(xTest, yTest, h);
-
-        // Error from ISO value
-        const error = sampledValue - this.isoValue;
-
-        // If close enough, stop
-        if (Math.abs(error) < 1.0) break;
-
-        // Adjust t using gradient (derivative approximation)
-        // gradient ≈ (v1 - v0) / h
-        const gradient = (v1 - v0);
-        if (Math.abs(gradient) > 0.1) {
-          const adjustment = -error / gradient;
-          tRefined = Math.max(0, Math.min(1, tRefined + adjustment * 0.5)); // 0.5 = damping factor
-        }
-      }
-
-      // Track statistics
-      const adjustment = Math.abs(tRefined - t) * h; // Convert to world units
-      this.isoSnapStats.totalVertices++;
-      this.isoSnapStats.totalAdjustment += adjustment;
-      this.isoSnapStats.maxAdjustment = Math.max(this.isoSnapStats.maxAdjustment, adjustment);
-    }
-
-    // Use refined position
-    x = edgeStart.x + tRefined * (edgeEnd.x - edgeStart.x);
-    y = edgeStart.y + tRefined * (edgeEnd.y - edgeStart.y);
+    // Linear interpolation along edge
+    x = edgeStart.x + t * (edgeEnd.x - edgeStart.x);
+    y = edgeStart.y + t * (edgeEnd.y - edgeStart.y);
 
     // Quantize to avoid floating-point precision issues
     const precision = 1000000;
@@ -473,36 +430,6 @@ export class MarchingSquares {
     y = Math.round(y * precision) / precision;
 
     return { x, y };
-  }
-
-  /**
-   * Sample density field at arbitrary world position using bilinear interpolation
-   */
-  private sampleDensity(worldX: number, worldY: number, h: number): number {
-    // Convert world coords to grid coords
-    const gridX = worldX / h;
-    const gridY = worldY / h;
-
-    // Get integer cell coordinates
-    const gx0 = Math.floor(gridX);
-    const gy0 = Math.floor(gridY);
-    const gx1 = gx0 + 1;
-    const gy1 = gy0 + 1;
-
-    // Fractional parts for interpolation
-    const fx = gridX - gx0;
-    const fy = gridY - gy0;
-
-    // Get corner values (with bounds checking)
-    const v00 = this.field.get(gx0, gy0);
-    const v10 = this.field.get(gx1, gy0);
-    const v01 = this.field.get(gx0, gy1);
-    const v11 = this.field.get(gx1, gy1);
-
-    // Bilinear interpolation
-    const v0 = v00 * (1 - fx) + v10 * fx;
-    const v1 = v01 * (1 - fx) + v11 * fx;
-    return v0 * (1 - fy) + v1 * fy;
   }
 
   /**
