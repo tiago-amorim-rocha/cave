@@ -42,6 +42,9 @@ class CarvableCaves {
   private physicsAccumulator = 0; // Accumulate time for 10fps physics
   private ballBodies: RAPIER.RigidBody[] = []; // Track all balls for rendering
 
+  // Resize handling
+  private pendingResize = false;
+
   constructor() {
     try {
       console.log('Initializing CarvableCaves...');
@@ -118,40 +121,30 @@ class CarvableCaves {
       this.setupUI();
       console.log('UI setup complete');
 
-      // Window resize and orientation change handling
+      // Window resize and orientation change handling using requestAnimationFrame pattern
       const handleResize = () => {
-        console.log('[Resize] Event triggered');
+        // Debounce: only schedule one resize per animation frame
+        if (this.pendingResize) return;
+        this.pendingResize = true;
 
-        // Immediate resize
-        this.renderer.resize();
-
-        // Also resize after delays to catch late layout updates (especially on iOS)
-        setTimeout(() => {
-          console.log('[Resize] 100ms delayed resize');
+        requestAnimationFrame(() => {
+          this.pendingResize = false;
+          console.log('[Resize] Executing resize');
           this.renderer.resize();
-        }, 100);
-
-        setTimeout(() => {
-          console.log('[Resize] 300ms delayed resize');
-          this.renderer.resize();
-        }, 300);
+        });
       };
 
+      // Listen to resize on both window and visualViewport (if available)
       window.addEventListener('resize', handleResize);
 
-      // Also listen to orientation change events (mobile)
-      window.addEventListener('orientationchange', () => {
-        console.log('[OrientationChange] Event triggered');
-        handleResize();
-      });
-
-      // Screen orientation API (modern browsers)
-      if (screen.orientation) {
-        screen.orientation.addEventListener('change', () => {
-          console.log('[Screen.orientation] Event triggered');
-          handleResize();
-        });
+      // Visual Viewport API - handles mobile keyboard, zoom, and orientation
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', handleResize);
+        console.log('Visual Viewport API detected - using for resize events');
       }
+
+      // Fallback for older browsers: orientationchange event
+      window.addEventListener('orientationchange', handleResize);
 
       // Start render loop (async initialization happens there)
       this.start(spawnX, spawnY);
