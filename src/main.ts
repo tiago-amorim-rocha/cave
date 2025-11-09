@@ -47,7 +47,6 @@ class CarvableCaves {
 
   // Simplification control
   private simplificationEpsilon = 0; // 0 = no Douglas-Peucker simplification
-  private angleThresholdDeg = 3; // Angle threshold for collapseCollinear (default 3°)
 
   constructor() {
     try {
@@ -337,77 +336,18 @@ class CarvableCaves {
     // Apply shape hygiene: dedupe, cull tiny edges, collapse collinear, ensure CCW
     const gridPitch = this.densityField.config.gridPitch;
 
-    // Apply each step individually to track vertex reduction
-    let step1 = rockLoops.map(loop => loop.map(v => ({ x: v.x, y: v.y } as Point)));
-
-    // Step 1: Dedupe
-    let step2 = step1.map(loop => {
-      let cleaned = loop;
-      // dedupe
-      if (cleaned.length < 2) return cleaned;
-      const result: Point[] = [cleaned[0]];
-      for (let i = 1; i < cleaned.length; i++) {
-        const prev = result[result.length - 1];
-        const curr = cleaned[i];
-        const dx = curr.x - prev.x;
-        const dy = curr.y - prev.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > gridPitch * 0.1) {
-          result.push(curr);
-        }
-      }
-      return result;
-    });
-
-    const step2Count = step2.reduce((sum, loop) => sum + loop.length, 0);
-    const dedupeReduction = ((trueOriginalCount - step2Count) / trueOriginalCount * 100);
-
-    // Step 2: Cull tiny edges
-    let step3 = step2.map(loop => {
-      let cleaned = loop;
-      if (cleaned.length < 2) return cleaned;
-      const result: Point[] = [cleaned[0]];
-      for (let i = 1; i < cleaned.length; i++) {
-        const prev = result[result.length - 1];
-        const curr = cleaned[i];
-        const dx = curr.x - prev.x;
-        const dy = curr.y - prev.y;
-        const edgeLength = Math.sqrt(dx * dx + dy * dy);
-        if (edgeLength >= gridPitch * 0.3) {
-          result.push(curr);
-        }
-      }
-      return result;
-    });
-
-    const step3Count = step3.reduce((sum, loop) => sum + loop.length, 0);
-    const cullReduction = ((step2Count - step3Count) / trueOriginalCount * 100);
-
-    // Step 3: Collapse collinear (angle-based)
-    let step4 = step3.map(loop => collapseCollinear(loop, this.angleThresholdDeg, gridPitch * 0.02));
-
-    const step4Count = step4.reduce((sum, loop) => sum + loop.length, 0);
-    const collinearReduction = ((step3Count - step4Count) / trueOriginalCount * 100);
-
-    // Now use cleanLoop for final cleanup (ensureCCW + final dedupe)
-    const cleanedLoops = step4.map(loop => {
+    const cleanedLoops = rockLoops.map(loop => {
       const asPoints = loop.map(v => ({ x: v.x, y: v.y } as Point));
-      return cleanLoop(asPoints, gridPitch, this.angleThresholdDeg);
-    }).filter(loop => loop.length >= 3); // Remove degenerate loops
+      return cleanLoop(asPoints, gridPitch, 3); // Fixed angle=3° (proven ~1% impact)
+    }).filter(loop => loop.length >= 3);
 
     const cleanedVertexCount = cleanedLoops.reduce((sum, loop) => sum + loop.length, 0);
     const cleanReduction = ((trueOriginalCount - cleanedVertexCount) / trueOriginalCount * 100);
 
     console.log(`[FullHeal] Vertex optimization pipeline:`);
     console.log(`  1. Marching Squares output: ${rockLoops.length} contours, ${trueOriginalCount} vertices`);
-    console.log(`  2. After dedupe: ${step2.length} contours, ${step2Count} vertices`);
-    console.log(`     → dedupe reduction: ${dedupeReduction.toFixed(1)}%`);
-    console.log(`  3. After cullTinyEdges: ${step3.length} contours, ${step3Count} vertices`);
-    console.log(`     → cullTinyEdges reduction: ${cullReduction.toFixed(1)}%`);
-    console.log(`  4. After collapseCollinear(angle=${this.angleThresholdDeg}°): ${step4.length} contours, ${step4Count} vertices`);
-    console.log(`     → collapseCollinear reduction: ${collinearReduction.toFixed(1)}%`);
-    console.log(`  5. After cleanLoop (final): ${cleanedLoops.length} contours, ${cleanedVertexCount} vertices`);
-    console.log(`     → TOTAL cleanLoop reduction: ${cleanReduction.toFixed(1)}% (${trueOriginalCount - cleanedVertexCount} vertices removed)`);
+    console.log(`  2. After cleanLoop (dedupe+hygiene): ${cleanedLoops.length} contours, ${cleanedVertexCount} vertices`);
+    console.log(`     → cleanLoop reduction: ${cleanReduction.toFixed(1)}% (${trueOriginalCount - cleanedVertexCount} vertices removed)`);
 
     // Apply Douglas-Peucker simplification if epsilon > 0
     let finalLoops = cleanedLoops;
@@ -420,8 +360,8 @@ class CarvableCaves {
       const simplifyReduction = ((cleanedVertexCount - simplifiedCount) / cleanedVertexCount * 100);
       const totalReduction = ((trueOriginalCount - simplifiedCount) / trueOriginalCount * 100);
 
-      console.log(`  3. After Douglas-Peucker (ε=${this.simplificationEpsilon.toFixed(3)}m): ${finalLoops.length} contours, ${simplifiedCount} vertices`);
-      console.log(`     → Douglas-Peucker reduction: ${simplifyReduction.toFixed(1)}% (${cleanedVertexCount - simplifiedCount} vertices removed)`);
+      console.log(`  3. After Douglas-Peucker simplification (ε=${this.simplificationEpsilon.toFixed(3)}m): ${finalLoops.length} contours, ${simplifiedCount} vertices`);
+      console.log(`     → simplification reduction: ${simplifyReduction.toFixed(1)}% (${cleanedVertexCount - simplifiedCount} vertices removed)`);
       console.log(`     → TOTAL reduction: ${totalReduction.toFixed(1)}% (${trueOriginalCount - simplifiedCount} vertices removed)`);
     }
 
@@ -548,15 +488,6 @@ class CarvableCaves {
     this.needsRemesh = true; // Trigger remesh check
     this.needsFullHeal = true; // Trigger full remesh
   }
-
-  /**
-   * Update angle threshold and remesh
-   */
-  setAngleThreshold(angleDegrees: number): void {
-    this.angleThresholdDeg = angleDegrees;
-    this.needsRemesh = true; // Trigger remesh check
-    this.needsFullHeal = true; // Trigger full remesh
-  }
 }
 
 // Log that module is loading
@@ -626,13 +557,6 @@ debugConsole.onToggleGrid = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showGrid = enabled;
     console.log(`Grid visualization: ${enabled ? 'ON' : 'OFF'}`);
-  }
-};
-
-debugConsole.onAngleThresholdChange = (angleDegrees: number) => {
-  if (app) {
-    app.setAngleThreshold(angleDegrees);
-    console.log(`Angle threshold changed to ${angleDegrees}°`);
   }
 };
 
