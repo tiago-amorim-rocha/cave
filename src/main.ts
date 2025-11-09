@@ -133,72 +133,8 @@ class CarvableCaves {
   }
 
   private setupUI(): void {
-    // Reset button (regenerates caves and respawns player)
-    const resetButton = document.getElementById('reset-button') as HTMLButtonElement;
-    if (resetButton) {
-      console.log('Reset button found, attaching event listeners');
-
-      const handleReset = (e: Event) => {
-        console.log('Reset button activated - regenerating caves');
-        e.preventDefault();
-        e.stopPropagation();
-
-        // Clear all test balls
-        for (const ball of this.ballBodies) {
-          this.physics.removeBody(ball);
-        }
-        this.ballBodies = [];
-
-        // Generate new caves with random seed
-        this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
-        // Respawn player at center
-        const spawnX = 50 / 2;
-        const spawnY = 30 / 2;
-        this.player.respawn(spawnX, spawnY);
-        this.needsRemesh = true;
-        this.needsFullHeal = true;
-      };
-
-      resetButton.addEventListener('click', handleReset);
-      resetButton.addEventListener('touchend', handleReset, { passive: false });
-    } else {
-      console.error('Reset button NOT found!');
-    }
-
-    // Debug checkboxes
-    const debugGridCheckbox = document.getElementById('debug-grid') as HTMLInputElement;
-    if (debugGridCheckbox) {
-      debugGridCheckbox.addEventListener('change', () => {
-        this.renderer.showGrid = debugGridCheckbox.checked;
-      });
-    }
-
-    const debugVerticesCheckbox = document.getElementById('debug-vertices') as HTMLInputElement;
-    if (debugVerticesCheckbox) {
-      debugVerticesCheckbox.addEventListener('change', () => {
-        this.renderer.showVertices = debugVerticesCheckbox.checked;
-      });
-    }
-
-    const debugConsoleLogCheckbox = document.getElementById('debug-console-log') as HTMLInputElement;
-    if (debugConsoleLogCheckbox) {
-      debugConsoleLogCheckbox.addEventListener('change', () => {
-        this.marchingSquares.setDebug(debugConsoleLogCheckbox.checked);
-        if (debugConsoleLogCheckbox.checked) {
-          console.log('[DEBUG MODE ENABLED] Remeshing to show debug output...');
-          this.needsRemesh = true;
-        }
-      });
-    }
-
-    const debugPhysicsBodiesCheckbox = document.getElementById('debug-physics') as HTMLInputElement;
-    if (debugPhysicsBodiesCheckbox) {
-      debugPhysicsBodiesCheckbox.addEventListener('change', () => {
-        this.renderer.showPhysicsBodies = debugPhysicsBodiesCheckbox.checked;
-        this.physics.setDebugEnabled(debugPhysicsBodiesCheckbox.checked);
-        console.log(`[DEBUG] Physics bodies visualization: ${debugPhysicsBodiesCheckbox.checked ? 'ON' : 'OFF'}`);
-      });
-    }
+    // UI elements removed - all debug functionality now in debug console
+    console.log('UI setup complete (debug console only)');
   }
 
   private async start(spawnX: number, spawnY: number): Promise<void> {
