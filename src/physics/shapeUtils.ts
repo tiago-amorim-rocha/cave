@@ -3,10 +3,9 @@
  * Applies hygiene to marching squares output before building meshes
  */
 
-export interface Point {
-  x: number;
-  y: number;
-}
+import type { Point } from '../types';
+
+export type { Point };
 
 /**
  * Remove consecutive duplicate points

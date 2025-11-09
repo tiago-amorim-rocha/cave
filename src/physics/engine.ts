@@ -5,7 +5,7 @@
 
 import RAPIER from '@dimforge/rapier2d-compat';
 import type { Camera } from '../Camera';
-import type { Point } from '../PolylineSimplifier';
+import type { Point } from '../types';
 
 export interface PhysicsEngine {
   /**

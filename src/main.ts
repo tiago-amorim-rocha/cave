@@ -10,8 +10,7 @@ import { RapierPlayer } from './RapierPlayer';
 import { simplifyPolylines, snapToISOSurface } from './PolylineSimplifier';
 import { chaikinSmoothMultiple } from './ChaikinSmoothing';
 import { cleanLoop } from './physics/shapeUtils';
-import type { WorldConfig, BrushSettings } from './types';
-import type { Point } from './PolylineSimplifier';
+import type { WorldConfig, BrushSettings, Point } from './types';
 import RAPIER from '@dimforge/rapier2d-compat';
 
 /**

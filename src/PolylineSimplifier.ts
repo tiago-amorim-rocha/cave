@@ -4,10 +4,9 @@
  * Better curve preservation compared to Douglas-Peucker
  */
 
-export interface Point {
-  x: number;
-  y: number;
-}
+import type { Point } from './types';
+
+export type { Point };
 
 /**
  * Calculate signed area of triangle formed by three points
