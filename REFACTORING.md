@@ -4,78 +4,69 @@ This document outlines potential refactoring opportunities for future work.
 
 ## Completed Refactoring
 
-✅ **Type Safety** (Completed)
+✅ **Type Safety** (Completed - 2025-11-09)
 - Removed all `any` types (except intentional ones in console interception)
 - Added proper type definitions (BallRenderData, DensityField references, Camera)
 - Better IDE autocomplete and type checking
 
-✅ **Code Duplication** (Completed)
+✅ **Code Duplication** (Completed - 2025-11-09)
 - Consolidated Point interface into types.ts
 - Unified imports across 4 modules
 
-✅ **Dead Code Removal** (Completed)
+✅ **Dead Code Removal** (Completed - 2025-11-09)
 - Removed unused Matter.js legacy code (drawPhysicsBodies, drawBodyPart)
 - Removed unused @types/matter-js dependency
 
+✅ **Major Class Extraction** (Completed - 2025-11-09)
+- **VertexOptimizationPipeline**: Extracted 150 lines of optimization logic
+- **RemeshManager**: Extracted 80 lines of remeshing logic
+- **VersionChecker**: Extracted 50 lines of version checking logic
+- **main.ts**: Reduced from 908 → 629 lines (-30.7%)
+- See `REFACTORING_SUMMARY.md` for full details
+
 ## Pending Refactoring Opportunities
 
-### 1. Large main.ts (Priority: Medium)
+### 1. Large main.ts (Priority: ~~Medium~~ ✅ **COMPLETED**)
 
-**Current State:**
-- 878 lines
+**Original State:**
+- 908 lines
 - 34 methods
-- Handles: initialization, remesh logic, vertex optimization pipeline, UI, physics integration
+- Handled: initialization, remesh logic, vertex optimization pipeline, UI, physics integration
 
-**Recommended Breakdown:**
+**✅ Completed Extractions:**
 
-#### A. Extract `VertexOptimizationPipeline` class
-```typescript
-// src/VertexOptimizationPipeline.ts
-class VertexOptimizationPipeline {
-  constructor(
-    private densityField: DensityField,
-    private marchingSquares: MarchingSquares
-  ) {}
+#### A. ✅ Extracted `VertexOptimizationPipeline` class (2025-11-09)
+- Location: `src/VertexOptimizationPipeline.ts` (136 lines)
+- Extracted ~150 lines from fullHeal() method
+- Handles: cleanLoop, simplification, Chaikin, ISO-snapping
+- Returns structured OptimizationResult with statistics
 
-  optimize(
-    loops: Point[][],
-    options: OptimizationOptions
-  ): OptimizedResult {
-    // Contains: cleanLoop, simplification, Chaikin, ISO-snapping, etc.
-  }
-}
-```
-**Benefits:**
-- Isolates complex optimization logic (currently ~150 lines in fullHeal())
-- Easier to test optimization pipeline independently
-- Clearer separation of concerns
+#### B. ✅ Extracted `RemeshManager` class (2025-11-09)
+- Location: `src/RemeshManager.ts` (213 lines)
+- Extracted ~80 lines of remeshing logic
+- Manages: fullHeal(), incrementalUpdate(), isRockLoop()
+- Integrates with physics, renderer, and optimization pipeline
 
-#### B. Extract `RemeshManager` class
-```typescript
-// src/RemeshManager.ts
-class RemeshManager {
-  private lastFullHealTime = 0;
-  private needsFullHeal = false;
+#### C. ✅ Extracted `VersionChecker` utility (2025-11-09)
+- Location: `src/VersionChecker.ts` (124 lines)
+- Extracted ~50 lines of version checking logic
+- Handles: polling, update detection, cache clearing
 
-  constructor(
-    private densityField: DensityField,
-    private marchingSquares: MarchingSquares,
-    private loopCache: LoopCache,
-    private physics: RapierPhysics,
-    private renderer: Renderer
-  ) {}
+#### D. ✅ Simplified main.ts structure
+- **New size**: 629 lines (down from 908)
+- **Reduction**: -279 lines (-30.7%)
+- **Methods**: ~15 (down from ~34)
+- Focus: Application lifecycle and UI coordination only
 
-  remesh(): void {
-    // Contains: fullHeal(), incrementalUpdate(), isRockLoop(), etc.
-  }
-}
-```
-**Benefits:**
-- Encapsulates remesh state and logic (~200 lines)
-- Easier to add incremental update support later
-- Clearer API for triggering remeshes
+**Impact:**
+- ✅ Main file reduced from 908 → 629 lines
+- ✅ Better testability (each class can be unit tested)
+- ✅ Clearer responsibilities
+- ✅ Easier onboarding for new contributors
 
-#### C. Extract `AppLifecycle` class
+**Remaining Opportunity:**
+
+#### E. Extract `AppLifecycle` class (Future Work)
 ```typescript
 // src/AppLifecycle.ts
 class AppLifecycle {
@@ -90,46 +81,14 @@ class AppLifecycle {
   }
 }
 ```
-**Benefits:**
-- Separates lifecycle concerns from core logic
-- Makes initialization flow more explicit
-- Easier to add lifecycle hooks
+**Potential Benefits:**
+- Further reduce main.ts by ~100 lines
+- Separate lifecycle concerns
+- Make initialization flow more explicit
 
-#### D. Simplified main.ts structure
-```typescript
-// src/main.ts (reduced to ~300 lines)
-class CarvableCaves {
-  private remeshManager: RemeshManager;
-  private optimizationPipeline: VertexOptimizationPipeline;
-  private lifecycle: AppLifecycle;
-
-  constructor() {
-    // Initialize all managers
-    this.remeshManager = new RemeshManager(/*...*/);
-    this.optimizationPipeline = new VertexOptimizationPipeline(/*...*/);
-    this.lifecycle = new AppLifecycle(this);
-  }
-
-  // High-level coordination only
-}
-```
-
-**Impact:**
-- Main file reduced from ~878 to ~300 lines
-- Better testability (each class can be unit tested)
-- Clearer responsibilities
-- Easier onboarding for new contributors
-
-**Risk Level:** 🟡 Medium
-- Requires careful refactoring to avoid breaking existing functionality
-- Need comprehensive testing after refactoring
-- Should be done incrementally, not all at once
-
-**Recommended Approach:**
-1. Add comprehensive tests first
-2. Extract one class at a time (start with VertexOptimizationPipeline)
-3. Test after each extraction
-4. Commit after each successful extraction
+**Current Status:** Not prioritized
+- main.ts is now manageable at 629 lines
+- Can extract later if needed
 
 ### 2. Configuration Management (Priority: Low)
 
@@ -226,12 +185,15 @@ Before major refactoring:
 The codebase is currently functional and well-structured. The main refactoring opportunity is breaking down main.ts into smaller, more focused classes. However, this should be done carefully with proper testing to avoid introducing bugs.
 
 **Recommended Priority:**
-1. ✅ Type safety (DONE)
-2. ✅ Code duplication (DONE)
-3. ✅ Dead code removal (DONE)
-4. 🔄 Add tests (before refactoring main.ts)
-5. 🔄 Extract VertexOptimizationPipeline
-6. 🔄 Extract RemeshManager
-7. 🔄 Extract AppLifecycle
-8. 🔄 Configuration management
-9. 🔄 Error handling improvements
+1. ✅ Type safety (DONE - 2025-11-09)
+2. ✅ Code duplication (DONE - 2025-11-09)
+3. ✅ Dead code removal (DONE - 2025-11-09)
+4. ✅ Extract VertexOptimizationPipeline (DONE - 2025-11-09)
+5. ✅ Extract RemeshManager (DONE - 2025-11-09)
+6. ✅ Extract VersionChecker (DONE - 2025-11-09)
+7. 🔄 Add tests (recommended before further refactoring)
+8. 🔄 Extract AppLifecycle (optional, low priority)
+9. 🔄 Configuration management
+10. 🔄 Error handling improvements
+
+**Status**: Major refactoring complete! See `REFACTORING_SUMMARY.md` for full details.
