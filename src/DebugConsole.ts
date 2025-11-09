@@ -171,6 +171,66 @@ export class DebugConsole {
       controlsContainer.appendChild(toggleRow);
     });
 
+    // Add stats display
+    const statsRow = document.createElement('div');
+    statsRow.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin-top: 8px;
+      padding: 6px;
+      background: rgba(76, 175, 80, 0.05);
+      border-radius: 3px;
+      border: 1px solid rgba(76, 175, 80, 0.2);
+    `;
+
+    const statsTitle = document.createElement('div');
+    statsTitle.style.cssText = `
+      color: #4CAF50;
+      font-size: 9px;
+      font-weight: bold;
+      margin-bottom: 3px;
+      opacity: 0.8;
+    `;
+    statsTitle.textContent = 'Vertex Optimization';
+
+    const statsOriginal = document.createElement('div');
+    statsOriginal.style.cssText = `
+      color: #4CAF50;
+      font-size: 8px;
+      display: flex;
+      justify-content: space-between;
+    `;
+    statsOriginal.innerHTML = '<span>Original:</span><span id="stats-original">—</span>';
+
+    const statsFinal = document.createElement('div');
+    statsFinal.style.cssText = `
+      color: #4CAF50;
+      font-size: 8px;
+      display: flex;
+      justify-content: space-between;
+    `;
+    statsFinal.innerHTML = '<span>Final:</span><span id="stats-final">—</span>';
+
+    const statsReduction = document.createElement('div');
+    statsReduction.style.cssText = `
+      color: #4CAF50;
+      font-size: 8px;
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      margin-top: 2px;
+      padding-top: 3px;
+      border-top: 1px solid rgba(76, 175, 80, 0.2);
+    `;
+    statsReduction.innerHTML = '<span>Reduction:</span><span id="stats-reduction">—</span>';
+
+    statsRow.appendChild(statsTitle);
+    statsRow.appendChild(statsOriginal);
+    statsRow.appendChild(statsFinal);
+    statsRow.appendChild(statsReduction);
+    controlsContainer.appendChild(statsRow);
+
     // Add Douglas-Peucker simplification slider
     const sliderRow = document.createElement('div');
     sliderRow.style.cssText = `
@@ -521,7 +581,25 @@ export class DebugConsole {
     }
   }
 
-  updateReductionStats(simplificationReduction: number, postSimplificationReduction: number): void {
+  updateStats(originalCount: number, finalCount: number, simplificationReduction: number, postSimplificationReduction: number): void {
+    // Update vertex counts
+    const statsOriginal = document.getElementById('stats-original');
+    if (statsOriginal) {
+      statsOriginal.textContent = originalCount.toLocaleString();
+    }
+
+    const statsFinal = document.getElementById('stats-final');
+    if (statsFinal) {
+      statsFinal.textContent = finalCount.toLocaleString();
+    }
+
+    const statsReduction = document.getElementById('stats-reduction');
+    if (statsReduction) {
+      const totalReduction = ((originalCount - finalCount) / originalCount * 100);
+      statsReduction.textContent = `${totalReduction.toFixed(1)}% (${(originalCount - finalCount).toLocaleString()})`;
+    }
+
+    // Update slider reduction percentages
     const epsilonReduction = document.getElementById('epsilon-reduction');
     if (epsilonReduction) {
       epsilonReduction.textContent = simplificationReduction > 0 ? `(-${simplificationReduction.toFixed(1)}%)` : '';
