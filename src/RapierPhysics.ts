@@ -5,16 +5,21 @@
  */
 
 import RAPIER from '@dimforge/rapier2d-compat';
-import { RapierEngine } from './physics/engine';
+import { RapierEngine, type PlayerColliders } from './physics/engine';
 import type { Point } from './types';
 import type { Camera } from './Camera';
+
+export interface PlayerController {
+  body: RAPIER.RigidBody;
+  colliders: PlayerColliders;
+}
 
 /**
  * Wrapper to maintain compatibility with existing code while using Rapier
  */
 export class RapierPhysics {
   private engine: RapierEngine;
-  private playerBody: RAPIER.RigidBody | null = null;
+  private playerController: PlayerController | null = null;
 
   constructor() {
     this.engine = new RapierEngine();
@@ -45,15 +50,15 @@ export class RapierPhysics {
   }
 
   /**
-   * Create player body
+   * Create player controller with capsule body and foot sensor
    * @param x - Initial X position (metres)
    * @param y - Initial Y position (metres)
-   * @returns Player rigid body handle
+   * @returns Player controller object
    */
-  createPlayer(x: number, y: number): RAPIER.RigidBody {
-    const radius = 0.5; // Same as Matter.js version
-    this.playerBody = this.engine.createPlayer(x, y, radius);
-    return this.playerBody;
+  createPlayer(x: number, y: number): PlayerController {
+    const result = this.engine.createPlayer(x, y);
+    this.playerController = result;
+    return result;
   }
 
   /**
@@ -71,47 +76,19 @@ export class RapierPhysics {
   }
 
   /**
-   * Apply horizontal force to player for movement
+   * Check if player is grounded using foot sensor
    */
-  applyPlayerMovement(player: RAPIER.RigidBody, direction: number, force: number = 0.002): void {
-    const velocity = player.linvel();
-
-    // Apply impulse for movement (Rapier uses impulses, not forces)
-    // Scale the impulse to match Matter.js behavior
-    const impulse = { x: direction * force * 10, y: 0 }; // Scale up for similar feel
-    player.applyImpulse(impulse, true);
+  isPlayerGrounded(): boolean {
+    if (!this.playerController) return false;
+    return this.engine.isSensorActive(this.playerController.colliders.footSensor);
   }
 
   /**
-   * Make player jump if grounded
+   * Get player body mass
    */
-  jumpPlayer(player: RAPIER.RigidBody, impulse: number = 0.15): void {
-    if (this.isGrounded(player)) {
-      const velocity = player.linvel();
-      // Set upward velocity for jump (negative Y is up in screen coords, but our gravity is +Y down)
-      player.setLinvel({ x: velocity.x, y: -impulse * 10 }, true); // Scale for similar feel
-    }
-  }
-
-  /**
-   * Check if player is on the ground
-   * Uses a simple downward ray cast
-   */
-  private isGrounded(player: RAPIER.RigidBody): boolean {
-    // Simple velocity check - if moving up, not grounded
-    const velocity = player.linvel();
-    if (velocity.y < -0.1) return false; // Moving up
-
-    // Check if there's ground below using raycasting
-    // Cast a ray slightly below the player
-    const translation = player.translation();
-    const rayOrigin = { x: translation.x, y: translation.y };
-    const rayDir = { x: 0, y: 1 }; // Down
-    const maxDist = 0.55; // Slightly more than player radius (0.5m)
-
-    // Get the world from the engine (we'll need to expose this)
-    // For now, use a simple velocity heuristic
-    return Math.abs(velocity.y) < 0.5; // Nearly stationary vertically
+  getPlayerMass(): number {
+    if (!this.playerController) return 1.0;
+    return this.playerController.body.mass();
   }
 
   /**

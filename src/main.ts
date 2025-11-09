@@ -7,6 +7,7 @@ import { LoopCache } from './LoopCache';
 import { InputHandler } from './InputHandler';
 import { RapierPhysics } from './RapierPhysics';
 import { RapierPlayer } from './RapierPlayer';
+import { VirtualJoystick } from './VirtualJoystick';
 import { simplifyPolylines, snapToISOSurface } from './PolylineSimplifier';
 import { chaikinSmoothMultiple } from './ChaikinSmoothing';
 import { cleanLoop } from './physics/shapeUtils';
@@ -26,6 +27,7 @@ class CarvableCaves {
   private inputHandler: InputHandler;
   private physics: RapierPhysics;
   private player!: RapierPlayer; // Initialized asynchronously in start()
+  private joystick: VirtualJoystick;
 
   private needsRemesh = true;
   private needsFullHeal = false; // Track if we need a full-world remesh
@@ -136,6 +138,10 @@ class CarvableCaves {
       this.physics = new RapierPhysics();
       console.log('Physics created (pending async init)');
 
+      // Initialize virtual joystick for mobile controls
+      this.joystick = new VirtualJoystick();
+      console.log('Virtual joystick initialized');
+
       // Setup UI
       this.setupUI();
       console.log('UI setup complete');
@@ -165,6 +171,11 @@ class CarvableCaves {
       // Fallback for older browsers: orientationchange event
       window.addEventListener('orientationchange', handleResize);
 
+      // Update joystick position on window resize
+      window.addEventListener('resize', () => {
+        this.joystick.handleResize();
+      });
+
       // Start render loop (async initialization happens there)
       this.start(spawnX, spawnY);
       console.log('CarvableCaves initialization started...');
@@ -193,6 +204,7 @@ class CarvableCaves {
 
     // Create player after physics world is ready
     this.player = new RapierPlayer(this.physics, spawnX, spawnY);
+    this.player.setJoystick(this.joystick); // Connect joystick to player
     console.log(`Player initialized at spawn location (${spawnX}, ${spawnY})`);
 
     // Start render loop
@@ -240,8 +252,8 @@ class CarvableCaves {
     // Update FPS
     this.updateFPS();
 
-    // Update player input
-    this.player.update();
+    // Update player input (with delta time for physics calculations)
+    this.player.update(deltaMs);
 
     // Update physics simulation (Rapier handles fixed timestep internally)
     this.physics.update(deltaMs);
@@ -281,7 +293,17 @@ class CarvableCaves {
       this.physics.debugDraw(ctx, this.camera, width, height);
     };
 
-    this.renderer.render(playerPos, this.player.getRadius(), ballsForRender, physicsDebugDraw);
+    // Create player debug draw callback
+    const playerDebugDraw = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+      this.player.debugDraw(ctx, this.camera, width, height);
+    };
+
+    // Create joystick draw callback
+    const joystickDraw = (ctx: CanvasRenderingContext2D) => {
+      this.joystick.render(ctx);
+    };
+
+    this.renderer.render(playerPos, this.player.getRadius(), ballsForRender, physicsDebugDraw, playerDebugDraw, joystickDraw);
   };
 
   private remesh(): void {
