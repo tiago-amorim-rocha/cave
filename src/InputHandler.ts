@@ -86,12 +86,8 @@ export class InputHandler {
     this.lastPointerX = x;
     this.lastPointerY = y;
 
-    if (e.button === 0) {
-      // Left click: carve
-      this.isCarving = true;
-      this.carveAt(x, y);
-    } else if (e.button === 2) {
-      // Right click: pan
+    if (e.button === 0 || e.button === 2) {
+      // Left click or right click: pan (carving disabled)
       this.isPanning = true;
     }
   }
@@ -157,12 +153,11 @@ export class InputHandler {
     }
 
     if (this.touches.size === 1) {
-      // Single touch: carve
+      // Single touch: pan (carving disabled)
       const [touch] = this.touches.values();
       this.lastPointerX = touch.x;
       this.lastPointerY = touch.y;
-      this.isCarving = true;
-      this.carveAt(touch.x, touch.y);
+      this.isPanning = true;
     } else if (this.touches.size === 2) {
       // Two touches: prepare for pinch zoom
       this.isCarving = false;
@@ -195,19 +190,14 @@ export class InputHandler {
     }
 
     if (this.touches.size === 1) {
-      // Single touch: carve or pan
+      // Single touch: pan only (no carving)
       const [touch] = this.touches.values();
       const [oldTouch] = oldTouches.values();
 
       if (oldTouch) {
         const dx = touch.x - oldTouch.x;
         const dy = touch.y - oldTouch.y;
-
-        if (this.isCarving) {
-          this.carveAt(touch.x, touch.y);
-        } else {
-          this.camera.pan(dx, dy);
-        }
+        this.camera.pan(dx, dy);
       }
 
       this.lastPointerX = touch.x;
