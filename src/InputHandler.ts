@@ -36,6 +36,9 @@ export class InputHandler {
   public onCarve?: () => void;
   public onCarveEnd?: () => void;
 
+  // Camera controls enabled state
+  private cameraControlsEnabled = true;
+
   constructor(
     canvas: HTMLCanvasElement,
     camera: Camera,
@@ -96,6 +99,11 @@ export class InputHandler {
       return;
     }
 
+    // Ignore if camera controls are disabled
+    if (!this.cameraControlsEnabled) {
+      return;
+    }
+
     e.preventDefault();
 
     // Capture this pointer to receive all future events even if it moves off canvas
@@ -115,6 +123,11 @@ export class InputHandler {
 
   private onPointerMove(e: PointerEvent): void {
     if (!this.pointers.has(e.pointerId)) return;
+
+    // Ignore if camera controls are disabled
+    if (!this.cameraControlsEnabled) {
+      return;
+    }
 
     e.preventDefault();
 
@@ -162,6 +175,11 @@ export class InputHandler {
   }
 
   private onWheel(e: WheelEvent): void {
+    // Ignore if camera controls are disabled
+    if (!this.cameraControlsEnabled) {
+      return;
+    }
+
     e.preventDefault();
 
     const point = {
@@ -284,5 +302,19 @@ export class InputHandler {
 
   setBrushSettings(settings: BrushSettings): void {
     this.brushSettings = settings;
+  }
+
+  /**
+   * Enable or disable camera controls (pan, zoom)
+   */
+  setCameraControlsEnabled(enabled: boolean): void {
+    this.cameraControlsEnabled = enabled;
+
+    // Clear any active pan/zoom state when disabling
+    if (!enabled) {
+      this.pointers.clear();
+      this.lastPanPoint = null;
+      this.startCentroid = null;
+    }
   }
 }

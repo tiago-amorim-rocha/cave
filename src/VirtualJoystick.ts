@@ -27,6 +27,7 @@ export class VirtualJoystick {
   private options: JoystickOptions;
   private active = false;
   private touchId: number | null = null;
+  private visible = true; // Track visibility state
 
   // Stick position relative to base
   private stickX = 0;
@@ -80,6 +81,11 @@ export class VirtualJoystick {
    * Handle touch start
    */
   private handleTouchStart(e: TouchEvent): void {
+    // Ignore if not visible
+    if (!this.visible) {
+      return;
+    }
+
     // Only activate on touches in the joystick area
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
@@ -212,9 +218,37 @@ export class VirtualJoystick {
   }
 
   /**
+   * Set joystick visibility
+   */
+  setVisible(visible: boolean): void {
+    this.visible = visible;
+
+    // Deactivate joystick if hiding while active
+    if (!visible && this.active) {
+      this.active = false;
+      this.touchId = null;
+      this.stickX = 0;
+      this.stickY = 0;
+      this.updateInput();
+    }
+  }
+
+  /**
+   * Check if joystick is visible
+   */
+  isVisible(): boolean {
+    return this.visible;
+  }
+
+  /**
    * Render joystick on canvas
    */
   render(ctx: CanvasRenderingContext2D): void {
+    // Don't render if not visible
+    if (!this.visible) {
+      return;
+    }
+
     ctx.save();
 
     // Outer circle (base)

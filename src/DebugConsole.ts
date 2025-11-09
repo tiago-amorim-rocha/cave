@@ -10,6 +10,7 @@ export class DebugConsole {
   private maxLogs = 100;
 
   // Toggle callbacks
+  public onToggleControlMode?: (enabled: boolean) => void;
   public onTogglePhysicsMesh?: (enabled: boolean) => void;
   public onToggleOptimizedVertices?: (enabled: boolean) => void;
   public onToggleOriginalVertices?: (enabled: boolean) => void;
@@ -124,6 +125,7 @@ export class DebugConsole {
 
     // Create toggles
     const toggles = [
+      { label: 'Character Control', key: 'controlmode', callback: 'onToggleControlMode', checked: true },
       { label: 'Physics Mesh', key: 'physics', callback: 'onTogglePhysicsMesh', checked: false },
       { label: 'Optimized Vertices', key: 'optimized', callback: 'onToggleOptimizedVertices', checked: false },
       { label: 'Original Vertices', key: 'original', callback: 'onToggleOriginalVertices', checked: false },
