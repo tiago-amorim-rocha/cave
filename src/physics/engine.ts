@@ -7,6 +7,11 @@ import RAPIER from '@dimforge/rapier2d-compat';
 import type { Camera } from '../Camera';
 import type { Point } from '../types';
 
+export interface PlayerColliders {
+  body: RAPIER.Collider;
+  footSensor: RAPIER.Collider;
+}
+
 export interface PhysicsEngine {
   /**
    * Step the physics simulation with accumulator for fixed timestep
@@ -30,13 +35,12 @@ export interface PhysicsEngine {
   createBall(x: number, y: number, radius: number): RAPIER.RigidBody;
 
   /**
-   * Create player dynamic body
+   * Create player dynamic body with capsule collider and foot sensor
    * @param x - X position in metres
    * @param y - Y position in metres
-   * @param radius - Player radius in metres
-   * @returns Handle to the player rigid body
+   * @returns Object containing rigid body and collider handles
    */
-  createPlayer(x: number, y: number, radius: number): RAPIER.RigidBody;
+  createPlayer(x: number, y: number): { body: RAPIER.RigidBody; colliders: PlayerColliders };
 
   /**
    * Remove a body from the world
@@ -57,6 +61,11 @@ export interface PhysicsEngine {
    * Render debug overlay (physics shapes over world coordinates)
    */
   debugDraw(ctx: CanvasRenderingContext2D, camera: Camera, canvasWidth: number, canvasHeight: number): void;
+
+  /**
+   * Check if a sensor collider is currently in contact with terrain
+   */
+  isSensorActive(sensor: RAPIER.Collider): boolean;
 }
 
 /**
@@ -72,6 +81,9 @@ export class RapierEngine implements PhysicsEngine {
   private terrainColliders: RAPIER.Collider[] = [];
   private debugEnabled = false;
   private debugSegments: Array<{ p1: { x: number; y: number }; p2: { x: number; y: number } }> = [];
+
+  // Track sensor contacts for ground detection
+  private sensorContacts = new Map<number, number>(); // sensor handle -> contact count
 
   /**
    * Initialize Rapier and create the physics world
@@ -109,6 +121,38 @@ export class RapierEngine implements PhysicsEngine {
       this.world.step();
       this.accumulator -= this.FIXED_DT;
     }
+
+    // Update sensor contacts after physics step
+    this.updateSensorContacts();
+  }
+
+  /**
+   * Update sensor contact counts by checking intersections
+   * Uses contactsWith for each sensor collider
+   */
+  private updateSensorContacts(): void {
+    if (!this.world) return;
+
+    // Reset all sensor contact counts
+    this.sensorContacts.clear();
+
+    // Iterate through all colliders and check sensors
+    this.world.forEachCollider((collider: RAPIER.Collider) => {
+      if (!collider.isSensor()) return;
+
+      // Check if this sensor has contacts with anything
+      let hasContact = false;
+      this.world!.contactPairsWith(collider, (otherCollider: RAPIER.Collider) => {
+        // Ignore contacts with other sensors or same body
+        if (!otherCollider.isSensor() && otherCollider.parent() !== collider.parent()) {
+          hasContact = true;
+        }
+      });
+
+      if (hasContact) {
+        this.sensorContacts.set(collider.handle, 1);
+      }
+    });
   }
 
   /**
@@ -193,36 +237,66 @@ export class RapierEngine implements PhysicsEngine {
   }
 
   /**
-   * Create player body
+   * Create player body with capsule collider and foot sensor
    */
-  createPlayer(x: number, y: number, radius: number): RAPIER.RigidBody {
+  createPlayer(x: number, y: number): { body: RAPIER.RigidBody; colliders: PlayerColliders } {
     if (!this.world) {
       throw new Error('[RapierEngine] World not initialized!');
     }
+
+    // Player dimensions
+    const capsuleRadius = 0.6; // 3× grid pitch (0.2m)
+    const capsuleHalfHeight = 0.6; // Total height: 1.2m
+    const footSensorHeight = 0.1;
+    const footSensorWidth = capsuleRadius * 1.5; // Wider than body for edge detection
 
     // Create dynamic rigid body with CCD
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(x, y)
       .setCcdEnabled(true)
-      .setCanSleep(true)
-      .setLinearDamping(0.5); // Add damping for better control
+      .setCanSleep(false) // Prevent sleeping for responsive controls
+      .setLinearDamping(0.2); // Reduced damping for force-based movement
 
     const rigidBody = this.world.createRigidBody(rbDesc);
 
     // Lock rotation for platformer-style control
     rigidBody.lockRotations(true, false);
 
-    // Create ball collider
-    const colliderDesc = RAPIER.ColliderDesc.ball(radius)
+    // Create capsule collider (vertical capsule)
+    const bodyColliderDesc = RAPIER.ColliderDesc.capsule(capsuleHalfHeight, capsuleRadius)
       .setFriction(0.3)
       .setRestitution(0.1)
-      .setDensity(0.001);
+      .setDensity(1.0); // Standard density
 
-    this.world.createCollider(colliderDesc, rigidBody);
+    const bodyCollider = this.world.createCollider(bodyColliderDesc, rigidBody);
 
-    console.log(`[RapierEngine] Created player at (${x.toFixed(2)}, ${y.toFixed(2)}) with radius ${radius}m`);
+    // Create foot sensor below the capsule
+    // Position it at the bottom of the capsule
+    const sensorY = capsuleHalfHeight + capsuleRadius; // Bottom of capsule
+    const footSensorDesc = RAPIER.ColliderDesc.cuboid(footSensorWidth, footSensorHeight)
+      .setTranslation(0, sensorY) // Relative to body center
+      .setSensor(true) // Make it a sensor (no collision response)
+      .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS); // Enable collision events
 
-    return rigidBody;
+    const footSensor = this.world.createCollider(footSensorDesc, rigidBody);
+
+    console.log(`[RapierEngine] Created player at (${x.toFixed(2)}, ${y.toFixed(2)}) with capsule (r=${capsuleRadius}m, h=${capsuleHalfHeight * 2}m)`);
+
+    return {
+      body: rigidBody,
+      colliders: {
+        body: bodyCollider,
+        footSensor,
+      },
+    };
+  }
+
+  /**
+   * Check if a sensor collider is currently in contact
+   */
+  isSensorActive(sensor: RAPIER.Collider): boolean {
+    const contactCount = this.sensorContacts.get(sensor.handle) || 0;
+    return contactCount > 0;
   }
 
   /**
@@ -240,7 +314,7 @@ export class RapierEngine implements PhysicsEngine {
     if (!this.world) return [];
 
     const bodies: RAPIER.RigidBody[] = [];
-    this.world.forEachRigidBody((body) => {
+    this.world.forEachRigidBody((body: RAPIER.RigidBody) => {
       bodies.push(body);
     });
 
@@ -277,28 +351,88 @@ export class RapierEngine implements PhysicsEngine {
     }
 
     // Draw dynamic bodies (balls/player) in cyan
-    ctx.fillStyle = 'cyan';
     ctx.strokeStyle = 'cyan';
     ctx.lineWidth = 2;
 
-    this.world.forEachRigidBody((body) => {
+    this.world.forEachRigidBody((body: RAPIER.RigidBody) => {
       if (body.isDynamic()) {
         const translation = body.translation();
-        const screenPos = camera.worldToScreen(translation.x, translation.y, canvasWidth, canvasHeight);
+        const rotation = body.rotation();
 
-        // Get collider to determine shape
-        const collider = body.collider(0);
-        if (collider) {
+        // Iterate through all colliders on this body
+        for (let i = 0; i < body.numColliders(); i++) {
+          const collider = body.collider(i);
+          if (!collider) continue;
+
           const shape = collider.shape;
+          const colliderTranslation = collider.translation();
 
           // For ball shapes, draw circle
           if (shape.type === RAPIER.ShapeType.Ball) {
             const radius = (shape as RAPIER.Ball).radius;
+            const screenPos = camera.worldToScreen(colliderTranslation.x, colliderTranslation.y, canvasWidth, canvasHeight);
             const screenRadius = radius * camera.zoom;
 
             ctx.beginPath();
             ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
             ctx.stroke();
+          }
+          // For capsule shapes, draw as rounded rectangle
+          else if (shape.type === RAPIER.ShapeType.Capsule) {
+            const capsule = shape as RAPIER.Capsule;
+            const halfHeight = capsule.halfHeight;
+            const radius = capsule.radius;
+
+            const screenPos = camera.worldToScreen(colliderTranslation.x, colliderTranslation.y, canvasWidth, canvasHeight);
+            const screenRadius = radius * camera.zoom;
+            const screenHalfHeight = halfHeight * camera.zoom;
+
+            ctx.save();
+            ctx.translate(screenPos.x, screenPos.y);
+            ctx.rotate(rotation);
+
+            // Draw capsule as two circles connected by lines
+            ctx.beginPath();
+            // Top circle
+            ctx.arc(0, -screenHalfHeight, screenRadius, 0, Math.PI * 2);
+            ctx.moveTo(screenRadius, -screenHalfHeight);
+            // Right line
+            ctx.lineTo(screenRadius, screenHalfHeight);
+            // Bottom circle
+            ctx.arc(0, screenHalfHeight, screenRadius, 0, Math.PI * 2);
+            ctx.moveTo(-screenRadius, screenHalfHeight);
+            // Left line
+            ctx.lineTo(-screenRadius, -screenHalfHeight);
+            ctx.stroke();
+
+            ctx.restore();
+          }
+          // For cuboid shapes (foot sensor), draw rectangle
+          else if (shape.type === RAPIER.ShapeType.Cuboid) {
+            const cuboid = shape as RAPIER.Cuboid;
+            const halfExtents = cuboid.halfExtents;
+
+            const screenPos = camera.worldToScreen(colliderTranslation.x, colliderTranslation.y, canvasWidth, canvasHeight);
+            const screenHalfWidth = halfExtents.x * camera.zoom;
+            const screenHalfHeight = halfExtents.y * camera.zoom;
+
+            ctx.save();
+            ctx.translate(screenPos.x, screenPos.y);
+            ctx.rotate(rotation);
+
+            // Different color for sensors
+            if (collider.isSensor()) {
+              const isActive = this.isSensorActive(collider);
+              ctx.strokeStyle = isActive ? 'lime' : 'yellow';
+              ctx.fillStyle = isActive ? 'rgba(0, 255, 0, 0.2)' : 'rgba(255, 255, 0, 0.1)';
+              ctx.fillRect(-screenHalfWidth, -screenHalfHeight, screenHalfWidth * 2, screenHalfHeight * 2);
+            } else {
+              ctx.strokeStyle = 'cyan';
+            }
+
+            ctx.strokeRect(-screenHalfWidth, -screenHalfHeight, screenHalfWidth * 2, screenHalfHeight * 2);
+
+            ctx.restore();
           }
         }
       }

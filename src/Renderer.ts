@@ -102,12 +102,16 @@ export class Renderer {
    * @param playerRadius - Optional player radius
    * @param balls - Optional array of ball bodies to render
    * @param physicsDebugDraw - Optional callback to draw physics debug
+   * @param playerDebugDraw - Optional callback to draw player debug info
+   * @param joystickDraw - Optional callback to draw virtual joystick
    */
   render(
     playerPosition?: { x: number; y: number },
     playerRadius?: number,
     balls?: BallRenderData[],
-    physicsDebugDraw?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void
+    physicsDebugDraw?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
+    playerDebugDraw?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
+    joystickDraw?: (ctx: CanvasRenderingContext2D) => void
   ): void {
     try {
       const dpr = window.devicePixelRatio || 1;
@@ -155,29 +159,79 @@ export class Renderer {
       if (this.showOriginalVertices) {
         this.drawOriginalVertices(width, height);
       }
+
+      // Draw player debug info (velocity, grounded state, etc.)
+      if (playerDebugDraw) {
+        playerDebugDraw(this.ctx, width, height);
+      }
+
+      // Draw virtual joystick (always on top, in screen coordinates)
+      if (joystickDraw) {
+        joystickDraw(this.ctx);
+      }
     } catch (error) {
       console.error('Error during render:', error);
     }
   }
 
   /**
-   * Draw the player
+   * Draw the player (as capsule)
    */
   private drawPlayer(canvasWidth: number, canvasHeight: number, position: { x: number; y: number }, radius: number): void {
     const screen = this.camera.worldToScreen(position.x, position.y, canvasWidth, canvasHeight);
     const screenRadius = radius * this.camera.zoom;
 
+    // Capsule parameters (matching physics collider)
+    const halfHeight = 0.6; // m
+    const screenHalfHeight = halfHeight * this.camera.zoom;
+
     this.ctx.save();
 
-    // Draw player body (circle)
+    // Draw player body as capsule (two circles + rectangle)
     this.ctx.fillStyle = '#4a9eff';
+
+    // Top circle
     this.ctx.beginPath();
-    this.ctx.arc(screen.x, screen.y, screenRadius, 0, Math.PI * 2);
+    this.ctx.arc(screen.x, screen.y - screenHalfHeight, screenRadius, 0, Math.PI * 2);
     this.ctx.fill();
 
-    // Draw player outline
+    // Bottom circle
+    this.ctx.beginPath();
+    this.ctx.arc(screen.x, screen.y + screenHalfHeight, screenRadius, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // Middle rectangle
+    this.ctx.fillRect(
+      screen.x - screenRadius,
+      screen.y - screenHalfHeight,
+      screenRadius * 2,
+      screenHalfHeight * 2
+    );
+
+    // Draw outline
     this.ctx.strokeStyle = '#2e5f99';
     this.ctx.lineWidth = 2;
+
+    // Left edge
+    this.ctx.beginPath();
+    this.ctx.moveTo(screen.x - screenRadius, screen.y - screenHalfHeight);
+    this.ctx.lineTo(screen.x - screenRadius, screen.y + screenHalfHeight);
+    this.ctx.stroke();
+
+    // Right edge
+    this.ctx.beginPath();
+    this.ctx.moveTo(screen.x + screenRadius, screen.y - screenHalfHeight);
+    this.ctx.lineTo(screen.x + screenRadius, screen.y + screenHalfHeight);
+    this.ctx.stroke();
+
+    // Top arc
+    this.ctx.beginPath();
+    this.ctx.arc(screen.x, screen.y - screenHalfHeight, screenRadius, Math.PI, 0);
+    this.ctx.stroke();
+
+    // Bottom arc
+    this.ctx.beginPath();
+    this.ctx.arc(screen.x, screen.y + screenHalfHeight, screenRadius, 0, Math.PI);
     this.ctx.stroke();
 
     this.ctx.restore();
