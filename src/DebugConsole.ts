@@ -5,7 +5,7 @@ export class DebugConsole {
   private container: HTMLDivElement;
   private logContainer: HTMLDivElement;
   private controlsContainer: HTMLDivElement;
-  private isVisible = false;
+  private isVisible = true; // Always visible in lightweight mode
   private logs: string[] = [];
   private maxLogs = 100;
 
@@ -34,41 +34,40 @@ export class DebugConsole {
     container.id = 'debug-console';
     container.style.cssText = `
       position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 90%;
-      max-width: 600px;
-      height: 70vh;
-      background: rgba(0, 0, 0, 0.95);
-      border: 2px solid #4CAF50;
-      border-radius: 8px;
+      top: 10px;
+      right: 10px;
+      width: 280px;
+      max-height: 90vh;
+      background: rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(76, 175, 80, 0.3);
+      border-radius: 4px;
       z-index: 10000;
-      display: none;
+      display: flex;
       flex-direction: column;
       font-family: 'Courier New', monospace;
-      font-size: 12px;
+      font-size: 10px;
+      pointer-events: auto;
+      backdrop-filter: blur(2px);
     `;
 
-    // Add title bar
+    // Minimal title bar (just for controls, no title text)
     const titleBar = document.createElement('div');
     titleBar.style.cssText = `
-      background: #4CAF50;
-      color: #000;
-      padding: 8px 12px;
-      font-weight: bold;
+      background: rgba(76, 175, 80, 0.1);
+      color: #4CAF50;
+      padding: 4px 6px;
+      font-size: 9px;
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
       align-items: center;
-      border-radius: 6px 6px 0 0;
+      border-radius: 3px 3px 0 0;
     `;
-    titleBar.innerHTML = '<span>Debug Console</span>';
 
     // Button container for copy and close buttons
     const buttonContainer = document.createElement('div');
     buttonContainer.style.cssText = `
       display: flex;
-      gap: 8px;
+      gap: 4px;
       align-items: center;
     `;
 
@@ -78,32 +77,17 @@ export class DebugConsole {
     copyBtn.style.cssText = `
       background: none;
       border: none;
-      color: #000;
-      font-size: 18px;
+      color: #4CAF50;
+      font-size: 12px;
       cursor: pointer;
-      padding: 0;
-      width: 24px;
-      height: 24px;
+      padding: 2px 4px;
+      opacity: 0.6;
     `;
     copyBtn.title = 'Copy logs to clipboard';
+    copyBtn.onmouseenter = () => copyBtn.style.opacity = '1';
+    copyBtn.onmouseleave = () => copyBtn.style.opacity = '0.6';
     copyBtn.onclick = () => this.copyLogs();
     buttonContainer.appendChild(copyBtn);
-
-    // Close button
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '✕';
-    closeBtn.style.cssText = `
-      background: none;
-      border: none;
-      color: #000;
-      font-size: 20px;
-      cursor: pointer;
-      padding: 0;
-      width: 24px;
-      height: 24px;
-    `;
-    closeBtn.onclick = () => this.hide();
-    buttonContainer.appendChild(closeBtn);
 
     titleBar.appendChild(buttonContainer);
     container.appendChild(titleBar);
@@ -114,21 +98,23 @@ export class DebugConsole {
   private createControlsContainer(): HTMLDivElement {
     const controlsContainer = document.createElement('div');
     controlsContainer.style.cssText = `
-      background: rgba(20, 20, 20, 0.9);
-      padding: 12px;
-      border-bottom: 1px solid #4CAF50;
+      background: rgba(0, 0, 0, 0.1);
+      padding: 8px;
+      border-bottom: 1px solid rgba(76, 175, 80, 0.2);
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     `;
 
     // Title
     const title = document.createElement('div');
-    title.textContent = 'Debug Visualization';
+    title.textContent = 'Debug';
     title.style.cssText = `
       color: #4CAF50;
       font-weight: bold;
-      margin-bottom: 4px;
+      font-size: 9px;
+      margin-bottom: 2px;
+      opacity: 0.7;
     `;
     controlsContainer.appendChild(title);
 
@@ -145,7 +131,7 @@ export class DebugConsole {
       toggleRow.style.cssText = `
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
       `;
 
       const checkbox = document.createElement('input');
@@ -153,8 +139,8 @@ export class DebugConsole {
       checkbox.id = `debug-${key}`;
       checkbox.style.cssText = `
         cursor: pointer;
-        width: 16px;
-        height: 16px;
+        width: 12px;
+        height: 12px;
       `;
 
       checkbox.addEventListener('change', (e) => {
@@ -170,7 +156,7 @@ export class DebugConsole {
       labelEl.htmlFor = `debug-${key}`;
       labelEl.textContent = label;
       labelEl.style.cssText = `
-        color: #0f0;
+        color: #4CAF50;
         cursor: pointer;
         user-select: none;
       `;
@@ -185,18 +171,19 @@ export class DebugConsole {
     sliderRow.style.cssText = `
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px solid #333;
+      gap: 3px;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(76, 175, 80, 0.2);
     `;
 
     const sliderLabel = document.createElement('div');
     sliderLabel.style.cssText = `
       color: #4CAF50;
-      font-size: 11px;
+      font-size: 9px;
       display: flex;
       justify-content: space-between;
+      opacity: 0.8;
     `;
     sliderLabel.innerHTML = '<span>Simplification (ε)</span><span id="epsilon-value">0.000m</span>';
 
@@ -228,48 +215,49 @@ export class DebugConsole {
 
     const sliderDesc = document.createElement('div');
     sliderDesc.style.cssText = `
-      color: #888;
-      font-size: 10px;
-      margin-top: 2px;
+      color: rgba(76, 175, 80, 0.5);
+      font-size: 8px;
+      margin-top: 1px;
     `;
-    sliderDesc.textContent = 'Visvalingam-Whyatt simplification';
+    sliderDesc.textContent = 'VW simplification';
 
     // Add epsilon mapping mode dropdown
     const mappingRow = document.createElement('div');
     mappingRow.style.cssText = `
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-top: 8px;
+      gap: 4px;
+      margin-top: 4px;
     `;
 
     const mappingLabel = document.createElement('label');
     mappingLabel.style.cssText = `
       color: #4CAF50;
-      font-size: 11px;
+      font-size: 8px;
       flex-shrink: 0;
+      opacity: 0.7;
     `;
-    mappingLabel.textContent = 'Area Mapping:';
+    mappingLabel.textContent = 'Mode:';
 
     const mappingSelect = document.createElement('select');
     mappingSelect.id = 'mapping-mode-select';
     mappingSelect.style.cssText = `
-      background: #1a1a1a;
+      background: rgba(0, 0, 0, 0.3);
       color: #4CAF50;
-      border: 1px solid #4CAF50;
-      border-radius: 4px;
-      padding: 4px 8px;
+      border: 1px solid rgba(76, 175, 80, 0.3);
+      border-radius: 3px;
+      padding: 2px 4px;
       font-family: 'Courier New', monospace;
-      font-size: 11px;
+      font-size: 8px;
       cursor: pointer;
       flex: 1;
     `;
 
     const modes = [
-      { value: 'quadratic', label: 'Quadratic (ε²)' },
-      { value: 'linear', label: 'Linear (ε × 0.01)' },
-      { value: 'cubic', label: 'Cubic (ε³)' },
-      { value: 'exponential', label: 'Exponential (e^ε)' }
+      { value: 'quadratic', label: 'ε²' },
+      { value: 'linear', label: 'ε×0.01' },
+      { value: 'cubic', label: 'ε³' },
+      { value: 'exponential', label: 'e^ε' }
     ];
 
     modes.forEach(mode => {
@@ -301,10 +289,7 @@ export class DebugConsole {
   private createLogContainer(): HTMLDivElement {
     const logContainer = document.createElement('div');
     logContainer.style.cssText = `
-      flex: 1;
-      overflow-y: auto;
-      padding: 10px;
-      color: #0f0;
+      display: none;
     `;
     return logContainer;
   }
