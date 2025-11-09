@@ -46,7 +46,8 @@ class CarvableCaves {
   private pendingResize = false;
 
   // Simplification control
-  private simplificationEpsilon = 0; // 0 = no Douglas-Peucker simplification
+  private simplificationEpsilon = 0; // 0 = no simplification
+  private mappingMode: 'quadratic' | 'linear' | 'cubic' | 'exponential' = 'quadratic';
 
   constructor() {
     try {
@@ -349,18 +350,19 @@ class CarvableCaves {
     console.log(`  2. After cleanLoop (dedupe+hygiene): ${cleanedLoops.length} contours, ${cleanedVertexCount} vertices`);
     console.log(`     → cleanLoop reduction: ${cleanReduction.toFixed(1)}% (${trueOriginalCount - cleanedVertexCount} vertices removed)`);
 
-    // Apply Douglas-Peucker simplification if epsilon > 0
+    // Apply Visvalingam-Whyatt simplification if epsilon > 0
     let finalLoops = cleanedLoops;
     if (this.simplificationEpsilon > 0) {
+      const areaThreshold = this.epsilonToArea(this.simplificationEpsilon);
       const asPoints = cleanedLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
-      const simplified = simplifyPolylines(asPoints, this.simplificationEpsilon, true);
+      const simplified = simplifyPolylines(asPoints, areaThreshold, true);
       finalLoops = simplified.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
 
       const simplifiedCount = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
       const simplifyReduction = ((cleanedVertexCount - simplifiedCount) / cleanedVertexCount * 100);
       const totalReduction = ((trueOriginalCount - simplifiedCount) / trueOriginalCount * 100);
 
-      console.log(`  3. After Douglas-Peucker simplification (ε=${this.simplificationEpsilon.toFixed(3)}m): ${finalLoops.length} contours, ${simplifiedCount} vertices`);
+      console.log(`  3. After Visvalingam-Whyatt simplification (ε=${this.simplificationEpsilon.toFixed(3)}m, area=${areaThreshold.toFixed(6)}m², mode=${this.mappingMode}): ${finalLoops.length} contours, ${simplifiedCount} vertices`);
       console.log(`     → simplification reduction: ${simplifyReduction.toFixed(1)}% (${cleanedVertexCount - simplifiedCount} vertices removed)`);
       console.log(`     → TOTAL reduction: ${totalReduction.toFixed(1)}% (${trueOriginalCount - simplifiedCount} vertices removed)`);
     }
@@ -488,6 +490,32 @@ class CarvableCaves {
     this.needsRemesh = true; // Trigger remesh check
     this.needsFullHeal = true; // Trigger full remesh
   }
+
+  setMappingMode(mode: 'quadratic' | 'linear' | 'cubic' | 'exponential'): void {
+    this.mappingMode = mode;
+    this.needsRemesh = true; // Trigger remesh check
+    this.needsFullHeal = true; // Trigger full remesh
+  }
+
+  /**
+   * Convert epsilon (slider value in metres) to area threshold (m²) based on mapping mode
+   */
+  private epsilonToArea(epsilon: number): number {
+    if (epsilon === 0) return 0;
+
+    switch (this.mappingMode) {
+      case 'quadratic':
+        return epsilon * epsilon; // ε²
+      case 'linear':
+        return epsilon * 0.01; // ε × 0.01 for reasonable scale
+      case 'cubic':
+        return epsilon * epsilon * epsilon; // ε³
+      case 'exponential':
+        return Math.exp(epsilon) - 1; // e^ε - 1 (subtract 1 so e^0 = 0)
+      default:
+        return epsilon * epsilon;
+    }
+  }
 }
 
 // Log that module is loading
@@ -564,6 +592,13 @@ debugConsole.onSimplificationChange = (epsilon: number) => {
   if (app) {
     app.setSimplificationEpsilon(epsilon);
     console.log(`Simplification epsilon changed to ${epsilon.toFixed(3)}m`);
+  }
+};
+
+debugConsole.onMappingModeChange = (mode: string) => {
+  if (app) {
+    app.setMappingMode(mode as 'quadratic' | 'linear' | 'cubic' | 'exponential');
+    console.log(`Area mapping mode changed to ${mode}`);
   }
 };
 

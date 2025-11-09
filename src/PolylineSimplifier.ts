@@ -47,18 +47,14 @@ function calculateEffectiveArea(node: VWNode): number {
 /**
  * Simplify a polyline using Visvalingam-Whyatt algorithm
  * @param points - Array of points forming the polyline
- * @param epsilon - Minimum triangle area threshold (in world units squared)
+ * @param areaThreshold - Minimum triangle area threshold (in m²)
  * @param closed - Whether the polyline is closed (first point = last point)
  * @returns Simplified polyline
  */
-export function simplifyPolyline(points: Point[], epsilon: number, closed: boolean = false): Point[] {
+export function simplifyPolyline(points: Point[], areaThreshold: number, closed: boolean = false): Point[] {
   if (points.length <= 2) {
     return points.slice();
   }
-
-  // Convert epsilon from linear distance to area threshold
-  // epsilon is in metres, so epsilon^2 gives us area in m²
-  const areaThreshold = epsilon * epsilon;
 
   // Build linked list of nodes
   const nodes: VWNode[] = points.map(point => ({
@@ -142,7 +138,11 @@ export function simplifyPolyline(points: Point[], epsilon: number, closed: boole
 
 /**
  * Simplify multiple polylines
+ * @param polylines - Array of polylines to simplify
+ * @param areaThreshold - Minimum triangle area threshold (in m²)
+ * @param closed - Whether polylines are closed
+ * @returns Simplified polylines
  */
-export function simplifyPolylines(polylines: Point[][], epsilon: number, closed: boolean = false): Point[][] {
-  return polylines.map(polyline => simplifyPolyline(polyline, epsilon, closed));
+export function simplifyPolylines(polylines: Point[][], areaThreshold: number, closed: boolean = false): Point[][] {
+  return polylines.map(polyline => simplifyPolyline(polyline, areaThreshold, closed));
 }
