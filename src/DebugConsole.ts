@@ -192,7 +192,7 @@ export class DebugConsole {
     slider.type = 'range';
     slider.id = 'simplification-slider';
     slider.min = '0';
-    slider.max = '50';
+    slider.max = '83';
     slider.value = '0';
     slider.step = '1';
     slider.style.cssText = `
@@ -203,7 +203,7 @@ export class DebugConsole {
     slider.addEventListener('input', (e) => {
       const target = e.target as HTMLInputElement;
       const value = parseInt(target.value);
-      // Map 0-50 to 0-0.5m exponentially for finer control at low values
+      // Map 0-83 to 0-0.755m exponentially for finer control at low values
       const epsilon = value === 0 ? 0 : Math.pow(value / 100, 1.5);
       const epsilonDisplay = document.getElementById('epsilon-value');
       if (epsilonDisplay) {
