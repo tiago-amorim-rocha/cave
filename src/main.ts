@@ -118,10 +118,23 @@ class CarvableCaves {
       this.setupUI();
       console.log('UI setup complete');
 
-      // Window resize
-      window.addEventListener('resize', () => {
-        this.renderer.resize();
-      });
+      // Window resize and orientation change handling
+      const handleResize = () => {
+        // Small delay to ensure layout has updated (especially important for orientation changes)
+        setTimeout(() => {
+          this.renderer.resize();
+        }, 100);
+      };
+
+      window.addEventListener('resize', handleResize);
+
+      // Also listen to orientation change events (mobile)
+      window.addEventListener('orientationchange', handleResize);
+
+      // Screen orientation API (modern browsers)
+      if (screen.orientation) {
+        screen.orientation.addEventListener('change', handleResize);
+      }
 
       // Start render loop (async initialization happens there)
       this.start(spawnX, spawnY);

@@ -34,14 +34,21 @@ export class Renderer {
     const dpr = window.devicePixelRatio || 1;
     const rect = this.canvas.getBoundingClientRect();
 
+    // Set canvas internal resolution
     this.canvas.width = rect.width * dpr;
     this.canvas.height = rect.height * dpr;
 
+    // Reset transform before scaling (important for resize)
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    // Scale context to account for device pixel ratio
     this.ctx.scale(dpr, dpr);
 
-    // Set canvas CSS size
+    // Set canvas CSS size (should already be set by CSS, but ensure it matches)
     this.canvas.style.width = `${rect.width}px`;
     this.canvas.style.height = `${rect.height}px`;
+
+    console.log(`Canvas resized: ${rect.width}x${rect.height} (DPR: ${dpr}, buffer: ${this.canvas.width}x${this.canvas.height})`);
   }
 
   /**
