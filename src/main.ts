@@ -9,7 +9,7 @@ import { RapierPhysics } from './RapierPhysics';
 import { RapierPlayer } from './RapierPlayer';
 import { simplifyPolylines } from './PolylineSimplifier';
 import { chaikinSmooth } from './ChaikinSmoothing';
-import { cleanLoop, collapseCollinear } from './physics/shapeUtils';
+import { cleanLoop } from './physics/shapeUtils';
 import type { WorldConfig, BrushSettings } from './types';
 import type { Point } from './PolylineSimplifier';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -338,7 +338,7 @@ class CarvableCaves {
 
     const cleanedLoops = rockLoops.map(loop => {
       const asPoints = loop.map(v => ({ x: v.x, y: v.y } as Point));
-      return cleanLoop(asPoints, gridPitch, 3); // Fixed angle=3° (proven ~1% impact)
+      return cleanLoop(asPoints, gridPitch); // dedupe + cullTinyEdges + ensureCCW
     }).filter(loop => loop.length >= 3);
 
     const cleanedVertexCount = cleanedLoops.reduce((sum, loop) => sum + loop.length, 0);
