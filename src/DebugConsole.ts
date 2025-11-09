@@ -17,6 +17,7 @@ export class DebugConsole {
   public onSimplificationChange?: (epsilon: number) => void;
   public onToggleChaikin?: (enabled: boolean) => void;
   public onChaikinIterationsChange?: (iterations: number) => void;
+  public onToggleISOSnapping?: (enabled: boolean) => void;
 
   constructor() {
     this.container = this.createContainer();
@@ -121,13 +122,14 @@ export class DebugConsole {
 
     // Create toggles
     const toggles = [
-      { label: 'Physics Mesh', key: 'physics', callback: 'onTogglePhysicsMesh' },
-      { label: 'Optimized Vertices', key: 'optimized', callback: 'onToggleOptimizedVertices' },
-      { label: 'Original Vertices', key: 'original', callback: 'onToggleOriginalVertices' },
-      { label: 'Grid', key: 'grid', callback: 'onToggleGrid' }
+      { label: 'Physics Mesh', key: 'physics', callback: 'onTogglePhysicsMesh', checked: false },
+      { label: 'Optimized Vertices', key: 'optimized', callback: 'onToggleOptimizedVertices', checked: false },
+      { label: 'Original Vertices', key: 'original', callback: 'onToggleOriginalVertices', checked: false },
+      { label: 'Grid', key: 'grid', callback: 'onToggleGrid', checked: false },
+      { label: 'ISO-Snapping', key: 'isosnap', callback: 'onToggleISOSnapping', checked: true }
     ];
 
-    toggles.forEach(({ label, key, callback }) => {
+    toggles.forEach(({ label, key, callback, checked }) => {
       const toggleRow = document.createElement('div');
       toggleRow.style.cssText = `
         display: flex;
@@ -138,6 +140,7 @@ export class DebugConsole {
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.id = `debug-${key}`;
+      checkbox.checked = checked || false;
       checkbox.style.cssText = `
         cursor: pointer;
         width: 12px;
