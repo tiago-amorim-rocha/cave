@@ -61,6 +61,8 @@ class CarvableCaves {
   // Reduction statistics for UI display
   private simplificationReduction = 0; // percentage
   private postSimplificationReduction = 0; // percentage
+  private originalVertexCount = 0; // vertices from Marching Squares
+  private finalVertexCount = 0; // vertices after full pipeline
 
   constructor() {
     try {
@@ -443,9 +445,15 @@ class CarvableCaves {
     const elapsed = performance.now() - startTime;
     console.log(`[FullHeal] Complete. ${allLoops.length} loops in ${elapsed.toFixed(1)}ms`);
 
-    // Update debug console reduction stats
+    // Store vertex counts for UI display
+    this.originalVertexCount = trueOriginalCount;
+    this.finalVertexCount = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+
+    // Update debug console stats
     if ((window as any).debugConsole) {
-      (window as any).debugConsole.updateReductionStats(
+      (window as any).debugConsole.updateStats(
+        this.originalVertexCount,
+        this.finalVertexCount,
         this.simplificationReduction,
         this.postSimplificationReduction
       );
