@@ -32,11 +32,21 @@ export class Renderer {
    */
   private setupCanvas(): void {
     const dpr = window.devicePixelRatio || 1;
-    const rect = this.canvas.getBoundingClientRect();
+
+    // Use window dimensions directly instead of getBoundingClientRect to avoid stale values
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    console.log(`[Canvas] Resizing to ${width}x${height} (window inner size)`);
+    console.log(`[Canvas] DPR: ${dpr}`);
+    console.log(`[Canvas] Screen: ${window.screen.width}x${window.screen.height}`);
+    console.log(`[Canvas] Orientation: ${window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'}`);
 
     // Set canvas internal resolution
-    this.canvas.width = rect.width * dpr;
-    this.canvas.height = rect.height * dpr;
+    this.canvas.width = width * dpr;
+    this.canvas.height = height * dpr;
+
+    console.log(`[Canvas] Buffer size: ${this.canvas.width}x${this.canvas.height}`);
 
     // Reset transform before scaling (important for resize)
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -44,11 +54,9 @@ export class Renderer {
     // Scale context to account for device pixel ratio
     this.ctx.scale(dpr, dpr);
 
-    // Set canvas CSS size (should already be set by CSS, but ensure it matches)
-    this.canvas.style.width = `${rect.width}px`;
-    this.canvas.style.height = `${rect.height}px`;
-
-    console.log(`Canvas resized: ${rect.width}x${rect.height} (DPR: ${dpr}, buffer: ${this.canvas.width}x${this.canvas.height})`);
+    // Ensure canvas CSS matches window size
+    this.canvas.style.width = `${width}px`;
+    this.canvas.style.height = `${height}px`;
   }
 
   /**
