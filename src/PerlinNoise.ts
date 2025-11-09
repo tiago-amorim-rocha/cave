@@ -63,13 +63,26 @@ export class PerlinNoise {
   }
 
   /**
-   * Gradient function
+   * Gradient function with 8 evenly distributed directions
+   * This provides better isotropy than the classic 4-gradient version,
+   * reducing directional bias toward 45° angles
    */
   private grad(hash: number, x: number, y: number): number {
-    const h = hash & 3;
-    const u = h < 2 ? x : y;
-    const v = h < 2 ? y : x;
-    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+    const h = hash & 7; // 8 gradient directions instead of 4
+
+    // 8 gradient vectors evenly distributed around the circle:
+    // (1,0), (1,1), (0,1), (-1,1), (-1,0), (-1,-1), (0,-1), (1,-1)
+    switch (h) {
+      case 0: return x;           // (1, 0)   →   0°
+      case 1: return x + y;       // (1, 1)   →  45°
+      case 2: return y;           // (0, 1)   →  90°
+      case 3: return -x + y;      // (-1, 1)  → 135°
+      case 4: return -x;          // (-1, 0)  → 180°
+      case 5: return -x - y;      // (-1, -1) → 225°
+      case 6: return -y;          // (0, -1)  → 270°
+      case 7: return x - y;       // (1, -1)  → 315°
+      default: return 0;
+    }
   }
 
   /**
