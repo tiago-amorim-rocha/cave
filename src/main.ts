@@ -326,13 +326,6 @@ class CarvableCaves {
       if (fpsElement) {
         fpsElement.textContent = this.fps.toString();
       }
-
-      // Update memory display
-      const memoryElement = document.getElementById('memory-value');
-      if (memoryElement && (performance as any).memory) {
-        const memoryMB = ((performance as any).memory.usedJSHeapSize / 1024 / 1024).toFixed(1);
-        memoryElement.textContent = memoryMB;
-      }
     }
   }
 
