@@ -16,7 +16,6 @@ Thumbs.db
 # Build outputs (if you add a build process)
 dist/
 build/
-public/version.json
 
 # Environment variables
 .env
