@@ -128,6 +128,11 @@ export class CaveGeneratorUI {
     `;
 
     // Add parameter sections
+    content.appendChild(this.createSection('World Size', [
+      this.createWorldSizeSlider('Width (m)', 30, 200, 10),
+      this.createWorldSizeSlider('Height (m)', 20, 120, 10),
+    ]));
+
     content.appendChild(this.createSection('Distribution', [
       this.createSlider('Bubble Count', 'bubbleCount', 5, 100, 1, (v) => Math.round(v)),
       this.createSlider('Clusteriness', 'clusteriness', 0, 1, 0.01),
@@ -295,6 +300,74 @@ export class CaveGeneratorUI {
       const finalValue = transform ? transform(value) : value;
       (this.params[param] as number) = finalValue;
       valueDisplay.textContent = finalValue.toFixed(2);
+    };
+
+    container.appendChild(labelEl);
+    container.appendChild(slider);
+    return container;
+  }
+
+  private createWorldSizeSlider(
+    label: string,
+    min: number,
+    max: number,
+    step: number
+  ): HTMLElement {
+    const isWidth = label.includes('Width');
+    const container = document.createElement('div');
+    container.style.cssText = 'margin-bottom: 8px;';
+
+    const labelEl = document.createElement('label');
+    labelEl.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2px;
+      font-size: 10px;
+    `;
+
+    const labelText = document.createElement('span');
+    labelText.textContent = label;
+
+    const valueDisplay = document.createElement('span');
+    valueDisplay.style.cssText = 'color: #4CAF50; font-weight: bold;';
+
+    const currentValue = isWidth
+      ? (this.params.worldAabb.maxX - this.params.worldAabb.minX)
+      : (this.params.worldAabb.maxY - this.params.worldAabb.minY);
+    valueDisplay.textContent = currentValue.toFixed(0);
+
+    labelEl.appendChild(labelText);
+    labelEl.appendChild(valueDisplay);
+
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = min.toString();
+    slider.max = max.toString();
+    slider.step = step.toString();
+    slider.value = currentValue.toString();
+    slider.style.cssText = `
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(76, 175, 80, 0.2);
+      outline: none;
+      -webkit-appearance: none;
+    `;
+
+    slider.oninput = () => {
+      const value = parseFloat(slider.value);
+      if (isWidth) {
+        this.params.worldAabb.maxX = value;
+        this.params.worldAabb.minX = 0;
+        // Update start position to center
+        this.params.startAt.x = value / 2;
+      } else {
+        this.params.worldAabb.maxY = value;
+        this.params.worldAabb.minY = 0;
+        // Update start position to center
+        this.params.startAt.y = value / 2;
+      }
+      valueDisplay.textContent = value.toFixed(0);
     };
 
     container.appendChild(labelEl);

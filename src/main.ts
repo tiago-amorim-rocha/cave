@@ -381,13 +381,18 @@ class CarvableCaves {
   regenerateCaves(params: any): void {
     console.log('[Main] Regenerating caves with bubble algorithm...');
 
-    // Update params to match current world configuration
-    params.worldAabb = {
-      minX: 0,
-      minY: 0,
-      maxX: this.densityField.config.width,
-      maxY: this.densityField.config.height
-    };
+    // Extract world dimensions from params
+    const newWidth = params.worldAabb.maxX - params.worldAabb.minX;
+    const newHeight = params.worldAabb.maxY - params.worldAabb.minY;
+
+    // Check if world size has changed
+    if (newWidth !== this.densityField.config.width ||
+        newHeight !== this.densityField.config.height) {
+      console.log(`[Main] Resizing world from ${this.densityField.config.width}×${this.densityField.config.height} to ${newWidth}×${newHeight}`);
+      this.densityField.resize(newWidth, newHeight);
+    }
+
+    // Use existing grid pitch and ISO value
     params.h = this.densityField.config.gridPitch;
     params.ISO = this.densityField.config.isoValue;
 
