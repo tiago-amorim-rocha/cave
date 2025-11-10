@@ -126,10 +126,10 @@ export class DebugConsole {
     container.id = 'visual-debug-console';
     container.style.cssText = `
       position: fixed;
-      top: 10px;
+      top: calc(env(safe-area-inset-top, 10px) + 60px);
       right: 10px;
       width: 140px;
-      max-height: 90vh;
+      max-height: calc(90vh - env(safe-area-inset-top, 10px) - 70px);
       background: rgba(0, 0, 0, 0.15);
       border: 1px solid rgba(33, 150, 243, 0.3);
       border-radius: 4px;
@@ -186,13 +186,12 @@ export class DebugConsole {
     container.id = 'text-log-console';
     container.style.cssText = `
       position: fixed;
-      top: 10px;
+      bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
       left: 10px;
-      width: 400px;
-      max-width: calc(100vw - 160px);
-      max-height: 90vh;
-      background: rgba(0, 0, 0, 0.15);
-      border: 1px solid rgba(255, 152, 0, 0.3);
+      right: 10px;
+      height: 50vh;
+      background: rgba(0, 0, 0, 0.9);
+      border: 1px solid rgba(255, 152, 0, 0.5);
       border-radius: 4px;
       z-index: 10000;
       display: none;
@@ -294,6 +293,9 @@ export class DebugConsole {
       color: #FF9800;
       font-size: 9px;
       line-height: 1.4;
+      user-select: text;
+      -webkit-user-select: text;
+      cursor: text;
     `;
     versionSection.innerHTML = '<div style="opacity: 0.6;">Loading version...</div>';
     container.appendChild(versionSection);
@@ -307,8 +309,9 @@ export class DebugConsole {
       padding: 8px;
       overflow-y: auto;
       flex: 1;
-      min-height: 200px;
-      max-height: calc(90vh - 80px);
+      user-select: text;
+      -webkit-user-select: text;
+      cursor: text;
     `;
     return logContainer;
   }
@@ -746,6 +749,9 @@ export class DebugConsole {
     logElement.style.marginBottom = '4px';
     logElement.style.fontSize = '10px';
     logElement.style.fontFamily = "'Courier New', monospace";
+    logElement.style.userSelect = 'text';
+    logElement.style.webkitUserSelect = 'text';
+    logElement.style.cursor = 'text';
     logElement.textContent = logLine;
     this.logContainer.appendChild(logElement);
 
