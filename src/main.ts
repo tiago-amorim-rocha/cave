@@ -64,8 +64,6 @@ class CarvableCaves {
 
   constructor() {
     try {
-      console.log('Initializing CarvableCaves...');
-
       // World configuration
       const worldConfig: WorldConfig = {
         width: 50, // metres
@@ -73,14 +71,12 @@ class CarvableCaves {
         gridPitch: 0.25, // metres (h)
         isoValue: 128
       };
-      console.log('World config:', worldConfig);
 
       // Setup canvas
       this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
       if (!this.canvas) {
         throw new Error('Canvas not found');
       }
-      console.log('Canvas found:', this.canvas);
 
       // Initialize camera (centered on world, standard zoom)
       this.camera = new Camera(
@@ -88,20 +84,12 @@ class CarvableCaves {
         worldConfig.height / 2,
         50 // initial PPM (pixels per metre) - standard zoom
       );
-      console.log('Camera initialized:', this.camera.getState());
 
       // Initialize density field
       this.densityField = new DensityField(worldConfig);
-      console.log('Density field initialized:', {
-        gridWidth: this.densityField.gridWidth,
-        gridHeight: this.densityField.gridHeight,
-        dataLength: this.densityField.data.length
-      });
 
       // Generate initial cave system
-      console.log('Generating procedural caves...');
       this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
-      console.log('Caves generated!');
 
       // Player spawn position (no clearing of area)
       const spawnX = worldConfig.width / 2;
@@ -109,16 +97,13 @@ class CarvableCaves {
 
       // Initialize marching squares
       this.marchingSquares = new MarchingSquares(this.densityField, worldConfig.isoValue);
-      console.log('Marching squares initialized');
 
       // Initialize loop cache
       this.loopCache = new LoopCache();
-      console.log('Loop cache initialized');
 
       // Initialize renderer
       this.renderer = new Renderer(this.canvas, this.camera);
       this.renderer.setDensityField(this.densityField); // For debug visualization
-      console.log('Renderer initialized');
 
       // Initialize input handler (camera controls only, no brushing)
       const brushSettings: BrushSettings = {
@@ -131,19 +116,15 @@ class CarvableCaves {
       this.inputHandler.onCarveEnd = undefined;
       // Start in character control mode (camera controls disabled)
       this.inputHandler.setCameraControlsEnabled(!this.characterControlMode);
-      console.log('Input handler initialized (camera controls disabled, character control mode)');
 
       // Initialize physics (will be initialized async in start())
       this.physics = new RapierPhysics();
-      console.log('Physics created (pending async init)');
 
       // Initialize virtual joystick for mobile controls
       this.joystick = new VirtualJoystick();
-      console.log('Virtual joystick initialized');
 
       // Setup UI
       this.setupUI();
-      console.log('UI setup complete');
 
       // Window resize and orientation change handling using requestAnimationFrame pattern
       const handleResize = () => {
@@ -153,7 +134,6 @@ class CarvableCaves {
 
         requestAnimationFrame(() => {
           this.pendingResize = false;
-          console.log('[Resize] Executing resize');
           this.renderer.resize();
         });
       };
@@ -164,7 +144,6 @@ class CarvableCaves {
       // Visual Viewport API - handles mobile keyboard, zoom, and orientation
       if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', handleResize);
-        console.log('Visual Viewport API detected - using for resize events');
       }
 
       // Fallback for older browsers: orientationchange event
@@ -177,7 +156,6 @@ class CarvableCaves {
 
       // Start render loop (async initialization happens there)
       this.start(spawnX, spawnY, worldConfig.gridPitch);
-      console.log('CarvableCaves initialization started...');
     } catch (error) {
       console.error('Failed to initialize CarvableCaves:', error);
       throw error;
@@ -186,15 +164,11 @@ class CarvableCaves {
 
   private setupUI(): void {
     // UI elements removed - all debug functionality now in debug console
-    console.log('UI setup complete (debug console only)');
   }
 
   private async start(spawnX: number, spawnY: number, gridPitch: number): Promise<void> {
-    console.log('Starting async initialization...');
-
     // Initialize Rapier physics
     await this.physics.init();
-    console.log('Physics initialized');
 
     // Initialize remesh manager (after physics is ready)
     this.remeshManager = new RemeshManager({
@@ -211,22 +185,16 @@ class CarvableCaves {
         simplificationEpsilonPost: this.simplificationEpsilonPost
       }
     });
-    console.log('Remesh manager initialized');
 
     // Generate initial mesh and physics bodies
-    console.log('Generating initial mesh and physics bodies...');
     this.remesh();
-    console.log('Initial mesh generated');
 
     // Create player after physics world is ready
     this.player = new RapierPlayer(this.physics, spawnX, spawnY);
     this.player.setJoystick(this.joystick); // Connect joystick to player
-    console.log(`Player initialized at spawn location (${spawnX}, ${spawnY})`);
 
     // Start render loop
-    console.log('Starting render loop...');
     this.loop();
-    console.log('CarvableCaves fully initialized!');
   }
 
   /**
@@ -241,8 +209,6 @@ class CarvableCaves {
 
     const ball = this.physics.createBall(x, y, radius);
     this.ballBodies.push(ball);
-
-    console.log(`[Test] Spawned ball at random position (${x.toFixed(1)}, ${y.toFixed(1)})`);
   }
 
   private loop = (): void => {
@@ -359,9 +325,6 @@ class CarvableCaves {
       const fpsElement = document.getElementById('fps-value');
       if (fpsElement) {
         fpsElement.textContent = this.fps.toString();
-        console.log(`FPS updated: ${this.fps}`);
-      } else {
-        console.warn('fps-value element not found');
       }
 
       // Update memory display
@@ -369,11 +332,6 @@ class CarvableCaves {
       if (memoryElement && (performance as any).memory) {
         const memoryMB = ((performance as any).memory.usedJSHeapSize / 1024 / 1024).toFixed(1);
         memoryElement.textContent = memoryMB;
-        console.log(`Memory updated: ${memoryMB} MB`);
-      } else if (!memoryElement) {
-        console.warn('memory-value element not found');
-      } else {
-        console.warn('performance.memory API not available');
       }
     }
   }
@@ -435,26 +393,16 @@ class CarvableCaves {
 
     // Show/hide virtual joystick
     this.joystick.setVisible(enabled);
-
-    console.log(`[ControlMode] Switched to ${enabled ? 'CHARACTER' : 'CAMERA'} control mode`);
   }
 }
 
-// Log that module is loading
-console.log('main.ts module loading...');
 (window as any).APP_LOADED = true;
-
-// Log to simple log if available
-if ((window as any).log) {
-  (window as any).log('✓ main.ts module loaded!');
-}
 
 // Initialize debug console (hidden by default)
 let debugConsole: DebugConsole;
 try {
   debugConsole = new DebugConsole();
   (window as any).debugConsole = debugConsole; // Make accessible for stats updates
-  console.log('Debug console created (hidden by default)');
 } catch (error) {
   console.error('Failed to create debug console:', error);
   alert('Failed to create debug console: ' + error);
@@ -469,87 +417,64 @@ let appRenderer: Renderer | null = null;
 debugConsole.onTogglePhysicsMesh = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showPhysicsBodies = enabled;
-    console.log(`Physics mesh visualization: ${enabled ? 'ON' : 'OFF'}`);
   }
 };
 
 debugConsole.onToggleOptimizedVertices = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showVertices = enabled;
-    console.log(`Optimized vertices visualization: ${enabled ? 'ON' : 'OFF'}`);
   }
 };
 
 debugConsole.onToggleOriginalVertices = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showOriginalVertices = enabled;
-    console.log(`Original vertices visualization: ${enabled ? 'ON' : 'OFF'}`);
   }
 };
 
 debugConsole.onToggleGrid = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showGrid = enabled;
-    console.log(`Grid visualization: ${enabled ? 'ON' : 'OFF'}`);
   }
 };
 
 debugConsole.onToggleDensityField = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showDensityField = enabled;
-    console.log(`Density field visualization: ${enabled ? 'ON' : 'OFF'}`);
   }
 };
 
 debugConsole.onSimplificationChange = (epsilon: number) => {
   if (app) {
     app.setSimplificationEpsilon(epsilon);
-    console.log(`Simplification epsilon changed to ${epsilon.toFixed(3)}m`);
   }
 };
 
 debugConsole.onSimplificationPostChange = (epsilon: number) => {
   if (app) {
     app.setSimplificationEpsilonPost(epsilon);
-    console.log(`Post-smoothing simplification epsilon changed to ${epsilon.toFixed(3)}m`);
   }
 };
 
 debugConsole.onToggleChaikin = (enabled: boolean) => {
   if (app) {
     app.setChaikinEnabled(enabled);
-    console.log(`Chaikin smoothing: ${enabled ? 'ON' : 'OFF'}`);
   }
 };
 
 debugConsole.onChaikinIterationsChange = (iterations: number) => {
   if (app) {
     app.setChaikinIterations(iterations);
-    console.log(`Chaikin iterations changed to ${iterations}`);
   }
 };
 
 debugConsole.onToggleControlMode = (enabled: boolean) => {
   if (app) {
     app.setControlMode(enabled);
-    console.log(`Control mode: ${enabled ? 'CHARACTER' : 'CAMERA'}`);
   }
 };
 
-console.log('===========================================');
-console.log('Carvable Caves PWA');
-console.log('===========================================');
-console.log('');
-console.log('🐛 Click the bug button to open debug console');
-console.log('');
-console.log('If stuck on old version:');
-console.log('1. Force quit Safari and reopen');
-console.log('2. Delete PWA from home screen and reinstall');
-console.log('3. Settings > Safari > Clear History and Website Data');
-console.log('');
-
 // Start the application
-console.log('Starting application...');
 let app: CarvableCaves;
 try {
   app = new CarvableCaves();
@@ -583,19 +508,15 @@ if ('serviceWorker' in navigator) {
       immediate: true,
       onNeedRefresh() {
         // Show the update button when a new version is available
-        console.log('Service worker detected update');
         VersionChecker.showUpdateButton();
       },
       onOfflineReady() {
-        console.log('App ready to work offline');
+        // App ready to work offline
       },
       onRegisteredSW(swUrl, registration) {
-        console.log('Service Worker registered:', swUrl);
-
         // Check for updates every 60 seconds
         if (registration) {
           setInterval(() => {
-            console.log('Checking for service worker updates...');
             registration.update();
           }, 60000);
         }
@@ -605,15 +526,13 @@ if ('serviceWorker' in navigator) {
     // Handle update button click
     if (updateButton) {
       updateButton.addEventListener('click', () => {
-        console.log('Update button clicked - reloading app');
         updateSW(true).then(() => {
           VersionChecker.reloadApp();
         });
       });
     }
-  }).catch((error) => {
+  }).catch(() => {
     // Service worker registration failed (expected in dev mode)
-    console.log('Service worker registration skipped:', error?.message || 'dev mode');
   });
 }
 
