@@ -1,5 +1,6 @@
 import type { AABB, WorldConfig } from './types';
 import { PerlinNoise } from './PerlinNoise';
+import { generateBubbleCaves, type CaveGenParams } from './BubbleGenerator';
 
 /**
  * Density field backed by Uint8Array
@@ -198,6 +199,95 @@ export class DensityField {
     }
 
     console.log(`[CaveGen] Border complete! Set ${borderCellsSet} cells to solid rock (255)`);
+
+    this.markAllDirty();
+  }
+
+  /**
+   * Generate caves using noise-based bubble algorithm
+   */
+  generateBubbleCaves(params: CaveGenParams): void {
+    console.log('[BubbleGen] Starting bubble cave generation...');
+    console.log('  Parameters:', JSON.stringify({
+      bubbleCount: params.bubbleCount,
+      clusteriness: params.clusteriness,
+      sizeRange: [params.sizeMin, params.sizeMax],
+      shapeComplexity: params.shapeComplexity,
+      shapeIrregularity: params.shapeIrregularity
+    }, null, 2));
+
+    // Generate bubbles
+    const bubbleData = generateBubbleCaves(params);
+
+    // Replace our data with the generated data
+    if (bubbleData.length !== this.data.length) {
+      console.error('[BubbleGen] Size mismatch! Expected', this.data.length, 'got', bubbleData.length);
+      return;
+    }
+
+    this.data.set(bubbleData);
+
+    // Add solid rock border (same as Perlin generation)
+    const borderWidth = 5;
+    console.log(`[BubbleGen] Adding ${borderWidth}-cell solid rock border...`);
+
+    let borderCellsSet = 0;
+
+    // Top and bottom borders
+    for (let gx = 0; gx < this.gridWidth; gx++) {
+      for (let by = 0; by < borderWidth; by++) {
+        // Top border
+        if (by < this.gridHeight) {
+          this.data[by * this.gridWidth + gx] = 255;
+          borderCellsSet++;
+        }
+        // Bottom border
+        const bottomY = this.gridHeight - 1 - by;
+        if (bottomY >= 0 && bottomY < this.gridHeight) {
+          this.data[bottomY * this.gridWidth + gx] = 255;
+          borderCellsSet++;
+        }
+      }
+    }
+
+    // Left and right borders
+    for (let gy = 0; gy < this.gridHeight; gy++) {
+      for (let bx = 0; bx < borderWidth; bx++) {
+        // Left border
+        if (bx < this.gridWidth) {
+          this.data[gy * this.gridWidth + bx] = 255;
+          borderCellsSet++;
+        }
+        // Right border
+        const rightX = this.gridWidth - 1 - bx;
+        if (rightX >= 0 && rightX < this.gridWidth) {
+          this.data[gy * this.gridWidth + rightX] = 255;
+          borderCellsSet++;
+        }
+      }
+    }
+
+    console.log(`[BubbleGen] Border complete! Set ${borderCellsSet} cells to solid rock`);
+
+    // Count statistics
+    let caveCells = 0;
+    let rockCells = 0;
+    for (let i = 0; i < this.data.length; i++) {
+      if (this.data[i] < this.config.isoValue) {
+        caveCells++;
+      } else {
+        rockCells++;
+      }
+    }
+
+    const totalCells = this.data.length;
+    const cavePercent = (caveCells / totalCells * 100).toFixed(1);
+    const rockPercent = (rockCells / totalCells * 100).toFixed(1);
+
+    console.log(`[BubbleGen] Generation complete!`);
+    console.log(`  Total cells: ${totalCells}`);
+    console.log(`  Cave cells: ${caveCells} (${cavePercent}%)`);
+    console.log(`  Rock cells: ${rockCells} (${rockPercent}%)`);
 
     this.markAllDirty();
   }

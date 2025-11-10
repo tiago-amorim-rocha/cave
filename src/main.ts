@@ -3,6 +3,7 @@ import { DensityField } from './DensityField';
 import { MarchingSquares } from './MarchingSquares';
 import { Renderer } from './Renderer';
 import { DebugConsole } from './DebugConsole';
+import { CaveGeneratorUI } from './CaveGeneratorUI';
 import { LoopCache } from './LoopCache';
 import { InputHandler } from './InputHandler';
 import { RapierPhysics } from './RapierPhysics';
@@ -375,6 +376,45 @@ class CarvableCaves {
   }
 
   /**
+   * Regenerate caves using bubble generation algorithm
+   */
+  regenerateCaves(params: any): void {
+    console.log('[Main] Regenerating caves with bubble algorithm...');
+
+    // Update params to match current world configuration
+    params.worldAabb = {
+      minX: 0,
+      minY: 0,
+      maxX: this.densityField.config.width,
+      maxY: this.densityField.config.height
+    };
+    params.h = this.densityField.config.gridPitch;
+    params.ISO = this.densityField.config.isoValue;
+
+    // Generate new caves
+    this.densityField.generateBubbleCaves(params);
+
+    // Clear existing balls
+    for (const ball of this.ballBodies) {
+      this.physics.removeBody(ball);
+    }
+    this.ballBodies = [];
+
+    // Reset player to spawn position
+    if (this.player) {
+      this.player.respawn(params.startAt.x, params.startAt.y);
+    }
+
+    // Center camera on new spawn
+    this.camera.x = params.startAt.x;
+    this.camera.y = params.startAt.y;
+
+    // Trigger remesh
+    this.needsRemesh = true;
+    this.remeshManager.requestFullHeal();
+  }
+
+  /**
    * Toggle control mode between character control and camera pan/zoom
    * @param enabled - true for character control, false for camera control
    */
@@ -464,6 +504,23 @@ debugConsole.onChaikinIterationsChange = (iterations: number) => {
 debugConsole.onToggleControlMode = (enabled: boolean) => {
   if (app) {
     app.setControlMode(enabled);
+  }
+};
+
+// Initialize cave generator UI (hidden by default)
+let caveGeneratorUI: CaveGeneratorUI;
+try {
+  caveGeneratorUI = new CaveGeneratorUI();
+} catch (error) {
+  console.error('Failed to create cave generator UI:', error);
+  alert('Failed to create cave generator UI: ' + error);
+  throw error;
+}
+
+// Wire up cave generator callback
+caveGeneratorUI.onGenerate = (params) => {
+  if (app) {
+    app.regenerateCaves(params);
   }
 };
 
