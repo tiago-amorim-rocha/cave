@@ -8,6 +8,8 @@
 interface VersionInfo {
   timestamp: number;
   buildId: string;
+  gitHash?: string;
+  commitMessage?: string;
 }
 
 export class VersionChecker {

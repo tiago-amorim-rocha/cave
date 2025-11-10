@@ -461,24 +461,7 @@ try {
   throw error;
 }
 
-// Wire up debug button
-const debugButton = document.getElementById('debug-button');
-if (debugButton) {
-  console.log('Debug button found, attaching event listeners');
-
-  const handleDebugToggle = (e: Event) => {
-    console.log('Debug button activated');
-    e.preventDefault();
-    e.stopPropagation();
-    debugConsole.toggle();
-  };
-
-  // Add both click and touchend for better iOS compatibility
-  debugButton.addEventListener('click', handleDebugToggle);
-  debugButton.addEventListener('touchend', handleDebugToggle, { passive: false });
-} else {
-  console.error('Debug button NOT found!');
-}
+// Debug buttons are now created and managed by DebugConsole.ts
 
 // Wire up debug console toggle callbacks to renderer (will be set after app is created)
 let appRenderer: Renderer | null = null;
@@ -574,7 +557,7 @@ try {
   appRenderer = (app as any).renderer;
 } catch (error) {
   console.error('Fatal error during initialization:', error);
-  debugConsole.show();
+  debugConsole.showTextLog();
   throw error;
 }
 

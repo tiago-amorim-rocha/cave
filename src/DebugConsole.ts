@@ -1,13 +1,23 @@
 /**
  * Debug console for displaying logs on-screen
+ * Separated into two panels: Visual Debug and Text Log
  */
 export class DebugConsole {
-  private container: HTMLDivElement;
-  private logContainer: HTMLDivElement;
+  // Visual debug panel (controls and stats)
+  private visualDebugContainer: HTMLDivElement;
   private controlsContainer: HTMLDivElement;
-  private isVisible = true; // Always visible in lightweight mode
+  private isVisualDebugVisible = false;
+
+  // Text log panel
+  private textLogContainer: HTMLDivElement;
+  private logContainer: HTMLDivElement;
+  private isTextLogVisible = false;
   private logs: string[] = [];
   private maxLogs = 100;
+
+  // Toggle buttons
+  private visualDebugButton: HTMLButtonElement;
+  private textLogButton: HTMLButtonElement;
 
   // Toggle callbacks
   public onToggleControlMode?: (enabled: boolean) => void;
@@ -22,20 +32,98 @@ export class DebugConsole {
   public onChaikinIterationsChange?: (iterations: number) => void;
 
   constructor() {
-    this.container = this.createContainer();
+    // Create visual debug panel
+    this.visualDebugContainer = this.createVisualDebugContainer();
     this.controlsContainer = this.createControlsContainer();
-    this.logContainer = this.createLogContainer();
-    this.container.appendChild(this.controlsContainer);
-    this.container.appendChild(this.logContainer);
-    document.body.appendChild(this.container);
+    this.visualDebugContainer.appendChild(this.controlsContainer);
+    document.body.appendChild(this.visualDebugContainer);
+
+    // Create text log panel
+    this.textLogContainer = this.createTextLogContainer();
+    this.logContainer = this.createLogContent();
+    this.textLogContainer.appendChild(this.logContainer);
+    document.body.appendChild(this.textLogContainer);
+
+    // Create toggle buttons (replace existing debug button)
+    this.visualDebugButton = this.createVisualDebugButton();
+    this.textLogButton = this.createTextLogButton();
+    document.body.appendChild(this.visualDebugButton);
+    document.body.appendChild(this.textLogButton);
 
     // Intercept console methods
     this.interceptConsole();
+
+    // Load and display version info
+    this.loadVersionInfo();
   }
 
-  private createContainer(): HTMLDivElement {
+  private createVisualDebugButton(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.id = 'visual-debug-button';
+    button.title = 'Toggle visual debug';
+    button.textContent = '👁️';
+    button.style.cssText = `
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
+      left: calc(env(safe-area-inset-left, 10px) + 150px);
+      background: rgba(33, 150, 243, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10001;
+      pointer-events: auto;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      -webkit-tap-highlight-color: rgba(33, 150, 243, 0.3);
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    `;
+    button.addEventListener('click', () => this.toggleVisualDebug());
+    return button;
+  }
+
+  private createTextLogButton(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.id = 'text-log-button';
+    button.title = 'Toggle text log';
+    button.textContent = '📝';
+    button.style.cssText = `
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
+      left: calc(env(safe-area-inset-left, 10px) + 210px);
+      background: rgba(255, 152, 0, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10001;
+      pointer-events: auto;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      -webkit-tap-highlight-color: rgba(255, 152, 0, 0.3);
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    `;
+    button.addEventListener('click', () => this.toggleTextLog());
+    return button;
+  }
+
+  private createVisualDebugContainer(): HTMLDivElement {
     const container = document.createElement('div');
-    container.id = 'debug-console';
+    container.id = 'visual-debug-console';
     container.style.cssText = `
       position: fixed;
       top: 10px;
@@ -43,10 +131,10 @@ export class DebugConsole {
       width: 140px;
       max-height: 90vh;
       background: rgba(0, 0, 0, 0.15);
-      border: 1px solid rgba(76, 175, 80, 0.3);
+      border: 1px solid rgba(33, 150, 243, 0.3);
       border-radius: 4px;
       z-index: 10000;
-      display: flex;
+      display: none;
       flex-direction: column;
       font-family: 'Courier New', monospace;
       font-size: 10px;
@@ -54,20 +142,84 @@ export class DebugConsole {
       backdrop-filter: blur(2px);
     `;
 
-    // Minimal title bar (just for controls, no title text)
+    // Title bar
     const titleBar = document.createElement('div');
     titleBar.style.cssText = `
-      background: rgba(76, 175, 80, 0.1);
-      color: #4CAF50;
+      background: rgba(33, 150, 243, 0.1);
+      color: #2196F3;
       padding: 4px 6px;
       font-size: 9px;
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
       align-items: center;
       border-radius: 3px 3px 0 0;
     `;
 
-    // Button container for copy and close buttons
+    const title = document.createElement('div');
+    title.textContent = 'Visual Debug';
+    title.style.cssText = 'font-weight: bold;';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = `
+      background: none;
+      border: none;
+      color: #2196F3;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 2px 4px;
+      opacity: 0.6;
+    `;
+    closeBtn.onmouseenter = () => closeBtn.style.opacity = '1';
+    closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.6';
+    closeBtn.onclick = () => this.toggleVisualDebug();
+
+    titleBar.appendChild(title);
+    titleBar.appendChild(closeBtn);
+    container.appendChild(titleBar);
+
+    return container;
+  }
+
+  private createTextLogContainer(): HTMLDivElement {
+    const container = document.createElement('div');
+    container.id = 'text-log-console';
+    container.style.cssText = `
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      width: 400px;
+      max-width: calc(100vw - 160px);
+      max-height: 90vh;
+      background: rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(255, 152, 0, 0.3);
+      border-radius: 4px;
+      z-index: 10000;
+      display: none;
+      flex-direction: column;
+      font-family: 'Courier New', monospace;
+      font-size: 10px;
+      pointer-events: auto;
+      backdrop-filter: blur(2px);
+    `;
+
+    // Title bar
+    const titleBar = document.createElement('div');
+    titleBar.style.cssText = `
+      background: rgba(255, 152, 0, 0.1);
+      color: #FF9800;
+      padding: 4px 6px;
+      font-size: 9px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-radius: 3px 3px 0 0;
+    `;
+
+    const title = document.createElement('div');
+    title.textContent = 'Console Log';
+    title.style.cssText = 'font-weight: bold;';
+
     const buttonContainer = document.createElement('div');
     buttonContainer.style.cssText = `
       display: flex;
@@ -81,7 +233,7 @@ export class DebugConsole {
     copyBtn.style.cssText = `
       background: none;
       border: none;
-      color: #4CAF50;
+      color: #FF9800;
       font-size: 12px;
       cursor: pointer;
       padding: 2px 4px;
@@ -91,12 +243,74 @@ export class DebugConsole {
     copyBtn.onmouseenter = () => copyBtn.style.opacity = '1';
     copyBtn.onmouseleave = () => copyBtn.style.opacity = '0.6';
     copyBtn.onclick = () => this.copyLogs();
-    buttonContainer.appendChild(copyBtn);
 
+    // Clear button
+    const clearBtn = document.createElement('button');
+    clearBtn.textContent = '🗑️';
+    clearBtn.style.cssText = `
+      background: none;
+      border: none;
+      color: #FF9800;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 2px 4px;
+      opacity: 0.6;
+    `;
+    clearBtn.title = 'Clear logs';
+    clearBtn.onmouseenter = () => clearBtn.style.opacity = '1';
+    clearBtn.onmouseleave = () => clearBtn.style.opacity = '0.6';
+    clearBtn.onclick = () => this.clear();
+
+    // Close button
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = `
+      background: none;
+      border: none;
+      color: #FF9800;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 2px 4px;
+      opacity: 0.6;
+    `;
+    closeBtn.onmouseenter = () => closeBtn.style.opacity = '1';
+    closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.6';
+    closeBtn.onclick = () => this.toggleTextLog();
+
+    buttonContainer.appendChild(copyBtn);
+    buttonContainer.appendChild(clearBtn);
+    buttonContainer.appendChild(closeBtn);
+    titleBar.appendChild(title);
     titleBar.appendChild(buttonContainer);
     container.appendChild(titleBar);
 
+    // Version info section
+    const versionSection = document.createElement('div');
+    versionSection.id = 'version-info';
+    versionSection.style.cssText = `
+      background: rgba(255, 152, 0, 0.05);
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(255, 152, 0, 0.2);
+      color: #FF9800;
+      font-size: 9px;
+      line-height: 1.4;
+    `;
+    versionSection.innerHTML = '<div style="opacity: 0.6;">Loading version...</div>';
+    container.appendChild(versionSection);
+
     return container;
+  }
+
+  private createLogContent(): HTMLDivElement {
+    const logContainer = document.createElement('div');
+    logContainer.style.cssText = `
+      padding: 8px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 200px;
+      max-height: calc(90vh - 80px);
+    `;
+    return logContainer;
   }
 
   private createControlsContainer(): HTMLDivElement {
@@ -104,23 +318,12 @@ export class DebugConsole {
     controlsContainer.style.cssText = `
       background: rgba(0, 0, 0, 0.1);
       padding: 8px;
-      border-bottom: 1px solid rgba(76, 175, 80, 0.2);
+      overflow-y: auto;
+      max-height: calc(90vh - 30px);
       display: flex;
       flex-direction: column;
       gap: 6px;
     `;
-
-    // Title
-    const title = document.createElement('div');
-    title.textContent = 'Debug';
-    title.style.cssText = `
-      color: #4CAF50;
-      font-weight: bold;
-      font-size: 9px;
-      margin-bottom: 2px;
-      opacity: 0.7;
-    `;
-    controlsContainer.appendChild(title);
 
     // Create toggles
     const toggles = [
@@ -163,7 +366,7 @@ export class DebugConsole {
       labelEl.htmlFor = `debug-${key}`;
       labelEl.textContent = label;
       labelEl.style.cssText = `
-        color: #4CAF50;
+        color: #2196F3;
         cursor: pointer;
         user-select: none;
       `;
@@ -181,14 +384,14 @@ export class DebugConsole {
       gap: 3px;
       margin-top: 8px;
       padding: 6px;
-      background: rgba(76, 175, 80, 0.05);
+      background: rgba(33, 150, 243, 0.05);
       border-radius: 3px;
-      border: 1px solid rgba(76, 175, 80, 0.2);
+      border: 1px solid rgba(33, 150, 243, 0.2);
     `;
 
     const statsTitle = document.createElement('div');
     statsTitle.style.cssText = `
-      color: #4CAF50;
+      color: #2196F3;
       font-size: 9px;
       font-weight: bold;
       margin-bottom: 3px;
@@ -198,7 +401,7 @@ export class DebugConsole {
 
     const statsOriginal = document.createElement('div');
     statsOriginal.style.cssText = `
-      color: #4CAF50;
+      color: #2196F3;
       font-size: 8px;
       display: flex;
       justify-content: space-between;
@@ -207,7 +410,7 @@ export class DebugConsole {
 
     const statsFinal = document.createElement('div');
     statsFinal.style.cssText = `
-      color: #4CAF50;
+      color: #2196F3;
       font-size: 8px;
       display: flex;
       justify-content: space-between;
@@ -216,14 +419,14 @@ export class DebugConsole {
 
     const statsReduction = document.createElement('div');
     statsReduction.style.cssText = `
-      color: #4CAF50;
+      color: #2196F3;
       font-size: 8px;
       display: flex;
       justify-content: space-between;
       font-weight: bold;
       margin-top: 2px;
       padding-top: 3px;
-      border-top: 1px solid rgba(76, 175, 80, 0.2);
+      border-top: 1px solid rgba(33, 150, 243, 0.2);
     `;
     statsReduction.innerHTML = '<span>Reduction:</span><span id="stats-reduction">—</span>';
 
@@ -241,12 +444,12 @@ export class DebugConsole {
       gap: 3px;
       margin-top: 6px;
       padding-top: 6px;
-      border-top: 1px solid rgba(76, 175, 80, 0.2);
+      border-top: 1px solid rgba(33, 150, 243, 0.2);
     `;
 
     const sliderLabel = document.createElement('div');
     sliderLabel.style.cssText = `
-      color: #4CAF50;
+      color: #2196F3;
       font-size: 9px;
       display: flex;
       justify-content: space-between;
@@ -269,7 +472,6 @@ export class DebugConsole {
     slider.addEventListener('input', (e) => {
       const target = e.target as HTMLInputElement;
       const value = parseInt(target.value);
-      // Map 0-83 to 0-0.755m exponentially for finer control at low values
       const epsilon = value === 0 ? 0 : Math.pow(value / 100, 1.5);
       const epsilonDisplay = document.getElementById('epsilon-value');
       if (epsilonDisplay) {
@@ -282,7 +484,7 @@ export class DebugConsole {
 
     const sliderDesc = document.createElement('div');
     sliderDesc.style.cssText = `
-      color: rgba(76, 175, 80, 0.5);
+      color: rgba(33, 150, 243, 0.5);
       font-size: 8px;
       margin-top: 1px;
     `;
@@ -301,12 +503,12 @@ export class DebugConsole {
       gap: 3px;
       margin-top: 6px;
       padding-top: 6px;
-      border-top: 1px solid rgba(76, 175, 80, 0.2);
+      border-top: 1px solid rgba(33, 150, 243, 0.2);
     `;
 
     const sliderLabelPost = document.createElement('div');
     sliderLabelPost.style.cssText = `
-      color: #4CAF50;
+      color: #2196F3;
       font-size: 9px;
       display: flex;
       justify-content: space-between;
@@ -329,7 +531,6 @@ export class DebugConsole {
     sliderPost.addEventListener('input', (e) => {
       const target = e.target as HTMLInputElement;
       const value = parseInt(target.value);
-      // Map 0-83 to 0-0.755m exponentially for finer control at low values
       const epsilon = value === 0 ? 0 : Math.pow(value / 100, 1.5);
       const epsilonDisplay = document.getElementById('epsilon-post-value');
       if (epsilonDisplay) {
@@ -342,7 +543,7 @@ export class DebugConsole {
 
     const sliderDescPost = document.createElement('div');
     sliderDescPost.style.cssText = `
-      color: rgba(76, 175, 80, 0.5);
+      color: rgba(33, 150, 243, 0.5);
       font-size: 8px;
       margin-top: 1px;
     `;
@@ -361,7 +562,7 @@ export class DebugConsole {
       gap: 6px;
       margin-top: 6px;
       padding-top: 6px;
-      border-top: 1px solid rgba(76, 175, 80, 0.2);
+      border-top: 1px solid rgba(33, 150, 243, 0.2);
     `;
 
     // Chaikin toggle
@@ -375,7 +576,7 @@ export class DebugConsole {
     const chaikinCheckbox = document.createElement('input');
     chaikinCheckbox.type = 'checkbox';
     chaikinCheckbox.id = 'chaikin-toggle';
-    chaikinCheckbox.checked = true; // Enabled by default for organic cave shapes
+    chaikinCheckbox.checked = true;
     chaikinCheckbox.style.cssText = `
       cursor: pointer;
       width: 12px;
@@ -393,7 +594,7 @@ export class DebugConsole {
     chaikinLabel.htmlFor = 'chaikin-toggle';
     chaikinLabel.textContent = 'Chaikin Smoothing';
     chaikinLabel.style.cssText = `
-      color: #4CAF50;
+      color: #2196F3;
       cursor: pointer;
       user-select: none;
       font-size: 10px;
@@ -413,7 +614,7 @@ export class DebugConsole {
 
     const iterationsLabel = document.createElement('div');
     iterationsLabel.style.cssText = `
-      color: #4CAF50;
+      color: #2196F3;
       font-size: 9px;
       display: flex;
       justify-content: space-between;
@@ -447,7 +648,7 @@ export class DebugConsole {
 
     const iterationsDesc = document.createElement('div');
     iterationsDesc.style.cssText = `
-      color: rgba(76, 175, 80, 0.5);
+      color: rgba(33, 150, 243, 0.5);
       font-size: 8px;
       margin-top: 1px;
     `;
@@ -463,12 +664,25 @@ export class DebugConsole {
     return controlsContainer;
   }
 
-  private createLogContainer(): HTMLDivElement {
-    const logContainer = document.createElement('div');
-    logContainer.style.cssText = `
-      display: none;
-    `;
-    return logContainer;
+  private async loadVersionInfo(): Promise<void> {
+    try {
+      const response = await fetch('/cave/version.json', {
+        cache: 'no-cache'
+      });
+      if (response.ok) {
+        const version = await response.json();
+        const versionSection = document.getElementById('version-info');
+        if (versionSection) {
+          versionSection.innerHTML = `
+            <div style="font-weight: bold; margin-bottom: 4px;">${version.commitMessage || 'Unknown commit'}</div>
+            <div style="opacity: 0.6;">Hash: ${version.gitHash || 'unknown'}</div>
+            <div style="opacity: 0.6; font-size: 8px;">${new Date(version.timestamp).toLocaleString()}</div>
+          `;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load version info:', error);
+    }
   }
 
   private interceptConsole(): void {
@@ -530,6 +744,8 @@ export class DebugConsole {
     const logElement = document.createElement('div');
     logElement.style.color = color;
     logElement.style.marginBottom = '4px';
+    logElement.style.fontSize = '10px';
+    logElement.style.fontFamily = "'Courier New', monospace";
     logElement.textContent = logLine;
     this.logContainer.appendChild(logElement);
 
@@ -537,27 +753,50 @@ export class DebugConsole {
     this.logContainer.scrollTop = this.logContainer.scrollHeight;
 
     // Auto-show on error
-    if (type === 'ERROR') {
-      this.show();
+    if (type === 'ERROR' && !this.isTextLogVisible) {
+      this.showTextLog();
     }
   }
 
-  show(): void {
-    this.isVisible = true;
-    this.container.style.display = 'flex';
+  showVisualDebug(): void {
+    this.isVisualDebugVisible = true;
+    this.visualDebugContainer.style.display = 'flex';
   }
 
-  hide(): void {
-    this.isVisible = false;
-    this.container.style.display = 'none';
+  hideVisualDebug(): void {
+    this.isVisualDebugVisible = false;
+    this.visualDebugContainer.style.display = 'none';
   }
 
-  toggle(): void {
-    if (this.isVisible) {
-      this.hide();
+  toggleVisualDebug(): void {
+    if (this.isVisualDebugVisible) {
+      this.hideVisualDebug();
     } else {
-      this.show();
+      this.showVisualDebug();
     }
+  }
+
+  showTextLog(): void {
+    this.isTextLogVisible = true;
+    this.textLogContainer.style.display = 'flex';
+  }
+
+  hideTextLog(): void {
+    this.isTextLogVisible = false;
+    this.textLogContainer.style.display = 'none';
+  }
+
+  toggleTextLog(): void {
+    if (this.isTextLogVisible) {
+      this.hideTextLog();
+    } else {
+      this.showTextLog();
+    }
+  }
+
+  // Legacy method for backward compatibility
+  toggle(): void {
+    this.toggleVisualDebug();
   }
 
   clear(): void {
@@ -569,8 +808,7 @@ export class DebugConsole {
     const text = this.logs.join('\n');
     try {
       await navigator.clipboard.writeText(text);
-      // Show feedback by temporarily changing button text
-      const copyBtn = this.container.querySelector('button[title="Copy logs to clipboard"]');
+      const copyBtn = this.textLogContainer.querySelector('button[title="Copy logs to clipboard"]');
       if (copyBtn) {
         const originalText = copyBtn.textContent;
         copyBtn.textContent = '✓';
@@ -585,7 +823,6 @@ export class DebugConsole {
   }
 
   updateStats(originalCount: number, finalCount: number, simplificationReduction: number, postSimplificationReduction: number): void {
-    // Update vertex counts
     const statsOriginal = document.getElementById('stats-original');
     if (statsOriginal) {
       statsOriginal.textContent = originalCount.toLocaleString();
@@ -602,7 +839,6 @@ export class DebugConsole {
       statsReduction.textContent = `${totalReduction.toFixed(1)}% (${(originalCount - finalCount).toLocaleString()})`;
     }
 
-    // Update slider reduction percentages
     const epsilonReduction = document.getElementById('epsilon-reduction');
     if (epsilonReduction) {
       epsilonReduction.textContent = simplificationReduction > 0 ? `(-${simplificationReduction.toFixed(1)}%)` : '';

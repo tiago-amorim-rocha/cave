@@ -92,21 +92,7 @@
     }
 
     #version {
-      position: fixed;
-      top: env(safe-area-inset-top, 10px);
-      right: env(safe-area-inset-right, 10px);
-      background: rgba(76, 175, 80, 0.95);
-      backdrop-filter: blur(10px);
-      border-radius: 8px;
-      padding: 8px 14px;
-      font-size: 14px;
-      font-family: 'Courier New', monospace;
-      color: #fff;
-      z-index: 10002;
-      pointer-events: none;
-      font-weight: bold;
-      border: 2px solid rgba(255, 255, 255, 0.4);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      display: none; /* Hidden - version now shown in log console */
     }
 
     #update-button {
@@ -154,34 +140,7 @@
       }
     }
 
-    #debug-button {
-      position: fixed;
-      bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
-      left: calc(env(safe-area-inset-left, 10px) + 150px);
-      background: rgba(255, 152, 0, 0.95);
-      backdrop-filter: blur(10px);
-      border-radius: 50%;
-      width: 48px;
-      height: 48px;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      cursor: pointer;
-      font-size: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10001;
-      pointer-events: auto;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-      -webkit-tap-highlight-color: rgba(255, 152, 0, 0.3);
-      touch-action: manipulation;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-
-    #debug-button:active {
-      background: rgba(245, 142, 0, 1);
-      transform: scale(0.95);
-    }
+    /* Debug buttons now created by DebugConsole.ts */
   </style>
 </head>
 <body>
@@ -200,7 +159,7 @@
   <div id="simple-log" style="position: fixed; top: 50px; left: 10px; right: 10px; bottom: 10px; background: rgba(0,0,0,0.95); color: #0f0; font-family: monospace; font-size: 10px; padding: 10px; overflow-y: auto; z-index: 10003; border: 2px solid #0f0; display: none;"></div>
 
   <button id="update-button" title="Update available! Click to reload">🔄</button>
-  <button id="debug-button" title="Toggle debug console">🐛</button>
+  <!-- Debug buttons now created by DebugConsole.ts -->
 
   <script>
     // Simple on-screen logger (hidden by default)
