@@ -233,7 +233,7 @@ export class DensityField {
 
     // Replace our data with the generated data
     if (bubbleData.length !== this.data.length) {
-      console.error('[BubbleGen] Size mismatch! Expected', this.data.length, 'got', bubbleData.length);
+      console.warn(`[BubbleGen] Size mismatch! Expected ${this.data.length} (${this.gridWidth}×${this.gridHeight}), got ${bubbleData.length}. Params: ${params.worldAabb.maxX}×${params.worldAabb.maxY}, h=${params.h}`);
       return;
     }
 

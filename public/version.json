@@ -1,7 +1,7 @@
 {
-  "timestamp": 1762795477054,
-  "date": "2025-11-10T17:24:37.054Z",
-  "buildId": "yzsgzv9n3a",
-  "gitHash": "ae1c1b7",
-  "commitMessage": "chore: re-add version.json to git tracking to prevent..."
+  "timestamp": 1762795856000,
+  "date": "2025-11-10T17:30:56.000Z",
+  "buildId": "egzwf4s0ypk",
+  "gitHash": "734403c",
+  "commitMessage": "feat: add dynamic world size controls to cave..."
 }
