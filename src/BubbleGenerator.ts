@@ -328,8 +328,9 @@ function generateBubbleCenters(params: CaveGenParams, rng: SeededRandom): Vec2[]
  */
 export function generateBubbleCaves(params: CaveGenParams): Uint8Array {
   const { worldAabb, h, ISO } = params;
-  const width = Math.ceil((worldAabb.maxX - worldAabb.minX) / h);
-  const height = Math.ceil((worldAabb.maxY - worldAabb.minY) / h);
+  // Use same formula as DensityField constructor: Math.floor(...) + 1
+  const width = Math.floor((worldAabb.maxX - worldAabb.minX) / h) + 1;
+  const height = Math.floor((worldAabb.maxY - worldAabb.minY) / h) + 1;
 
   const rng = new SeededRandom(params.seed);
   const perlin = new PerlinNoise(params.seed);
