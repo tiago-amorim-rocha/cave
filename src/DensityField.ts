@@ -32,6 +32,18 @@ export class DensityField {
   }
 
   /**
+   * Resize the density field to new dimensions
+   */
+  resize(newWidth: number, newHeight: number): void {
+    this.config.width = newWidth;
+    this.config.height = newHeight;
+    this.gridWidth = Math.floor(newWidth / this.config.gridPitch) + 1;
+    this.gridHeight = Math.floor(newHeight / this.config.gridPitch) + 1;
+    this.data = new Uint8Array(this.gridWidth * this.gridHeight);
+    this.reset();
+  }
+
+  /**
    * Generate procedural caves using Perlin noise
    *
    * @param seed - Random seed for reproducible generation
