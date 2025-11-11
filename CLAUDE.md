@@ -1,7 +1,7 @@
-# Carvable Caves PWA
+# Carvable Caves PWA (iOS-Focused)
 
 ## Overview
-A Progressive Web App featuring procedurally generated 2D caves with real-time physics simulation using Rapier 2D. Built with TypeScript + Vite, optimized for iOS devices. Works offline and can be installed via "Add to Home Screen".
+**A Progressive Web App specifically designed for iOS devices** featuring procedurally generated 2D caves with real-time physics simulation using Rapier 2D. Built with TypeScript + Vite and optimized for iPhone/iPad touch controls. Works offline and can be installed via Safari's "Add to Home Screen" for a native-like fullscreen experience.
 
 The app demonstrates advanced techniques including:
 - Procedural cave generation using Perlin noise
@@ -385,22 +385,26 @@ node_modules/                        # Dependencies
 
 ## Controls
 
-### Mouse
+### Touch Controls (Primary - iOS)
+- **Virtual Joystick** (bottom-left): Move player in any direction
+  - Push up to jump
+- **Two-finger pinch**: Zoom in/out
+- **Two-finger drag**: Pan camera
+- **Respawn button** 🔄 (bottom-left, purple): Respawn player at camera center
+- **Visual Debug button** 👁️ (bottom-left, blue): Toggle debug visualization
+- **Text Log button** 📝 (bottom-left, orange): Toggle console log
+
+### Mouse/Keyboard Controls (Desktop Testing)
 - **Right-click + drag**: Pan camera
 - **Wheel**: Zoom in/out
 - **WASD / Arrow keys**: Move player
 - **Space**: Jump
-- **R**: Respawn player at camera center
-
-### Touch
-- **Two-finger pinch**: Zoom
-- **Two-finger drag**: Pan camera
-- **On-screen controls**: Move player (if implemented)
+- Virtual joystick also works with mouse/touch on desktop
 
 ### Debug Console
-- **Bug button** (top-right): Toggle debug overlay
-- **Checkboxes**: Toggle visualization modes
-- **Sliders**: Adjust optimization parameters in real-time
+- **Visual Debug** (👁️): Toggle physics mesh, vertices, grid, and density field visualization
+- **Text Log** (📝): View console output and version info
+- **Optimization sliders**: Adjust Visvalingam-Whyatt simplification and Chaikin smoothing in real-time
 - **Stats**: View vertex counts and reduction percentages
 
 ## Known Issues & Future Work

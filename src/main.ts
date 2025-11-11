@@ -155,9 +155,6 @@ class CarvableCaves {
         this.joystick.handleResize();
       });
 
-      // Setup respawn key listener
-      this.setupRespawnListener();
-
       // Start render loop (async initialization happens there)
       this.start(spawnX, spawnY, worldConfig.gridPitch);
     } catch (error) {
@@ -168,18 +165,6 @@ class CarvableCaves {
 
   private setupUI(): void {
     // UI elements removed - all debug functionality now in debug console
-  }
-
-  /**
-   * Setup keyboard listener for respawning player at camera center
-   */
-  private setupRespawnListener(): void {
-    window.addEventListener('keydown', (e) => {
-      // Press 'R' to respawn at camera center
-      if (e.key.toLowerCase() === 'r' && this.player) {
-        this.player.respawn(this.camera.x, this.camera.y);
-      }
-    });
   }
 
   private async start(spawnX: number, spawnY: number, gridPitch: number): Promise<void> {
@@ -441,6 +426,16 @@ class CarvableCaves {
     // Show/hide virtual joystick
     this.joystick.setVisible(enabled);
   }
+
+  /**
+   * Respawn player at camera center (for iOS touch button)
+   */
+  respawnPlayer(): void {
+    if (this.player) {
+      this.player.respawn(this.camera.x, this.camera.y);
+      console.log(`[Respawn] Player respawned at camera center (${this.camera.x.toFixed(1)}, ${this.camera.y.toFixed(1)})`);
+    }
+  }
 }
 
 (window as any).APP_LOADED = true;
@@ -518,6 +513,12 @@ debugConsole.onChaikinIterationsChange = (iterations: number) => {
 debugConsole.onToggleControlMode = (enabled: boolean) => {
   if (app) {
     app.setControlMode(enabled);
+  }
+};
+
+debugConsole.onRespawn = () => {
+  if (app) {
+    app.respawnPlayer();
   }
 };
 
