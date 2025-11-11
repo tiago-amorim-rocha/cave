@@ -17,6 +17,9 @@ Thumbs.db
 dist/
 build/
 
+# Auto-generated version file (regenerated on each build)
+public/version.json
+
 # Environment variables
 .env
 .env.local
