@@ -79,11 +79,11 @@ class CarvableCaves {
         throw new Error('Canvas not found');
       }
 
-      // Initialize camera (centered on world, standard zoom)
+      // Initialize camera (centered on world, zoomed out for better view)
       this.camera = new Camera(
         worldConfig.width / 2,
         worldConfig.height / 2,
-        50 // initial PPM (pixels per metre) - standard zoom
+        30 // initial PPM (pixels per metre) - zoomed out for wider view
       );
 
       // Initialize density field
@@ -247,11 +247,11 @@ class CarvableCaves {
       this.lastBallSpawnTime = now;
     }
 
-    // Camera follows player in character control mode
+    // Camera smoothly follows player in character control mode
     const playerPos = this.player.getPosition();
     if (this.characterControlMode) {
-      this.camera.x = playerPos.x;
-      this.camera.y = playerPos.y;
+      // Use smooth following with lerp factor of 0.08 for gentle camera movement
+      this.camera.smoothFollow(playerPos.x, playerPos.y, 0.08);
     }
 
     // Remesh if needed

@@ -76,4 +76,16 @@ export class Camera {
     this.y = state.y;
     this.zoom = state.zoom;
   }
+
+  /**
+   * Smoothly move camera towards a target position using linear interpolation
+   * @param targetX - Target world x position (metres)
+   * @param targetY - Target world y position (metres)
+   * @param smoothing - Lerp factor (0-1), lower = smoother but slower. Typical: 0.1
+   */
+  smoothFollow(targetX: number, targetY: number, smoothing: number = 0.1): void {
+    // Linear interpolation: current + (target - current) * smoothing
+    this.x += (targetX - this.x) * smoothing;
+    this.y += (targetY - this.y) * smoothing;
+  }
 }
