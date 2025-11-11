@@ -69,7 +69,7 @@ export class DebugConsole {
     button.style.cssText = `
       position: fixed;
       bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
-      left: calc(env(safe-area-inset-left, 10px) + 150px);
+      left: calc(env(safe-area-inset-left, 10px) + 70px);
       background: rgba(33, 150, 243, 0.95);
       backdrop-filter: blur(10px);
       border-radius: 50%;
@@ -101,7 +101,7 @@ export class DebugConsole {
     button.style.cssText = `
       position: fixed;
       bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
-      left: calc(env(safe-area-inset-left, 10px) + 210px);
+      left: calc(env(safe-area-inset-left, 10px) + 130px);
       background: rgba(255, 152, 0, 0.95);
       backdrop-filter: blur(10px);
       border-radius: 50%;
@@ -133,7 +133,7 @@ export class DebugConsole {
     button.style.cssText = `
       position: fixed;
       bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
-      left: calc(env(safe-area-inset-left, 10px) + 270px);
+      left: calc(env(safe-area-inset-left, 10px) + 190px);
       background: rgba(156, 39, 176, 0.95);
       backdrop-filter: blur(10px);
       border-radius: 50%;
