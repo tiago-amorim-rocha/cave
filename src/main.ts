@@ -3,7 +3,7 @@ import { DensityField } from './DensityField';
 import { MarchingSquares } from './MarchingSquares';
 import { Renderer } from './Renderer';
 import { DebugConsole } from './DebugConsole';
-import { CaveGeneratorUI } from './CaveGeneratorUI';
+import { CaveGeneratorUI, type PerlinCaveParams } from './CaveGeneratorUI';
 import { LoopCache } from './LoopCache';
 import { InputHandler } from './InputHandler';
 import { RapierPhysics } from './RapierPhysics';
@@ -376,28 +376,20 @@ class CarvableCaves {
   }
 
   /**
-   * Regenerate caves using bubble generation algorithm
+   * Regenerate caves using Perlin noise
    */
-  regenerateCaves(params: any): void {
-    console.log('[Main] Regenerating caves with bubble algorithm...');
-
-    // Extract world dimensions from params
-    const newWidth = params.worldAabb.maxX - params.worldAabb.minX;
-    const newHeight = params.worldAabb.maxY - params.worldAabb.minY;
+  regenerateCaves(params: PerlinCaveParams): void {
+    console.log('[Main] Regenerating caves with Perlin noise...');
 
     // Check if world size has changed
-    if (newWidth !== this.densityField.config.width ||
-        newHeight !== this.densityField.config.height) {
-      console.log(`[Main] Resizing world from ${this.densityField.config.width}×${this.densityField.config.height} to ${newWidth}×${newHeight}`);
-      this.densityField.resize(newWidth, newHeight);
+    if (params.worldWidth !== this.densityField.config.width ||
+        params.worldHeight !== this.densityField.config.height) {
+      console.log(`[Main] Resizing world from ${this.densityField.config.width}×${this.densityField.config.height} to ${params.worldWidth}×${params.worldHeight}`);
+      this.densityField.resize(params.worldWidth, params.worldHeight);
     }
 
-    // Use existing grid pitch and ISO value
-    params.h = this.densityField.config.gridPitch;
-    params.ISO = this.densityField.config.isoValue;
-
-    // Generate new caves
-    this.densityField.generateBubbleCaves(params);
+    // Generate new caves with Perlin noise
+    this.densityField.generateCaves(params.seed, params.scale, params.octaves, params.threshold);
 
     // Clear existing balls
     for (const ball of this.ballBodies) {
@@ -405,14 +397,16 @@ class CarvableCaves {
     }
     this.ballBodies = [];
 
-    // Reset player to spawn position
+    // Reset player to center of world
+    const spawnX = params.worldWidth / 2;
+    const spawnY = params.worldHeight / 2;
     if (this.player) {
-      this.player.respawn(params.startAt.x, params.startAt.y);
+      this.player.respawn(spawnX, spawnY);
     }
 
-    // Center camera on new spawn
-    this.camera.x = params.startAt.x;
-    this.camera.y = params.startAt.y;
+    // Center camera on spawn
+    this.camera.x = spawnX;
+    this.camera.y = spawnY;
 
     // Trigger remesh
     this.needsRemesh = true;

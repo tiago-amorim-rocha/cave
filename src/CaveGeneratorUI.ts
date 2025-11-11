@@ -1,4 +1,19 @@
-import { CaveGenParams, DEFAULT_CAVE_PARAMS } from './BubbleGenerator';
+import type { AABB } from './types';
+
+/**
+ * Perlin noise cave generation parameters
+ */
+export type PerlinCaveParams = {
+  // World size
+  worldWidth: number;
+  worldHeight: number;
+
+  // Perlin noise parameters
+  seed: number;
+  scale: number;     // Noise scale (smaller = larger features)
+  octaves: number;   // Number of noise layers
+  threshold: number; // Cave threshold (higher = more caves, -1 to 1)
+};
 
 /**
  * UI for cave generation parameters
@@ -9,14 +24,21 @@ export class CaveGeneratorUI {
   private toggleButton: HTMLButtonElement;
 
   // Current parameters
-  public params: CaveGenParams;
+  public params: PerlinCaveParams;
 
   // Callback for when generate button is clicked
-  public onGenerate?: (params: CaveGenParams) => void;
+  public onGenerate?: (params: PerlinCaveParams) => void;
 
   constructor() {
     // Initialize with defaults
-    this.params = { ...DEFAULT_CAVE_PARAMS };
+    this.params = {
+      worldWidth: 50,
+      worldHeight: 30,
+      seed: Date.now(),
+      scale: 0.05,
+      octaves: 4,
+      threshold: 0.1
+    };
 
     // Create UI elements
     this.container = this.createContainer();
@@ -129,40 +151,14 @@ export class CaveGeneratorUI {
 
     // Add parameter sections
     content.appendChild(this.createSection('World Size', [
-      this.createWorldSizeSlider('Width (m)', 30, 200, 10),
-      this.createWorldSizeSlider('Height (m)', 20, 120, 10),
+      this.createSimpleSlider('Width (m)', 'worldWidth', 30, 200, 10),
+      this.createSimpleSlider('Height (m)', 'worldHeight', 20, 120, 10),
     ]));
 
-    content.appendChild(this.createSection('Distribution', [
-      this.createSlider('Bubble Count', 'bubbleCount', 5, 100, 1, (v) => Math.round(v)),
-      this.createSlider('Clusteriness', 'clusteriness', 0, 1, 0.01),
-      this.createSlider('Cluster Scale (m)', 'clusterScale', 3, 15, 0.5),
-    ]));
-
-    content.appendChild(this.createSection('Size', [
-      this.createSlider('Min Size (m)', 'sizeMin', 0.5, 5, 0.1),
-      this.createSlider('Max Size (m)', 'sizeMax', 2, 10, 0.1),
-      this.createDropdown('Distribution', 'sizeDistribution', [
-        { value: 'uniform', label: 'Uniform' },
-        { value: 'powerLaw', label: 'Power Law (natural)' },
-        { value: 'normal', label: 'Normal' }
-      ]),
-    ]));
-
-    content.appendChild(this.createSection('Shape', [
-      this.createSlider('Complexity', 'shapeComplexity', 1, 4, 1, (v) => Math.round(v)),
-      this.createSlider('Irregularity', 'shapeIrregularity', 0, 1, 0.01),
-      this.createSlider('Angular Freq', 'shapeAngularFreq', 2, 12, 0.5),
-      this.createSlider('Variation', 'shapeVariation', 0, 1, 0.01),
-    ]));
-
-    content.appendChild(this.createSection('Overlap', [
-      this.createSlider('Overlap Chance', 'overlapChance', 0, 1, 0.01),
-      this.createSlider('Separation (m)', 'separationWhenNoOverlap', 0.2, 3, 0.1),
-    ]));
-
-    content.appendChild(this.createSection('Blending', [
-      this.createSlider('Soft K', 'softK', 0.3, 3, 0.1),
+    content.appendChild(this.createSection('Perlin Noise', [
+      this.createSimpleSlider('Scale', 'scale', 0.01, 0.2, 0.005, false, 3),
+      this.createSimpleSlider('Octaves', 'octaves', 1, 8, 1),
+      this.createSimpleSlider('Threshold', 'threshold', -0.5, 0.5, 0.01, false, 2),
     ]));
 
     // Generate button
@@ -223,13 +219,14 @@ export class CaveGeneratorUI {
     return section;
   }
 
-  private createSlider(
+  private createSimpleSlider(
     label: string,
-    param: keyof CaveGenParams,
+    param: keyof PerlinCaveParams,
     min: number,
     max: number,
     step: number,
-    transform?: (v: number) => number
+    isInteger: boolean = true,
+    decimals: number = 0
   ): HTMLElement {
     const container = document.createElement('div');
     container.style.cssText = 'margin-bottom: 8px;';
@@ -249,7 +246,7 @@ export class CaveGeneratorUI {
     valueDisplay.style.cssText = 'color: #4CAF50; font-weight: bold;';
 
     const currentValue = this.params[param] as number;
-    valueDisplay.textContent = transform ? transform(currentValue).toFixed(2) : currentValue.toFixed(2);
+    valueDisplay.textContent = isInteger ? currentValue.toFixed(0) : currentValue.toFixed(decimals);
 
     labelEl.appendChild(labelText);
     labelEl.appendChild(valueDisplay);
@@ -297,129 +294,13 @@ export class CaveGeneratorUI {
 
     slider.oninput = () => {
       const value = parseFloat(slider.value);
-      const finalValue = transform ? transform(value) : value;
+      const finalValue = isInteger ? Math.round(value) : value;
       (this.params[param] as number) = finalValue;
-      valueDisplay.textContent = finalValue.toFixed(2);
+      valueDisplay.textContent = isInteger ? finalValue.toFixed(0) : finalValue.toFixed(decimals);
     };
 
     container.appendChild(labelEl);
     container.appendChild(slider);
-    return container;
-  }
-
-  private createWorldSizeSlider(
-    label: string,
-    min: number,
-    max: number,
-    step: number
-  ): HTMLElement {
-    const isWidth = label.includes('Width');
-    const container = document.createElement('div');
-    container.style.cssText = 'margin-bottom: 8px;';
-
-    const labelEl = document.createElement('label');
-    labelEl.style.cssText = `
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 2px;
-      font-size: 10px;
-    `;
-
-    const labelText = document.createElement('span');
-    labelText.textContent = label;
-
-    const valueDisplay = document.createElement('span');
-    valueDisplay.style.cssText = 'color: #4CAF50; font-weight: bold;';
-
-    const currentValue = isWidth
-      ? (this.params.worldAabb.maxX - this.params.worldAabb.minX)
-      : (this.params.worldAabb.maxY - this.params.worldAabb.minY);
-    valueDisplay.textContent = currentValue.toFixed(0);
-
-    labelEl.appendChild(labelText);
-    labelEl.appendChild(valueDisplay);
-
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.min = min.toString();
-    slider.max = max.toString();
-    slider.step = step.toString();
-    slider.value = currentValue.toString();
-    slider.style.cssText = `
-      width: 100%;
-      height: 4px;
-      border-radius: 2px;
-      background: rgba(76, 175, 80, 0.2);
-      outline: none;
-      -webkit-appearance: none;
-    `;
-
-    slider.oninput = () => {
-      const value = parseFloat(slider.value);
-      if (isWidth) {
-        this.params.worldAabb.maxX = value;
-        this.params.worldAabb.minX = 0;
-        // Update start position to center
-        this.params.startAt.x = value / 2;
-      } else {
-        this.params.worldAabb.maxY = value;
-        this.params.worldAabb.minY = 0;
-        // Update start position to center
-        this.params.startAt.y = value / 2;
-      }
-      valueDisplay.textContent = value.toFixed(0);
-    };
-
-    container.appendChild(labelEl);
-    container.appendChild(slider);
-    return container;
-  }
-
-  private createDropdown(
-    label: string,
-    param: keyof CaveGenParams,
-    options: Array<{ value: string; label: string }>
-  ): HTMLElement {
-    const container = document.createElement('div');
-    container.style.cssText = 'margin-bottom: 8px;';
-
-    const labelEl = document.createElement('label');
-    labelEl.textContent = label;
-    labelEl.style.cssText = `
-      display: block;
-      margin-bottom: 4px;
-      font-size: 10px;
-    `;
-
-    const select = document.createElement('select');
-    select.style.cssText = `
-      width: 100%;
-      padding: 4px;
-      background: rgba(76, 175, 80, 0.1);
-      border: 1px solid rgba(76, 175, 80, 0.3);
-      border-radius: 3px;
-      color: #4CAF50;
-      font-family: 'Courier New', monospace;
-      font-size: 10px;
-      cursor: pointer;
-    `;
-
-    options.forEach(opt => {
-      const option = document.createElement('option');
-      option.value = opt.value;
-      option.textContent = opt.label;
-      if (this.params[param] === opt.value) {
-        option.selected = true;
-      }
-      select.appendChild(option);
-    });
-
-    select.onchange = () => {
-      (this.params[param] as string) = select.value;
-    };
-
-    container.appendChild(labelEl);
-    container.appendChild(select);
     return container;
   }
 
