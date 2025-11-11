@@ -157,7 +157,7 @@ export class RapierEngine implements PhysicsEngine {
 
   /**
    * Update terrain from marching squares loops
-   * Uses segment colliders for exact boundary representation
+   * Uses polyline colliders to prevent internal edge artifacts (wall sticking)
    */
   setTerrainLoops(loops: Point[][]): void {
     if (!this.world) {
@@ -174,40 +174,36 @@ export class RapierEngine implements PhysicsEngine {
 
     let totalSegments = 0;
 
-    // Build segment colliders for each loop
+    // Build polyline colliders for each loop
     for (const loop of loops) {
       if (loop.length < 2) continue;
 
-      // Create segment collider for each edge
+      // Convert loop to Float32Array of vertices [x0, y0, x1, y1, ...]
+      const vertices = new Float32Array(loop.length * 2);
+      for (let i = 0; i < loop.length; i++) {
+        vertices[i * 2] = loop[i].x;
+        vertices[i * 2 + 1] = loop[i].y;
+      }
+
+      // Create polyline collider (one collider per loop)
+      // This prevents "internal edge" artifacts where character catches on segment junctions
+      const polylineDesc = RAPIER.ColliderDesc.polyline(vertices)
+        .setFriction(0.3)
+        .setRestitution(0.1);
+
+      const collider = this.world.createCollider(polylineDesc);
+      this.terrainColliders.push(collider);
+
+      // Store segments for debug rendering
       for (let i = 0; i < loop.length - 1; i++) {
         const p1 = loop[i];
         const p2 = loop[i + 1];
-
-        // Skip degenerate segments
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const length = Math.sqrt(dx * dx + dy * dy);
-
-        if (length < 0.001) continue; // Skip tiny segments
-
-        // Create segment collider
-        const segmentDesc = RAPIER.ColliderDesc.segment(
-          { x: p1.x, y: p1.y },
-          { x: p2.x, y: p2.y }
-        )
-          .setFriction(0.3)
-          .setRestitution(0.1);
-
-        const collider = this.world.createCollider(segmentDesc);
-        this.terrainColliders.push(collider);
-        totalSegments++;
-
-        // Store for debug rendering (always store, debug flag just controls drawing)
         this.debugSegments.push({ p1: { x: p1.x, y: p1.y }, p2: { x: p2.x, y: p2.y } });
+        totalSegments++;
       }
     }
 
-    console.log(`[RapierEngine] Created ${totalSegments} segment colliders from ${loops.length} loops`);
+    console.log(`[RapierEngine] Created ${this.terrainColliders.length} polyline colliders (${totalSegments} segments) from ${loops.length} loops`);
   }
 
   /**
@@ -255,7 +251,7 @@ export class RapierEngine implements PhysicsEngine {
       .setTranslation(x, y)
       .setCcdEnabled(true)
       .setCanSleep(false) // Prevent sleeping for responsive controls
-      .setLinearDamping(0.2); // Reduced damping for force-based movement
+      .setLinearDamping(0.0); // No damping - we handle friction manually in controller
 
     const rigidBody = this.world.createRigidBody(rbDesc);
 
@@ -264,8 +260,8 @@ export class RapierEngine implements PhysicsEngine {
 
     // Create capsule collider (vertical capsule)
     const bodyColliderDesc = RAPIER.ColliderDesc.capsule(capsuleHalfHeight, capsuleRadius)
-      .setFriction(0.3)
-      .setRestitution(0.1)
+      .setFriction(0.0) // Zero friction to prevent wall sticking
+      .setRestitution(0.0) // No bounce
       .setDensity(1.0); // Standard density
 
     const bodyCollider = this.world.createCollider(bodyColliderDesc, rigidBody);
