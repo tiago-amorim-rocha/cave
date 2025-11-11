@@ -390,6 +390,7 @@ node_modules/                        # Dependencies
 - **Wheel**: Zoom in/out
 - **WASD / Arrow keys**: Move player
 - **Space**: Jump
+- **R**: Respawn player at camera center
 
 ### Touch
 - **Two-finger pinch**: Zoom
