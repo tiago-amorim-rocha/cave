@@ -18,8 +18,10 @@ export class DebugConsole {
   // Toggle buttons
   private visualDebugButton: HTMLButtonElement;
   private textLogButton: HTMLButtonElement;
+  private respawnButton: HTMLButtonElement;
 
   // Toggle callbacks
+  public onRespawn?: () => void;
   public onToggleControlMode?: (enabled: boolean) => void;
   public onTogglePhysicsMesh?: (enabled: boolean) => void;
   public onToggleOptimizedVertices?: (enabled: boolean) => void;
@@ -47,8 +49,10 @@ export class DebugConsole {
     // Create toggle buttons (replace existing debug button)
     this.visualDebugButton = this.createVisualDebugButton();
     this.textLogButton = this.createTextLogButton();
+    this.respawnButton = this.createRespawnButton();
     document.body.appendChild(this.visualDebugButton);
     document.body.appendChild(this.textLogButton);
+    document.body.appendChild(this.respawnButton);
 
     // Intercept console methods
     this.interceptConsole();
@@ -118,6 +122,42 @@ export class DebugConsole {
       -webkit-user-select: none;
     `;
     button.addEventListener('click', () => this.toggleTextLog());
+    return button;
+  }
+
+  private createRespawnButton(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.id = 'respawn-button';
+    button.title = 'Respawn at camera center';
+    button.textContent = '🔄';
+    button.style.cssText = `
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
+      left: calc(env(safe-area-inset-left, 10px) + 270px);
+      background: rgba(156, 39, 176, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10001;
+      pointer-events: auto;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      -webkit-tap-highlight-color: rgba(156, 39, 176, 0.3);
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    `;
+    button.addEventListener('click', () => {
+      if (this.onRespawn) {
+        this.onRespawn();
+      }
+    });
     return button;
   }
 
