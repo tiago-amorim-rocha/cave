@@ -128,7 +128,7 @@ export class RapierEngine implements PhysicsEngine {
 
   /**
    * Update sensor contact counts by checking intersections
-   * Uses contactsWith for each sensor collider
+   * Uses intersectionPairsWith for spatial overlap detection
    */
   private updateSensorContacts(): void {
     if (!this.world) return;
@@ -141,16 +141,17 @@ export class RapierEngine implements PhysicsEngine {
       if (!collider.isSensor()) return;
 
       // Check if this sensor has contacts with anything
-      let hasContact = false;
-      this.world!.contactPairsWith(collider, (otherCollider: RAPIER.Collider) => {
+      // Use intersectionPairsWith instead of contactPairsWith for sensors
+      let contactCount = 0;
+      this.world!.intersectionPairsWith(collider, (otherCollider: RAPIER.Collider) => {
         // Ignore contacts with other sensors or same body
         if (!otherCollider.isSensor() && otherCollider.parent() !== collider.parent()) {
-          hasContact = true;
+          contactCount++;
         }
       });
 
-      if (hasContact) {
-        this.sensorContacts.set(collider.handle, 1);
+      if (contactCount > 0) {
+        this.sensorContacts.set(collider.handle, contactCount);
       }
     });
   }
