@@ -12,10 +12,15 @@ export class Camera {
   minZoom = 10; // minimum PPM
   maxZoom = 200; // maximum PPM
 
-  constructor(x: number, y: number, zoom: number) {
+  worldWidth: number; // world bounds (metres)
+  worldHeight: number;
+
+  constructor(x: number, y: number, zoom: number, worldWidth: number = 50, worldHeight: number = 30) {
     this.x = x;
     this.y = y;
     this.zoom = zoom;
+    this.worldWidth = worldWidth;
+    this.worldHeight = worldHeight;
   }
 
   /**
@@ -38,11 +43,20 @@ export class Camera {
   }
 
   /**
+   * Clamp camera position to stay within world bounds
+   */
+  private clampToBounds(): void {
+    this.x = Math.max(0, Math.min(this.worldWidth, this.x));
+    this.y = Math.max(0, Math.min(this.worldHeight, this.y));
+  }
+
+  /**
    * Pan camera by screen pixels
    */
   pan(dx: number, dy: number): void {
     this.x -= dx / this.zoom;
     this.y -= dy / this.zoom;
+    this.clampToBounds();
   }
 
   /**
@@ -61,6 +75,7 @@ export class Camera {
     // Adjust camera to keep the same world point under the cursor
     this.x += worldPosBefore.x - worldPosAfter.x;
     this.y += worldPosBefore.y - worldPosAfter.y;
+    this.clampToBounds();
   }
 
   getState(): CameraState {
@@ -87,5 +102,6 @@ export class Camera {
     // Linear interpolation: current + (target - current) * smoothing
     this.x += (targetX - this.x) * smoothing;
     this.y += (targetY - this.y) * smoothing;
+    this.clampToBounds();
   }
 }

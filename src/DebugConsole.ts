@@ -16,9 +16,11 @@ export class DebugConsole {
   private maxLogs = 100;
 
   // Toggle buttons
+  private hamburgerButton: HTMLButtonElement;
   private visualDebugButton: HTMLButtonElement;
   private textLogButton: HTMLButtonElement;
   private respawnButton: HTMLButtonElement;
+  private isMenuExpanded = false;
 
   // Toggle callbacks
   public onRespawn?: () => void;
@@ -47,9 +49,11 @@ export class DebugConsole {
     document.body.appendChild(this.textLogContainer);
 
     // Create toggle buttons (replace existing debug button)
+    this.hamburgerButton = this.createHamburgerButton();
     this.visualDebugButton = this.createVisualDebugButton();
     this.textLogButton = this.createTextLogButton();
     this.respawnButton = this.createRespawnButton();
+    document.body.appendChild(this.hamburgerButton);
     document.body.appendChild(this.visualDebugButton);
     document.body.appendChild(this.textLogButton);
     document.body.appendChild(this.respawnButton);
@@ -61,6 +65,39 @@ export class DebugConsole {
     this.loadVersionInfo();
   }
 
+  private createHamburgerButton(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.id = 'hamburger-button';
+    button.title = 'Toggle debug menu';
+    button.textContent = '☰';
+    button.style.cssText = `
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
+      left: calc(env(safe-area-inset-left, 10px) + 10px);
+      background: rgba(66, 66, 66, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10002;
+      pointer-events: auto;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      -webkit-tap-highlight-color: rgba(66, 66, 66, 0.3);
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: transform 0.3s ease, background 0.2s ease;
+    `;
+    button.addEventListener('click', () => this.toggleMenu());
+    return button;
+  }
+
   private createVisualDebugButton(): HTMLButtonElement {
     const button = document.createElement('button');
     button.id = 'visual-debug-button';
@@ -68,8 +105,8 @@ export class DebugConsole {
     button.textContent = '👁️';
     button.style.cssText = `
       position: fixed;
-      bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
-      left: calc(env(safe-area-inset-left, 10px) + 70px);
+      bottom: calc(env(safe-area-inset-bottom, 10px) + 70px);
+      left: calc(env(safe-area-inset-left, 10px) + 10px);
       background: rgba(33, 150, 243, 0.95);
       backdrop-filter: blur(10px);
       border-radius: 50%;
@@ -82,12 +119,15 @@ export class DebugConsole {
       align-items: center;
       justify-content: center;
       z-index: 10001;
-      pointer-events: auto;
+      pointer-events: none;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
       -webkit-tap-highlight-color: rgba(33, 150, 243, 0.3);
       touch-action: manipulation;
       user-select: none;
       -webkit-user-select: none;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
     `;
     button.addEventListener('click', () => this.toggleVisualDebug());
     return button;
@@ -100,8 +140,8 @@ export class DebugConsole {
     button.textContent = '📝';
     button.style.cssText = `
       position: fixed;
-      bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
-      left: calc(env(safe-area-inset-left, 10px) + 130px);
+      bottom: calc(env(safe-area-inset-bottom, 10px) + 130px);
+      left: calc(env(safe-area-inset-left, 10px) + 10px);
       background: rgba(255, 152, 0, 0.95);
       backdrop-filter: blur(10px);
       border-radius: 50%;
@@ -114,12 +154,15 @@ export class DebugConsole {
       align-items: center;
       justify-content: center;
       z-index: 10001;
-      pointer-events: auto;
+      pointer-events: none;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
       -webkit-tap-highlight-color: rgba(255, 152, 0, 0.3);
       touch-action: manipulation;
       user-select: none;
       -webkit-user-select: none;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.3s ease 0.05s, transform 0.3s ease 0.05s;
     `;
     button.addEventListener('click', () => this.toggleTextLog());
     return button;
@@ -132,8 +175,8 @@ export class DebugConsole {
     button.textContent = '🔄';
     button.style.cssText = `
       position: fixed;
-      bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
-      left: calc(env(safe-area-inset-left, 10px) + 190px);
+      bottom: calc(env(safe-area-inset-bottom, 10px) + 190px);
+      left: calc(env(safe-area-inset-left, 10px) + 10px);
       background: rgba(156, 39, 176, 0.95);
       backdrop-filter: blur(10px);
       border-radius: 50%;
@@ -146,12 +189,15 @@ export class DebugConsole {
       align-items: center;
       justify-content: center;
       z-index: 10001;
-      pointer-events: auto;
+      pointer-events: none;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
       -webkit-tap-highlight-color: rgba(156, 39, 176, 0.3);
       touch-action: manipulation;
       user-select: none;
       -webkit-user-select: none;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s;
     `;
     button.addEventListener('click', () => {
       if (this.onRespawn) {
@@ -893,6 +939,44 @@ export class DebugConsole {
     const epsilonPostReduction = document.getElementById('epsilon-post-reduction');
     if (epsilonPostReduction) {
       epsilonPostReduction.textContent = postSimplificationReduction > 0 ? `(-${postSimplificationReduction.toFixed(1)}%)` : '';
+    }
+  }
+
+  private toggleMenu(): void {
+    this.isMenuExpanded = !this.isMenuExpanded;
+
+    if (this.isMenuExpanded) {
+      // Show buttons - fade in and slide up
+      this.visualDebugButton.style.opacity = '1';
+      this.visualDebugButton.style.transform = 'translateY(0)';
+      this.visualDebugButton.style.pointerEvents = 'auto';
+
+      this.textLogButton.style.opacity = '1';
+      this.textLogButton.style.transform = 'translateY(0)';
+      this.textLogButton.style.pointerEvents = 'auto';
+
+      this.respawnButton.style.opacity = '1';
+      this.respawnButton.style.transform = 'translateY(0)';
+      this.respawnButton.style.pointerEvents = 'auto';
+
+      // Rotate hamburger icon
+      this.hamburgerButton.style.transform = 'rotate(90deg)';
+    } else {
+      // Hide buttons - fade out and slide down
+      this.visualDebugButton.style.opacity = '0';
+      this.visualDebugButton.style.transform = 'translateY(20px)';
+      this.visualDebugButton.style.pointerEvents = 'none';
+
+      this.textLogButton.style.opacity = '0';
+      this.textLogButton.style.transform = 'translateY(20px)';
+      this.textLogButton.style.pointerEvents = 'none';
+
+      this.respawnButton.style.opacity = '0';
+      this.respawnButton.style.transform = 'translateY(20px)';
+      this.respawnButton.style.pointerEvents = 'none';
+
+      // Reset hamburger icon rotation
+      this.hamburgerButton.style.transform = 'rotate(0deg)';
     }
   }
 }

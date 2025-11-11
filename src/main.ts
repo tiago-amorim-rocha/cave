@@ -83,7 +83,9 @@ class CarvableCaves {
       this.camera = new Camera(
         worldConfig.width / 2,
         worldConfig.height / 2,
-        30 // initial PPM (pixels per metre) - zoomed out for wider view
+        30, // initial PPM (pixels per metre) - zoomed out for wider view
+        worldConfig.width,
+        worldConfig.height
       );
 
       // Initialize density field
@@ -386,6 +388,10 @@ class CarvableCaves {
         params.worldHeight !== this.densityField.config.height) {
       console.log(`[Main] Resizing world from ${this.densityField.config.width}×${this.densityField.config.height} to ${params.worldWidth}×${params.worldHeight}`);
       this.densityField.resize(params.worldWidth, params.worldHeight);
+
+      // Update camera bounds
+      this.camera.worldWidth = params.worldWidth;
+      this.camera.worldHeight = params.worldHeight;
     }
 
     // Generate new caves with Perlin noise
