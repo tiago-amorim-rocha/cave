@@ -72,8 +72,8 @@ class CarvableCaves {
     try {
       // World configuration
       const worldConfig: WorldConfig = {
-        width: 256, // metres
-        height: 256, // metres
+        width: 128, // metres
+        height: 128, // metres
         gridPitch: 0.25, // metres (h)
         isoValue: 128
       };
