@@ -65,7 +65,7 @@ export class CaveGeneratorUI {
       border: 2px solid rgba(255, 255, 255, 0.3);
       cursor: pointer;
       font-size: 20px;
-      display: flex;
+      display: none;
       align-items: center;
       justify-content: center;
       z-index: 10001;
