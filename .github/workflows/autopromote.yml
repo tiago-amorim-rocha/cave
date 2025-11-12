@@ -9,6 +9,11 @@ on:
 permissions:
   contents: write
 
+# Prevent concurrent autopromote workflows from causing merge conflicts
+concurrency:
+  group: autopromote-main
+  cancel-in-progress: false
+
 jobs:
   promote:
     runs-on: ubuntu-latest
@@ -26,7 +31,28 @@ jobs:
         env:
           BRANCH: ${{ github.ref_name }}
         run: |
+          # Fetch latest main
           git fetch origin main
           git checkout main
+
+          # Pull latest changes in case another workflow just updated main
+          git pull origin main --ff-only || git pull origin main --rebase
+
+          # Merge the feature branch
           git merge --no-ff "$BRANCH" -m "auto: promote $BRANCH into main"
-          git push origin main
+
+          # Push with retry logic (in case of concurrent pushes)
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          until git push origin main; do
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+              echo "Failed to push after $MAX_RETRIES attempts"
+              exit 1
+            fi
+            echo "Push failed, retrying in 5 seconds (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+            sleep 5
+            git pull origin main --rebase
+          done
+
+          echo "Successfully merged and pushed $BRANCH to main"

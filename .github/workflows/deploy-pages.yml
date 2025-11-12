@@ -4,6 +4,13 @@ on:
   workflow_run:
     workflows: ["Auto-promote to main"]
     types: [completed]
+    branches: [main]
+  # Fallback: also trigger on direct pushes to main (for manual fixes)
+  push:
+    branches:
+      - main
+  # Allow manual triggering
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,9 +24,22 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Only deploy if autopromote succeeded (or if triggered by push/workflow_dispatch)
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Checkout
+      - name: Checkout main branch
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Verify we're on main and show latest commit
+        run: |
+          git branch --show-current
+          echo "Latest commit on main:"
+          git log -1 --oneline
+          echo "Commit details:"
+          git log -1 --format=fuller
 
       - name: Setup Node
         uses: actions/setup-node@v4
