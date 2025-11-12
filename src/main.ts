@@ -72,8 +72,8 @@ class CarvableCaves {
     try {
       // World configuration
       const worldConfig: WorldConfig = {
-        width: 512, // metres
-        height: 512, // metres
+        width: 256, // metres
+        height: 256, // metres
         gridPitch: 0.25, // metres (h)
         isoValue: 128
       };
@@ -210,10 +210,20 @@ class CarvableCaves {
       this.preferredSpawnY,
       this.playerRadius
     );
-    console.log(`[Player] Spawning at validated position (${spawnPos.x.toFixed(1)}, ${spawnPos.y.toFixed(1)})`);
+
+    let actualSpawnX = this.preferredSpawnX;
+    let actualSpawnY = this.preferredSpawnY;
+
+    if (spawnPos) {
+      actualSpawnX = spawnPos.x;
+      actualSpawnY = spawnPos.y;
+      console.log(`[Player] Spawning at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
+    } else {
+      console.warn(`[Player] No valid position found, spawning at preferred position (may be inside rock)`);
+    }
 
     // Create player after physics world is ready
-    this.player = new RapierPlayer(this.physics, spawnPos.x, spawnPos.y);
+    this.player = new RapierPlayer(this.physics, actualSpawnX, actualSpawnY);
     this.player.setJoystick(this.joystick); // Connect joystick to player
 
     // Start render loop
@@ -221,52 +231,60 @@ class CarvableCaves {
   }
 
   /**
-   * Find a valid spawn position in an empty area
+   * Find a valid spawn position in an empty area by searching the density field directly
    * @param preferredX - Preferred X position
    * @param preferredY - Preferred Y position
    * @param entityRadius - Radius of entity to spawn (for collision checking)
-   * @param maxAttempts - Maximum number of attempts to find a valid position
-   * @returns Valid spawn position or throws error if none found
+   * @returns Valid spawn position or null if none found
    */
   private findValidSpawnPosition(
     preferredX: number,
     preferredY: number,
-    entityRadius: number,
-    maxAttempts: number = 100
-  ): { x: number; y: number } {
-    const margin = 2; // Stay 2m away from edges
-    const worldWidth = this.densityField.config.width;
-    const worldHeight = this.densityField.config.height;
-
+    entityRadius: number
+  ): { x: number; y: number } | null {
     // Try preferred position first
     if (this.isValidSpawnPosition(preferredX, preferredY, entityRadius)) {
       return { x: preferredX, y: preferredY };
     }
 
-    // Try random positions within a radius around preferred position
-    const searchRadius = Math.min(worldWidth, worldHeight) * 0.25; // Search within 25% of world size
-    for (let i = 0; i < maxAttempts; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const distance = Math.random() * searchRadius;
-      const x = preferredX + Math.cos(angle) * distance;
-      const y = preferredY + Math.sin(angle) * distance;
+    // Search the density field in a spiral pattern outward from preferred position
+    const gridPitch = this.densityField.config.gridPitch;
+    const { gridX: centerGridX, gridY: centerGridY } = this.densityField.worldToGrid(preferredX, preferredY);
 
-      // Ensure within bounds (with margin)
-      if (x < margin || x > worldWidth - margin || y < margin || y > worldHeight - margin) {
-        continue;
-      }
+    const maxRadius = Math.max(this.densityField.gridWidth, this.densityField.gridHeight);
 
-      if (this.isValidSpawnPosition(x, y, entityRadius)) {
-        console.log(`[Spawn] Found valid position after ${i + 1} attempts at (${x.toFixed(1)}, ${y.toFixed(1)})`);
-        return { x, y };
+    // Spiral search: check positions at increasing distances from center
+    for (let radius = 1; radius < maxRadius; radius++) {
+      // Check positions in a square ring at this radius
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dy = -radius; dy <= radius; dy++) {
+          // Only check perimeter of square (not interior)
+          if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) {
+            continue;
+          }
+
+          const gridX = centerGridX + dx;
+          const gridY = centerGridY + dy;
+
+          // Convert back to world coordinates
+          const { worldX, worldY } = this.densityField.gridToWorld(gridX, gridY);
+
+          // Check if this position is valid
+          if (this.isValidSpawnPosition(worldX, worldY, entityRadius)) {
+            const distance = Math.sqrt(
+              (worldX - preferredX) ** 2 +
+              (worldY - preferredY) ** 2
+            );
+            console.log(`[Spawn] Found valid position ${distance.toFixed(1)}m away at (${worldX.toFixed(1)}, ${worldY.toFixed(1)})`);
+            return { x: worldX, y: worldY };
+          }
+        }
       }
     }
 
-    // If still no valid position, throw error
-    throw new Error(
-      `Failed to find valid spawn position after ${maxAttempts} attempts near (${preferredX.toFixed(1)}, ${preferredY.toFixed(1)}). ` +
-      `Entity would spawn inside rock.`
-    );
+    // No valid position found in entire world
+    console.error('[Spawn] No valid spawn position found in entire world');
+    return null;
   }
 
   /**
@@ -310,15 +328,15 @@ class CarvableCaves {
     const preferredX = margin + Math.random() * (worldWidth - 2 * margin);
     const preferredY = margin + Math.random() * (worldHeight - 2 * margin);
 
-    try {
-      const spawnPos = this.findValidSpawnPosition(preferredX, preferredY, radius);
+    const spawnPos = this.findValidSpawnPosition(preferredX, preferredY, radius);
+
+    if (spawnPos) {
       const ball = this.physics.createBall(spawnPos.x, spawnPos.y, radius);
       this.ballBodies.push(ball);
       console.log(`[Ball] Spawned at validated position (${spawnPos.x.toFixed(1)}, ${spawnPos.y.toFixed(1)})`);
-    } catch (error) {
-      console.error('[Ball] Failed to spawn ball:', error);
+    } else {
+      console.warn('[Ball] Failed to spawn ball: no valid position found (world may be too full of rock)');
       // Don't spawn the ball if no valid position is found
-      throw error;
     }
   }
 
@@ -520,24 +538,26 @@ class CarvableCaves {
     const preferredX = params.worldWidth / 2;
     const preferredY = params.worldHeight / 2;
 
-    try {
-      const spawnPos = this.findValidSpawnPosition(preferredX, preferredY, this.playerRadius);
-      if (this.player) {
-        this.player.respawn(spawnPos.x, spawnPos.y);
-        console.log(`[Regenerate] Player respawned at validated position (${spawnPos.x.toFixed(1)}, ${spawnPos.y.toFixed(1)})`);
-      }
-      // Center camera on spawn
-      this.camera.x = spawnPos.x;
-      this.camera.y = spawnPos.y;
-    } catch (error) {
-      console.error('[Regenerate] Failed to find valid spawn position:', error);
-      // Fallback: spawn at preferred position anyway (will be inside rock)
-      if (this.player) {
-        this.player.respawn(preferredX, preferredY);
-      }
-      this.camera.x = preferredX;
-      this.camera.y = preferredY;
+    const spawnPos = this.findValidSpawnPosition(preferredX, preferredY, this.playerRadius);
+
+    let actualSpawnX = preferredX;
+    let actualSpawnY = preferredY;
+
+    if (spawnPos) {
+      actualSpawnX = spawnPos.x;
+      actualSpawnY = spawnPos.y;
+      console.log(`[Regenerate] Player respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
+    } else {
+      console.warn('[Regenerate] No valid spawn position found, using preferred position (may be inside rock)');
     }
+
+    if (this.player) {
+      this.player.respawn(actualSpawnX, actualSpawnY);
+    }
+
+    // Center camera on spawn
+    this.camera.x = actualSpawnX;
+    this.camera.y = actualSpawnY;
   }
 
   /**
@@ -559,16 +579,20 @@ class CarvableCaves {
    */
   respawnPlayer(): void {
     if (this.player) {
-      try {
-        const spawnPos = this.findValidSpawnPosition(this.camera.x, this.camera.y, this.playerRadius);
-        this.player.respawn(spawnPos.x, spawnPos.y);
-        console.log(`[Respawn] Player respawned at validated position (${spawnPos.x.toFixed(1)}, ${spawnPos.y.toFixed(1)})`);
-      } catch (error) {
-        console.error('[Respawn] Failed to find valid spawn position:', error);
-        // Fallback: spawn at camera center anyway (will be inside rock)
-        this.player.respawn(this.camera.x, this.camera.y);
-        console.log(`[Respawn] Player respawned at camera center (${this.camera.x.toFixed(1)}, ${this.camera.y.toFixed(1)}) - may be inside rock`);
+      const spawnPos = this.findValidSpawnPosition(this.camera.x, this.camera.y, this.playerRadius);
+
+      let actualSpawnX = this.camera.x;
+      let actualSpawnY = this.camera.y;
+
+      if (spawnPos) {
+        actualSpawnX = spawnPos.x;
+        actualSpawnY = spawnPos.y;
+        console.log(`[Respawn] Player respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
+      } else {
+        console.warn(`[Respawn] No valid spawn position found near camera, using camera center (may be inside rock)`);
       }
+
+      this.player.respawn(actualSpawnX, actualSpawnY);
     }
   }
 }
