@@ -30,10 +30,10 @@ export class CaveGeneratorUI {
   public onGenerate?: (params: PerlinCaveParams) => void;
 
   constructor() {
-    // Initialize with defaults
+    // Initialize with defaults (must match main.ts worldConfig)
     this.params = {
-      worldWidth: 50,
-      worldHeight: 30,
+      worldWidth: 256,
+      worldHeight: 256,
       seed: Date.now(),
       scale: 0.05,
       octaves: 4,
@@ -151,8 +151,8 @@ export class CaveGeneratorUI {
 
     // Add parameter sections
     content.appendChild(this.createSection('World Size', [
-      this.createSimpleSlider('Width (m)', 'worldWidth', 30, 200, 10),
-      this.createSimpleSlider('Height (m)', 'worldHeight', 20, 120, 10),
+      this.createSimpleSlider('Width (m)', 'worldWidth', 30, 512, 16),
+      this.createSimpleSlider('Height (m)', 'worldHeight', 20, 512, 16),
     ]));
 
     content.appendChild(this.createSection('Perlin Noise', [
