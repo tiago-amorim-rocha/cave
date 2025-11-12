@@ -465,4 +465,57 @@ export class DensityField {
     this.expandDirtyAABB(minGridX, chamberMinY, maxGridX, floorMaxY);
     console.log(`[DensityField] Created spawn chamber at (${worldX.toFixed(1)}, ${worldY.toFixed(1)}) - ${width}m × ${height}m cave with ${floorThickness}m floor below`);
   }
+
+  /**
+   * Check if a world position is in an empty area (cave)
+   * @param worldX - X position in world coordinates
+   * @param worldY - Y position in world coordinates
+   * @returns true if empty (density < isoValue), false if rock (density >= isoValue)
+   */
+  isEmptyArea(worldX: number, worldY: number): boolean {
+    const { gridX, gridY } = this.worldToGrid(worldX, worldY);
+
+    // Out of bounds is considered rock
+    if (gridX < 0 || gridX >= this.gridWidth || gridY < 0 || gridY >= this.gridHeight) {
+      return false;
+    }
+
+    const density = this.get(gridX, gridY);
+    return density < this.config.isoValue;
+  }
+
+  /**
+   * Get density at world coordinates (with bilinear interpolation for sub-grid accuracy)
+   * @param worldX - X position in world coordinates
+   * @param worldY - Y position in world coordinates
+   * @returns interpolated density value (0-255)
+   */
+  getDensityAtWorld(worldX: number, worldY: number): number {
+    // Convert to grid coordinates (fractional)
+    const gridX = worldX / this.config.gridPitch;
+    const gridY = worldY / this.config.gridPitch;
+
+    // Get integer grid coordinates
+    const gx0 = Math.floor(gridX);
+    const gy0 = Math.floor(gridY);
+    const gx1 = gx0 + 1;
+    const gy1 = gy0 + 1;
+
+    // Get fractional parts
+    const fx = gridX - gx0;
+    const fy = gridY - gy0;
+
+    // Get corner densities (treat out of bounds as rock = 255)
+    const d00 = this.get(gx0, gy0);
+    const d10 = gx1 < this.gridWidth ? this.get(gx1, gy0) : 255;
+    const d01 = gy1 < this.gridHeight ? this.get(gx0, gy1) : 255;
+    const d11 = (gx1 < this.gridWidth && gy1 < this.gridHeight) ? this.get(gx1, gy1) : 255;
+
+    // Bilinear interpolation
+    const d0 = d00 * (1 - fx) + d10 * fx;
+    const d1 = d01 * (1 - fx) + d11 * fx;
+    const density = d0 * (1 - fy) + d1 * fy;
+
+    return density;
+  }
 }

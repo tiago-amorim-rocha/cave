@@ -272,26 +272,26 @@ export class Renderer {
 
     this.ctx.save();
 
-    // Fill rock (inside contours) - TEMPORARILY DISABLED
+    // Fill rock (inside contours) with dark brown
     // Use 'evenodd' fill rule to handle nested contours (rock islands within caves)
-    // this.ctx.fillStyle = '#8b7355';
-    // this.ctx.beginPath();
+    this.ctx.fillStyle = '#8b7355';
+    this.ctx.beginPath();
 
-    // for (const polyline of this.polylines) {
-    //   if (polyline.length < 2) continue;
+    for (const polyline of this.polylines) {
+      if (polyline.length < 2) continue;
 
-    //   const firstScreen = this.camera.worldToScreen(polyline[0].x, polyline[0].y, canvasWidth, canvasHeight);
-    //   this.ctx.moveTo(firstScreen.x, firstScreen.y);
+      const firstScreen = this.camera.worldToScreen(polyline[0].x, polyline[0].y, canvasWidth, canvasHeight);
+      this.ctx.moveTo(firstScreen.x, firstScreen.y);
 
-    //   for (let i = 1; i < polyline.length; i++) {
-    //     const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
-    //     this.ctx.lineTo(screen.x, screen.y);
-    //   }
+      for (let i = 1; i < polyline.length; i++) {
+        const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(screen.x, screen.y);
+      }
 
-    //   this.ctx.closePath();
-    // }
+      this.ctx.closePath();
+    }
 
-    // this.ctx.fill('evenodd');
+    this.ctx.fill('evenodd');
 
     // Stroke outlines
     this.ctx.strokeStyle = '#4a3f35';
