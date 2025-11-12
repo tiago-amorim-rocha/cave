@@ -118,8 +118,8 @@ export class Renderer {
       const width = this.canvas.width / dpr;
       const height = this.canvas.height / dpr;
 
-      // Clear canvas
-      this.ctx.fillStyle = '#1a1a1a';
+      // Clear canvas - empty cave space (muted green)
+      this.ctx.fillStyle = '#597648';
       this.ctx.fillRect(0, 0, width, height);
 
       // Draw density field (optional, for debugging)
@@ -187,8 +187,8 @@ export class Renderer {
 
     this.ctx.save();
 
-    // Draw player body as capsule (two circles + rectangle)
-    this.ctx.fillStyle = '#4a9eff';
+    // Draw player body as capsule (two circles + rectangle) - teal color
+    this.ctx.fillStyle = '#538d89';
 
     // Top circle
     this.ctx.beginPath();
@@ -208,8 +208,8 @@ export class Renderer {
       screenHalfHeight * 2
     );
 
-    // Draw outline
-    this.ctx.strokeStyle = '#2e5f99';
+    // Draw outline (darker shade)
+    this.ctx.strokeStyle = '#3d6a67';
     this.ctx.lineWidth = 2;
 
     // Left edge
@@ -247,14 +247,14 @@ export class Renderer {
       const screen = this.camera.worldToScreen(ball.position.x, ball.position.y, canvasWidth, canvasHeight);
       const screenRadius = ball.circleRadius * this.camera.zoom;
 
-      // Draw ball body (orange/yellow)
-      this.ctx.fillStyle = '#ff9800';
+      // Draw ball body (blue-gray from palette)
+      this.ctx.fillStyle = '#49727e';
       this.ctx.beginPath();
       this.ctx.arc(screen.x, screen.y, screenRadius, 0, Math.PI * 2);
       this.ctx.fill();
 
-      // Draw ball outline
-      this.ctx.strokeStyle = '#e65100';
+      // Draw ball outline (darker shade)
+      this.ctx.strokeStyle = '#35555e';
       this.ctx.lineWidth = 1;
       this.ctx.stroke();
     }
@@ -272,9 +272,9 @@ export class Renderer {
 
     this.ctx.save();
 
-    // Fill rock (inside contours) with dark brown
+    // Fill rock (inside contours) with very dark blue
     // Use 'evenodd' fill rule to handle nested contours (rock islands within caves)
-    this.ctx.fillStyle = '#8b7355';
+    this.ctx.fillStyle = '#353b65';
     this.ctx.beginPath();
 
     for (const polyline of this.polylines) {
@@ -293,8 +293,8 @@ export class Renderer {
 
     this.ctx.fill('evenodd');
 
-    // Stroke outlines
-    this.ctx.strokeStyle = '#4a3f35';
+    // Stroke outlines (darker blue for definition)
+    this.ctx.strokeStyle = '#4f5d7a';
     this.ctx.lineWidth = 2;
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
