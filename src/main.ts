@@ -614,10 +614,15 @@ try {
 
 // Wire up debug console toggle callbacks to renderer (will be set after app is created)
 let appRenderer: Renderer | null = null;
+let appPhysics: any = null;
 
 debugConsole.onTogglePhysicsMesh = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showPhysicsBodies = enabled;
+  }
+  // IMPORTANT: Also enable debug in physics engine (needed for debugDraw to work)
+  if (appPhysics) {
+    appPhysics.setDebugEnabled(enabled);
   }
 };
 
@@ -708,8 +713,14 @@ caveGeneratorUI.onGenerate = (params) => {
 let app: CarvableCaves;
 try {
   app = new CarvableCaves();
-  // Expose renderer to debug console callbacks
+  // Expose renderer and physics to debug console callbacks
   appRenderer = (app as any).renderer;
+  appPhysics = (app as any).physics;
+
+  // Enable physics debug by default (since showPhysicsBodies defaults to true)
+  if (appPhysics && appRenderer?.showPhysicsBodies) {
+    appPhysics.setDebugEnabled(true);
+  }
 } catch (error) {
   console.error('Fatal error during initialization:', error);
   debugConsole.showTextLog();
