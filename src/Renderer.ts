@@ -25,7 +25,7 @@ export class Renderer {
   public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
-  public showPhysicsBodies: boolean = false;
+  public showPhysicsBodies: boolean = true; // Default ON for physics debugging
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
