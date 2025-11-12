@@ -681,6 +681,12 @@ debugConsole.onRespawn = () => {
   }
 };
 
+debugConsole.onToggleCaveGen = () => {
+  if (caveGeneratorUI) {
+    caveGeneratorUI.toggle();
+  }
+};
+
 // Initialize cave generator UI (hidden by default)
 let caveGeneratorUI: CaveGeneratorUI;
 try {
