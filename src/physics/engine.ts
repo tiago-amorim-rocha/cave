@@ -85,6 +85,9 @@ export class RapierEngine implements PhysicsEngine {
   // Track sensor contacts for ground detection
   private sensorContacts = new Map<number, number>(); // sensor handle -> contact count
 
+  // Track collider contacts for debug visualization
+  private colliderContacts = new Map<number, number>(); // collider handle -> contact count
+
   /**
    * Initialize Rapier and create the physics world
    * Must be called before using the engine
@@ -129,29 +132,44 @@ export class RapierEngine implements PhysicsEngine {
   /**
    * Update sensor contact counts by checking intersections
    * Uses intersectionPairsWith for spatial overlap detection
+   * Also tracks regular collider contacts for debug visualization
    */
   private updateSensorContacts(): void {
     if (!this.world) return;
 
-    // Reset all sensor contact counts
+    // Reset all contact counts
     this.sensorContacts.clear();
+    this.colliderContacts.clear();
 
-    // Iterate through all colliders and check sensors
+    // Iterate through all colliders
     this.world.forEachCollider((collider: RAPIER.Collider) => {
-      if (!collider.isSensor()) return;
+      // For sensors, use intersectionPairsWith
+      if (collider.isSensor()) {
+        let contactCount = 0;
+        this.world!.intersectionPairsWith(collider, (otherCollider: RAPIER.Collider) => {
+          // Ignore contacts with other sensors or same body
+          if (!otherCollider.isSensor() && otherCollider.parent() !== collider.parent()) {
+            contactCount++;
+          }
+        });
 
-      // Check if this sensor has contacts with anything
-      // Use intersectionPairsWith instead of contactPairsWith for sensors
-      let contactCount = 0;
-      this.world!.intersectionPairsWith(collider, (otherCollider: RAPIER.Collider) => {
-        // Ignore contacts with other sensors or same body
-        if (!otherCollider.isSensor() && otherCollider.parent() !== collider.parent()) {
-          contactCount++;
+        if (contactCount > 0) {
+          this.sensorContacts.set(collider.handle, contactCount);
         }
-      });
+      }
+      // For regular colliders on dynamic bodies, check contact pairs
+      else if (collider.parent()?.isDynamic()) {
+        let contactCount = 0;
+        this.world!.contactPairsWith(collider, (otherCollider: RAPIER.Collider) => {
+          // Count contacts with terrain (static bodies)
+          if (otherCollider.parent() === null || otherCollider.parent()!.isFixed()) {
+            contactCount++;
+          }
+        });
 
-      if (contactCount > 0) {
-        this.sensorContacts.set(collider.handle, contactCount);
+        if (contactCount > 0) {
+          this.colliderContacts.set(collider.handle, contactCount);
+        }
       }
     });
   }
@@ -174,10 +192,28 @@ export class RapierEngine implements PhysicsEngine {
     this.debugSegments = [];
 
     let totalSegments = 0;
+    let nonClosedLoops = 0;
+    let closedLoops = 0;
 
     // Build polyline colliders for each loop
     for (const loop of loops) {
       if (loop.length < 2) continue;
+
+      // Check if loop is properly closed
+      const firstPoint = loop[0];
+      const lastPoint = loop[loop.length - 1];
+      const distance = Math.sqrt(
+        Math.pow(lastPoint.x - firstPoint.x, 2) +
+        Math.pow(lastPoint.y - firstPoint.y, 2)
+      );
+      const isClosed = distance < 0.01; // Within 1cm tolerance
+
+      if (!isClosed) {
+        nonClosedLoops++;
+        console.warn(`[RapierEngine] Non-closed loop detected! First: (${firstPoint.x.toFixed(3)}, ${firstPoint.y.toFixed(3)}), Last: (${lastPoint.x.toFixed(3)}, ${lastPoint.y.toFixed(3)}), Distance: ${distance.toFixed(4)}m`);
+      } else {
+        closedLoops++;
+      }
 
       // Convert loop to Float32Array of vertices [x0, y0, x1, y1, ...]
       const vertices = new Float32Array(loop.length * 2);
@@ -205,6 +241,10 @@ export class RapierEngine implements PhysicsEngine {
     }
 
     console.log(`[RapierEngine] Created ${this.terrainColliders.length} polyline colliders (${totalSegments} segments) from ${loops.length} loops`);
+    console.log(`[RapierEngine] Loop closure stats: ${closedLoops} closed, ${nonClosedLoops} non-closed`);
+    if (nonClosedLoops > 0) {
+      console.warn(`[RapierEngine] ⚠️ ${nonClosedLoops} non-closed loops detected! This may cause wall sticking issues.`);
+    }
   }
 
   /**
@@ -388,19 +428,40 @@ export class RapierEngine implements PhysicsEngine {
             ctx.translate(screenPos.x, screenPos.y);
             ctx.rotate(rotation);
 
-            // Draw capsule as two circles connected by lines
+            // Check if collider is in contact with terrain
+            const isColliding = this.colliderContacts.has(collider.handle);
+            const friction = collider.friction();
+
+            // Change color based on collision state
+            if (isColliding) {
+              ctx.strokeStyle = '#ff0000'; // Red when colliding
+              ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'; // Red fill
+              ctx.lineWidth = 4; // Thicker line when colliding
+            } else {
+              ctx.strokeStyle = '#00ffff'; // Cyan when not colliding
+              ctx.fillStyle = 'rgba(0, 255, 255, 0.1)'; // Cyan fill
+              ctx.lineWidth = 3;
+            }
+
+            // Draw filled capsule
             ctx.beginPath();
             // Top circle
-            ctx.arc(0, -screenHalfHeight, screenRadius, 0, Math.PI * 2);
-            ctx.moveTo(screenRadius, -screenHalfHeight);
+            ctx.arc(0, -screenHalfHeight, screenRadius, Math.PI, 0);
             // Right line
             ctx.lineTo(screenRadius, screenHalfHeight);
             // Bottom circle
-            ctx.arc(0, screenHalfHeight, screenRadius, 0, Math.PI * 2);
-            ctx.moveTo(-screenRadius, screenHalfHeight);
+            ctx.arc(0, screenHalfHeight, screenRadius, 0, Math.PI);
             // Left line
             ctx.lineTo(-screenRadius, -screenHalfHeight);
+            ctx.closePath();
+            ctx.fill();
             ctx.stroke();
+
+            // Draw friction label
+            ctx.fillStyle = isColliding ? '#ff0000' : '#ffffff';
+            ctx.font = '12px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(`friction: ${friction.toFixed(2)}`, 0, screenHalfHeight + screenRadius + 15);
 
             ctx.restore();
           }
@@ -420,14 +481,32 @@ export class RapierEngine implements PhysicsEngine {
             // Different color for sensors
             if (collider.isSensor()) {
               const isActive = this.isSensorActive(collider);
-              ctx.strokeStyle = isActive ? 'lime' : 'yellow';
-              ctx.fillStyle = isActive ? 'rgba(0, 255, 0, 0.2)' : 'rgba(255, 255, 0, 0.1)';
+              const contactCount = this.sensorContacts.get(collider.handle) || 0;
+
+              // Enhanced visual feedback for ground sensor
+              if (isActive) {
+                ctx.strokeStyle = '#00ff00'; // Bright green when touching ground
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.4)'; // More opaque green fill
+                ctx.lineWidth = 4; // Thicker line when active
+              } else {
+                ctx.strokeStyle = '#ffff00'; // Yellow when not touching
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.2)'; // Transparent yellow fill
+                ctx.lineWidth = 2;
+              }
+
               ctx.fillRect(-screenHalfWidth, -screenHalfHeight, screenHalfWidth * 2, screenHalfHeight * 2);
+              ctx.strokeRect(-screenHalfWidth, -screenHalfHeight, screenHalfWidth * 2, screenHalfHeight * 2);
+
+              // Draw contact count label
+              ctx.fillStyle = isActive ? '#00ff00' : '#ffffff';
+              ctx.font = '10px monospace';
+              ctx.textAlign = 'center';
+              ctx.fillText(isActive ? `GROUND (${contactCount})` : 'SENSOR', 0, screenHalfHeight + 12);
             } else {
               ctx.strokeStyle = 'cyan';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(-screenHalfWidth, -screenHalfHeight, screenHalfWidth * 2, screenHalfHeight * 2);
             }
-
-            ctx.strokeRect(-screenHalfWidth, -screenHalfHeight, screenHalfWidth * 2, screenHalfHeight * 2);
 
             ctx.restore();
           }
