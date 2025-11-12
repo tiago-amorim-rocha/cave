@@ -95,7 +95,7 @@ export class RapierEngine implements PhysicsEngine {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    console.log('[RapierEngine] Initializing...');
+    console.log('[RapierEngine] Initializing with enhanced debug visualization...');
     await RAPIER.init();
 
     // Create world with gravity pointing down (Y-down coordinate system)
@@ -103,7 +103,7 @@ export class RapierEngine implements PhysicsEngine {
     this.world = new RAPIER.World({ x: 0.0, y: 10.0 });
 
     this.initialized = true;
-    console.log('[RapierEngine] Initialized with gravity (0, 10) m/s²');
+    console.log('[RapierEngine] Initialized with gravity (0, 10) m/s² - collision tracking active');
   }
 
   /**
