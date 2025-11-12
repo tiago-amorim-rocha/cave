@@ -38,8 +38,8 @@ export class VirtualJoystick {
 
   constructor(options: Partial<JoystickOptions> = {}) {
     this.options = {
-      x: options.x ?? 60,
-      y: options.y ?? window.innerHeight - 60,
+      x: options.x ?? 90,
+      y: options.y ?? window.innerHeight - 90,
       outerRadius: options.outerRadius ?? 72,
       innerRadius: options.innerRadius ?? 27,
       maxDisplacement: options.maxDisplacement ?? 45,
@@ -289,8 +289,8 @@ export class VirtualJoystick {
    * Update joystick position on window resize
    */
   handleResize(): void {
-    // Keep joystick in bottom-left corner with less padding
-    this.options.x = 60;
-    this.options.y = window.innerHeight - 60;
+    // Keep joystick in bottom-left corner with padding
+    this.options.x = 90;
+    this.options.y = window.innerHeight - 90;
   }
 }
