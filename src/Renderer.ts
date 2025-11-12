@@ -118,8 +118,8 @@ export class Renderer {
       const width = this.canvas.width / dpr;
       const height = this.canvas.height / dpr;
 
-      // Clear canvas - empty cave space (muted green)
-      this.ctx.fillStyle = '#597648';
+      // Clear canvas - rock background (very dark blue)
+      this.ctx.fillStyle = '#353b65';
       this.ctx.fillRect(0, 0, width, height);
 
       // Draw density field (optional, for debugging)
@@ -272,9 +272,9 @@ export class Renderer {
 
     this.ctx.save();
 
-    // Fill rock (inside contours) with very dark blue
-    // Use 'evenodd' fill rule to handle nested contours (rock islands within caves)
-    this.ctx.fillStyle = '#353b65';
+    // Fill empty cave space (inside contours) with muted green (lighter)
+    // Use 'evenodd' fill rule to handle nested contours
+    this.ctx.fillStyle = '#597648';
     this.ctx.beginPath();
 
     for (const polyline of this.polylines) {
@@ -293,7 +293,7 @@ export class Renderer {
 
     this.ctx.fill('evenodd');
 
-    // Stroke outlines (darker blue for definition)
+    // Stroke outlines (medium blue-green for definition)
     this.ctx.strokeStyle = '#4f5d7a';
     this.ctx.lineWidth = 2;
     this.ctx.lineCap = 'round';
