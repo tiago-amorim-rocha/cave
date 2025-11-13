@@ -298,7 +298,11 @@ export class RapierEngine implements PhysicsEngine {
 
     const bodyCollider = this.world.createCollider(colliderDesc, rigidBody);
 
-    console.log(`[RapierEngine] Created BALL player at (${x.toFixed(2)}, ${y.toFixed(2)}) with radius ${radius}m - same physics as test balls!`);
+    const mass = rigidBody.mass();
+    console.log(`[RapierEngine] Created BALL player at (${x.toFixed(2)}, ${y.toFixed(2)}) with radius ${radius}m, mass ${mass.toFixed(4)} kg`);
+    console.log(`[RapierEngine] Player properties: friction=${bodyCollider.friction()}, restitution=${bodyCollider.restitution()}, density=${bodyCollider.density()}`);
+    console.log(`[RapierEngine] Gravity scale: ${rigidBody.gravityScale()}, linearDamping: ${rigidBody.linearDamping()}, angularDamping: ${rigidBody.angularDamping()}`);
+    console.log(`[RapierEngine] Body type: ${rigidBody.isDynamic() ? 'dynamic' : 'not dynamic'}`);
 
     return {
       body: rigidBody,
