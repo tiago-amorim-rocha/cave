@@ -394,9 +394,10 @@ export class RapierEngine implements PhysicsEngine {
       ? (collider.shape as RAPIER.Ball).radius
       : 0.5;
 
-    // Cast rays from ABOVE the sensor (from body center) downward
-    // This ensures we hit the ground even if sensor is penetrating
-    const rayStartOffsetY = -1.0; // Start 1m above body center
+    // Cast rays from ABOVE the capsule downward
+    // Player capsule: halfHeight=0.4m, radius=0.6m → total height = 2.0m
+    // Top of capsule is at body.y - 1.0m, so start rays from above that
+    const rayStartOffsetY = -1.5; // Start 1.5m above body center (0.5m above capsule top)
     const rayOrigins = [
       { x: bodyPos.x, y: bodyPos.y + rayStartOffsetY }, // Center
       { x: bodyPos.x - sensorRadius * 0.7, y: bodyPos.y + rayStartOffsetY }, // Left
@@ -405,8 +406,8 @@ export class RapierEngine implements PhysicsEngine {
       { x: bodyPos.x + sensorRadius * 0.5, y: bodyPos.y + rayStartOffsetY }, // Right-mid
     ];
 
-    // Cast down far enough to reach ground from body center
-    const rayLength = 3.0; // Cast 3m downward - enough to reach ground from player center
+    // Cast down far enough to reach ground from above capsule
+    const rayLength = 4.0; // Cast 4m downward - enough to reach ground from above player
     const rayDir = { x: 0, y: 1 }; // Downward (Y-down coordinate system)
 
     const validNormals: Array<{ x: number; y: number }> = [];
@@ -434,9 +435,16 @@ export class RapierEngine implements PhysicsEngine {
 
       if (hit) {
         const hitCollider = hit.collider;
+        const hitParent = hitCollider.parent();
+        const isSameBody = hitParent === collider.parent();
+        const isHitSensor = hitCollider.isSensor();
 
         // Ignore hits with same body or sensors
-        if (hitCollider.parent() === collider.parent() || hitCollider.isSensor()) {
+        if (isSameBody || isHitSensor) {
+          // DEBUG: Log why we're ignoring this hit
+          if (Math.random() < 0.02) {
+            console.log(`[RapierEngine] Raycast hit ignored - sameBody: ${isSameBody}, sensor: ${isHitSensor}, toi: ${hit.timeOfImpact.toFixed(3)}m`);
+          }
           this.raycastDebugInfo.push(debugInfo);
           continue;
         }
@@ -455,6 +463,11 @@ export class RapierEngine implements PhysicsEngine {
         if (cos <= cosThreshold) {
           validNormals.push({ x: normal.x, y: normal.y });
           validPoints.push({ x: hitPoint.x, y: hitPoint.y });
+        } else {
+          // DEBUG: Log rejected normals
+          if (Math.random() < 0.02) {
+            console.log(`[RapierEngine] Normal rejected - cos: ${cos.toFixed(3)}, threshold: ${cosThreshold}, normal: (${normal.x.toFixed(2)}, ${normal.y.toFixed(2)})`);
+          }
         }
       }
 
