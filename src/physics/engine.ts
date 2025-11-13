@@ -266,7 +266,7 @@ export class RapierEngine implements PhysicsEngine {
     const colliderDesc = RAPIER.ColliderDesc.ball(radius)
       .setFriction(0.3)
       .setRestitution(0.3)
-      .setDensity(0.001);
+      .setDensity(1);
 
     this.world.createCollider(colliderDesc, rigidBody);
 
@@ -274,41 +274,48 @@ export class RapierEngine implements PhysicsEngine {
   }
 
   /**
-   * Create player as a ball - same physics as test balls!
+   * Create player with capsule shape and locked rotation
    */
   createPlayer(x: number, y: number): { body: RAPIER.RigidBody; colliders: PlayerColliders } {
     if (!this.world) {
       throw new Error('[RapierEngine] World not initialized!');
     }
 
-    const radius = 0.6; // Same size as before
+    const radius = 0.6;
+    const halfHeight = 0.6; // Total height = 2.4m (1.2m above + 1.2m below center)
 
-    // Create dynamic rigid body - EXACT same as test balls
+    // Create dynamic rigid body with locked rotation
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(x, y)
-      .setCcdEnabled(true); // Enable continuous collision detection
+      .setCcdEnabled(true) // Enable continuous collision detection
+      .lockRotations(); // Lock rotation to prevent capsule from tipping
 
     const rigidBody = this.world.createRigidBody(rbDesc);
 
-    // Create ball collider - EXACT same setup as test balls
-    const colliderDesc = RAPIER.ColliderDesc.ball(radius)
+    // Create capsule collider
+    const colliderDesc = RAPIER.ColliderDesc.capsule(halfHeight, radius)
       .setFriction(0.3)
       .setRestitution(0.3)
       .setDensity(1);
 
     const bodyCollider = this.world.createCollider(colliderDesc, rigidBody);
 
-    const mass = rigidBody.mass();
-    console.log(`[RapierEngine] Created BALL player at (${x.toFixed(2)}, ${y.toFixed(2)}) with radius ${radius}m, mass ${mass.toFixed(4)} kg`);
-    console.log(`[RapierEngine] Player properties: friction=${bodyCollider.friction()}, restitution=${bodyCollider.restitution()}, density=${bodyCollider.density()}`);
-    console.log(`[RapierEngine] Gravity scale: ${rigidBody.gravityScale()}, linearDamping: ${rigidBody.linearDamping()}, angularDamping: ${rigidBody.angularDamping()}`);
-    console.log(`[RapierEngine] Body type: ${rigidBody.isDynamic() ? 'dynamic' : 'not dynamic'}`);
+    // Create foot sensor for ground detection
+    const sensorHalfWidth = radius * 0.8;
+    const sensorHalfHeight = 0.1;
+    const sensorOffsetY = halfHeight + radius + sensorHalfHeight;
+
+    const sensorDesc = RAPIER.ColliderDesc.cuboid(sensorHalfWidth, sensorHalfHeight)
+      .setTranslation(0, sensorOffsetY)
+      .setSensor(true);
+
+    const footSensor = this.world.createCollider(sensorDesc, rigidBody);
 
     return {
       body: rigidBody,
       colliders: {
         body: bodyCollider,
-        footSensor: null,
+        footSensor: footSensor,
       },
     };
   }

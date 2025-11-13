@@ -76,7 +76,7 @@ export class CharacterControllerUI {
       'Drag (linearDamping)',
       'drag',
       0.0,  // min - allow zero drag!
-      10,   // max - lower max (high values make it very hard to move)
+      50,   // max - allow higher drag values for more control
       5,    // default
       0.1,  // step
       '',

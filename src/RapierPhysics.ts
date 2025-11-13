@@ -76,10 +76,13 @@ export class RapierPhysics {
   }
 
   /**
-   * Check if player is grounded (no foot sensor - always returns false)
+   * Check if player is grounded using foot sensor
    */
   isPlayerGrounded(): boolean {
-    return false; // No foot sensor, so we can't detect ground
+    if (!this.playerController || !this.playerController.colliders.footSensor) {
+      return false;
+    }
+    return this.engine.isSensorActive(this.playerController.colliders.footSensor);
   }
 
   /**
