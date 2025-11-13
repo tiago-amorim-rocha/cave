@@ -355,22 +355,23 @@ export class RapierEngine implements PhysicsEngine {
         return;
       }
 
-      // Get contact manifolds
-      const manifold = this.world!.contactPair(sensor, otherCollider);
-      if (!manifold) return;
-
-      // Extract normals from contact points
-      for (let i = 0; i < manifold.numContacts(); i++) {
+      // Get contact manifolds using the callback API
+      this.world!.contactPair(sensor, otherCollider, (manifold, flipped) => {
+        // Extract normal from manifold
         const normal = manifold.normal();
 
+        // Flip normal if necessary (normal always points from collider1 to collider2)
+        const normalX = flipped ? -normal.x : normal.x;
+        const normalY = flipped ? -normal.y : normal.y;
+
         // Calculate dot product with gravity direction
-        const cos = normal.x * gravityDirection.x + normal.y * gravityDirection.y;
+        const cos = normalX * gravityDirection.x + normalY * gravityDirection.y;
 
         // Filter: only accept normals pointing upward (opposite to gravity)
         if (cos <= cosThreshold) {
-          validNormals.push({ x: normal.x, y: normal.y });
+          validNormals.push({ x: normalX, y: normalY });
         }
-      }
+      });
     });
 
     // If no valid normals, return null
