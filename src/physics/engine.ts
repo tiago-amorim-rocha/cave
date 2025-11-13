@@ -374,12 +374,17 @@ export class RapierEngine implements PhysicsEngine {
     const gravityDirection = { x: 0, y: 1 }; // Normalized gravity direction (Y-down)
     const cosThreshold = -0.4; // Accept normals with cos <= -0.4 (slopes up to ~66°)
 
+    let totalContacts = 0;
+    let rejectedByFilter = 0;
+
     // Check all contacts with this sensor
     this.world.contactPairsWith(sensor, (otherCollider: RAPIER.Collider) => {
       // Ignore contacts with other sensors or same body
       if (otherCollider.isSensor() || otherCollider.parent() === sensor.parent()) {
         return;
       }
+
+      totalContacts++;
 
       // Get contact manifolds using the callback API
       this.world!.contactPair(sensor, otherCollider, (manifold: RAPIER.TempContactManifold, flipped: boolean) => {
@@ -405,12 +410,22 @@ export class RapierEngine implements PhysicsEngine {
               validPoints.push({ x: contactPoint.x, y: contactPoint.y });
             }
           }
+        } else {
+          rejectedByFilter++;
         }
       });
     });
 
+    // DEBUG: Log contact detection issues
+    if (Math.random() < 0.016) {
+      console.log(`[RapierEngine] Sensor contacts: ${totalContacts}, rejected by filter: ${rejectedByFilter}, valid: ${validNormals.length}`);
+    }
+
     // If no valid normals, return null
     if (validNormals.length === 0 || validPoints.length === 0) {
+      if (totalContacts > 0 && Math.random() < 0.016) {
+        console.log(`[RapierEngine] Have ${totalContacts} contacts but no valid normals (all rejected by cos filter)`);
+      }
       return null;
     }
 
@@ -508,10 +523,10 @@ export class RapierEngine implements PhysicsEngine {
   }
 
   /**
-   * Debug draw physics shapes in world coordinates
+   * Debug draw physics shapes in world coordinates (always enabled)
    */
   debugDraw(ctx: CanvasRenderingContext2D, camera: Camera, canvasWidth: number, canvasHeight: number): void {
-    if (!this.debugEnabled || !this.world) return;
+    if (!this.world) return; // Always draw debug visualization
 
     ctx.save();
 
