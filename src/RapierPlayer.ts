@@ -36,6 +36,8 @@ export class RapierPlayer {
     this.physics = physics;
     this.playerController = physics.createPlayer(x, y);
     this.setupInputListeners();
+    // Apply initial drag value
+    this.playerController.body.setLinearDamping(this.config.drag);
   }
 
   /**
@@ -133,27 +135,9 @@ export class RapierPlayer {
     // Without this, forces "stick" and the character keeps moving in old directions
     body.resetForces(true); // true = keep body awake
 
-    // Calculate forces
+    // Calculate and apply forces
     const forceX = this.config.movementForce * input.x;
     const forceY = this.config.movementForce * input.y;
-    const forceMag = Math.sqrt(forceX * forceX + forceY * forceY);
-
-    // Log when ANY force is being applied (not just randomly)
-    if (forceMag > 0.1) {
-      const vel = body.linvel();
-      console.log(`[Player] APPLYING FORCE: (${forceX.toFixed(1)}, ${forceY.toFixed(1)}) N, input: (${input.x.toFixed(2)}, ${input.y.toFixed(2)}), vel: (${vel.x.toFixed(2)}, ${vel.y.toFixed(2)})`);
-    }
-
-    // Debug log physics state periodically
-    if (Math.random() < 0.016) {
-      const vel = body.linvel();
-      const isDynamic = body.isDynamic();
-      const gravScale = body.gravityScale();
-      const mass = body.mass();
-      console.log(`[Player BALL] isDynamic: ${isDynamic}, gravScale: ${gravScale}, mass: ${mass.toFixed(4)} kg, vel: (${vel.x.toFixed(2)}, ${vel.y.toFixed(2)})`);
-    }
-
-    // Apply force - THAT'S IT! No damping manipulation, no special handling
     body.addForce({ x: forceX, y: forceY }, true);
   }
 
@@ -179,12 +163,11 @@ export class RapierPlayer {
   }
 
   /**
-   * Set drag coefficient (for debug UI)
-   * NOTE: Not used anymore - ball uses default Rapier physics
+   * Set drag coefficient (linear damping)
    */
   setDrag(drag: number): void {
     this.config.drag = drag;
-    // Not applying to body - using engine defaults like test balls
+    this.playerController.body.setLinearDamping(drag);
   }
 
 
@@ -237,86 +220,5 @@ export class RapierPlayer {
     body.setTranslation({ x, y }, true);
     body.setLinvel({ x: 0, y: 0 }, true);
     body.setAngvel(0, true);
-    console.log(`Player respawned at (${x.toFixed(1)}, ${y.toFixed(1)})`);
-  }
-
-  /**
-   * Debug draw player info
-   */
-  debugDraw(ctx: CanvasRenderingContext2D, camera: any, canvasWidth: number, canvasHeight: number): void {
-    const pos = this.getPosition();
-    const screenPos = camera.worldToScreen(pos.x, pos.y, canvasWidth, canvasHeight);
-    const velocity = this.playerController.body.linvel();
-    const input = this.getInput();
-    const body = this.playerController.body;
-
-    ctx.save();
-
-    // Draw velocity vector (yellow)
-    const velScale = 20; // Scale for visualization
-    ctx.strokeStyle = 'yellow';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(screenPos.x, screenPos.y);
-    ctx.lineTo(
-      screenPos.x + velocity.x * velScale,
-      screenPos.y + velocity.y * velScale
-    );
-    ctx.stroke();
-
-    // Draw force vector (magenta/pink)
-    const forceX = this.config.movementForce * input.x;
-    const forceY = this.config.movementForce * input.y;
-    const forceScale = 5; // Scale for visualization (forces are larger than velocities)
-    ctx.strokeStyle = '#ff00ff'; // Magenta
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(screenPos.x, screenPos.y);
-    ctx.lineTo(
-      screenPos.x + forceX * forceScale,
-      screenPos.y + forceY * forceScale
-    );
-    ctx.stroke();
-
-    // Calculate total force magnitude
-    const forceMagnitude = Math.sqrt(forceX * forceX + forceY * forceY);
-
-    // Get body status for debugging
-    const bodyType = body.isDynamic() ? 'dynamic' : (body.isKinematic() ? 'kinematic' : 'static');
-    const isAwake = !body.isSleeping();
-    const mass = body.mass();
-    const damping = body.linearDamping();
-    const gravityScale = body.gravityScale();
-
-    // Draw stats
-    ctx.fillStyle = 'yellow';
-    ctx.font = '12px monospace';
-    let yOffset = -100;
-
-    // Body status (important for debugging)
-    ctx.fillStyle = body.isDynamic() ? '#00ff00' : '#ff0000';
-    ctx.fillText(`Body: ${bodyType} (awake: ${isAwake})`, screenPos.x + 35, screenPos.y + yOffset);
-    yOffset += 15;
-
-    ctx.fillStyle = '#00ffff';
-    ctx.fillText(`Mass: ${mass.toFixed(2)} kg`, screenPos.x + 35, screenPos.y + yOffset);
-    yOffset += 15;
-
-    ctx.fillText(`Damping: ${damping.toFixed(2)}`, screenPos.x + 35, screenPos.y + yOffset);
-    yOffset += 15;
-
-    ctx.fillText(`GravScale: ${gravityScale.toFixed(2)}`, screenPos.x + 35, screenPos.y + yOffset);
-    yOffset += 15;
-
-    ctx.fillStyle = 'yellow';
-    ctx.fillText(`vX: ${velocity.x.toFixed(2)} m/s`, screenPos.x + 35, screenPos.y + yOffset);
-    yOffset += 15;
-    ctx.fillText(`vY: ${velocity.y.toFixed(2)} m/s`, screenPos.x + 35, screenPos.y + yOffset);
-    yOffset += 15;
-
-    ctx.fillStyle = '#ff00ff'; // Magenta for force
-    ctx.fillText(`F: ${forceMagnitude.toFixed(1)} N`, screenPos.x + 35, screenPos.y + yOffset);
-
-    ctx.restore();
   }
 }

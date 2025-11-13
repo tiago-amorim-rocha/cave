@@ -433,17 +433,12 @@ class CarvableCaves {
       this.physics.debugDraw(ctx, this.camera, width, height);
     };
 
-    // Create player debug draw callback
-    const playerDebugDraw = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-      this.player.debugDraw(ctx, this.camera, width, height);
-    };
-
     // Create joystick draw callback
     const joystickDraw = (ctx: CanvasRenderingContext2D) => {
       this.joystick.render(ctx);
     };
 
-    this.renderer.render(playerPos, this.player.getRadius(), ballsForRender, physicsDebugDraw, playerDebugDraw, joystickDraw);
+    this.renderer.render(playerPos, this.player.getRadius(), ballsForRender, physicsDebugDraw, null, joystickDraw);
   };
 
   private remesh(): void {
