@@ -1,6 +1,6 @@
 /**
- * Player controller - just a ball with force control!
- * Same physics as test balls, controlled with forces.
+ * Player controller with capsule body and force-based movement
+ * Uses ground attraction force to hug uneven terrain
  */
 
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -233,19 +233,21 @@ export class RapierPlayer {
   }
 
   /**
-   * Get player ball radius (for rendering)
+   * Get player capsule radius (for rendering)
+   * Player uses a capsule shape with radius 0.6m and halfHeight 0.4m
    */
   getRadius(): number {
-    // Ball radius is 0.6m
+    // Capsule radius is 0.6m (matches createPlayer in engine.ts)
     return 0.6;
   }
 
   /**
-   * Get player ball height (for rendering) - same as radius since it's a ball
+   * Get player capsule total height (for rendering)
+   * Capsule height = 2*halfHeight + 2*radius = 2*0.4 + 2*0.6 = 2.0m
    */
   getHeight(): number {
-    // Ball, so height = 2 × radius
-    return 1.2;
+    // Capsule total height: 2*halfHeight + 2*radius = 0.8 + 1.2 = 2.0m
+    return 2.0;
   }
 
   /**

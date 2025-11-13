@@ -450,7 +450,7 @@ export class RapierEngine implements PhysicsEngine {
       };
 
       if (hit) {
-        // Filter predicate already excluded player's colliders, so any hit is valid terrain
+        // filterExcludeRigidBody parameter excluded player's body, so any hit is terrain
         totalHits++;
         const hitPoint = ray.pointAt(hit.timeOfImpact);
         const normal = hit.normal;
@@ -569,10 +569,11 @@ export class RapierEngine implements PhysicsEngine {
   }
 
   /**
-   * Debug draw physics shapes in world coordinates (always enabled)
+   * Debug draw physics shapes in world coordinates
+   * Note: debugEnabled flag is reserved for future use, currently always draws
    */
   debugDraw(ctx: CanvasRenderingContext2D, camera: Camera, canvasWidth: number, canvasHeight: number): void {
-    if (!this.world) return; // Always draw debug visualization
+    if (!this.world) return;
 
     ctx.save();
 
