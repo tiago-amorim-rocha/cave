@@ -229,11 +229,11 @@ export class RapierPlayer {
     const pos = this.getPosition();
     const screenPos = camera.worldToScreen(pos.x, pos.y, canvasWidth, canvasHeight);
     const velocity = this.playerController.body.linvel();
-    const isGrounded = this.isGrounded();
+    const input = this.getInput();
 
     ctx.save();
 
-    // Draw velocity vector (both X and Y!)
+    // Draw velocity vector (yellow)
     const velScale = 20; // Scale for visualization
     ctx.strokeStyle = 'yellow';
     ctx.lineWidth = 3;
@@ -245,25 +245,34 @@ export class RapierPlayer {
     );
     ctx.stroke();
 
+    // Draw force vector (magenta/pink)
+    const forceX = this.config.movementForce * input.x;
+    const forceY = this.config.movementForce * input.y;
+    const forceScale = 5; // Scale for visualization (forces are larger than velocities)
+    ctx.strokeStyle = '#ff00ff'; // Magenta
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(screenPos.x, screenPos.y);
+    ctx.lineTo(
+      screenPos.x + forceX * forceScale,
+      screenPos.y + forceY * forceScale
+    );
+    ctx.stroke();
+
+    // Calculate total force magnitude
+    const forceMagnitude = Math.sqrt(forceX * forceX + forceY * forceY);
+
     // Draw stats
-    ctx.fillStyle = 'white';
+    ctx.fillStyle = 'yellow';
     ctx.font = '12px monospace';
     let yOffset = -60;
 
-    ctx.fillText(`Force: ${this.config.movementForce.toFixed(1)} N`, screenPos.x + 35, screenPos.y + yOffset);
-    yOffset += 15;
-    ctx.fillText(`Drag: ${this.config.drag.toFixed(1)}`, screenPos.x + 35, screenPos.y + yOffset);
-    yOffset += 15;
-    ctx.fillStyle = 'yellow';
     ctx.fillText(`vX: ${velocity.x.toFixed(2)} m/s`, screenPos.x + 35, screenPos.y + yOffset);
     yOffset += 15;
     ctx.fillText(`vY: ${velocity.y.toFixed(2)} m/s`, screenPos.x + 35, screenPos.y + yOffset);
-
-    // Grounded indicator
-    if (isGrounded) {
-      ctx.fillStyle = 'lime';
-      ctx.fillText('GROUNDED', screenPos.x + 35, screenPos.y - 80);
-    }
+    yOffset += 15;
+    ctx.fillStyle = '#ff00ff'; // Magenta for force
+    ctx.fillText(`F: ${forceMagnitude.toFixed(1)} N`, screenPos.x + 35, screenPos.y + yOffset);
 
     ctx.restore();
   }

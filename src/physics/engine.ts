@@ -9,7 +9,7 @@ import type { Point } from '../types';
 
 export interface PlayerColliders {
   body: RAPIER.Collider;
-  footSensor: RAPIER.Collider;
+  footSensor: RAPIER.Collider | null;
 }
 
 export interface PhysicsEngine {
@@ -274,7 +274,7 @@ export class RapierEngine implements PhysicsEngine {
   }
 
   /**
-   * Create player body with capsule collider and foot sensor
+   * Create player body with capsule collider (no foot sensor)
    */
   createPlayer(x: number, y: number): { body: RAPIER.RigidBody; colliders: PlayerColliders } {
     if (!this.world) {
@@ -284,8 +284,6 @@ export class RapierEngine implements PhysicsEngine {
     // Player dimensions
     const capsuleRadius = 0.6; // 3× grid pitch (0.2m)
     const capsuleHalfHeight = 0.6; // Total height: 1.2m
-    const footSensorHeight = 0.1;
-    const footSensorWidth = capsuleRadius * 1.5; // Wider than body for edge detection
 
     // Create dynamic rigid body with CCD
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
@@ -307,23 +305,13 @@ export class RapierEngine implements PhysicsEngine {
 
     const bodyCollider = this.world.createCollider(bodyColliderDesc, rigidBody);
 
-    // Create foot sensor below the capsule
-    // Position it at the bottom of the capsule
-    const sensorY = capsuleHalfHeight + capsuleRadius; // Bottom of capsule
-    const footSensorDesc = RAPIER.ColliderDesc.cuboid(footSensorWidth, footSensorHeight)
-      .setTranslation(0, sensorY) // Relative to body center
-      .setSensor(true) // Make it a sensor (no collision response)
-      .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS); // Enable collision events
-
-    const footSensor = this.world.createCollider(footSensorDesc, rigidBody);
-
-    console.log(`[RapierEngine] Created player at (${x.toFixed(2)}, ${y.toFixed(2)}) with capsule (r=${capsuleRadius}m, h=${capsuleHalfHeight * 2}m)`);
+    console.log(`[RapierEngine] Created player at (${x.toFixed(2)}, ${y.toFixed(2)}) with capsule (r=${capsuleRadius}m, h=${capsuleHalfHeight * 2}m) - no foot sensor`);
 
     return {
       body: rigidBody,
       colliders: {
         body: bodyCollider,
-        footSensor,
+        footSensor: null, // No foot sensor anymore
       },
     };
   }
