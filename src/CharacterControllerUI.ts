@@ -62,21 +62,21 @@ export class CharacterControllerUI {
     const forceGroup = this.createSliderGroup(
       'Movement Force',
       'movement-force',
-      5,    // min
-      50,   // max
+      0.1,  // min - allow very low forces!
+      100,  // max - higher max for experiments
       20,   // default
-      0.5,  // step
+      0.1,  // step - finer control
       ' N',
       (value) => this.onForceChange?.(value)
     );
     container.appendChild(forceGroup);
 
-    // Drag slider
+    // Drag slider (linearDamping)
     const dragGroup = this.createSliderGroup(
-      'Drag Coefficient',
+      'Drag (linearDamping)',
       'drag',
-      0.1,  // min
-      20,   // max
+      0.0,  // min - allow zero drag!
+      10,   // max - lower max (high values make it very hard to move)
       5,    // default
       0.1,  // step
       '',
@@ -84,20 +84,18 @@ export class CharacterControllerUI {
     );
     container.appendChild(dragGroup);
 
-    // Calculated max speed display
-    const maxSpeedDisplay = document.createElement('div');
-    maxSpeedDisplay.id = 'max-speed-display';
-    maxSpeedDisplay.style.cssText = `
+    // Info note
+    const infoNote = document.createElement('div');
+    infoNote.style.cssText = `
       margin-top: 20px;
       padding: 10px;
-      background: rgba(0, 255, 255, 0.1);
+      background: rgba(255, 255, 0, 0.1);
       border-radius: 5px;
-      text-align: center;
-      font-size: 14px;
-      color: #00ffff;
+      font-size: 11px;
+      color: #ffff00;
     `;
-    maxSpeedDisplay.innerHTML = '<strong>v_max = 4.00 m/s</strong>';
-    container.appendChild(maxSpeedDisplay);
+    infoNote.innerHTML = '<strong>Note:</strong> linearDamping reduces velocity exponentially. High values make it very hard to accelerate.';
+    container.appendChild(infoNote);
 
     // Close button
     const closeButton = document.createElement('button');
@@ -185,7 +183,6 @@ export class CharacterControllerUI {
       const value = parseFloat(slider.value);
       valueDisplay.textContent = `${value.toFixed(1)}${unit}`;
       onChange(value);
-      this.updateMaxSpeedDisplay();
     });
 
     sliderContainer.appendChild(slider);
@@ -193,23 +190,6 @@ export class CharacterControllerUI {
     group.appendChild(sliderContainer);
 
     return group;
-  }
-
-  /**
-   * Update the max speed display based on current force and drag
-   */
-  private updateMaxSpeedDisplay(): void {
-    const forceSlider = document.getElementById('movement-force') as HTMLInputElement;
-    const dragSlider = document.getElementById('drag') as HTMLInputElement;
-    const maxSpeedDisplay = document.getElementById('max-speed-display');
-
-    if (forceSlider && dragSlider && maxSpeedDisplay) {
-      const force = parseFloat(forceSlider.value);
-      const drag = parseFloat(dragSlider.value);
-      const maxSpeed = drag > 0 ? force / drag : Infinity;
-
-      maxSpeedDisplay.innerHTML = `<strong>v_max = ${maxSpeed.toFixed(2)} m/s</strong>`;
-    }
   }
 
   /**
@@ -257,7 +237,5 @@ export class CharacterControllerUI {
       dragSlider.value = drag.toString();
       dragValue.textContent = `${drag.toFixed(1)}`;
     }
-
-    this.updateMaxSpeedDisplay();
   }
 }

@@ -96,23 +96,25 @@ export class RapierPlayer {
   }
 
   /**
-   * Get combined input from keyboard and joystick (horizontal only)
-   * Returns -1 (left), 0 (neutral), or +1 (right)
+   * Get combined input from keyboard and joystick (both X and Y)
+   * Returns { x, y } with analog values from joystick or -1/0/+1 from keyboard
    */
-  private getInput(): number {
+  private getInput(): { x: number; y: number } {
     let x = 0;
+    let y = 0;
 
-    // Keyboard input
+    // Keyboard input (digital)
     if (this.keys.left) x -= 1;
     if (this.keys.right) x += 1;
 
-    // Joystick input (overrides keyboard if active)
+    // Joystick input (analog - overrides keyboard if active)
     if (this.joystick && this.joystick.isActive()) {
       const joystickInput = this.joystick.getInput();
       x = joystickInput.x;
+      y = joystickInput.y;
     }
 
-    return x;
+    return { x, y };
   }
 
   /**
@@ -120,24 +122,23 @@ export class RapierPlayer {
    * Called every frame
    *
    * PHYSICS MODEL:
-   * 1. Movement force: F_move = movementForce * input_direction
-   * 2. Drag: Uses Rapier's built-in linearDamping (no manual calculation!)
-   * 3. Terminal velocity: v_max = movementForce / (mass * drag)
+   * 1. Movement force: F_move = movementForce * input (in X and Y!)
+   * 2. Drag: Uses Rapier's built-in linearDamping (engine handles it)
    */
   update(dt: number): void {
     const body = this.playerController.body;
-    const input = this.getInput(); // -1, 0, or +1
+    const input = this.getInput(); // { x, y } - analog from joystick
 
     // Update linear damping to match drag coefficient
     body.setLinearDamping(this.config.drag);
 
-    // Apply movement force when input detected (that's it!)
-    if (input !== 0) {
-      const movementForce = this.config.movementForce * input;
-      body.addForce({ x: movementForce, y: 0 }, true);
-    }
+    // Apply movement force in BOTH directions (no restrictions!)
+    // Input is multiplied by force for fine analog control
+    const forceX = this.config.movementForce * input.x;
+    const forceY = this.config.movementForce * input.y;
+    body.addForce({ x: forceX, y: forceY }, true);
 
-    // Rapier handles drag automatically via linearDamping
+    // That's it - let the engine handle everything!
   }
 
   /**
@@ -168,14 +169,6 @@ export class RapierPlayer {
     this.config.drag = drag;
   }
 
-  /**
-   * Get theoretical max speed: v_max = force / (mass * drag)
-   * With Rapier's linear damping
-   */
-  getTheoreticalMaxSpeed(): number {
-    const mass = this.playerController.body.mass();
-    return this.config.drag > 0 ? this.config.movementForce / (mass * this.config.drag) : Infinity;
-  }
 
   /**
    * Get player position
@@ -240,7 +233,7 @@ export class RapierPlayer {
 
     ctx.save();
 
-    // Draw velocity vector (horizontal only now)
+    // Draw velocity vector (both X and Y!)
     const velScale = 20; // Scale for visualization
     ctx.strokeStyle = 'yellow';
     ctx.lineWidth = 3;
@@ -248,7 +241,7 @@ export class RapierPlayer {
     ctx.moveTo(screenPos.x, screenPos.y);
     ctx.lineTo(
       screenPos.x + velocity.x * velScale,
-      screenPos.y
+      screenPos.y + velocity.y * velScale
     );
     ctx.stroke();
 
@@ -261,10 +254,10 @@ export class RapierPlayer {
     yOffset += 15;
     ctx.fillText(`Drag: ${this.config.drag.toFixed(1)}`, screenPos.x + 35, screenPos.y + yOffset);
     yOffset += 15;
-    ctx.fillText(`v_max: ${this.getTheoreticalMaxSpeed().toFixed(2)} m/s`, screenPos.x + 35, screenPos.y + yOffset);
-    yOffset += 15;
     ctx.fillStyle = 'yellow';
-    ctx.fillText(`v: ${velocity.x.toFixed(2)} m/s`, screenPos.x + 35, screenPos.y + yOffset);
+    ctx.fillText(`vX: ${velocity.x.toFixed(2)} m/s`, screenPos.x + 35, screenPos.y + yOffset);
+    yOffset += 15;
+    ctx.fillText(`vY: ${velocity.y.toFixed(2)} m/s`, screenPos.x + 35, screenPos.y + yOffset);
 
     // Grounded indicator
     if (isGrounded) {
