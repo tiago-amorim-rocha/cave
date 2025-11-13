@@ -429,7 +429,17 @@ export class RapierEngine implements PhysicsEngine {
       totalRaycasts++;
 
       const ray = new RAPIER.Ray(origin, rayDir);
-      const hit = this.world.castRayAndGetNormal(ray, rayLength, true);
+      // CRITICAL FIX: Exclude player's rigid body from raycast
+      // Without this, raycast hits player first and never reaches terrain!
+      const hit = this.world.castRayAndGetNormal(
+        ray,
+        rayLength,
+        true, // solid
+        undefined, // filterFlags (use default)
+        undefined, // filterGroups (use default)
+        undefined, // filterExcludeCollider
+        parent // filterExcludeRigidBody - exclude the player's rigid body!
+      );
 
       // DEBUG: Detailed logging
       if (totalRaycasts === 1) { // Log first ray of each batch
@@ -458,21 +468,7 @@ export class RapierEngine implements PhysicsEngine {
       };
 
       if (hit) {
-        const hitCollider = hit.collider;
-        const hitParent = hitCollider.parent();
-        const isSameBody = hitParent === collider.parent();
-        const isHitSensor = hitCollider.isSensor();
-
-        // Ignore hits with same body or sensors
-        if (isSameBody || isHitSensor) {
-          // DEBUG: Log why we're ignoring this hit
-          if (Math.random() < 0.02) {
-            console.log(`[RapierEngine] Raycast hit ignored - sameBody: ${isSameBody}, sensor: ${isHitSensor}, toi: ${hit.timeOfImpact.toFixed(3)}m`);
-          }
-          this.raycastDebugInfo.push(debugInfo);
-          continue;
-        }
-
+        // Filter predicate already excluded player's colliders, so any hit is valid terrain
         totalHits++;
         const hitPoint = ray.pointAt(hit.timeOfImpact);
         const normal = hit.normal;
