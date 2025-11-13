@@ -370,10 +370,6 @@ class CarvableCaves {
     if (spawnPos) {
       const ball = this.physics.createBall(spawnPos.x, spawnPos.y, radius);
       this.ballBodies.push(ball);
-      console.log(`[Ball] Spawned at validated position (${spawnPos.x.toFixed(1)}, ${spawnPos.y.toFixed(1)})`);
-    } else {
-      console.warn('[Ball] Failed to spawn ball: no valid position found (world may be too full of rock)');
-      // Don't spawn the ball if no valid position is found
     }
   }
 
