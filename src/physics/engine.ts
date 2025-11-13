@@ -365,75 +365,72 @@ export class RapierEngine implements PhysicsEngine {
 
   /**
    * Get ground normal and contact point for visualization
+   * Uses raycasts from sensor position to find ground and extract normals
    */
   getGroundNormalWithPoint(collider: RAPIER.Collider): { normal: { x: number; y: number }; point: { x: number; y: number } } | null {
     if (!this.world) return null;
 
+    // Get sensor world position
+    const sensorPos = collider.translation();
+    const sensorRadius = collider.isSensor() && collider.shape.type === RAPIER.ShapeType.Ball
+      ? (collider.shape as RAPIER.Ball).radius
+      : 0.5;
+
+    // Cast multiple rays downward from sensor edge to find ground
+    const rayOrigins = [
+      { x: sensorPos.x, y: sensorPos.y }, // Center
+      { x: sensorPos.x - sensorRadius * 0.7, y: sensorPos.y }, // Left
+      { x: sensorPos.x + sensorRadius * 0.7, y: sensorPos.y }, // Right
+      { x: sensorPos.x, y: sensorPos.y - sensorRadius * 0.7 }, // Front
+    ];
+
+    const rayLength = sensorRadius * 2.0; // Cast down up to 2x sensor radius
+    const rayDir = { x: 0, y: 1 }; // Downward (Y-down coordinate system)
+
     const validNormals: Array<{ x: number; y: number }> = [];
     const validPoints: Array<{ x: number; y: number }> = [];
-    const gravityDirection = { x: 0, y: 1 }; // Normalized gravity direction (Y-down)
-    const cosThreshold = -0.4; // Accept normals with cos <= -0.4 (slopes up to ~66°)
+    const gravityDirection = { x: 0, y: 1 };
+    const cosThreshold = -0.4; // Accept normals pointing mostly upward
 
-    let totalContacts = 0;
-    let rejectedByFilter = 0;
-    let totalManifolds = 0;
+    let totalRaycasts = 0;
+    let totalHits = 0;
 
-    // Check all contacts with this collider
-    this.world.contactPairsWith(collider, (otherCollider: RAPIER.Collider) => {
-      // Ignore contacts with other sensors or same body
-      if (otherCollider.isSensor() || otherCollider.parent() === collider.parent()) {
-        return;
-      }
+    // Cast rays from each origin point
+    for (const origin of rayOrigins) {
+      totalRaycasts++;
 
-      totalContacts++;
+      const ray = new RAPIER.Ray(origin, rayDir);
+      const hit = this.world.castRayAndGetNormal(ray, rayLength, true); // Get normal with ray
 
-      // Get contact manifolds using the callback API
-      this.world!.contactPair(collider, otherCollider, (manifold: RAPIER.TempContactManifold, flipped: boolean) => {
-        totalManifolds++;
+      if (hit) {
+        const hitCollider = hit.collider;
 
-        // Extract normal from manifold
-        const normal = manifold.normal();
-
-        // Flip normal if necessary (normal always points from collider1 to collider2)
-        const normalX = flipped ? -normal.x : normal.x;
-        const normalY = flipped ? -normal.y : normal.y;
-
-        // Calculate dot product with gravity direction
-        const cos = normalX * gravityDirection.x + normalY * gravityDirection.y;
-
-        // DEBUG: Log normal details
-        if (Math.random() < 0.01) {
-          console.log(`[RapierEngine] Contact normal: (${normalX.toFixed(2)}, ${normalY.toFixed(2)}), cos: ${cos.toFixed(2)}, threshold: ${cosThreshold}`);
+        // Ignore hits with same body or sensors
+        if (hitCollider.parent() === collider.parent() || hitCollider.isSensor()) {
+          continue;
         }
 
-        // Filter: only accept normals pointing upward (opposite to gravity)
+        totalHits++;
+        const hitPoint = ray.pointAt(hit.timeOfImpact);
+        const normal = hit.normal;
+
+        // Calculate dot product with gravity
+        const cos = normal.x * gravityDirection.x + normal.y * gravityDirection.y;
+
+        // Filter: only accept ground-like normals
         if (cos <= cosThreshold) {
-          validNormals.push({ x: normalX, y: normalY });
-
-          // Get contact point (use first contact point from manifold)
-          const numContacts = manifold.numSolverContacts();
-          if (numContacts > 0) {
-            const contactPoint = manifold.solverContactPoint(0);
-            if (contactPoint) {
-              validPoints.push({ x: contactPoint.x, y: contactPoint.y });
-            }
-          }
-        } else {
-          rejectedByFilter++;
+          validNormals.push({ x: normal.x, y: normal.y });
+          validPoints.push({ x: hitPoint.x, y: hitPoint.y });
         }
-      });
-    });
-
-    // DEBUG: Log contact detection issues
-    if (Math.random() < 0.016) {
-      console.log(`[RapierEngine] Collider: ${collider.isSensor() ? 'SENSOR' : 'BODY'}, contactPairs: ${totalContacts}, manifolds: ${totalManifolds}, rejected: ${rejectedByFilter}, valid: ${validNormals.length}`);
+      }
     }
 
-    // If no valid normals, return null
+    // DEBUG: Log raycast results
+    if (Math.random() < 0.016) {
+      console.log(`[RapierEngine] Raycasts: ${totalRaycasts}, hits: ${totalHits}, valid: ${validNormals.length}`);
+    }
+
     if (validNormals.length === 0 || validPoints.length === 0) {
-      if (totalContacts > 0 && Math.random() < 0.016) {
-        console.log(`[RapierEngine] Have ${totalContacts} contacts but no valid normals (all rejected by cos filter or no manifolds)`);
-      }
       return null;
     }
 
@@ -449,7 +446,7 @@ export class RapierEngine implements PhysicsEngine {
 
     // Normalize the averaged normal
     const normalLength = Math.sqrt(avgNormalX * avgNormalX + avgNormalY * avgNormalY);
-    if (normalLength < 0.001) return null; // Degenerate case
+    if (normalLength < 0.001) return null;
 
     // Average all valid contact points
     let sumPointX = 0;
