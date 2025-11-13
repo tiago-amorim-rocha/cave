@@ -145,6 +145,11 @@ export class RapierPlayer {
       const attractionX = -groundNormal.x * this.config.groundAttractionForce;
       const attractionY = -groundNormal.y * this.config.groundAttractionForce;
       body.addForce({ x: attractionX, y: attractionY }, true);
+
+      // Debug log every 60 frames (~1 second)
+      if (Math.random() < 0.016) {
+        console.log(`[Player] Ground attraction: ${this.config.groundAttractionForce.toFixed(1)}N, force: (${attractionX.toFixed(1)}, ${attractionY.toFixed(1)})`);
+      }
     }
 
     // Apply movement forces
@@ -194,6 +199,7 @@ export class RapierPlayer {
    */
   setGroundAttractionForce(force: number): void {
     this.config.groundAttractionForce = force;
+    console.log(`[Player] Ground attraction force set to ${force.toFixed(1)}N`);
   }
 
   /**
