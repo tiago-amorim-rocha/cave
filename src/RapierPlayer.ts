@@ -128,6 +128,11 @@ export class RapierPlayer {
     const body = this.playerController.body;
     const input = this.getInput(); // { x, y } - analog from joystick
 
+    // CRITICAL: Reset forces each frame before applying new ones
+    // Rapier's addForce() accumulates - forces don't auto-reset after timesteps!
+    // Without this, forces "stick" and the character keeps moving in old directions
+    body.resetForces(true); // true = keep body awake
+
     // Calculate forces
     const forceX = this.config.movementForce * input.x;
     const forceY = this.config.movementForce * input.y;
