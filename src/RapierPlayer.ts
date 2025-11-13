@@ -1,11 +1,6 @@
 /**
- * Player controller for Rapier physics
- * SIMPLIFIED: Force + Drag model for left/right movement only
- *
- * Physics:
- * - Movement force applied when input detected
- * - Drag (resistance) always applied proportional to velocity
- * - Terminal velocity: v_max = movementForce / drag
+ * Player controller - just a ball with force control!
+ * Same physics as test balls, controlled with forces.
  */
 
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -15,7 +10,7 @@ import type { VirtualJoystick } from './VirtualJoystick';
 export interface CharacterControllerConfig {
   /** Movement force applied when moving (N) */
   movementForce: number;
-  /** Drag coefficient (resistance proportional to velocity) */
+  /** Drag coefficient (NOT USED - relying on engine defaults) */
   drag: number;
 }
 
@@ -119,11 +114,7 @@ export class RapierPlayer {
 
   /**
    * Update player physics based on input
-   * Called every frame
-   *
-   * PHYSICS MODEL:
-   * 1. Movement force: F_move = movementForce * input (in X and Y!)
-   * 2. Drag: Uses Rapier's built-in linearDamping (engine handles it)
+   * ULTRA SIMPLE: Just apply force, let Rapier do everything else
    */
   update(dt: number): void {
     const body = this.playerController.body;
@@ -134,19 +125,13 @@ export class RapierPlayer {
       const vel = body.linvel();
       const isDynamic = body.isDynamic();
       const gravScale = body.gravityScale();
-      console.log(`[Player] isDynamic: ${isDynamic}, gravScale: ${gravScale}, vel: (${vel.x.toFixed(2)}, ${vel.y.toFixed(2)}), input: (${input.x.toFixed(2)}, ${input.y.toFixed(2)})`);
+      console.log(`[Player BALL] isDynamic: ${isDynamic}, gravScale: ${gravScale}, vel: (${vel.x.toFixed(2)}, ${vel.y.toFixed(2)}), input: (${input.x.toFixed(2)}, ${input.y.toFixed(2)})`);
     }
 
-    // Update linear damping to match drag coefficient
-    body.setLinearDamping(this.config.drag);
-
-    // Apply movement force in BOTH directions (no restrictions!)
-    // Input is multiplied by force for fine analog control
+    // Apply force - THAT'S IT! No damping manipulation, no special handling
     const forceX = this.config.movementForce * input.x;
     const forceY = this.config.movementForce * input.y;
     body.addForce({ x: forceX, y: forceY }, true);
-
-    // That's it - let the engine handle everything!
   }
 
   /**
@@ -172,9 +157,11 @@ export class RapierPlayer {
 
   /**
    * Set drag coefficient (for debug UI)
+   * NOTE: Not used anymore - ball uses default Rapier physics
    */
   setDrag(drag: number): void {
     this.config.drag = drag;
+    // Not applying to body - using engine defaults like test balls
   }
 
 
@@ -197,18 +184,18 @@ export class RapierPlayer {
   }
 
   /**
-   * Get player capsule radius (for rendering)
+   * Get player ball radius (for rendering)
    */
   getRadius(): number {
-    // Capsule radius is 0.6m
+    // Ball radius is 0.6m
     return 0.6;
   }
 
   /**
-   * Get player capsule height (for rendering)
+   * Get player ball height (for rendering) - same as radius since it's a ball
    */
   getHeight(): number {
-    // Total capsule height is 1.2m (2 × halfHeight)
+    // Ball, so height = 2 × radius
     return 1.2;
   }
 

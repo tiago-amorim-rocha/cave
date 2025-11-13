@@ -274,44 +274,37 @@ export class RapierEngine implements PhysicsEngine {
   }
 
   /**
-   * Create player body with capsule collider (no foot sensor)
+   * Create player as a ball - same physics as test balls!
    */
   createPlayer(x: number, y: number): { body: RAPIER.RigidBody; colliders: PlayerColliders } {
     if (!this.world) {
       throw new Error('[RapierEngine] World not initialized!');
     }
 
-    // Player dimensions
-    const capsuleRadius = 0.6; // 3× grid pitch (0.2m)
-    const capsuleHalfHeight = 0.6; // Total height: 1.2m
+    const radius = 0.6; // Same size as before
 
-    // Create dynamic rigid body with CCD
+    // Create dynamic rigid body - EXACT same as test balls
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(x, y)
-      .setCcdEnabled(true)
-      .setCanSleep(false) // Prevent sleeping for responsive controls
-      .setLinearDamping(0.0); // Initial damping - will be set dynamically by controller
+      .setCcdEnabled(true); // Enable continuous collision detection
 
     const rigidBody = this.world.createRigidBody(rbDesc);
 
-    // Lock rotation for platformer-style control
-    rigidBody.lockRotations(true, false);
+    // Create ball collider - EXACT same setup as test balls
+    const colliderDesc = RAPIER.ColliderDesc.ball(radius)
+      .setFriction(0.3)
+      .setRestitution(0.3)
+      .setDensity(0.001);
 
-    // Create capsule collider (vertical capsule)
-    const bodyColliderDesc = RAPIER.ColliderDesc.capsule(capsuleHalfHeight, capsuleRadius)
-      .setFriction(0.0) // Zero friction to prevent wall sticking
-      .setRestitution(0.0) // No bounce
-      .setDensity(1.0); // Standard density
+    const bodyCollider = this.world.createCollider(colliderDesc, rigidBody);
 
-    const bodyCollider = this.world.createCollider(bodyColliderDesc, rigidBody);
-
-    console.log(`[RapierEngine] Created player at (${x.toFixed(2)}, ${y.toFixed(2)}) with capsule (r=${capsuleRadius}m, h=${capsuleHalfHeight * 2}m) - no foot sensor`);
+    console.log(`[RapierEngine] Created BALL player at (${x.toFixed(2)}, ${y.toFixed(2)}) with radius ${radius}m - same physics as test balls!`);
 
     return {
       body: rigidBody,
       colliders: {
         body: bodyCollider,
-        footSensor: null, // No foot sensor anymore
+        footSensor: null,
       },
     };
   }
