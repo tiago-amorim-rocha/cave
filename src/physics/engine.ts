@@ -317,10 +317,10 @@ export class RapierEngine implements PhysicsEngine {
 
     const rigidBody = this.world.createRigidBody(rbDesc);
 
-    // Create capsule collider (no friction for smooth movement)
+    // Create capsule collider (no friction for smooth movement, no bounce)
     const colliderDesc = RAPIER.ColliderDesc.capsule(halfHeight, radius)
       .setFriction(0.0)
-      .setRestitution(0.3)
+      .setRestitution(0.0)
       .setDensity(1);
 
     const bodyCollider = this.world.createCollider(colliderDesc, rigidBody);
@@ -574,12 +574,24 @@ export class RapierEngine implements PhysicsEngine {
               ctx.fill();
               ctx.stroke();
 
+              // Draw line from body center to sensor center to show offset
+              const bodyTranslation = collider.parent()!.translation();
+              const bodyScreenPos = camera.worldToScreen(bodyTranslation.x, bodyTranslation.y, canvasWidth, canvasHeight);
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1;
+              ctx.setLineDash([5, 5]);
+              ctx.beginPath();
+              ctx.moveTo(bodyScreenPos.x, bodyScreenPos.y);
+              ctx.lineTo(screenPos.x, screenPos.y);
+              ctx.stroke();
+              ctx.setLineDash([]);
+
               // Draw ground normal if sensor is active (from contact point)
               if (isActive) {
                 const result = this.getGroundNormalWithPoint(collider);
                 if (result) {
                   const { normal, point } = result;
-                  const normalScale = 50; // Scale for visualization
+                  const normalScale = 150; // Scale for visualization (increased for visibility)
 
                   // Convert contact point to screen coordinates
                   const contactScreenPos = camera.worldToScreen(point.x, point.y, canvasWidth, canvasHeight);
