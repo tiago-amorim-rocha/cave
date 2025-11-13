@@ -448,7 +448,7 @@ class CarvableCaves {
       this.joystick.render(ctx);
     };
 
-    this.renderer.render(playerPos, this.player.getRadius(), ballsForRender, physicsDebugDraw, null, joystickDraw);
+    this.renderer.render(playerPos, this.player.getRadius(), ballsForRender, physicsDebugDraw, undefined, joystickDraw);
   };
 
   private remesh(): void {
