@@ -251,10 +251,16 @@ export class RapierEngine implements PhysicsEngine {
       // This prevents "internal edge" artifacts where character catches on segment junctions
       const polylineDesc = RAPIER.ColliderDesc.polyline(vertices)
         .setFriction(0.3)
-        .setRestitution(0.1);
+        .setRestitution(0.1)
+        .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS); // Enable collision events
 
       const collider = this.world.createCollider(polylineDesc);
       this.terrainColliders.push(collider);
+
+      // DEBUG: Log collider properties
+      if (this.terrainColliders.length === 1) {
+        console.log(`[RapierEngine] First terrain collider - handle: ${collider.handle}, isSensor: ${collider.isSensor()}, shape type: ${collider.shape.type}`);
+      }
 
       // Store segments for debug rendering
       for (let i = 0; i < loop.length - 1; i++) {
@@ -424,6 +430,24 @@ export class RapierEngine implements PhysicsEngine {
 
       const ray = new RAPIER.Ray(origin, rayDir);
       const hit = this.world.castRayAndGetNormal(ray, rayLength, true);
+
+      // DEBUG: Detailed logging
+      if (totalRaycasts === 1) { // Log first ray of each batch
+        console.log(`[RapierEngine DEBUG] Raycast #${totalRaycasts}`);
+        console.log(`  Origin: (${origin.x.toFixed(3)}, ${origin.y.toFixed(3)})`);
+        console.log(`  Direction: (${rayDir.x}, ${rayDir.y})`);
+        console.log(`  Length: ${rayLength}m`);
+        console.log(`  Hit: ${hit !== null}`);
+        console.log(`  Terrain colliders in world: ${this.terrainColliders.length}`);
+        console.log(`  Body position: (${bodyPos.x.toFixed(3)}, ${bodyPos.y.toFixed(3)})`);
+
+        if (hit) {
+          console.log(`  Hit TOI: ${hit.timeOfImpact.toFixed(3)}m`);
+          console.log(`  Hit normal: (${hit.normal.x.toFixed(3)}, ${hit.normal.y.toFixed(3)})`);
+          console.log(`  Hit collider sensor?: ${hit.collider.isSensor()}`);
+          console.log(`  Hit collider parent === player?: ${hit.collider.parent() === collider.parent()}`);
+        }
+      }
 
       // Store debug info
       const debugInfo: typeof this.raycastDebugInfo[0] = {
