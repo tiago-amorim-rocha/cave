@@ -441,24 +441,6 @@ export class RapierEngine implements PhysicsEngine {
         parent // filterExcludeRigidBody - exclude the player's rigid body!
       );
 
-      // DEBUG: Detailed logging
-      if (totalRaycasts === 1) { // Log first ray of each batch
-        console.log(`[RapierEngine DEBUG] Raycast #${totalRaycasts}`);
-        console.log(`  Origin: (${origin.x.toFixed(3)}, ${origin.y.toFixed(3)})`);
-        console.log(`  Direction: (${rayDir.x}, ${rayDir.y})`);
-        console.log(`  Length: ${rayLength}m`);
-        console.log(`  Hit: ${hit !== null}`);
-        console.log(`  Terrain colliders in world: ${this.terrainColliders.length}`);
-        console.log(`  Body position: (${bodyPos.x.toFixed(3)}, ${bodyPos.y.toFixed(3)})`);
-
-        if (hit) {
-          console.log(`  Hit TOI: ${hit.timeOfImpact.toFixed(3)}m`);
-          console.log(`  Hit normal: (${hit.normal.x.toFixed(3)}, ${hit.normal.y.toFixed(3)})`);
-          console.log(`  Hit collider sensor?: ${hit.collider.isSensor()}`);
-          console.log(`  Hit collider parent === player?: ${hit.collider.parent() === collider.parent()}`);
-        }
-      }
-
       // Store debug info
       const debugInfo: typeof this.raycastDebugInfo[0] = {
         origin,
@@ -483,20 +465,10 @@ export class RapierEngine implements PhysicsEngine {
         if (cos <= cosThreshold) {
           validNormals.push({ x: normal.x, y: normal.y });
           validPoints.push({ x: hitPoint.x, y: hitPoint.y });
-        } else {
-          // DEBUG: Log rejected normals
-          if (Math.random() < 0.02) {
-            console.log(`[RapierEngine] Normal rejected - cos: ${cos.toFixed(3)}, threshold: ${cosThreshold}, normal: (${normal.x.toFixed(2)}, ${normal.y.toFixed(2)})`);
-          }
         }
       }
 
       this.raycastDebugInfo.push(debugInfo);
-    }
-
-    // DEBUG: Log raycast results
-    if (Math.random() < 0.05) {
-      console.log(`[RapierEngine] Raycasts: ${totalRaycasts}, hits: ${totalHits}, valid: ${validNormals.length}, sensor at: (${sensorPos.x.toFixed(2)}, ${sensorPos.y.toFixed(2)})`);
     }
 
     if (validNormals.length === 0 || validPoints.length === 0) {

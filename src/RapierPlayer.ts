@@ -141,24 +141,11 @@ export class RapierPlayer {
     // Apply ground attraction force to keep player hugging uneven terrain
     const groundNormal = this.physics.getGroundNormal();
 
-    // DEBUG: Log every 30 frames to diagnose why ground attraction isn't working
-    if (Math.random() < 0.033) {
-      const isGrounded = this.physics.isPlayerGrounded();
-      console.log(`[Player] Grounded: ${isGrounded}, Normal: ${groundNormal ? `(${groundNormal.x.toFixed(2)}, ${groundNormal.y.toFixed(2)})` : 'null'}, Force: ${this.config.groundAttractionForce.toFixed(1)}N`);
-    }
-
     if (groundNormal && this.config.groundAttractionForce > 0) {
       // Apply force toward ground (negative normal direction)
       const attractionX = -groundNormal.x * this.config.groundAttractionForce;
       const attractionY = -groundNormal.y * this.config.groundAttractionForce;
       body.addForce({ x: attractionX, y: attractionY }, true);
-
-      // Debug log when applying force
-      if (Math.random() < 0.033) {
-        console.log(`[Player] APPLYING GROUND ATTRACTION: force vector: (${attractionX.toFixed(1)}, ${attractionY.toFixed(1)})`);
-      }
-    } else if (Math.random() < 0.033) {
-      console.log(`[Player] NOT applying ground attraction - normal: ${groundNormal}, force: ${this.config.groundAttractionForce}`);
     }
 
     // Apply movement forces
