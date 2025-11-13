@@ -121,24 +121,23 @@ export class RapierPlayer {
    *
    * PHYSICS MODEL:
    * 1. Movement force: F_move = movementForce * input_direction
-   * 2. Drag force: F_drag = -drag * velocity
-   * 3. Terminal velocity: v_max = movementForce / drag
+   * 2. Drag: Uses Rapier's built-in linearDamping (no manual calculation!)
+   * 3. Terminal velocity: v_max = movementForce / (mass * drag)
    */
   update(dt: number): void {
     const body = this.playerController.body;
     const input = this.getInput(); // -1, 0, or +1
-    const velocity = body.linvel();
-    const mass = body.mass();
 
-    // Apply movement force when input detected
+    // Update linear damping to match drag coefficient
+    body.setLinearDamping(this.config.drag);
+
+    // Apply movement force when input detected (that's it!)
     if (input !== 0) {
       const movementForce = this.config.movementForce * input;
       body.addForce({ x: movementForce, y: 0 }, true);
     }
 
-    // Always apply drag (resistance proportional to velocity)
-    const dragForce = -this.config.drag * velocity.x;
-    body.addForce({ x: dragForce, y: 0 }, true);
+    // Rapier handles drag automatically via linearDamping
   }
 
   /**
@@ -170,10 +169,12 @@ export class RapierPlayer {
   }
 
   /**
-   * Get theoretical max speed: v_max = force / drag
+   * Get theoretical max speed: v_max = force / (mass * drag)
+   * With Rapier's linear damping
    */
   getTheoreticalMaxSpeed(): number {
-    return this.config.drag > 0 ? this.config.movementForce / this.config.drag : Infinity;
+    const mass = this.playerController.body.mass();
+    return this.config.drag > 0 ? this.config.movementForce / (mass * this.config.drag) : Infinity;
   }
 
   /**

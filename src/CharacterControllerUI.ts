@@ -51,9 +51,9 @@ export class CharacterControllerUI {
     explanation.innerHTML = `
       <p style="margin: 0 0 15px 0; font-size: 12px; color: #aaa;">
         <strong>Physics Model:</strong><br>
-        • Force: Applied when moving<br>
-        • Drag: Resistance (proportional to velocity)<br>
-        • Max Speed = Force / Drag
+        • Force: Applied via engine when moving<br>
+        • Drag: Rapier's linearDamping (automatic)<br>
+        • Max Speed = Force / (Mass × Drag)
       </p>
     `;
     container.appendChild(explanation);

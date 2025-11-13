@@ -292,7 +292,7 @@ export class RapierEngine implements PhysicsEngine {
       .setTranslation(x, y)
       .setCcdEnabled(true)
       .setCanSleep(false) // Prevent sleeping for responsive controls
-      .setLinearDamping(0.0); // No damping - we handle friction manually in controller
+      .setLinearDamping(0.0); // Initial damping - will be set dynamically by controller
 
     const rigidBody = this.world.createRigidBody(rbDesc);
 
