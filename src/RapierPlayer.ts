@@ -205,11 +205,11 @@ export class RapierPlayer {
 
   /**
    * Set foot sensor radius multiplier (for debug UI)
-   * Note: Requires player respawn to take effect
+   * Dynamically updates the sensor radius
    */
   setFootSensorRadiusMultiplier(multiplier: number): void {
     this.config.footSensorRadiusMultiplier = multiplier;
-    // TODO: Would need to recreate player to apply this change
+    this.physics.updateFootSensorRadius(multiplier);
   }
 
   /**

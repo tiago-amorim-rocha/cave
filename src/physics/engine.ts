@@ -75,6 +75,22 @@ export interface PhysicsEngine {
    * @returns Averaged normal vector, or null if no valid ground contacts
    */
   getGroundNormal(sensor: RAPIER.Collider): { x: number; y: number } | null;
+
+  /**
+   * Get ground normal and contact point for visualization
+   * @param sensor - The sensor collider to check
+   * @returns Object with normal and contact point, or null if no valid ground contacts
+   */
+  getGroundNormalWithPoint(sensor: RAPIER.Collider): { normal: { x: number; y: number }; point: { x: number; y: number } } | null;
+
+  /**
+   * Update foot sensor radius for player
+   * @param body - Player rigid body
+   * @param oldSensor - Old sensor collider to remove
+   * @param radiusMultiplier - New radius multiplier
+   * @returns New sensor collider
+   */
+  updateFootSensorRadius(body: RAPIER.RigidBody, oldSensor: RAPIER.Collider, radiusMultiplier: number): RAPIER.Collider;
 }
 
 /**
@@ -301,9 +317,9 @@ export class RapierEngine implements PhysicsEngine {
 
     const rigidBody = this.world.createRigidBody(rbDesc);
 
-    // Create capsule collider
+    // Create capsule collider (no friction for smooth movement)
     const colliderDesc = RAPIER.ColliderDesc.capsule(halfHeight, radius)
-      .setFriction(0.3)
+      .setFriction(0.0)
       .setRestitution(0.3)
       .setDensity(1);
 
@@ -311,8 +327,9 @@ export class RapierEngine implements PhysicsEngine {
 
     // Create ball foot sensor for ground detection
     // Ball sensor smooths normals over uneven terrain and doesn't catch on spikes
+    // Position sensor at bottom of cylindrical part of capsule
     const sensorRadius = radius * footSensorRadiusMultiplier;
-    const sensorOffsetY = halfHeight + radius + (sensorRadius * 0.4); // Offset to place below capsule
+    const sensorOffsetY = halfHeight; // Exactly at bottom of cylinder
 
     const sensorDesc = RAPIER.ColliderDesc.ball(sensorRadius)
       .setTranslation(0, sensorOffsetY)
@@ -342,9 +359,18 @@ export class RapierEngine implements PhysicsEngine {
    * Filters normals by gravity alignment to only accept ground-like surfaces
    */
   getGroundNormal(sensor: RAPIER.Collider): { x: number; y: number } | null {
+    const result = this.getGroundNormalWithPoint(sensor);
+    return result ? result.normal : null;
+  }
+
+  /**
+   * Get ground normal and contact point for visualization
+   */
+  getGroundNormalWithPoint(sensor: RAPIER.Collider): { normal: { x: number; y: number }; point: { x: number; y: number } } | null {
     if (!this.world) return null;
 
     const validNormals: Array<{ x: number; y: number }> = [];
+    const validPoints: Array<{ x: number; y: number }> = [];
     const gravityDirection = { x: 0, y: 1 }; // Normalized gravity direction (Y-down)
     const cosThreshold = -0.4; // Accept normals with cos <= -0.4 (slopes up to ~66°)
 
@@ -370,33 +396,86 @@ export class RapierEngine implements PhysicsEngine {
         // Filter: only accept normals pointing upward (opposite to gravity)
         if (cos <= cosThreshold) {
           validNormals.push({ x: normalX, y: normalY });
+
+          // Get contact point (use first contact point from manifold)
+          const numContacts = manifold.numSolverContacts();
+          if (numContacts > 0) {
+            const contactPoint = manifold.solverContactPoint(0);
+            if (contactPoint) {
+              validPoints.push({ x: contactPoint.x, y: contactPoint.y });
+            }
+          }
         }
       });
     });
 
     // If no valid normals, return null
-    if (validNormals.length === 0) {
+    if (validNormals.length === 0 || validPoints.length === 0) {
       return null;
     }
 
     // Average all valid normals
-    let sumX = 0;
-    let sumY = 0;
+    let sumNormalX = 0;
+    let sumNormalY = 0;
     for (const normal of validNormals) {
-      sumX += normal.x;
-      sumY += normal.y;
+      sumNormalX += normal.x;
+      sumNormalY += normal.y;
     }
-    const avgX = sumX / validNormals.length;
-    const avgY = sumY / validNormals.length;
+    const avgNormalX = sumNormalX / validNormals.length;
+    const avgNormalY = sumNormalY / validNormals.length;
 
     // Normalize the averaged normal
-    const length = Math.sqrt(avgX * avgX + avgY * avgY);
-    if (length < 0.001) return null; // Degenerate case
+    const normalLength = Math.sqrt(avgNormalX * avgNormalX + avgNormalY * avgNormalY);
+    if (normalLength < 0.001) return null; // Degenerate case
+
+    // Average all valid contact points
+    let sumPointX = 0;
+    let sumPointY = 0;
+    for (const point of validPoints) {
+      sumPointX += point.x;
+      sumPointY += point.y;
+    }
+    const avgPointX = sumPointX / validPoints.length;
+    const avgPointY = sumPointY / validPoints.length;
 
     return {
-      x: avgX / length,
-      y: avgY / length,
+      normal: {
+        x: avgNormalX / normalLength,
+        y: avgNormalY / normalLength,
+      },
+      point: {
+        x: avgPointX,
+        y: avgPointY,
+      },
     };
+  }
+
+  /**
+   * Update foot sensor radius dynamically
+   */
+  updateFootSensorRadius(body: RAPIER.RigidBody, oldSensor: RAPIER.Collider, radiusMultiplier: number): RAPIER.Collider {
+    if (!this.world) {
+      throw new Error('[RapierEngine] World not initialized!');
+    }
+
+    // Remove old sensor
+    this.world.removeCollider(oldSensor, false);
+
+    // Create new sensor with updated radius
+    const capsuleRadius = 0.6; // Same as in createPlayer
+    const halfHeight = 0.4;
+    const sensorRadius = capsuleRadius * radiusMultiplier;
+    const sensorOffsetY = halfHeight; // Exactly at bottom of cylinder
+
+    const sensorDesc = RAPIER.ColliderDesc.ball(sensorRadius)
+      .setTranslation(0, sensorOffsetY)
+      .setSensor(true);
+
+    const newSensor = this.world.createCollider(sensorDesc, body);
+
+    console.log(`[RapierEngine] Updated foot sensor radius to ${sensorRadius.toFixed(2)}m (multiplier: ${radiusMultiplier.toFixed(2)})`);
+
+    return newSensor;
   }
 
   /**
@@ -495,18 +574,30 @@ export class RapierEngine implements PhysicsEngine {
               ctx.fill();
               ctx.stroke();
 
-              // Draw ground normal if sensor is active
+              // Draw ground normal if sensor is active (from contact point)
               if (isActive) {
-                const normal = this.getGroundNormal(collider);
-                if (normal) {
+                const result = this.getGroundNormalWithPoint(collider);
+                if (result) {
+                  const { normal, point } = result;
                   const normalScale = 50; // Scale for visualization
+
+                  // Convert contact point to screen coordinates
+                  const contactScreenPos = camera.worldToScreen(point.x, point.y, canvasWidth, canvasHeight);
+
+                  // Draw contact point marker
+                  ctx.fillStyle = '#ff00ff';
+                  ctx.beginPath();
+                  ctx.arc(contactScreenPos.x, contactScreenPos.y, 4, 0, Math.PI * 2);
+                  ctx.fill();
+
+                  // Draw normal arrow from contact point
                   ctx.strokeStyle = '#ff00ff'; // Magenta for normal
                   ctx.lineWidth = 3;
                   ctx.beginPath();
-                  ctx.moveTo(screenPos.x, screenPos.y);
+                  ctx.moveTo(contactScreenPos.x, contactScreenPos.y);
                   ctx.lineTo(
-                    screenPos.x + normal.x * normalScale,
-                    screenPos.y + normal.y * normalScale
+                    contactScreenPos.x + normal.x * normalScale,
+                    contactScreenPos.y + normal.y * normalScale
                   );
                   ctx.stroke();
 
@@ -515,20 +606,20 @@ export class RapierEngine implements PhysicsEngine {
                   const arrowSize = 10;
                   ctx.beginPath();
                   ctx.moveTo(
-                    screenPos.x + normal.x * normalScale,
-                    screenPos.y + normal.y * normalScale
+                    contactScreenPos.x + normal.x * normalScale,
+                    contactScreenPos.y + normal.y * normalScale
                   );
                   ctx.lineTo(
-                    screenPos.x + normal.x * normalScale - arrowSize * Math.cos(angle - Math.PI / 6),
-                    screenPos.y + normal.y * normalScale - arrowSize * Math.sin(angle - Math.PI / 6)
+                    contactScreenPos.x + normal.x * normalScale - arrowSize * Math.cos(angle - Math.PI / 6),
+                    contactScreenPos.y + normal.y * normalScale - arrowSize * Math.sin(angle - Math.PI / 6)
                   );
                   ctx.moveTo(
-                    screenPos.x + normal.x * normalScale,
-                    screenPos.y + normal.y * normalScale
+                    contactScreenPos.x + normal.x * normalScale,
+                    contactScreenPos.y + normal.y * normalScale
                   );
                   ctx.lineTo(
-                    screenPos.x + normal.x * normalScale - arrowSize * Math.cos(angle + Math.PI / 6),
-                    screenPos.y + normal.y * normalScale - arrowSize * Math.sin(angle + Math.PI / 6)
+                    contactScreenPos.x + normal.x * normalScale - arrowSize * Math.cos(angle + Math.PI / 6),
+                    contactScreenPos.y + normal.y * normalScale - arrowSize * Math.sin(angle + Math.PI / 6)
                   );
                   ctx.stroke();
                 }
