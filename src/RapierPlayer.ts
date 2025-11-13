@@ -1,6 +1,11 @@
 /**
  * Player controller for Rapier physics
- * Uses force-based movement and virtual joystick input
+ * SIMPLIFIED: Force + Drag model for left/right movement only
+ *
+ * Physics:
+ * - Movement force applied when input detected
+ * - Drag (resistance) always applied proportional to velocity
+ * - Terminal velocity: v_max = movementForce / drag
  */
 
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -8,16 +13,10 @@ import type { RapierPhysics, PlayerController } from './RapierPhysics';
 import type { VirtualJoystick } from './VirtualJoystick';
 
 export interface CharacterControllerConfig {
-  /** Maximum horizontal speed in m/s */
-  maxSpeed: number;
-  /** Acceleration gain (how quickly to reach target speed) */
-  accelGain: number;
-  /** Air control multiplier (0-1) when not grounded */
-  airControl: number;
-  /** Jump impulse magnitude (upward velocity) */
-  jumpImpulse: number;
-  /** Jump input threshold (y-axis on joystick) */
-  jumpThreshold: number;
+  /** Movement force applied when moving (N) */
+  movementForce: number;
+  /** Drag coefficient (resistance proportional to velocity) */
+  drag: number;
 }
 
 export class RapierPlayer {
@@ -25,24 +24,17 @@ export class RapierPlayer {
   private physics: RapierPhysics;
   private joystick: VirtualJoystick | null = null;
 
-  // Input state
+  // Input state (only left/right now)
   private keys = {
     left: false,
     right: false,
-    jump: false,
   };
 
-  // Jump debouncing
-  private lastJumpTime = 0;
-  private jumpCooldown = 200; // ms
-
-  // Character controller config
+  // Character controller config - just TWO variables!
   private config: CharacterControllerConfig = {
-    maxSpeed: 4.0, // m/s, good for cave exploration
-    accelGain: 8.0, // snappy but natural
-    airControl: 0.3, // reduced control while jumping
-    jumpImpulse: -6.0, // upward velocity (Y-down gravity)
-    jumpThreshold: 0.6, // joystick Y threshold for jump
+    movementForce: 20.0, // Newtons - experiment with this!
+    drag: 5.0, // drag coefficient - experiment with this!
+    // Terminal velocity will be: v_max = 20.0 / 5.0 = 4.0 m/s
   };
 
   constructor(physics: RapierPhysics, x: number, y: number) {
@@ -72,7 +64,7 @@ export class RapierPlayer {
   }
 
   /**
-   * Handle key down events
+   * Handle key down events (left/right only)
    */
   private handleKeyDown(key: string): void {
     switch (key.toLowerCase()) {
@@ -84,16 +76,11 @@ export class RapierPlayer {
       case 'arrowright':
         this.keys.right = true;
         break;
-      case 'w':
-      case 'arrowup':
-      case ' ': // Space bar
-        this.keys.jump = true;
-        break;
     }
   }
 
   /**
-   * Handle key up events
+   * Handle key up events (left/right only)
    */
   private handleKeyUp(key: string): void {
     switch (key.toLowerCase()) {
@@ -105,88 +92,88 @@ export class RapierPlayer {
       case 'arrowright':
         this.keys.right = false;
         break;
-      case 'w':
-      case 'arrowup':
-      case ' ':
-        this.keys.jump = false;
-        break;
     }
   }
 
   /**
-   * Get combined input from keyboard and joystick
+   * Get combined input from keyboard and joystick (horizontal only)
+   * Returns -1 (left), 0 (neutral), or +1 (right)
    */
-  private getInput(): { x: number; jump: boolean } {
+  private getInput(): number {
     let x = 0;
-    let jump = false;
 
     // Keyboard input
     if (this.keys.left) x -= 1;
     if (this.keys.right) x += 1;
-    if (this.keys.jump) jump = true;
 
     // Joystick input (overrides keyboard if active)
     if (this.joystick && this.joystick.isActive()) {
       const joystickInput = this.joystick.getInput();
       x = joystickInput.x;
-
-      // Jump when pushing joystick up
-      if (joystickInput.y < -this.config.jumpThreshold) {
-        jump = true;
-      }
     }
 
-    return { x, jump };
+    return x;
   }
 
   /**
    * Update player physics based on input
    * Called every frame
+   *
+   * PHYSICS MODEL:
+   * 1. Movement force: F_move = movementForce * input_direction
+   * 2. Drag force: F_drag = -drag * velocity
+   * 3. Terminal velocity: v_max = movementForce / drag
    */
   update(dt: number): void {
     const body = this.playerController.body;
-    const input = this.getInput();
-    const isGrounded = this.physics.isPlayerGrounded();
-
-    // Get current velocity
+    const input = this.getInput(); // -1, 0, or +1
     const velocity = body.linvel();
-    const mass = this.physics.getPlayerMass();
+    const mass = body.mass();
 
-    // Horizontal movement with force-based system
-    if (input.x !== 0) {
-      const targetVx = input.x * this.config.maxSpeed;
-
-      // Calculate acceleration needed to reach target velocity
-      let accelGain = this.config.accelGain;
-
-      // Reduce acceleration in air
-      if (!isGrounded) {
-        accelGain *= this.config.airControl;
-      }
-
-      const ax = (targetVx - velocity.x) * accelGain;
-
-      // Apply force (F = ma)
-      body.addForce({ x: ax * mass, y: 0 }, true);
-    } else if (isGrounded) {
-      // Apply ground friction when no input
-      const friction = 0.9;
-      body.setLinvel({ x: velocity.x * friction, y: velocity.y }, true);
+    // Apply movement force when input detected
+    if (input !== 0) {
+      const movementForce = this.config.movementForce * input;
+      body.addForce({ x: movementForce, y: 0 }, true);
     }
 
-    // Enforce max speed
-    if (Math.abs(velocity.x) > this.config.maxSpeed) {
-      const sign = velocity.x > 0 ? 1 : -1;
-      body.setLinvel({ x: sign * this.config.maxSpeed, y: velocity.y }, true);
-    }
+    // Always apply drag (resistance proportional to velocity)
+    const dragForce = -this.config.drag * velocity.x;
+    body.addForce({ x: dragForce, y: 0 }, true);
+  }
 
-    // Jump
-    const now = Date.now();
-    if (input.jump && isGrounded && (now - this.lastJumpTime > this.jumpCooldown)) {
-      // Apply upward impulse (negative Y in our coordinate system)
-      body.applyImpulse({ x: 0, y: this.config.jumpImpulse * mass }, true);
-      this.lastJumpTime = now;
-    }
+  /**
+   * Get movement force (for debug UI)
+   */
+  getMovementForce(): number {
+    return this.config.movementForce;
+  }
+
+  /**
+   * Set movement force (for debug UI)
+   */
+  setMovementForce(force: number): void {
+    this.config.movementForce = force;
+  }
+
+  /**
+   * Get drag coefficient (for debug UI)
+   */
+  getDrag(): number {
+    return this.config.drag;
+  }
+
+  /**
+   * Set drag coefficient (for debug UI)
+   */
+  setDrag(drag: number): void {
+    this.config.drag = drag;
+  }
+
+  /**
+   * Get theoretical max speed: v_max = force / drag
+   */
+  getTheoreticalMaxSpeed(): number {
+    return this.config.drag > 0 ? this.config.movementForce / this.config.drag : Infinity;
   }
 
   /**
@@ -242,43 +229,47 @@ export class RapierPlayer {
   }
 
   /**
-   * Debug draw player colliders
+   * Debug draw player info
    */
   debugDraw(ctx: CanvasRenderingContext2D, camera: any, canvasWidth: number, canvasHeight: number): void {
     const pos = this.getPosition();
     const screenPos = camera.worldToScreen(pos.x, pos.y, canvasWidth, canvasHeight);
+    const velocity = this.playerController.body.linvel();
     const isGrounded = this.isGrounded();
 
     ctx.save();
 
-    // Draw grounded indicator
-    if (isGrounded) {
-      ctx.fillStyle = 'lime';
-      ctx.font = '14px monospace';
-      ctx.fillText('GROUNDED', screenPos.x + 30, screenPos.y - 40);
-    }
-
-    // Draw velocity vector
-    const velocity = this.playerController.body.linvel();
-    const velScale = 10; // Scale for visualization
+    // Draw velocity vector (horizontal only now)
+    const velScale = 20; // Scale for visualization
     ctx.strokeStyle = 'yellow';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(screenPos.x, screenPos.y);
     ctx.lineTo(
       screenPos.x + velocity.x * velScale,
-      screenPos.y + velocity.y * velScale
+      screenPos.y
     );
     ctx.stroke();
 
-    // Draw velocity text
-    ctx.fillStyle = 'yellow';
+    // Draw stats
+    ctx.fillStyle = 'white';
     ctx.font = '12px monospace';
-    ctx.fillText(
-      `vel: (${velocity.x.toFixed(2)}, ${velocity.y.toFixed(2)})`,
-      screenPos.x + 30,
-      screenPos.y - 20
-    );
+    let yOffset = -60;
+
+    ctx.fillText(`Force: ${this.config.movementForce.toFixed(1)} N`, screenPos.x + 35, screenPos.y + yOffset);
+    yOffset += 15;
+    ctx.fillText(`Drag: ${this.config.drag.toFixed(1)}`, screenPos.x + 35, screenPos.y + yOffset);
+    yOffset += 15;
+    ctx.fillText(`v_max: ${this.getTheoreticalMaxSpeed().toFixed(2)} m/s`, screenPos.x + 35, screenPos.y + yOffset);
+    yOffset += 15;
+    ctx.fillStyle = 'yellow';
+    ctx.fillText(`v: ${velocity.x.toFixed(2)} m/s`, screenPos.x + 35, screenPos.y + yOffset);
+
+    // Grounded indicator
+    if (isGrounded) {
+      ctx.fillStyle = 'lime';
+      ctx.fillText('GROUNDED', screenPos.x + 35, screenPos.y - 80);
+    }
 
     ctx.restore();
   }

@@ -4,6 +4,7 @@ import { MarchingSquares } from './MarchingSquares';
 import { Renderer } from './Renderer';
 import { DebugConsole } from './DebugConsole';
 import { CaveGeneratorUI, type PerlinCaveParams } from './CaveGeneratorUI';
+import { CharacterControllerUI } from './CharacterControllerUI';
 import { LoopCache } from './LoopCache';
 import { InputHandler } from './InputHandler';
 import { RapierPhysics } from './RapierPhysics';
@@ -709,17 +710,72 @@ caveGeneratorUI.onGenerate = (params) => {
   }
 };
 
+// Initialize character controller UI (hidden by default)
+let characterControllerUI: CharacterControllerUI;
+try {
+  characterControllerUI = new CharacterControllerUI();
+} catch (error) {
+  console.error('Failed to create character controller UI:', error);
+  throw error;
+}
+
+// Create character controller UI toggle button
+const controllerButton = document.createElement('button');
+controllerButton.id = 'controller-button';
+controllerButton.textContent = '⚙️';
+controllerButton.title = 'Character Controller Settings';
+controllerButton.style.cssText = `
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 10px) + 200px);
+  left: calc(env(safe-area-inset-left, 10px) + 10px);
+  background: rgba(66, 66, 66, 0.95);
+  border-radius: 50%;
+  width: 54px;
+  height: 54px;
+  border: 2px solid rgba(255, 255, 0, 0.5);
+  cursor: pointer;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+`;
+controllerButton.addEventListener('click', () => {
+  characterControllerUI.toggle();
+});
+document.body.appendChild(controllerButton);
+
 // Start the application
 let app: CarvableCaves;
+let appPlayer: any = null;
+
 try {
   app = new CarvableCaves();
-  // Expose renderer and physics to debug console callbacks
+  // Expose renderer, physics, and player to debug console callbacks
   appRenderer = (app as any).renderer;
   appPhysics = (app as any).physics;
+  appPlayer = (app as any).player;
 
   // Enable physics debug by default (since showPhysicsBodies defaults to true)
   if (appPhysics && appRenderer?.showPhysicsBodies) {
     appPhysics.setDebugEnabled(true);
+  }
+
+  // Wire up character controller UI callbacks
+  if (appPlayer) {
+    characterControllerUI.onForceChange = (force) => {
+      appPlayer.setMovementForce(force);
+    };
+    characterControllerUI.onDragChange = (drag) => {
+      appPlayer.setDrag(drag);
+    };
+
+    // Initialize UI with current values
+    characterControllerUI.updateValues(
+      appPlayer.getMovementForce(),
+      appPlayer.getDrag()
+    );
   }
 } catch (error) {
   console.error('Fatal error during initialization:', error);
