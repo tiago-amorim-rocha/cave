@@ -181,6 +181,29 @@ class CarvableCaves {
     // UI elements removed - all debug functionality now in debug console
   }
 
+  /**
+   * Wire up character controller UI callbacks (called after player is created)
+   */
+  private setupCharacterControllerUI(): void {
+    if ((window as any).characterControllerUI && this.player) {
+      const ui = (window as any).characterControllerUI;
+
+      ui.onForceChange = (force: number) => {
+        this.player.setMovementForce(force);
+      };
+
+      ui.onDragChange = (drag: number) => {
+        this.player.setDrag(drag);
+      };
+
+      // Initialize UI with current values
+      ui.updateValues(
+        this.player.getMovementForce(),
+        this.player.getDrag()
+      );
+    }
+  }
+
   private async start(gridPitch: number): Promise<void> {
     // Initialize Rapier physics
     await this.physics.init();
@@ -226,6 +249,9 @@ class CarvableCaves {
     // Create player after physics world is ready
     this.player = new RapierPlayer(this.physics, actualSpawnX, actualSpawnY);
     this.player.setJoystick(this.joystick); // Connect joystick to player
+
+    // Wire up character controller UI (now that player exists)
+    this.setupCharacterControllerUI();
 
     // Start render loop
     this.loop();
@@ -714,6 +740,7 @@ caveGeneratorUI.onGenerate = (params) => {
 let characterControllerUI: CharacterControllerUI;
 try {
   characterControllerUI = new CharacterControllerUI();
+  (window as any).characterControllerUI = characterControllerUI; // Make accessible for setup after player creation
 } catch (error) {
   console.error('Failed to create character controller UI:', error);
   throw error;
@@ -748,35 +775,19 @@ document.body.appendChild(controllerButton);
 
 // Start the application
 let app: CarvableCaves;
-let appPlayer: any = null;
 
 try {
   app = new CarvableCaves();
-  // Expose renderer, physics, and player to debug console callbacks
+  // Expose renderer and physics to debug console callbacks
   appRenderer = (app as any).renderer;
   appPhysics = (app as any).physics;
-  appPlayer = (app as any).player;
 
   // Enable physics debug by default (since showPhysicsBodies defaults to true)
   if (appPhysics && appRenderer?.showPhysicsBodies) {
     appPhysics.setDebugEnabled(true);
   }
 
-  // Wire up character controller UI callbacks
-  if (appPlayer) {
-    characterControllerUI.onForceChange = (force) => {
-      appPlayer.setMovementForce(force);
-    };
-    characterControllerUI.onDragChange = (drag) => {
-      appPlayer.setDrag(drag);
-    };
-
-    // Initialize UI with current values
-    characterControllerUI.updateValues(
-      appPlayer.getMovementForce(),
-      appPlayer.getDrag()
-    );
-  }
+  // Note: Character controller UI callbacks are wired up in start() after player is created
 } catch (error) {
   console.error('Fatal error during initialization:', error);
   debugConsole.showTextLog();
