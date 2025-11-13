@@ -356,7 +356,7 @@ export class RapierEngine implements PhysicsEngine {
       }
 
       // Get contact manifolds using the callback API
-      this.world!.contactPair(sensor, otherCollider, (manifold, flipped) => {
+      this.world!.contactPair(sensor, otherCollider, (manifold: RAPIER.TempContactManifold, flipped: boolean) => {
         // Extract normal from manifold
         const normal = manifold.normal();
 
