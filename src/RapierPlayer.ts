@@ -129,6 +129,14 @@ export class RapierPlayer {
     const body = this.playerController.body;
     const input = this.getInput(); // { x, y } - analog from joystick
 
+    // Debug log every 60 frames (~1 second)
+    if (Math.random() < 0.016) {
+      const vel = body.linvel();
+      const isDynamic = body.isDynamic();
+      const gravScale = body.gravityScale();
+      console.log(`[Player] isDynamic: ${isDynamic}, gravScale: ${gravScale}, vel: (${vel.x.toFixed(2)}, ${vel.y.toFixed(2)}), input: (${input.x.toFixed(2)}, ${input.y.toFixed(2)})`);
+    }
+
     // Update linear damping to match drag coefficient
     body.setLinearDamping(this.config.drag);
 
@@ -230,6 +238,7 @@ export class RapierPlayer {
     const screenPos = camera.worldToScreen(pos.x, pos.y, canvasWidth, canvasHeight);
     const velocity = this.playerController.body.linvel();
     const input = this.getInput();
+    const body = this.playerController.body;
 
     ctx.save();
 
@@ -262,15 +271,39 @@ export class RapierPlayer {
     // Calculate total force magnitude
     const forceMagnitude = Math.sqrt(forceX * forceX + forceY * forceY);
 
+    // Get body status for debugging
+    const bodyType = body.isDynamic() ? 'dynamic' : (body.isKinematic() ? 'kinematic' : 'static');
+    const isAwake = !body.isSleeping();
+    const mass = body.mass();
+    const damping = body.linearDamping();
+    const gravityScale = body.gravityScale();
+
     // Draw stats
     ctx.fillStyle = 'yellow';
     ctx.font = '12px monospace';
-    let yOffset = -60;
+    let yOffset = -100;
 
+    // Body status (important for debugging)
+    ctx.fillStyle = body.isDynamic() ? '#00ff00' : '#ff0000';
+    ctx.fillText(`Body: ${bodyType} (awake: ${isAwake})`, screenPos.x + 35, screenPos.y + yOffset);
+    yOffset += 15;
+
+    ctx.fillStyle = '#00ffff';
+    ctx.fillText(`Mass: ${mass.toFixed(2)} kg`, screenPos.x + 35, screenPos.y + yOffset);
+    yOffset += 15;
+
+    ctx.fillText(`Damping: ${damping.toFixed(2)}`, screenPos.x + 35, screenPos.y + yOffset);
+    yOffset += 15;
+
+    ctx.fillText(`GravScale: ${gravityScale.toFixed(2)}`, screenPos.x + 35, screenPos.y + yOffset);
+    yOffset += 15;
+
+    ctx.fillStyle = 'yellow';
     ctx.fillText(`vX: ${velocity.x.toFixed(2)} m/s`, screenPos.x + 35, screenPos.y + yOffset);
     yOffset += 15;
     ctx.fillText(`vY: ${velocity.y.toFixed(2)} m/s`, screenPos.x + 35, screenPos.y + yOffset);
     yOffset += 15;
+
     ctx.fillStyle = '#ff00ff'; // Magenta for force
     ctx.fillText(`F: ${forceMagnitude.toFixed(1)} N`, screenPos.x + 35, screenPos.y + yOffset);
 
