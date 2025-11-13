@@ -90,10 +90,10 @@ export class CharacterControllerUI {
     const groundAttractionGroup = this.createSliderGroup(
       'Ground Attraction',
       'ground-attraction',
-      0.0,  // min - allow disabling
-      100,  // max - strong attraction for very uneven terrain
-      15,   // default
-      0.5,  // step
+      0.0,   // min - allow disabling
+      1000,  // max - very strong attraction for steep/uneven terrain
+      15,    // default
+      1.0,   // step
       ' N',
       (value) => this.onGroundAttractionChange?.(value)
     );

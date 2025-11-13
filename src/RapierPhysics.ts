@@ -120,6 +120,21 @@ export class RapierPhysics {
   }
 
   /**
+   * Update foot sensor radius
+   */
+  updateFootSensorRadius(radiusMultiplier: number): void {
+    if (!this.playerController || !this.playerController.colliders.footSensor) {
+      return;
+    }
+    const newSensor = this.engine.updateFootSensorRadius(
+      this.playerController.body,
+      this.playerController.colliders.footSensor,
+      radiusMultiplier
+    );
+    this.playerController.colliders.footSensor = newSensor;
+  }
+
+  /**
    * Draw debug visualization
    */
   debugDraw(ctx: CanvasRenderingContext2D, camera: Camera, canvasWidth: number, canvasHeight: number): void {
