@@ -363,28 +363,50 @@ export class RapierEngine implements PhysicsEngine {
     return result ? result.normal : null;
   }
 
+  // Store raycast debug info for visualization
+  private raycastDebugInfo: Array<{
+    origin: { x: number; y: number };
+    dir: { x: number; y: number };
+    length: number;
+    hit: boolean;
+    hitPoint?: { x: number; y: number };
+  }> = [];
+
   /**
    * Get ground normal and contact point for visualization
-   * Uses raycasts from sensor position to find ground and extract normals
+   * Uses raycasts from ABOVE sensor position to find ground and extract normals
    */
   getGroundNormalWithPoint(collider: RAPIER.Collider): { normal: { x: number; y: number }; point: { x: number; y: number } } | null {
     if (!this.world) return null;
 
-    // Get sensor world position
+    // Clear previous raycast debug info
+    this.raycastDebugInfo = [];
+
+    // Get parent body position (center of player)
+    const parent = collider.parent();
+    if (!parent) return null;
+
+    const bodyPos = parent.translation();
+
+    // Get sensor world position and radius
     const sensorPos = collider.translation();
     const sensorRadius = collider.isSensor() && collider.shape.type === RAPIER.ShapeType.Ball
       ? (collider.shape as RAPIER.Ball).radius
       : 0.5;
 
-    // Cast multiple rays downward from sensor edge to find ground
+    // Cast rays from ABOVE the sensor (from body center) downward
+    // This ensures we hit the ground even if sensor is penetrating
+    const rayStartOffsetY = -1.0; // Start 1m above body center
     const rayOrigins = [
-      { x: sensorPos.x, y: sensorPos.y }, // Center
-      { x: sensorPos.x - sensorRadius * 0.7, y: sensorPos.y }, // Left
-      { x: sensorPos.x + sensorRadius * 0.7, y: sensorPos.y }, // Right
-      { x: sensorPos.x, y: sensorPos.y - sensorRadius * 0.7 }, // Front
+      { x: bodyPos.x, y: bodyPos.y + rayStartOffsetY }, // Center
+      { x: bodyPos.x - sensorRadius * 0.7, y: bodyPos.y + rayStartOffsetY }, // Left
+      { x: bodyPos.x + sensorRadius * 0.7, y: bodyPos.y + rayStartOffsetY }, // Right
+      { x: bodyPos.x - sensorRadius * 0.5, y: bodyPos.y + rayStartOffsetY }, // Left-mid
+      { x: bodyPos.x + sensorRadius * 0.5, y: bodyPos.y + rayStartOffsetY }, // Right-mid
     ];
 
-    const rayLength = sensorRadius * 2.0; // Cast down up to 2x sensor radius
+    // Cast down far enough to reach ground from body center
+    const rayLength = 3.0; // Cast 3m downward - enough to reach ground from player center
     const rayDir = { x: 0, y: 1 }; // Downward (Y-down coordinate system)
 
     const validNormals: Array<{ x: number; y: number }> = [];
@@ -400,19 +422,31 @@ export class RapierEngine implements PhysicsEngine {
       totalRaycasts++;
 
       const ray = new RAPIER.Ray(origin, rayDir);
-      const hit = this.world.castRayAndGetNormal(ray, rayLength, true); // Get normal with ray
+      const hit = this.world.castRayAndGetNormal(ray, rayLength, true);
+
+      // Store debug info
+      const debugInfo: typeof this.raycastDebugInfo[0] = {
+        origin,
+        dir: rayDir,
+        length: rayLength,
+        hit: false,
+      };
 
       if (hit) {
         const hitCollider = hit.collider;
 
         // Ignore hits with same body or sensors
         if (hitCollider.parent() === collider.parent() || hitCollider.isSensor()) {
+          this.raycastDebugInfo.push(debugInfo);
           continue;
         }
 
         totalHits++;
         const hitPoint = ray.pointAt(hit.timeOfImpact);
         const normal = hit.normal;
+
+        debugInfo.hit = true;
+        debugInfo.hitPoint = { x: hitPoint.x, y: hitPoint.y };
 
         // Calculate dot product with gravity
         const cos = normal.x * gravityDirection.x + normal.y * gravityDirection.y;
@@ -423,11 +457,13 @@ export class RapierEngine implements PhysicsEngine {
           validPoints.push({ x: hitPoint.x, y: hitPoint.y });
         }
       }
+
+      this.raycastDebugInfo.push(debugInfo);
     }
 
     // DEBUG: Log raycast results
-    if (Math.random() < 0.016) {
-      console.log(`[RapierEngine] Raycasts: ${totalRaycasts}, hits: ${totalHits}, valid: ${validNormals.length}`);
+    if (Math.random() < 0.05) {
+      console.log(`[RapierEngine] Raycasts: ${totalRaycasts}, hits: ${totalHits}, valid: ${validNormals.length}, sensor at: (${sensorPos.x.toFixed(2)}, ${sensorPos.y.toFixed(2)})`);
     }
 
     if (validNormals.length === 0 || validPoints.length === 0) {
@@ -605,6 +641,40 @@ export class RapierEngine implements PhysicsEngine {
               ctx.lineTo(screenPos.x, screenPos.y);
               ctx.stroke();
               ctx.setLineDash([]);
+
+              // Draw raycasts for ground detection (always show for debugging)
+              // Draw all raycasts
+              for (const rayInfo of this.raycastDebugInfo) {
+                const originScreen = camera.worldToScreen(rayInfo.origin.x, rayInfo.origin.y, canvasWidth, canvasHeight);
+                const endX = rayInfo.origin.x + rayInfo.dir.x * rayInfo.length;
+                const endY = rayInfo.origin.y + rayInfo.dir.y * rayInfo.length;
+                const endScreen = camera.worldToScreen(endX, endY, canvasWidth, canvasHeight);
+
+                // Draw ray line
+                ctx.strokeStyle = rayInfo.hit ? '#00ff00' : '#ff0000'; // Green if hit, red if miss
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(originScreen.x, originScreen.y);
+                ctx.lineTo(endScreen.x, endScreen.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Draw ray origin
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(originScreen.x, originScreen.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw hit point if hit
+                if (rayInfo.hit && rayInfo.hitPoint) {
+                  const hitScreen = camera.worldToScreen(rayInfo.hitPoint.x, rayInfo.hitPoint.y, canvasWidth, canvasHeight);
+                  ctx.fillStyle = '#00ff00';
+                  ctx.beginPath();
+                  ctx.arc(hitScreen.x, hitScreen.y, 5, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+              }
 
               // Draw ground normal if sensor is active (from contact point)
               if (isActive) {
