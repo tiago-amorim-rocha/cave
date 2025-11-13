@@ -53,10 +53,11 @@ export class RapierPhysics {
    * Create player controller with capsule body and foot sensor
    * @param x - Initial X position (metres)
    * @param y - Initial Y position (metres)
+   * @param footSensorRadiusMultiplier - Multiplier for foot sensor radius (relative to capsule radius)
    * @returns Player controller object
    */
-  createPlayer(x: number, y: number): PlayerController {
-    const result = this.engine.createPlayer(x, y);
+  createPlayer(x: number, y: number, footSensorRadiusMultiplier: number = 1.3): PlayerController {
+    const result = this.engine.createPlayer(x, y, footSensorRadiusMultiplier);
     this.playerController = result;
     return result;
   }
@@ -83,6 +84,17 @@ export class RapierPhysics {
       return false;
     }
     return this.engine.isSensorActive(this.playerController.colliders.footSensor);
+  }
+
+  /**
+   * Get averaged ground normal from foot sensor contacts
+   * Returns null if no valid ground contacts exist
+   */
+  getGroundNormal(): { x: number; y: number } | null {
+    if (!this.playerController || !this.playerController.colliders.footSensor) {
+      return null;
+    }
+    return this.engine.getGroundNormal(this.playerController.colliders.footSensor);
   }
 
   /**

@@ -38,9 +38,10 @@ export interface PhysicsEngine {
    * Create player dynamic body with capsule collider and foot sensor
    * @param x - X position in metres
    * @param y - Y position in metres
+   * @param footSensorRadiusMultiplier - Multiplier for foot sensor radius
    * @returns Object containing rigid body and collider handles
    */
-  createPlayer(x: number, y: number): { body: RAPIER.RigidBody; colliders: PlayerColliders };
+  createPlayer(x: number, y: number, footSensorRadiusMultiplier: number): { body: RAPIER.RigidBody; colliders: PlayerColliders };
 
   /**
    * Remove a body from the world
@@ -66,6 +67,14 @@ export interface PhysicsEngine {
    * Check if a sensor collider is currently in contact with terrain
    */
   isSensorActive(sensor: RAPIER.Collider): boolean;
+
+  /**
+   * Get averaged ground normal from sensor contacts
+   * Filters normals by gravity alignment (only accepts ground-like surfaces)
+   * @param sensor - The sensor collider to check
+   * @returns Averaged normal vector, or null if no valid ground contacts
+   */
+  getGroundNormal(sensor: RAPIER.Collider): { x: number; y: number } | null;
 }
 
 /**
@@ -276,7 +285,7 @@ export class RapierEngine implements PhysicsEngine {
   /**
    * Create player with capsule shape and locked rotation
    */
-  createPlayer(x: number, y: number): { body: RAPIER.RigidBody; colliders: PlayerColliders } {
+  createPlayer(x: number, y: number, footSensorRadiusMultiplier: number): { body: RAPIER.RigidBody; colliders: PlayerColliders } {
     if (!this.world) {
       throw new Error('[RapierEngine] World not initialized!');
     }
@@ -300,12 +309,12 @@ export class RapierEngine implements PhysicsEngine {
 
     const bodyCollider = this.world.createCollider(colliderDesc, rigidBody);
 
-    // Create foot sensor for ground detection
-    const sensorHalfWidth = radius * 0.8;
-    const sensorHalfHeight = 0.1;
-    const sensorOffsetY = halfHeight + radius + sensorHalfHeight;
+    // Create ball foot sensor for ground detection
+    // Ball sensor smooths normals over uneven terrain and doesn't catch on spikes
+    const sensorRadius = radius * footSensorRadiusMultiplier;
+    const sensorOffsetY = halfHeight + radius + (sensorRadius * 0.4); // Offset to place below capsule
 
-    const sensorDesc = RAPIER.ColliderDesc.cuboid(sensorHalfWidth, sensorHalfHeight)
+    const sensorDesc = RAPIER.ColliderDesc.ball(sensorRadius)
       .setTranslation(0, sensorOffsetY)
       .setSensor(true);
 
@@ -326,6 +335,67 @@ export class RapierEngine implements PhysicsEngine {
   isSensorActive(sensor: RAPIER.Collider): boolean {
     const contactCount = this.sensorContacts.get(sensor.handle) || 0;
     return contactCount > 0;
+  }
+
+  /**
+   * Get averaged ground normal from sensor contacts
+   * Filters normals by gravity alignment to only accept ground-like surfaces
+   */
+  getGroundNormal(sensor: RAPIER.Collider): { x: number; y: number } | null {
+    if (!this.world) return null;
+
+    const validNormals: Array<{ x: number; y: number }> = [];
+    const gravityDirection = { x: 0, y: 1 }; // Normalized gravity direction (Y-down)
+    const cosThreshold = -0.4; // Accept normals with cos <= -0.4 (slopes up to ~66°)
+
+    // Check all contacts with this sensor
+    this.world.contactPairsWith(sensor, (otherCollider: RAPIER.Collider) => {
+      // Ignore contacts with other sensors or same body
+      if (otherCollider.isSensor() || otherCollider.parent() === sensor.parent()) {
+        return;
+      }
+
+      // Get contact manifolds
+      const manifold = this.world!.contactPair(sensor, otherCollider);
+      if (!manifold) return;
+
+      // Extract normals from contact points
+      for (let i = 0; i < manifold.numContacts(); i++) {
+        const normal = manifold.normal();
+
+        // Calculate dot product with gravity direction
+        const cos = normal.x * gravityDirection.x + normal.y * gravityDirection.y;
+
+        // Filter: only accept normals pointing upward (opposite to gravity)
+        if (cos <= cosThreshold) {
+          validNormals.push({ x: normal.x, y: normal.y });
+        }
+      }
+    });
+
+    // If no valid normals, return null
+    if (validNormals.length === 0) {
+      return null;
+    }
+
+    // Average all valid normals
+    let sumX = 0;
+    let sumY = 0;
+    for (const normal of validNormals) {
+      sumX += normal.x;
+      sumY += normal.y;
+    }
+    const avgX = sumX / validNormals.length;
+    const avgY = sumY / validNormals.length;
+
+    // Normalize the averaged normal
+    const length = Math.sqrt(avgX * avgX + avgY * avgY);
+    if (length < 0.001) return null; // Degenerate case
+
+    return {
+      x: avgX / length,
+      y: avgY / length,
+    };
   }
 
   /**
@@ -402,9 +472,82 @@ export class RapierEngine implements PhysicsEngine {
             const screenPos = camera.worldToScreen(colliderTranslation.x, colliderTranslation.y, canvasWidth, canvasHeight);
             const screenRadius = radius * camera.zoom;
 
-            ctx.beginPath();
-            ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
-            ctx.stroke();
+            // Check if this is a sensor (foot sensor)
+            if (collider.isSensor()) {
+              const isActive = this.isSensorActive(collider);
+              const contactCount = this.sensorContacts.get(collider.handle) || 0;
+
+              // Draw sensor with distinct colors
+              ctx.save();
+              if (isActive) {
+                ctx.strokeStyle = '#00ff00'; // Bright green when touching ground
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.3)'; // Semi-transparent green fill
+                ctx.lineWidth = 3;
+              } else {
+                ctx.strokeStyle = '#ffff00'; // Yellow when not touching
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.2)'; // Transparent yellow fill
+                ctx.lineWidth = 2;
+              }
+
+              ctx.beginPath();
+              ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.stroke();
+
+              // Draw ground normal if sensor is active
+              if (isActive) {
+                const normal = this.getGroundNormal(collider);
+                if (normal) {
+                  const normalScale = 50; // Scale for visualization
+                  ctx.strokeStyle = '#ff00ff'; // Magenta for normal
+                  ctx.lineWidth = 3;
+                  ctx.beginPath();
+                  ctx.moveTo(screenPos.x, screenPos.y);
+                  ctx.lineTo(
+                    screenPos.x + normal.x * normalScale,
+                    screenPos.y + normal.y * normalScale
+                  );
+                  ctx.stroke();
+
+                  // Draw arrowhead
+                  const angle = Math.atan2(normal.y, normal.x);
+                  const arrowSize = 10;
+                  ctx.beginPath();
+                  ctx.moveTo(
+                    screenPos.x + normal.x * normalScale,
+                    screenPos.y + normal.y * normalScale
+                  );
+                  ctx.lineTo(
+                    screenPos.x + normal.x * normalScale - arrowSize * Math.cos(angle - Math.PI / 6),
+                    screenPos.y + normal.y * normalScale - arrowSize * Math.sin(angle - Math.PI / 6)
+                  );
+                  ctx.moveTo(
+                    screenPos.x + normal.x * normalScale,
+                    screenPos.y + normal.y * normalScale
+                  );
+                  ctx.lineTo(
+                    screenPos.x + normal.x * normalScale - arrowSize * Math.cos(angle + Math.PI / 6),
+                    screenPos.y + normal.y * normalScale - arrowSize * Math.sin(angle + Math.PI / 6)
+                  );
+                  ctx.stroke();
+                }
+              }
+
+              // Draw label
+              ctx.fillStyle = isActive ? '#00ff00' : '#ffffff';
+              ctx.font = '10px monospace';
+              ctx.textAlign = 'center';
+              ctx.fillText(isActive ? `GROUND (${contactCount})` : 'SENSOR', screenPos.x, screenPos.y + screenRadius + 12);
+
+              ctx.restore();
+            } else {
+              // Regular ball (not sensor)
+              ctx.strokeStyle = 'cyan';
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
+              ctx.stroke();
+            }
           }
           // For capsule shapes, draw as rounded rectangle
           else if (shape.type === RAPIER.ShapeType.Capsule) {

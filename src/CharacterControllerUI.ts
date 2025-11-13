@@ -10,6 +10,8 @@ export class CharacterControllerUI {
   // Callbacks
   public onForceChange?: (force: number) => void;
   public onDragChange?: (drag: number) => void;
+  public onGroundAttractionChange?: (force: number) => void;
+  public onFootSensorRadiusChange?: (multiplier: number) => void;
 
   constructor() {
     this.container = this.createContainer();
@@ -83,6 +85,32 @@ export class CharacterControllerUI {
       (value) => this.onDragChange?.(value)
     );
     container.appendChild(dragGroup);
+
+    // Ground Attraction Force slider
+    const groundAttractionGroup = this.createSliderGroup(
+      'Ground Attraction',
+      'ground-attraction',
+      0.0,  // min - allow disabling
+      100,  // max - strong attraction for very uneven terrain
+      15,   // default
+      0.5,  // step
+      ' N',
+      (value) => this.onGroundAttractionChange?.(value)
+    );
+    container.appendChild(groundAttractionGroup);
+
+    // Foot Sensor Radius Multiplier slider
+    const footSensorGroup = this.createSliderGroup(
+      'Foot Sensor Radius',
+      'foot-sensor-radius',
+      1.0,  // min - at least capsule radius
+      2.5,  // max - larger sensor for smoother normals
+      1.3,  // default
+      0.1,  // step
+      'x',
+      (value) => this.onFootSensorRadiusChange?.(value)
+    );
+    container.appendChild(footSensorGroup);
 
     // Info note
     const infoNote = document.createElement('div');
@@ -222,11 +250,16 @@ export class CharacterControllerUI {
   /**
    * Update slider values (when loading from player)
    */
-  updateValues(force: number, drag: number): void {
+  updateValues(force: number, drag: number, groundAttraction: number, footSensorRadius: number): void {
     const forceSlider = document.getElementById('movement-force') as HTMLInputElement;
     const dragSlider = document.getElementById('drag') as HTMLInputElement;
+    const groundAttractionSlider = document.getElementById('ground-attraction') as HTMLInputElement;
+    const footSensorSlider = document.getElementById('foot-sensor-radius') as HTMLInputElement;
+
     const forceValue = document.getElementById('movement-force-value');
     const dragValue = document.getElementById('drag-value');
+    const groundAttractionValue = document.getElementById('ground-attraction-value');
+    const footSensorValue = document.getElementById('foot-sensor-radius-value');
 
     if (forceSlider && forceValue) {
       forceSlider.value = force.toString();
@@ -236,6 +269,16 @@ export class CharacterControllerUI {
     if (dragSlider && dragValue) {
       dragSlider.value = drag.toString();
       dragValue.textContent = `${drag.toFixed(1)}`;
+    }
+
+    if (groundAttractionSlider && groundAttractionValue) {
+      groundAttractionSlider.value = groundAttraction.toString();
+      groundAttractionValue.textContent = `${groundAttraction.toFixed(1)} N`;
+    }
+
+    if (footSensorSlider && footSensorValue) {
+      footSensorSlider.value = footSensorRadius.toString();
+      footSensorValue.textContent = `${footSensorRadius.toFixed(1)}x`;
     }
   }
 }

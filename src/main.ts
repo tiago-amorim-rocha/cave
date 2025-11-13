@@ -196,10 +196,20 @@ class CarvableCaves {
         this.player.setDrag(drag);
       };
 
+      ui.onGroundAttractionChange = (force: number) => {
+        this.player.setGroundAttractionForce(force);
+      };
+
+      ui.onFootSensorRadiusChange = (multiplier: number) => {
+        this.player.setFootSensorRadiusMultiplier(multiplier);
+      };
+
       // Initialize UI with current values
       ui.updateValues(
         this.player.getMovementForce(),
-        this.player.getDrag()
+        this.player.getDrag(),
+        this.player.getGroundAttractionForce(),
+        this.player.getFootSensorRadiusMultiplier()
       );
     }
   }

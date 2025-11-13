@@ -10,8 +10,12 @@ import type { VirtualJoystick } from './VirtualJoystick';
 export interface CharacterControllerConfig {
   /** Movement force applied when moving (N) */
   movementForce: number;
-  /** Drag coefficient (NOT USED - relying on engine defaults) */
+  /** Drag coefficient (linear damping) */
   drag: number;
+  /** Ground attraction force to keep player hugging terrain (N) */
+  groundAttractionForce: number;
+  /** Foot sensor radius multiplier (relative to capsule radius) */
+  footSensorRadiusMultiplier: number;
 }
 
 export class RapierPlayer {
@@ -25,16 +29,17 @@ export class RapierPlayer {
     right: false,
   };
 
-  // Character controller config - just TWO variables!
+  // Character controller config
   private config: CharacterControllerConfig = {
     movementForce: 20.0, // Newtons - experiment with this!
     drag: 5.0, // drag coefficient - experiment with this!
-    // Terminal velocity will be: v_max = 20.0 / 5.0 = 4.0 m/s
+    groundAttractionForce: 15.0, // Newtons - keeps player hugging uneven ground
+    footSensorRadiusMultiplier: 1.3, // Ball sensor radius = capsule radius * this
   };
 
   constructor(physics: RapierPhysics, x: number, y: number) {
     this.physics = physics;
-    this.playerController = physics.createPlayer(x, y);
+    this.playerController = physics.createPlayer(x, y, this.config.footSensorRadiusMultiplier);
     this.setupInputListeners();
     // Apply initial drag value
     this.playerController.body.setLinearDamping(this.config.drag);
@@ -124,7 +129,6 @@ export class RapierPlayer {
 
   /**
    * Update player physics based on input
-   * ULTRA SIMPLE: Just apply force, let Rapier do everything else
    */
   update(dt: number): void {
     const body = this.playerController.body;
@@ -132,10 +136,18 @@ export class RapierPlayer {
 
     // CRITICAL: Reset forces each frame before applying new ones
     // Rapier's addForce() accumulates - forces don't auto-reset after timesteps!
-    // Without this, forces "stick" and the character keeps moving in old directions
     body.resetForces(true); // true = keep body awake
 
-    // Calculate and apply forces
+    // Apply ground attraction force to keep player hugging uneven terrain
+    const groundNormal = this.physics.getGroundNormal();
+    if (groundNormal && this.config.groundAttractionForce > 0) {
+      // Apply force toward ground (negative normal direction)
+      const attractionX = -groundNormal.x * this.config.groundAttractionForce;
+      const attractionY = -groundNormal.y * this.config.groundAttractionForce;
+      body.addForce({ x: attractionX, y: attractionY }, true);
+    }
+
+    // Apply movement forces
     const forceX = this.config.movementForce * input.x;
     const forceY = this.config.movementForce * input.y;
     body.addForce({ x: forceX, y: forceY }, true);
@@ -170,6 +182,35 @@ export class RapierPlayer {
     this.playerController.body.setLinearDamping(drag);
   }
 
+  /**
+   * Get ground attraction force (for debug UI)
+   */
+  getGroundAttractionForce(): number {
+    return this.config.groundAttractionForce;
+  }
+
+  /**
+   * Set ground attraction force (for debug UI)
+   */
+  setGroundAttractionForce(force: number): void {
+    this.config.groundAttractionForce = force;
+  }
+
+  /**
+   * Get foot sensor radius multiplier (for debug UI)
+   */
+  getFootSensorRadiusMultiplier(): number {
+    return this.config.footSensorRadiusMultiplier;
+  }
+
+  /**
+   * Set foot sensor radius multiplier (for debug UI)
+   * Note: Requires player respawn to take effect
+   */
+  setFootSensorRadiusMultiplier(multiplier: number): void {
+    this.config.footSensorRadiusMultiplier = multiplier;
+    // TODO: Would need to recreate player to apply this change
+  }
 
   /**
    * Get player position
@@ -210,6 +251,20 @@ export class RapierPlayer {
    */
   isGrounded(): boolean {
     return this.physics.isPlayerGrounded();
+  }
+
+  /**
+   * Get ground normal (for debug visualization)
+   */
+  getGroundNormal(): { x: number; y: number } | null {
+    return this.physics.getGroundNormal();
+  }
+
+  /**
+   * Get foot sensor collider (for debug visualization)
+   */
+  getFootSensor(): any {
+    return this.playerController.colliders.footSensor;
   }
 
   /**
