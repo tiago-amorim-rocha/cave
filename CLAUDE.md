@@ -17,6 +17,25 @@ The app demonstrates advanced techniques including:
 - **Rendering**: Canvas2D with device-pixel-ratio awareness
 - **Deployment**: GitHub Pages with GitHub Actions
 
+## Documentation
+
+### Physics Documentation
+**IMPORTANT**: When working with physics, **ALWAYS** refer to these documents:
+
+1. **`rapier2d-detailed-docs.md`** - Official Rapier 2D API reference
+   - Comprehensive guide for `@dimforge/rapier2d-compat`
+   - Documents raycasting, forces, impulses, colliders, sensors, and filtering
+   - Use this for understanding Rapier API methods and parameters
+   - Validates our force-based movement and raycast filtering approaches
+
+2. **`PHYSICS_ARCHITECTURE.md`** - Our specific physics implementation
+   - Detailed documentation of our player physics system
+   - Explains raycast-based ground detection with body exclusion
+   - Documents our force-based character controller
+   - Includes constants, debug visualization, and troubleshooting guide
+
+**Rule**: Before modifying any physics code, review both documents to ensure changes align with Rapier's API and our architectural decisions.
+
 ## Architecture
 
 ### World Units
@@ -80,22 +99,24 @@ Shared TypeScript types and interfaces (WorldConfig, BrushSettings, AABB, Vec2).
 - **cleanLoop**: Combined pipeline for physics-ready shapes
 
 #### `src/physics/engine.ts`
-- **RapierEngine**: Core physics engine wrapper
+- **RapierEngine**: Core physics engine wrapper (see `PHYSICS_ARCHITECTURE.md` for details)
 - Fixed timestep (60 Hz) with accumulator
 - Segment colliders for exact cave boundary representation
+- Raycast-based ground detection with body exclusion filtering
 - CCD (Continuous Collision Detection) for fast-moving objects
 - Debug rendering overlay
 
 #### `src/RapierPhysics.ts`
-- High-level physics API wrapper
-- Creates player and ball bodies
-- Applies movement forces and jump impulses
-- Ground detection via velocity heuristic
+- High-level physics API wrapper (see `PHYSICS_ARCHITECTURE.md` for details)
+- Creates player and ball bodies with capsule/ball colliders
+- Provides ground detection via raycasts (not velocity heuristic)
+- Manages foot sensor for ground contact detection
 
 #### `src/RapierPlayer.ts`
-- Player controller with keyboard input (WASD/Arrow keys)
-- Handles movement and jumping
-- Integrates with physics engine
+- Force-based character controller (see `PHYSICS_ARCHITECTURE.md` for details)
+- Keyboard input (WASD/Arrow keys) and virtual joystick support
+- Ground attraction force for terrain-hugging behavior
+- Implements resetForces() + addForce() pattern for continuous forces
 
 #### `src/DebugConsole.ts`
 - In-app debug overlay (bug button in top-right)
