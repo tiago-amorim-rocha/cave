@@ -282,7 +282,7 @@ export class RapierEngine implements PhysicsEngine {
     }
 
     const radius = 0.6;
-    const halfHeight = 0.6; // Total height = 2.4m (1.2m above + 1.2m below center)
+    const halfHeight = 0.4; // Total height = 2.0m (capsule = 2*halfHeight + 2*radius = 0.8 + 1.2 = 2.0m)
 
     // Create dynamic rigid body with locked rotation
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
