@@ -294,7 +294,7 @@ export class RapierEngine implements PhysicsEngine {
     const colliderDesc = RAPIER.ColliderDesc.ball(radius)
       .setFriction(0.3)
       .setRestitution(0.3)
-      .setDensity(0.001);
+      .setDensity(1);
 
     const bodyCollider = this.world.createCollider(colliderDesc, rigidBody);
 
