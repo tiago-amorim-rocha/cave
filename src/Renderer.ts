@@ -181,57 +181,17 @@ export class Renderer {
     const screen = this.camera.worldToScreen(position.x, position.y, canvasWidth, canvasHeight);
     const screenRadius = radius * this.camera.zoom;
 
-    // Capsule parameters (matching physics collider)
-    const halfHeight = 0.6; // m
-    const screenHalfHeight = halfHeight * this.camera.zoom;
-
     this.ctx.save();
 
-    // Draw player body as capsule (two circles + rectangle) - light cyan
+    // Draw player as simple ball (same as test balls) - light cyan
     this.ctx.fillStyle = '#bfeae6';
-
-    // Top circle
     this.ctx.beginPath();
-    this.ctx.arc(screen.x, screen.y - screenHalfHeight, screenRadius, 0, Math.PI * 2);
+    this.ctx.arc(screen.x, screen.y, screenRadius, 0, Math.PI * 2);
     this.ctx.fill();
-
-    // Bottom circle
-    this.ctx.beginPath();
-    this.ctx.arc(screen.x, screen.y + screenHalfHeight, screenRadius, 0, Math.PI * 2);
-    this.ctx.fill();
-
-    // Middle rectangle
-    this.ctx.fillRect(
-      screen.x - screenRadius,
-      screen.y - screenHalfHeight,
-      screenRadius * 2,
-      screenHalfHeight * 2
-    );
 
     // Draw outline (medium purple)
     this.ctx.strokeStyle = '#9c7fa3';
-    this.ctx.lineWidth = 2;
-
-    // Left edge
-    this.ctx.beginPath();
-    this.ctx.moveTo(screen.x - screenRadius, screen.y - screenHalfHeight);
-    this.ctx.lineTo(screen.x - screenRadius, screen.y + screenHalfHeight);
-    this.ctx.stroke();
-
-    // Right edge
-    this.ctx.beginPath();
-    this.ctx.moveTo(screen.x + screenRadius, screen.y - screenHalfHeight);
-    this.ctx.lineTo(screen.x + screenRadius, screen.y + screenHalfHeight);
-    this.ctx.stroke();
-
-    // Top arc
-    this.ctx.beginPath();
-    this.ctx.arc(screen.x, screen.y - screenHalfHeight, screenRadius, Math.PI, 0);
-    this.ctx.stroke();
-
-    // Bottom arc
-    this.ctx.beginPath();
-    this.ctx.arc(screen.x, screen.y + screenHalfHeight, screenRadius, 0, Math.PI);
+    this.ctx.lineWidth = 3;
     this.ctx.stroke();
 
     this.ctx.restore();

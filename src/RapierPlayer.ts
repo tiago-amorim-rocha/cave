@@ -65,10 +65,16 @@ export class RapierPlayer {
     switch (key.toLowerCase()) {
       case 'a':
       case 'arrowleft':
+        if (!this.keys.left) {
+          console.log('[Player] KEY DOWN: LEFT');
+        }
         this.keys.left = true;
         break;
       case 'd':
       case 'arrowright':
+        if (!this.keys.right) {
+          console.log('[Player] KEY DOWN: RIGHT');
+        }
         this.keys.right = true;
         break;
     }
@@ -81,10 +87,12 @@ export class RapierPlayer {
     switch (key.toLowerCase()) {
       case 'a':
       case 'arrowleft':
+        console.log('[Player] KEY UP: LEFT');
         this.keys.left = false;
         break;
       case 'd':
       case 'arrowright':
+        console.log('[Player] KEY UP: RIGHT');
         this.keys.right = false;
         break;
     }
@@ -120,17 +128,27 @@ export class RapierPlayer {
     const body = this.playerController.body;
     const input = this.getInput(); // { x, y } - analog from joystick
 
-    // Debug log every 60 frames (~1 second)
+    // Calculate forces
+    const forceX = this.config.movementForce * input.x;
+    const forceY = this.config.movementForce * input.y;
+    const forceMag = Math.sqrt(forceX * forceX + forceY * forceY);
+
+    // Log when ANY force is being applied (not just randomly)
+    if (forceMag > 0.1) {
+      const vel = body.linvel();
+      console.log(`[Player] APPLYING FORCE: (${forceX.toFixed(1)}, ${forceY.toFixed(1)}) N, input: (${input.x.toFixed(2)}, ${input.y.toFixed(2)}), vel: (${vel.x.toFixed(2)}, ${vel.y.toFixed(2)})`);
+    }
+
+    // Debug log physics state periodically
     if (Math.random() < 0.016) {
       const vel = body.linvel();
       const isDynamic = body.isDynamic();
       const gravScale = body.gravityScale();
-      console.log(`[Player BALL] isDynamic: ${isDynamic}, gravScale: ${gravScale}, vel: (${vel.x.toFixed(2)}, ${vel.y.toFixed(2)}), input: (${input.x.toFixed(2)}, ${input.y.toFixed(2)})`);
+      const mass = body.mass();
+      console.log(`[Player BALL] isDynamic: ${isDynamic}, gravScale: ${gravScale}, mass: ${mass.toFixed(4)} kg, vel: (${vel.x.toFixed(2)}, ${vel.y.toFixed(2)})`);
     }
 
     // Apply force - THAT'S IT! No damping manipulation, no special handling
-    const forceX = this.config.movementForce * input.x;
-    const forceY = this.config.movementForce * input.y;
     body.addForce({ x: forceX, y: forceY }, true);
   }
 
