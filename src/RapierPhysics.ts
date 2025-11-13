@@ -87,14 +87,15 @@ export class RapierPhysics {
   }
 
   /**
-   * Get averaged ground normal from foot sensor contacts
+   * Get averaged ground normal from capsule collider contacts
    * Returns null if no valid ground contacts exist
    */
   getGroundNormal(): { x: number; y: number } | null {
-    if (!this.playerController || !this.playerController.colliders.footSensor) {
+    if (!this.playerController || !this.playerController.colliders.body) {
       return null;
     }
-    return this.engine.getGroundNormal(this.playerController.colliders.footSensor);
+    // Use capsule collider for normals, not sensor (sensors don't have contact manifolds!)
+    return this.engine.getGroundNormal(this.playerController.colliders.body);
   }
 
   /**

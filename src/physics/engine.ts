@@ -69,12 +69,12 @@ export interface PhysicsEngine {
   isSensorActive(sensor: RAPIER.Collider): boolean;
 
   /**
-   * Get averaged ground normal from sensor contacts
+   * Get averaged ground normal from collider contacts
    * Filters normals by gravity alignment (only accepts ground-like surfaces)
-   * @param sensor - The sensor collider to check
+   * @param collider - The collider to check (works with both sensors and regular colliders)
    * @returns Averaged normal vector, or null if no valid ground contacts
    */
-  getGroundNormal(sensor: RAPIER.Collider): { x: number; y: number } | null;
+  getGroundNormal(collider: RAPIER.Collider): { x: number; y: number } | null;
 
   /**
    * Get ground normal and contact point for visualization
@@ -355,18 +355,18 @@ export class RapierEngine implements PhysicsEngine {
   }
 
   /**
-   * Get averaged ground normal from sensor contacts
+   * Get averaged ground normal from collider contacts
    * Filters normals by gravity alignment to only accept ground-like surfaces
    */
-  getGroundNormal(sensor: RAPIER.Collider): { x: number; y: number } | null {
-    const result = this.getGroundNormalWithPoint(sensor);
+  getGroundNormal(collider: RAPIER.Collider): { x: number; y: number } | null {
+    const result = this.getGroundNormalWithPoint(collider);
     return result ? result.normal : null;
   }
 
   /**
    * Get ground normal and contact point for visualization
    */
-  getGroundNormalWithPoint(sensor: RAPIER.Collider): { normal: { x: number; y: number }; point: { x: number; y: number } } | null {
+  getGroundNormalWithPoint(collider: RAPIER.Collider): { normal: { x: number; y: number }; point: { x: number; y: number } } | null {
     if (!this.world) return null;
 
     const validNormals: Array<{ x: number; y: number }> = [];
@@ -376,18 +376,21 @@ export class RapierEngine implements PhysicsEngine {
 
     let totalContacts = 0;
     let rejectedByFilter = 0;
+    let totalManifolds = 0;
 
-    // Check all contacts with this sensor
-    this.world.contactPairsWith(sensor, (otherCollider: RAPIER.Collider) => {
+    // Check all contacts with this collider
+    this.world.contactPairsWith(collider, (otherCollider: RAPIER.Collider) => {
       // Ignore contacts with other sensors or same body
-      if (otherCollider.isSensor() || otherCollider.parent() === sensor.parent()) {
+      if (otherCollider.isSensor() || otherCollider.parent() === collider.parent()) {
         return;
       }
 
       totalContacts++;
 
       // Get contact manifolds using the callback API
-      this.world!.contactPair(sensor, otherCollider, (manifold: RAPIER.TempContactManifold, flipped: boolean) => {
+      this.world!.contactPair(collider, otherCollider, (manifold: RAPIER.TempContactManifold, flipped: boolean) => {
+        totalManifolds++;
+
         // Extract normal from manifold
         const normal = manifold.normal();
 
@@ -397,6 +400,11 @@ export class RapierEngine implements PhysicsEngine {
 
         // Calculate dot product with gravity direction
         const cos = normalX * gravityDirection.x + normalY * gravityDirection.y;
+
+        // DEBUG: Log normal details
+        if (Math.random() < 0.01) {
+          console.log(`[RapierEngine] Contact normal: (${normalX.toFixed(2)}, ${normalY.toFixed(2)}), cos: ${cos.toFixed(2)}, threshold: ${cosThreshold}`);
+        }
 
         // Filter: only accept normals pointing upward (opposite to gravity)
         if (cos <= cosThreshold) {
@@ -418,13 +426,13 @@ export class RapierEngine implements PhysicsEngine {
 
     // DEBUG: Log contact detection issues
     if (Math.random() < 0.016) {
-      console.log(`[RapierEngine] Sensor contacts: ${totalContacts}, rejected by filter: ${rejectedByFilter}, valid: ${validNormals.length}`);
+      console.log(`[RapierEngine] Collider: ${collider.isSensor() ? 'SENSOR' : 'BODY'}, contactPairs: ${totalContacts}, manifolds: ${totalManifolds}, rejected: ${rejectedByFilter}, valid: ${validNormals.length}`);
     }
 
     // If no valid normals, return null
     if (validNormals.length === 0 || validPoints.length === 0) {
       if (totalContacts > 0 && Math.random() < 0.016) {
-        console.log(`[RapierEngine] Have ${totalContacts} contacts but no valid normals (all rejected by cos filter)`);
+        console.log(`[RapierEngine] Have ${totalContacts} contacts but no valid normals (all rejected by cos filter or no manifolds)`);
       }
       return null;
     }
