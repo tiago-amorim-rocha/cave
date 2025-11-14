@@ -141,4 +141,11 @@ export class RapierPhysics {
   debugDraw(ctx: CanvasRenderingContext2D, camera: Camera, canvasWidth: number, canvasHeight: number): void {
     this.engine.debugDraw(ctx, camera, canvasWidth, canvasHeight);
   }
+
+  /**
+   * Get the underlying Rapier engine (for advanced use cases like PlayerController)
+   */
+  getEngine(): RapierEngine {
+    return this.engine;
+  }
 }
