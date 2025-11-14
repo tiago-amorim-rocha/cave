@@ -308,11 +308,6 @@ class CarvableCaves {
 
           // Check if this position is valid
           if (this.isValidSpawnPosition(worldX, worldY, entityRadius)) {
-            const distance = Math.sqrt(
-              (worldX - preferredX) ** 2 +
-              (worldY - preferredY) ** 2
-            );
-            console.log(`[Spawn] Found valid position ${distance.toFixed(1)}m away at (${worldX.toFixed(1)}, ${worldY.toFixed(1)})`);
             return { x: worldX, y: worldY };
           }
         }
