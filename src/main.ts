@@ -8,7 +8,7 @@ import { CharacterControllerUI } from './CharacterControllerUI';
 import { LoopCache } from './LoopCache';
 import { InputHandler } from './InputHandler';
 import { RapierPhysics } from './RapierPhysics';
-import { RapierPlayer } from './RapierPlayer';
+import { PlayerController } from './PlayerController';
 import { VirtualJoystick } from './VirtualJoystick';
 import { RemeshManager, type RemeshStats } from './RemeshManager';
 import { VersionChecker } from './VersionChecker';
@@ -27,7 +27,7 @@ class CarvableCaves {
   private loopCache: LoopCache;
   private inputHandler: InputHandler;
   private physics: RapierPhysics;
-  private player!: RapierPlayer; // Initialized asynchronously in start()
+  private player!: PlayerController; // Initialized asynchronously in start()
   private joystick: VirtualJoystick;
   private remeshManager!: RemeshManager; // Initialized after physics
 
@@ -257,7 +257,7 @@ class CarvableCaves {
     }
 
     // Create player after physics world is ready
-    this.player = new RapierPlayer(this.physics, actualSpawnX, actualSpawnY);
+    this.player = new PlayerController(this.physics.getEngine(), actualSpawnX, actualSpawnY);
     this.player.setJoystick(this.joystick); // Connect joystick to player
 
     // Wire up character controller UI (now that player exists)

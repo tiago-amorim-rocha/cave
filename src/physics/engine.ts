@@ -569,6 +569,13 @@ export class RapierEngine implements PhysicsEngine {
   }
 
   /**
+   * Get the physics world (for advanced use cases like PlayerController)
+   */
+  getWorld(): RAPIER.World | null {
+    return this.world;
+  }
+
+  /**
    * Debug draw physics shapes in world coordinates
    * Note: debugEnabled flag is reserved for future use, currently always draws
    */
