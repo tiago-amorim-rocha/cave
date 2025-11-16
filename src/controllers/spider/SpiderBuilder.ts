@@ -43,15 +43,20 @@ export function buildSpider(
 
   const body = world.createRigidBody(bodyDesc);
 
-  // Body collider: 1m × 1m square
+  // Body collider with collision filtering to prevent self-collision
+  // Collision group format: memberships(high 16 bits) | filter(low 16 bits)
+  // - Spider parts: 0x00020001 (member of group 1, filter for group 0 only)
+  // - Terrain: 0x0001FFFF (member of group 0, filter for all groups)
+  // Spider parts WON'T collide with each other but WILL collide with terrain
   const bodyCollider = RAPIER.ColliderDesc.cuboid(0.5, 0.5) // half-extents
     .setDensity(1.0)
     .setFriction(0.3)
-    .setRestitution(0.1);
+    .setRestitution(0.1)
+    .setCollisionGroups(0x00020001); // Spider collision group
 
   world.createCollider(bodyCollider, body);
 
-  console.log('[SpiderBuilder] Created body: 1.0m × 1.0m square');
+  console.log('[SpiderBuilder] Created body: 1.0m × 1.0m square with collision filtering');
 
   // === Build Legs ===
   // From Unity SpiderController.cs line 183-194:
@@ -161,7 +166,7 @@ function buildLeg(
   const footY = ankleY + dir3.y * L3;
 
   // === Create Segment Bodies ===
-  // From porting guide: segments are ~0.1m wide (cuboid half-height = 0.05)
+  // Segments have colliders for mass, but use collision filtering to prevent self-collision
   const segmentWidth = 0.1;
   const segmentHalfWidth = segmentWidth / 2;
 
@@ -178,7 +183,8 @@ function buildLeg(
     .setTranslation(L1 / 2, 0) // Offset so pivot is at left edge
     .setDensity(1.0)
     .setFriction(0.3)
-    .setRestitution(0.1);
+    .setRestitution(0.1)
+    .setCollisionGroups(0x00020001); // Spider collision group
 
   world.createCollider(hipCollider, hip);
 
@@ -195,7 +201,8 @@ function buildLeg(
     .setTranslation(L2 / 2, 0)
     .setDensity(1.0)
     .setFriction(0.3)
-    .setRestitution(0.1);
+    .setRestitution(0.1)
+    .setCollisionGroups(0x00020001); // Spider collision group
 
   world.createCollider(kneeCollider, knee);
 
@@ -212,7 +219,8 @@ function buildLeg(
     .setTranslation(L3 / 2, 0)
     .setDensity(1.0)
     .setFriction(0.3)
-    .setRestitution(0.1);
+    .setRestitution(0.1)
+    .setCollisionGroups(0x00020001); // Spider collision group
 
   world.createCollider(ankleCollider, ankle);
 
@@ -224,10 +232,12 @@ function buildLeg(
 
   const foot = world.createRigidBody(footDesc);
 
-  const footCollider = RAPIER.ColliderDesc.cuboid(0.1, 0.1) // 0.2m × 0.2m square
+  // Foot collider with collision filtering
+  const footCollider = RAPIER.ColliderDesc.cuboid(0.1, 0.1) // Small 0.2m × 0.2m square
     .setDensity(1.0)
-    .setFriction(0.8) // High friction for stable footing
-    .setRestitution(0.0);
+    .setFriction(0.8) // High friction for ground contact
+    .setRestitution(0.0) // No bounce
+    .setCollisionGroups(0x00020001); // Spider collision group
 
   world.createCollider(footCollider, foot);
 
