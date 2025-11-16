@@ -41,10 +41,12 @@ export class SpiderController implements IPlayerController {
     this.engine = engine;
     this.config = config || DEFAULT_SPIDER_CONFIG;
 
-    // Clear debug console for focused spider debugging
-    const debugConsole = (window as any).debugConsole;
-    if (debugConsole && debugConsole.clearLogs) {
-      debugConsole.clearLogs();
+    // Clear debug console for focused spider debugging (browser only)
+    if (typeof window !== 'undefined') {
+      const debugConsole = (window as any).debugConsole;
+      if (debugConsole && debugConsole.clearLogs) {
+        debugConsole.clearLogs();
+      }
     }
 
     console.log('[SpiderController] ==========================================');
