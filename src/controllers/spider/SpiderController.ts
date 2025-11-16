@@ -1,32 +1,35 @@
 /**
  * Spider Controller - Multi-Body Character Controller
  *
- * CURRENT STATE: Minimal stub for visual testing (Phase 2.5)
+ * CURRENT STATE: Core movement implemented (Phase 3)
  * - Creates spider rig using SpiderBuilder
  * - Implements IPlayerController interface
- * - Does NOT move yet (update() is empty)
- * - Use physics debug view to see the rig structure
+ * - Movement via Jacobian transpose inverse kinematics
+ * - Input from virtual joystick
+ * - Force distribution between legs
  *
- * TODO Phase 3: Implement full controller
- * - computeLegForces() - force distribution
- * - applyLegTorques() - Jacobian transpose kinematics
- * - Joint limit springs
- * - Input handling
+ * DEFERRED FEATURES (Phase 4):
+ * - Rotation stabilization (PD controller for body orientation)
+ * - Joint limit springs (soft constraints to prevent over-extension)
  */
 
 import RAPIER from '@dimforge/rapier2d-compat';
 import type { RapierEngine } from '../../physics/engine';
 import type { IPlayerController } from '../IPlayerController';
 import type { VirtualJoystick } from '../../VirtualJoystick';
-import type { SpiderAssembly, SpiderConfig } from './SpiderTypes';
+import type { SpiderAssembly, SpiderConfig, ControllerLeg } from './SpiderTypes';
 import { DEFAULT_SPIDER_CONFIG } from './SpiderTypes';
 import { buildSpider } from './SpiderBuilder';
+import { clamp, radToDeg, degToRad } from './SpiderMath';
 
 /**
- * Spider Controller (Minimal Stub)
+ * Spider Controller - Multi-Body Character Controller
  *
- * Creates and manages a multi-body spider rig.
- * Currently just creates the physical structure - movement logic TODO in Phase 3.
+ * Creates and manages a multi-body spider rig with Jacobian-based inverse kinematics.
+ * Uses torque-based control to move a 2-legged, 3-segment-per-leg spider character.
+ *
+ * Phase 3: Core movement implemented (force distribution + Jacobian transpose)
+ * TODO: Rotation stabilization and joint limit springs (deferred)
  */
 export class SpiderController implements IPlayerController {
   private engine: RapierEngine;
@@ -49,20 +52,149 @@ export class SpiderController implements IPlayerController {
     this.spider = buildSpider(world, x, y, this.config);
 
     console.log('[SpiderController] Spider controller created successfully');
-    console.log('[SpiderController] NOTE: Spider does not move yet - Phase 3 will implement movement');
+    console.log('[SpiderController] Movement: Jacobian-based inverse kinematics');
+    console.log('[SpiderController] Use virtual joystick to control spider');
     console.log('[SpiderController] Enable physics debug view to see the rig structure');
   }
 
   /**
-   * Update controller (currently does nothing - spider is frozen)
-   * TODO Phase 3: Implement force distribution and torque application
+   * Update controller - Main physics update loop
+   * Reads input, computes forces, applies torques
    */
   update(dt: number): void {
-    // TODO Phase 3: Implement movement logic
-    // 1. Read input from joystick
-    // 2. computeLegForces() - distribute forces between legs
-    // 3. applyLegTorques() - convert forces to joint torques using Jacobian
-    // 4. Apply soft joint limits
+    // 1. Read input from joystick (clamped to [-1, 1])
+    const input = this.joystick?.getInput() ?? { x: 0, y: 0, magnitude: 0 };
+    const horizontalInput = clamp(input.x, -1, 1);
+    // Note: VirtualJoystick y is -1 for up, 1 for down
+    // Unity convention is positive = up, so negate
+    const verticalInput = clamp(-input.y, -1, 1);
+
+    // 2. Compute desired forces on each leg
+    const { leftForce, rightForce } = this.computeLegForces(verticalInput, horizontalInput);
+
+    // 3. Apply torques to joints using Jacobian transpose
+    // Note: Negate forces (equal-and-opposite reaction)
+    // Spider pushes on ground, ground pushes on spider
+    this.applyLegTorques(this.spider.leftLeg, -leftForce.x, -leftForce.y);
+    this.applyLegTorques(this.spider.rightLeg, -rightForce.x, -rightForce.y);
+  }
+
+  /**
+   * Compute leg forces from input
+   *
+   * Distributes desired body forces between left and right legs.
+   * Simplified version without rotation stabilization.
+   *
+   * From Unity SpiderController.cs line 475-506
+   *
+   * @param verticalInput - Vertical input [-1, 1] (positive = up)
+   * @param horizontalInput - Horizontal input [-1, 1] (positive = right)
+   * @returns Object with leftForce and rightForce vectors
+   */
+  private computeLegForces(
+    verticalInput: number,
+    horizontalInput: number
+  ): { leftForce: { x: number; y: number }; rightForce: { x: number; y: number } } {
+    const body = this.spider.body;
+
+    // Desired vertical force: input × gain × mass
+    let desiredFy = verticalInput * this.config.verticalAccelGain * body.mass();
+    desiredFy = clamp(desiredFy, -this.config.maxTotalFootForceY, this.config.maxTotalFootForceY);
+
+    // Desired horizontal force: input × gain × mass
+    let desiredFx = horizontalInput * this.config.horizontalAccelGain * body.mass();
+    desiredFx = clamp(desiredFx, -this.config.maxTotalFootForceX, this.config.maxTotalFootForceX);
+
+    // Split forces evenly between legs (50% each)
+    // TODO: Add rotation stabilization to bias forces for body orientation
+    const perLegForce = {
+      x: desiredFx * 0.5,
+      y: desiredFy * 0.5
+    };
+
+    return {
+      leftForce: { ...perLegForce },
+      rightForce: { ...perLegForce }
+    };
+  }
+
+  /**
+   * Apply torques to leg joints using Jacobian transpose
+   *
+   * Converts desired foot force into joint torques for hip, knee, and ankle.
+   * Uses Jacobian transpose method for inverse kinematics.
+   * Simplified version without joint limit springs.
+   *
+   * From Unity SpiderController.cs line 508-611
+   *
+   * @param leg - Leg to apply torques to
+   * @param Fx - Desired horizontal force at foot (N)
+   * @param Fy - Desired vertical force at foot (N)
+   */
+  private applyLegTorques(leg: ControllerLeg, Fx: number, Fy: number): void {
+    const hip = leg.hip;
+    const knee = leg.knee;
+    const ankle = leg.ankle;
+
+    // === Read Joint Angles ===
+    // Rapier uses radians, convert to degrees for debugging
+    // Unity convention:
+    // - thetaA: hip absolute rotation (world space)
+    // - thetaB: knee relative to hip
+    // - thetaC: ankle relative to knee
+    const hipRotDeg = radToDeg(hip.rotation());
+    const kneeRotDeg = radToDeg(knee.rotation());
+    const ankleRotDeg = radToDeg(ankle.rotation());
+
+    // Convert to radians for trig operations
+    const thetaA = degToRad(hipRotDeg);
+    const thetaB = degToRad(kneeRotDeg - hipRotDeg);
+    const thetaC = degToRad(ankleRotDeg - kneeRotDeg);
+
+    // === Segment Lengths ===
+    const l1 = this.config.segmentLength1; // 1.3m
+    const l2 = this.config.segmentLength2; // 1.0m
+    const l3 = this.config.segmentLength3; // 0.7m
+
+    // === Jacobian Matrix Computation ===
+    // Precompute trig values for efficiency
+    const sA = Math.sin(thetaA);
+    const cA = Math.cos(thetaA);
+    const sAB = Math.sin(thetaA + thetaB);
+    const cAB = Math.cos(thetaA + thetaB);
+    const sABC = Math.sin(thetaA + thetaB + thetaC);
+    const cABC = Math.cos(thetaA + thetaB + thetaC);
+
+    // Jacobian transpose terms
+    // J = [j11 j12 j13]  (X-axis row)
+    //     [j21 j22 j23]  (Y-axis row)
+    const j11 = -l1 * sA - l2 * sAB - l3 * sABC;
+    const j12 = -l2 * sAB - l3 * sABC;
+    const j13 = -l3 * sABC;
+
+    const j21 = l1 * cA + l2 * cAB + l3 * cABC;
+    const j22 = l2 * cAB + l3 * cABC;
+    const j23 = l3 * cABC;
+
+    // === Compute Joint Torques ===
+    // τ = J^T × F
+    // where F = (Fx, Fy) is desired foot force
+    let tauA = j11 * Fx + j21 * Fy; // Hip torque
+    let tauB = j12 * Fx + j22 * Fy; // Knee torque
+    let tauC = j13 * Fx + j23 * Fy; // Ankle torque
+
+    // TODO: Add joint limit springs here (deferred)
+
+    // === Scale and Clamp Torques ===
+    tauA = clamp(tauA * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
+    tauB = clamp(tauB * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
+    tauC = clamp(tauC * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
+
+    // === Apply Torques ===
+    // Rapier API: addTorque(torque, wakeup)
+    hip.addTorque(tauA, true);
+    knee.addTorque(tauB, true);
+    ankle.addTorque(tauC, true);
   }
 
   /**
@@ -109,11 +241,27 @@ export class SpiderController implements IPlayerController {
 
   /**
    * Respawn spider at new position
+   * Moves all spider bodies maintaining their relative positions
    */
   respawn(x: number, y: number): void {
-    console.log('[SpiderController] Respawn not yet implemented');
-    // TODO Phase 3: Implement respawn
-    // Need to reposition all bodies maintaining relative positions
+    console.log('[SpiderController] Respawning spider at (', x.toFixed(2), ',', y.toFixed(2), ')');
+
+    // Get current body position
+    const currentPos = this.spider.body.translation();
+    const dx = x - currentPos.x;
+    const dy = y - currentPos.y;
+
+    // Move all bodies by the same delta, maintaining relative positions
+    for (const body of this.spider.allBodies) {
+      const pos = body.translation();
+      body.setTranslation({ x: pos.x + dx, y: pos.y + dy }, true);
+
+      // Reset velocities to prevent residual momentum
+      body.setLinvel({ x: 0, y: 0 }, true);
+      body.setAngvel(0, true);
+    }
+
+    console.log('[SpiderController] Spider respawned successfully');
   }
 
   /**
@@ -153,7 +301,7 @@ export class SpiderController implements IPlayerController {
    * Get controller type name
    */
   getTypeName(): string {
-    return 'Spider Controller (Stub)';
+    return 'Spider Controller (Jacobian IK)';
   }
 
   /**
