@@ -74,8 +74,8 @@ class CarvableCaves {
     try {
       // World configuration
       const worldConfig: WorldConfig = {
-        width: 128, // metres
-        height: 128, // metres
+        width: 64, // metres - smaller for spider controller testing
+        height: 64, // metres - smaller for spider controller testing
         gridPitch: 0.25, // metres (h)
         isoValue: 128
       };
@@ -98,8 +98,8 @@ class CarvableCaves {
       // Initialize density field
       this.densityField = new DensityField(worldConfig);
 
-      // Generate initial cave system
-      this.densityField.generateCaves(undefined, 0.05, 4, 0.1);
+      // Generate initial cave system with more open space (higher threshold = more caves)
+      this.densityField.generateCaves(undefined, 0.05, 4, 0.3);
 
       // Player spawn position (validated to be in empty area)
       const preferredSpawnX = worldConfig.width / 2;
@@ -410,11 +410,11 @@ class CarvableCaves {
     // Update physics simulation (Rapier handles fixed timestep internally)
     this.physics.update(deltaMs);
 
-    // Spawn test balls every 5 seconds
-    if (now - this.lastBallSpawnTime > 5000) {
-      this.spawnTestBall();
-      this.lastBallSpawnTime = now;
-    }
+    // Ball spawning disabled for spider controller testing
+    // if (now - this.lastBallSpawnTime > 5000) {
+    //   this.spawnTestBall();
+    //   this.lastBallSpawnTime = now;
+    // }
 
     // Camera smoothly follows player in character control mode
     const playerPos = player?.getPosition() ?? { x: 0, y: 0 };
