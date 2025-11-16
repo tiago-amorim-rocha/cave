@@ -159,13 +159,22 @@ function buildLeg(
   console.log(`[SpiderBuilder] Building ${legName} leg at (${hipX.toFixed(2)}, ${hipY.toFixed(2)})`);
 
   // === Initial Pose ===
-  // From Unity prefab lines 382-392, but adjusted for Y-down coordinate system
-  // Unity uses Y-up, we use Y-down, so flip the angles
-  // Original: Left leg: 130°, 100°, 40° | Right leg: 50°, -100°, -40°
-  // Flipped: subtract from 360° to invert Y direction
-  const angle1Deg = isLeft ? (360 - 130) : (360 - 50); // Left: 230°, Right: 310°
-  const angle2Deg = isLeft ? -100 : 100; // Keep relative bends but flip sign
-  const angle3Deg = isLeft ? -40 : 40;
+  // CRITICAL: These values match Unity's RUNTIME logged pose (from logunity.txt)
+  // Unity Y-up runtime pose: LEFT (hip=120°, knee=-120° rel, ankle=-80° rel)
+  //                         RIGHT (hip=60°, knee=-60° rel, ankle=-100° rel)
+  //
+  // Conversion to Y-down (negate angles since Y-axis is flipped):
+  // Unity Y-up → Rapier Y-down transformation: θ_ydown = -θ_yup = 360° - θ_yup
+  //
+  // LEFT:  hip=120° → -120° (240°), knee=0° → 0°, ankle=-80° → 80°
+  // RIGHT: hip=60° → -60° (300°), knee=0° → 0°, ankle=-100° → 100°
+  //
+  // Relative angles: knee(rel) = knee(abs) - hip(abs), ankle(rel) = ankle(abs) - knee(abs)
+  // LEFT:  knee(rel) = 0° - (-120°) = 120°, ankle(rel) = 80° - 0° = 80°
+  // RIGHT: knee(rel) = 0° - (-60°) = 60°, ankle(rel) = 100° - 0° = 100°
+  const angle1Deg = isLeft ? 240 : 300; // Hip absolute (LEFT: -120° ≡ 240°, RIGHT: -60° ≡ 300°)
+  const angle2Deg = isLeft ? 120 : 60;  // Knee relative to hip
+  const angle3Deg = isLeft ? 80 : 100;  // Ankle relative to knee
 
   // Compute segment directions
   const dir1 = angleToDir(angle1Deg);
