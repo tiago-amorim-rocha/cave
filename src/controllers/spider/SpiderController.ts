@@ -34,7 +34,7 @@ import { clamp, radToDeg, degToRad } from './SpiderMath';
 export class SpiderController implements IPlayerController {
   private engine: RapierEngine;
   private spider: SpiderAssembly;
-  private config: SpiderConfig;
+  public config: SpiderConfig; // Public for debug UI access
   private joystick: VirtualJoystick | null = null;
 
   constructor(engine: RapierEngine, x: number, y: number, config?: SpiderConfig) {
@@ -62,6 +62,16 @@ export class SpiderController implements IPlayerController {
    * Reads input, computes forces, applies torques
    */
   update(dt: number): void {
+    // CRITICAL: Reset forces on all bodies to prevent accumulation
+    // Rapier accumulates torques, so we must reset each frame
+    this.spider.body.resetForces(true);
+    this.spider.leftLeg.hip.resetForces(true);
+    this.spider.leftLeg.knee.resetForces(true);
+    this.spider.leftLeg.ankle.resetForces(true);
+    this.spider.rightLeg.hip.resetForces(true);
+    this.spider.rightLeg.knee.resetForces(true);
+    this.spider.rightLeg.ankle.resetForces(true);
+
     // 1. Read input from joystick (clamped to [-1, 1])
     const input = this.joystick?.getInput() ?? { x: 0, y: 0, magnitude: 0 };
     const horizontalInput = clamp(input.x, -1, 1);
