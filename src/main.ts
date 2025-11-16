@@ -773,13 +773,6 @@ try {
 
   spiderDebugUI = new SpiderDebugUI();
   (window as any).spiderDebugUI = spiderDebugUI; // Make accessible
-
-  // Add keyboard shortcut for spider debug UI (P key)
-  document.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'p' || e.key === 'P') {
-      spiderDebugUI.toggle();
-    }
-  });
 } catch (error) {
   console.error('Failed to create debug console:', error);
   alert('Failed to create debug console: ' + error);
@@ -865,6 +858,12 @@ debugConsole.onRespawn = () => {
 debugConsole.onToggleCaveGen = () => {
   if (caveGeneratorUI) {
     caveGeneratorUI.toggle();
+  }
+};
+
+debugConsole.onToggleSpiderDebug = () => {
+  if (spiderDebugUI) {
+    spiderDebugUI.toggle();
   }
 };
 

@@ -21,11 +21,13 @@ export class DebugConsole {
   private textLogButton: HTMLButtonElement;
   private respawnButton: HTMLButtonElement;
   private caveGenButton: HTMLButtonElement;
+  private spiderDebugButton: HTMLButtonElement;
   private isMenuExpanded = false;
 
   // Toggle callbacks
   public onRespawn?: () => void;
   public onToggleCaveGen?: () => void;
+  public onToggleSpiderDebug?: () => void;
   public onToggleControlMode?: (enabled: boolean) => void;
   public onTogglePhysicsMesh?: (enabled: boolean) => void;
   public onToggleOptimizedVertices?: (enabled: boolean) => void;
@@ -56,11 +58,13 @@ export class DebugConsole {
     this.textLogButton = this.createTextLogButton();
     this.respawnButton = this.createRespawnButton();
     this.caveGenButton = this.createCaveGenButton();
+    this.spiderDebugButton = this.createSpiderDebugButton();
     document.body.appendChild(this.hamburgerButton);
     document.body.appendChild(this.visualDebugButton);
     document.body.appendChild(this.textLogButton);
     document.body.appendChild(this.respawnButton);
     document.body.appendChild(this.caveGenButton);
+    document.body.appendChild(this.spiderDebugButton);
 
     // Intercept console methods
     this.interceptConsole();
@@ -245,6 +249,45 @@ export class DebugConsole {
     button.addEventListener('click', () => {
       if (this.onToggleCaveGen) {
         this.onToggleCaveGen();
+      }
+    });
+    return button;
+  }
+
+  private createSpiderDebugButton(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.id = 'spider-debug-button';
+    button.title = 'Spider Debug';
+    button.textContent = '🕷️';
+    button.style.cssText = `
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 10px) + 310px);
+      left: calc(env(safe-area-inset-left, 10px) + 10px);
+      background: rgba(233, 30, 99, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10001;
+      pointer-events: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      -webkit-tap-highlight-color: rgba(233, 30, 99, 0.3);
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: opacity 0.3s ease 0.2s, transform 0.3s ease 0.2s;
+    `;
+    button.addEventListener('click', () => {
+      if (this.onToggleSpiderDebug) {
+        this.onToggleSpiderDebug();
       }
     });
     return button;
@@ -1006,6 +1049,10 @@ export class DebugConsole {
       this.caveGenButton.style.transform = 'translateY(0)';
       this.caveGenButton.style.pointerEvents = 'auto';
 
+      this.spiderDebugButton.style.opacity = '1';
+      this.spiderDebugButton.style.transform = 'translateY(0)';
+      this.spiderDebugButton.style.pointerEvents = 'auto';
+
       // Rotate hamburger icon
       this.hamburgerButton.style.transform = 'rotate(90deg)';
     } else {
@@ -1025,6 +1072,10 @@ export class DebugConsole {
       this.caveGenButton.style.opacity = '0';
       this.caveGenButton.style.transform = 'translateY(-20px)';
       this.caveGenButton.style.pointerEvents = 'none';
+
+      this.spiderDebugButton.style.opacity = '0';
+      this.spiderDebugButton.style.transform = 'translateY(-20px)';
+      this.spiderDebugButton.style.pointerEvents = 'none';
 
       // Reset hamburger icon rotation
       this.hamburgerButton.style.transform = 'rotate(0deg)';
