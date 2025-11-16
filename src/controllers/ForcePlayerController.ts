@@ -1,20 +1,18 @@
 /**
- * Consolidated Player Controller
- * All player-specific physics, body creation, ground detection, and movement in one file
+ * Force-based Player Controller
+ * Simple physics controller using direct force application
  *
- * This file contains:
- * - Player body/sensor creation (capsule + foot sensor)
- * - Ground detection via raycasts
- * - Force-based character controller
- * - Input handling (keyboard + joystick)
- * - All player-specific configuration
- *
- * Input handling is included but could be separated if desired.
+ * Features:
+ * - Capsule body with locked rotation
+ * - Ground attraction force for terrain hugging
+ * - Foot sensor for ground detection
+ * - Keyboard + joystick input
  */
 
 import RAPIER from '@dimforge/rapier2d-compat';
-import type { RapierEngine } from './physics/engine';
-import type { VirtualJoystick } from './VirtualJoystick';
+import type { RapierEngine } from '../physics/engine';
+import type { VirtualJoystick } from '../VirtualJoystick';
+import type { IPlayerController } from './IPlayerController';
 
 export interface CharacterControllerConfig {
   /** Movement force applied when moving (N) */
@@ -33,9 +31,9 @@ export interface PlayerColliders {
 }
 
 /**
- * Consolidated player controller with all player-specific physics logic
+ * Force-based player controller (the original simple controller)
  */
-export class PlayerController {
+export class ForcePlayerController implements IPlayerController {
   private engine: RapierEngine;
   private body: RAPIER.RigidBody;
   private colliders: PlayerColliders;
@@ -50,6 +48,10 @@ export class PlayerController {
     left: false,
     right: false,
   };
+
+  // Bound event handlers for cleanup
+  private boundKeyDown: (e: KeyboardEvent) => void;
+  private boundKeyUp: (e: KeyboardEvent) => void;
 
   // Character controller config
   private config: CharacterControllerConfig = {
@@ -67,6 +69,10 @@ export class PlayerController {
     this.body = result.body;
     this.colliders = result.colliders;
 
+    // Bind event handlers so we can remove them later
+    this.boundKeyDown = (e: KeyboardEvent) => this.handleKeyDown(e.key);
+    this.boundKeyUp = (e: KeyboardEvent) => this.handleKeyUp(e.key);
+
     // Setup input listeners
     this.setupInputListeners();
 
@@ -76,12 +82,11 @@ export class PlayerController {
 
   /**
    * Create player with capsule shape, locked rotation, and foot sensor
-   * This replaces the createPlayer() method from engine.ts
    */
   private createPlayerBody(x: number, y: number): { body: RAPIER.RigidBody; colliders: PlayerColliders } {
     const world = this.engine.getWorld();
     if (!world) {
-      throw new Error('[PlayerController] Physics world not initialized!');
+      throw new Error('[ForcePlayerController] Physics world not initialized!');
     }
 
     // Create dynamic rigid body with locked rotation
@@ -112,7 +117,7 @@ export class PlayerController {
 
     const footSensor = world.createCollider(sensorDesc, rigidBody);
 
-    console.log(`[PlayerController] Created player at (${x.toFixed(2)}, ${y.toFixed(2)}) with capsule radius ${this.capsuleRadius}m and foot sensor radius ${sensorRadius.toFixed(2)}m`);
+    console.log(`[ForcePlayerController] Created player at (${x.toFixed(2)}, ${y.toFixed(2)}) with capsule radius ${this.capsuleRadius}m and foot sensor radius ${sensorRadius.toFixed(2)}m`);
 
     return {
       body: rigidBody,
@@ -127,13 +132,8 @@ export class PlayerController {
    * Setup keyboard input listeners
    */
   private setupInputListeners(): void {
-    window.addEventListener('keydown', (e) => {
-      this.handleKeyDown(e.key);
-    });
-
-    window.addEventListener('keyup', (e) => {
-      this.handleKeyUp(e.key);
-    });
+    window.addEventListener('keydown', this.boundKeyDown);
+    window.addEventListener('keyup', this.boundKeyUp);
   }
 
   /**
@@ -144,14 +144,14 @@ export class PlayerController {
       case 'a':
       case 'arrowleft':
         if (!this.keys.left) {
-          console.log('[PlayerController] KEY DOWN: LEFT');
+          console.log('[ForcePlayerController] KEY DOWN: LEFT');
         }
         this.keys.left = true;
         break;
       case 'd':
       case 'arrowright':
         if (!this.keys.right) {
-          console.log('[PlayerController] KEY DOWN: RIGHT');
+          console.log('[ForcePlayerController] KEY DOWN: RIGHT');
         }
         this.keys.right = true;
         break;
@@ -165,12 +165,12 @@ export class PlayerController {
     switch (key.toLowerCase()) {
       case 'a':
       case 'arrowleft':
-        console.log('[PlayerController] KEY UP: LEFT');
+        console.log('[ForcePlayerController] KEY UP: LEFT');
         this.keys.left = false;
         break;
       case 'd':
       case 'arrowright':
-        console.log('[PlayerController] KEY UP: RIGHT');
+        console.log('[ForcePlayerController] KEY UP: RIGHT');
         this.keys.right = false;
         break;
     }
@@ -265,6 +265,13 @@ export class PlayerController {
   }
 
   /**
+   * Get all rigid bodies managed by this controller
+   */
+  getAllBodies(): RAPIER.RigidBody[] {
+    return [this.body];
+  }
+
+  /**
    * Get player capsule radius (for rendering)
    */
   getRadius(): number {
@@ -277,13 +284,6 @@ export class PlayerController {
    */
   getHeight(): number {
     return 2 * this.capsuleHalfHeight + 2 * this.capsuleRadius;
-  }
-
-  /**
-   * Get ground normal (for debug visualization)
-   */
-  getGroundNormalForDebug(): { x: number; y: number } | null {
-    return this.getGroundNormal();
   }
 
   /**
@@ -300,6 +300,33 @@ export class PlayerController {
     this.body.setTranslation({ x, y }, true);
     this.body.setLinvel({ x: 0, y: 0 }, true);
     this.body.setAngvel(0, true);
+  }
+
+  /**
+   * Get controller type name
+   */
+  getTypeName(): string {
+    return 'Force Controller';
+  }
+
+  /**
+   * Cleanup controller (remove physics bodies and event listeners)
+   */
+  destroy(): void {
+    const world = this.engine.getWorld();
+    if (world) {
+      // Remove colliders first
+      world.removeCollider(this.colliders.footSensor, false);
+      world.removeCollider(this.colliders.body, false);
+      // Then remove body
+      world.removeRigidBody(this.body);
+    }
+
+    // Remove event listeners
+    window.removeEventListener('keydown', this.boundKeyDown);
+    window.removeEventListener('keyup', this.boundKeyUp);
+
+    console.log('[ForcePlayerController] Destroyed');
   }
 
   // === Configuration getters/setters for debug UI ===
@@ -345,7 +372,7 @@ export class PlayerController {
    */
   setGroundAttractionForce(force: number): void {
     this.config.groundAttractionForce = force;
-    console.log(`[PlayerController] Ground attraction force set to ${force.toFixed(1)}N`);
+    console.log(`[ForcePlayerController] Ground attraction force set to ${force.toFixed(1)}N`);
   }
 
   /**
@@ -362,7 +389,7 @@ export class PlayerController {
   setFootSensorRadiusMultiplier(multiplier: number): void {
     const world = this.engine.getWorld();
     if (!world) {
-      throw new Error('[PlayerController] Physics world not initialized!');
+      throw new Error('[ForcePlayerController] Physics world not initialized!');
     }
 
     this.config.footSensorRadiusMultiplier = multiplier;
@@ -380,7 +407,7 @@ export class PlayerController {
 
     this.colliders.footSensor = world.createCollider(sensorDesc, this.body);
 
-    console.log(`[PlayerController] Updated foot sensor radius to ${sensorRadius.toFixed(2)}m (multiplier: ${multiplier.toFixed(2)})`);
+    console.log(`[ForcePlayerController] Updated foot sensor radius to ${sensorRadius.toFixed(2)}m (multiplier: ${multiplier.toFixed(2)})`);
   }
 
   /**
