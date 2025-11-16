@@ -27,6 +27,7 @@ public/version.json
 # Logs
 *.log
 npm-debug.log*
+logs/
 
 # Testing
 coverage/
