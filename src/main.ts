@@ -363,9 +363,9 @@ class CarvableCaves {
       console.warn(`[Player] No valid position found, spawning at preferred position (may be inside rock)`);
     }
 
-    // Create controller manager and initialize with force controller
+    // Create controller manager and initialize with spider controller
     this.controllerManager = new ControllerManager(this.physics.getEngine());
-    const player = this.controllerManager.initialize(ControllerType.FORCE, actualSpawnX, actualSpawnY);
+    const player = this.controllerManager.initialize(ControllerType.SPIDER, actualSpawnX, actualSpawnY);
     player.setJoystick(this.joystick); // Connect joystick to player
 
     // Wire up character controller UI (now that player exists)
