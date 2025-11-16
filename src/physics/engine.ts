@@ -113,6 +113,9 @@ export class RapierEngine implements PhysicsEngine {
   // Track collider contacts for debug visualization
   private colliderContacts = new Map<number, number>(); // collider handle -> contact count
 
+  // Fixed update callbacks (called before each physics step at 60Hz)
+  private fixedUpdateCallbacks: Array<(dt: number) => void> = [];
+
   /**
    * Initialize Rapier and create the physics world
    * Must be called before using the engine
@@ -133,6 +136,7 @@ export class RapierEngine implements PhysicsEngine {
 
   /**
    * Step physics with fixed timestep accumulator
+   * Calls all registered fixed update callbacks before each physics step
    */
   step(dt: number): void {
     if (!this.world) {
@@ -146,12 +150,39 @@ export class RapierEngine implements PhysicsEngine {
 
     // Step physics at fixed rate
     while (this.accumulator >= this.FIXED_DT) {
+      // Call all fixed update callbacks (controllers, etc.) BEFORE physics step
+      // This matches Unity's FixedUpdate() -> Physics step pattern
+      for (const callback of this.fixedUpdateCallbacks) {
+        callback(this.FIXED_DT_MS); // Pass fixed timestep in milliseconds
+      }
+
+      // Then step physics
       this.world.step();
       this.accumulator -= this.FIXED_DT;
     }
 
     // Update sensor contacts after physics step
     this.updateSensorContacts();
+  }
+
+  /**
+   * Register a callback to be called during fixed timestep (60Hz)
+   * Use this for controllers and other physics-related updates
+   * @param callback - Function to call with fixed dt in milliseconds
+   */
+  registerFixedUpdate(callback: (dt: number) => void): void {
+    this.fixedUpdateCallbacks.push(callback);
+  }
+
+  /**
+   * Unregister a fixed update callback
+   * @param callback - Function to remove
+   */
+  unregisterFixedUpdate(callback: (dt: number) => void): void {
+    const index = this.fixedUpdateCallbacks.indexOf(callback);
+    if (index !== -1) {
+      this.fixedUpdateCallbacks.splice(index, 1);
+    }
   }
 
   /**
