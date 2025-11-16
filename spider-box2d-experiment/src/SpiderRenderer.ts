@@ -69,9 +69,12 @@ export class SpiderRenderer {
    * Draw spider using render data
    */
   drawSpider(renderData: any): void {
+    console.log('=== SPIDER POSITIONS ===');
+    console.log('Body:', { x: renderData.body.x, y: renderData.body.y });
+
     // Draw legs first (behind body)
-    this.drawLeg(renderData.leftLeg, '#00ff00');
-    this.drawLeg(renderData.rightLeg, '#00ff00');
+    this.drawLeg(renderData.leftLeg, '#00ff00', 'LEFT');
+    this.drawLeg(renderData.rightLeg, '#00ff00', 'RIGHT');
 
     // Draw body last (in front)
     this.drawBody(renderData.body);
@@ -104,7 +107,30 @@ export class SpiderRenderer {
   /**
    * Draw a single leg (3 segments + foot)
    */
-  private drawLeg(legData: any, color: string): void {
+  private drawLeg(legData: any, color: string, legName: string): void {
+    console.log(`${legName} leg:`);
+    console.log('  Hip:', { x: legData.hip.x, y: legData.hip.y });
+    console.log('  Knee:', { x: legData.knee.x, y: legData.knee.y });
+    console.log('  Ankle:', { x: legData.ankle.x, y: legData.ankle.y });
+    console.log('  Foot:', { x: legData.foot.x, y: legData.foot.y });
+
+    // Calculate joint positions
+    const joint1 = { x: legData.hip.x, y: legData.hip.y };
+    const joint2 = {
+      x: legData.hip.x + legData.hip.length * Math.cos(legData.hip.angle),
+      y: legData.hip.y + legData.hip.length * Math.sin(legData.hip.angle)
+    };
+    const joint3 = {
+      x: legData.knee.x + legData.knee.length * Math.cos(legData.knee.angle),
+      y: legData.knee.y + legData.knee.length * Math.sin(legData.knee.angle)
+    };
+    const joint4 = {
+      x: legData.ankle.x + legData.ankle.length * Math.cos(legData.ankle.angle),
+      y: legData.ankle.y + legData.ankle.length * Math.sin(legData.ankle.angle)
+    };
+
+    console.log('  Joints:', { joint1, joint2, joint3, joint4 });
+
     // Draw segments
     this.drawSegment(legData.hip, color);
     this.drawSegment(legData.knee, color);
@@ -114,19 +140,10 @@ export class SpiderRenderer {
     this.drawFoot(legData.foot);
 
     // Draw joints
-    this.drawJoint(legData.hip.x, legData.hip.y);
-    this.drawJoint(
-      legData.hip.x + legData.hip.length * Math.cos(legData.hip.angle),
-      legData.hip.y + legData.hip.length * Math.sin(legData.hip.angle)
-    );
-    this.drawJoint(
-      legData.knee.x + legData.knee.length * Math.cos(legData.knee.angle),
-      legData.knee.y + legData.knee.length * Math.sin(legData.knee.angle)
-    );
-    this.drawJoint(
-      legData.ankle.x + legData.ankle.length * Math.cos(legData.ankle.angle),
-      legData.ankle.y + legData.ankle.length * Math.sin(legData.ankle.angle)
-    );
+    this.drawJoint(joint1.x, joint1.y);
+    this.drawJoint(joint2.x, joint2.y);
+    this.drawJoint(joint3.x, joint3.y);
+    this.drawJoint(joint4.x, joint4.y);
   }
 
   /**

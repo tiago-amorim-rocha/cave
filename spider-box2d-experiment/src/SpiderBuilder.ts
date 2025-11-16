@@ -40,101 +40,68 @@ export function buildSpider(
   y: number,
   config: SpiderConfig = DEFAULT_SPIDER_CONFIG
 ): SpiderAssembly {
-  console.log('[SpiderBuilder] Building spider at (', x.toFixed(2), ',', y.toFixed(2), ')');
+  const bodyDef: b2BodyDef = {
+    type: b2BodyType.b2_dynamicBody,
+    position: { x, y },
+    angle: 0,
+    linearDamping: 0,
+    angularDamping: 0.05,
+    gravityScale: 0,
+  };
 
-  try {
-    // === Create Central Body ===
-    // 1m × 1m square, positioned at (x, y)
-    console.log('[SpiderBuilder] Step 1: Creating bodyDef');
-    const bodyDef: b2BodyDef = {
-      type: b2BodyType.b2_dynamicBody,
-      position: { x, y },
-      angle: 0,
-      linearDamping: 0,
-      angularDamping: 0.05,
-      gravityScale: 0, // Spider has zero gravity (like Unity)
-    };
+  const body = world.CreateBody(bodyDef);
 
-    console.log('[SpiderBuilder] Step 2: Creating body from world');
-    const body = world.CreateBody(bodyDef);
-    console.log('[SpiderBuilder] Body created:', body);
+  const bodyShape = new b2PolygonShape();
+  bodyShape.SetAsBox(0.5, 0.5);
 
-    // Body shape: 1m × 1m box
-    console.log('[SpiderBuilder] Step 3: Creating body shape');
-    const bodyShape = new b2PolygonShape();
-    bodyShape.SetAsBox(0.5, 0.5); // Half-widths
+  const bodyFixture: b2FixtureDef = {
+    shape: bodyShape,
+    density: 1.0,
+    friction: 0.3,
+    restitution: 0.1,
+  };
 
-    console.log('[SpiderBuilder] Step 4: Creating fixture def');
-    const bodyFixture: b2FixtureDef = {
-      shape: bodyShape,
-      density: 1.0, // Will set mass explicitly
-      friction: 0.3,
-      restitution: 0.1,
-    };
+  body.CreateFixture(bodyFixture);
 
-    console.log('[SpiderBuilder] Step 5: Creating fixture on body');
-    body.CreateFixture(bodyFixture);
+  const leftLeg = createLeg(
+    world,
+    body,
+    config,
+    true,
+    new b2Vec2(x - 0.5, y),
+    new b2Vec2(x - 0.5 - config.segmentLength1 * Math.cos(degToRad(60)),
+              y - config.segmentLength1 * Math.sin(degToRad(60)))
+  );
 
-    console.log('[SpiderBuilder] Step 6: Body created with mass =', body.GetMass().toFixed(6));
+  const rightLeg = createLeg(
+    world,
+    body,
+    config,
+    false,
+    new b2Vec2(x + 0.5, y),
+    new b2Vec2(x + 0.5 + config.segmentLength1 * Math.cos(degToRad(60)),
+              y - config.segmentLength1 * Math.sin(degToRad(60)))
+  );
 
-    // === Create Legs ===
-    console.log('[SpiderBuilder] Step 7: Creating left leg');
-    const leftLeg = createLeg(
-      world,
-      body,
-      config,
-      true, // isLeft
-      new b2Vec2(x - 0.5, y), // Hip position (left side of body)
-      new b2Vec2(x - 0.5 - config.segmentLength1 * Math.cos(degToRad(60)),
-                y - config.segmentLength1 * Math.sin(degToRad(60))) // Foot position
-    );
+  const allBodies = [
+    body,
+    leftLeg.hip,
+    leftLeg.knee,
+    leftLeg.ankle,
+    leftLeg.foot!,
+    rightLeg.hip,
+    rightLeg.knee,
+    rightLeg.ankle,
+    rightLeg.foot!,
+  ];
 
-    console.log('[SpiderBuilder] Step 8: Creating right leg');
-    const rightLeg = createLeg(
-      world,
-      body,
-      config,
-      false, // isRight
-      new b2Vec2(x + 0.5, y), // Hip position (right side of body)
-      new b2Vec2(x + 0.5 + config.segmentLength1 * Math.cos(degToRad(60)),
-                y - config.segmentLength1 * Math.sin(degToRad(60))) // Foot position
-    );
-
-    console.log('[SpiderBuilder] Step 9: Collecting all bodies');
-    const allBodies = [
-      body,
-      leftLeg.hip,
-      leftLeg.knee,
-      leftLeg.ankle,
-      leftLeg.foot!,
-      rightLeg.hip,
-      rightLeg.knee,
-      rightLeg.ankle,
-      rightLeg.foot!,
-    ];
-
-    const totalMass = allBodies.reduce((sum, b) => sum + b.GetMass(), 0);
-    console.log('[SpiderBuilder] Spider created successfully');
-    console.log('[SpiderBuilder] Total mass:', totalMass.toFixed(6));
-    console.log('[SpiderBuilder] Bodies:', allBodies.length);
-
-    return {
-      body,
-      leftLeg,
-      rightLeg,
-      allBodies,
-      config,
-    };
-  } catch (error) {
-    console.error('[SpiderBuilder] Error during spider creation:', error);
-    console.error('[SpiderBuilder] Error type:', typeof error);
-    console.error('[SpiderBuilder] Error string:', String(error));
-    if (error instanceof Error) {
-      console.error('[SpiderBuilder] Error message:', error.message);
-      console.error('[SpiderBuilder] Error stack:', error.stack);
-    }
-    throw error;
-  }
+  return {
+    body,
+    leftLeg,
+    rightLeg,
+    allBodies,
+    config,
+  };
 }
 
 /**
@@ -156,8 +123,6 @@ function createLeg(
   hipPos: XY,
   footPos: XY
 ): ControllerLeg {
-  const legName = isLeft ? 'LEFT' : 'RIGHT';
-  console.log(`[SpiderBuilder] Creating ${legName} leg`);
 
   // Segment lengths (from config)
   const L1 = config.segmentLength1; // 1.3m
@@ -242,12 +207,6 @@ function createLeg(
 
   foot.CreateFixture(footFixture);
 
-  console.log(`[SpiderBuilder] ${legName} leg segments created`);
-  console.log(`  Hip: mass=${hip.GetMass().toFixed(6)}, length=${L1}m`);
-  console.log(`  Knee: mass=${knee.GetMass().toFixed(6)}, length=${L2}m`);
-  console.log(`  Ankle: mass=${ankle.GetMass().toFixed(6)}, length=${L3}m`);
-  console.log(`  Foot: kinematic (pinned)`);
-
   // === Create Joints ===
   // All joints are revolute joints (hinge joints in Unity)
 
@@ -267,8 +226,6 @@ function createLeg(
     y: anklePos.y + L3 * Math.sin(degToRad(angle1 + angle2 + angle3)),
   };
   createRevoluteJoint(world, ankle, foot, footJointPos);
-
-  console.log(`[SpiderBuilder] ${legName} leg joints created`);
 
   return {
     hip,
@@ -336,12 +293,6 @@ function createSegment(
   };
 
   body.CreateFixture(fixture);
-
-  // Verify mass was set correctly
-  const actualMass = body.GetMass();
-  if (Math.abs(actualMass - mass) > 0.001) {
-    console.warn(`[SpiderBuilder] ${name} mass mismatch: expected ${mass}, got ${actualMass}`);
-  }
 
   return body;
 }
