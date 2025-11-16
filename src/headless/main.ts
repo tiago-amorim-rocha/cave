@@ -16,6 +16,7 @@ import { JSONLLogger } from './logger';
 import { createSimpleArena } from './terrain';
 import { HoldRightScenario } from './scenarios/HoldRightScenario';
 import { TinyForceScenario } from './scenarios/TinyForceScenario';
+import { VerticalPulseScenario } from './scenarios/VerticalPulseScenario';
 
 /**
  * Main headless simulation loop
@@ -88,9 +89,9 @@ async function main() {
 
     game.createSpider(0, 10, testConfig); // Spawn at y=10, ground is at y=15
 
-    // Create scenario: Start with TINY force to observe torque accumulation
+    // Create scenario: Apply vertical upward pulse to analyze joint forces
     logger.info('Creating scenario...');
-    const scenario = new TinyForceScenario(3, 0.01); // 3 seconds, 1% input (TINY force)
+    const scenario = new VerticalPulseScenario(2, 0.1); // 2 seconds, 10% vertical input
     logger.info('Scenario:', {
       name: scenario.getName(),
       description: scenario.getDescription(),
