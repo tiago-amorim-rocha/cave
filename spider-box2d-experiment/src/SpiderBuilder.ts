@@ -359,11 +359,29 @@ function createRevoluteJoint(
   bodyB: any,
   anchorWorld: XY
 ): void {
+  // Compute local anchors manually
+  const posA = bodyA.GetPosition();
+  const angleA = bodyA.GetAngle();
+  const posB = bodyB.GetPosition();
+  const angleB = bodyB.GetAngle();
+
+  // Transform world anchor to local space for body A
+  const localAnchorA = {
+    x: Math.cos(-angleA) * (anchorWorld.x - posA.x) - Math.sin(-angleA) * (anchorWorld.y - posA.y),
+    y: Math.sin(-angleA) * (anchorWorld.x - posA.x) + Math.cos(-angleA) * (anchorWorld.y - posA.y),
+  };
+
+  // Transform world anchor to local space for body B
+  const localAnchorB = {
+    x: Math.cos(-angleB) * (anchorWorld.x - posB.x) - Math.sin(-angleB) * (anchorWorld.y - posB.y),
+    y: Math.sin(-angleB) * (anchorWorld.x - posB.x) + Math.cos(-angleB) * (anchorWorld.y - posB.y),
+  };
+
   const jointDef: b2RevoluteJointDef = {
     bodyA: bodyA,
     bodyB: bodyB,
-    localAnchorA: bodyA.GetLocalPoint({ x: anchorWorld.x, y: anchorWorld.y }),
-    localAnchorB: bodyB.GetLocalPoint({ x: anchorWorld.x, y: anchorWorld.y }),
+    localAnchorA: localAnchorA,
+    localAnchorB: localAnchorB,
     enableMotor: false,
     enableLimit: false,
     collideConnected: false, // Don't collide connected bodies
