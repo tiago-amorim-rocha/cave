@@ -41,7 +41,7 @@ export function buildSpider(
     .setCcdEnabled(true) // Enable CCD for fast movement
     .setGravityScale(0)  // No gravity (spider uses forces only)
     .setLinearDamping(0)       // Unity prefab line 1012
-    .setAngularDamping(1.0);   // INCREASED from 0.05 for stability (20x)
+    .setAngularDamping(0.05);  // Unity prefab line 1013 - MUST MATCH!
 
   const body = world.createRigidBody(bodyDesc);
 
@@ -58,7 +58,10 @@ export function buildSpider(
 
   world.createCollider(bodyCollider, body);
 
-  console.log('[SpiderBuilder] Created body: 1.0m × 1.0m square, mass=1.0');
+  const actualBodyMass = body.mass();
+  console.log('[SpiderBuilder] Created body: 1.0m × 1.0m square');
+  console.log('[SpiderBuilder]   Expected mass: 1.0, Actual mass:', actualBodyMass.toFixed(6));
+  console.log('[SpiderBuilder]   Linear damping: 0, Angular damping: 0.05');
 
   // === Build Legs ===
   // From Unity SpiderController.cs line 183-194:
@@ -189,7 +192,7 @@ function buildLeg(
     .setCcdEnabled(true)
     .setGravityScale(0)
     .setLinearDamping(0)       // Unity prefab line 868
-    .setAngularDamping(1.0);   // INCREASED from 0.05 for stability (20x)
+    .setAngularDamping(0.05);  // Unity prefab line 869 - MUST MATCH!
 
   const hip = world.createRigidBody(hipDesc);
 
@@ -209,7 +212,7 @@ function buildLeg(
     .setCcdEnabled(true)
     .setGravityScale(0)
     .setLinearDamping(0)       // Unity prefab line 723
-    .setAngularDamping(1.0);   // INCREASED from 0.05 for stability (20x)
+    .setAngularDamping(0.05);  // Unity prefab line 724 - MUST MATCH!
 
   const knee = world.createRigidBody(kneeDesc);
 
@@ -229,7 +232,7 @@ function buildLeg(
     .setCcdEnabled(true)
     .setGravityScale(0)
     .setLinearDamping(0)       // Unity prefab line 288
-    .setAngularDamping(1.0);   // INCREASED from 0.05 for stability (20x)
+    .setAngularDamping(0.05);  // Unity prefab line 289 - MUST MATCH!
 
   const ankle = world.createRigidBody(ankleDesc);
 
@@ -241,6 +244,22 @@ function buildLeg(
     .setCollisionGroups(0x00020001); // Spider collision group
 
   world.createCollider(ankleCollider, ankle);
+
+  // Verify actual masses match Unity
+  const actualHipMass = hip.mass();
+  const actualKneeMass = knee.mass();
+  const actualAnkleMass = ankle.mass();
+  const expectedHipMass = 0.2;
+  const expectedKneeMass = 0.15384616;
+  const expectedAnkleMass = 0.118343204;
+
+  console.log(`[SpiderBuilder] ${legName} leg masses:`);
+  console.log(`  Hip:   expected=${expectedHipMass.toFixed(6)}, actual=${actualHipMass.toFixed(6)}, diff=${Math.abs(actualHipMass - expectedHipMass).toFixed(6)}`);
+  console.log(`  Knee:  expected=${expectedKneeMass.toFixed(6)}, actual=${actualKneeMass.toFixed(6)}, diff=${Math.abs(actualKneeMass - expectedKneeMass).toFixed(6)}`);
+  console.log(`  Ankle: expected=${expectedAnkleMass.toFixed(6)}, actual=${actualAnkleMass.toFixed(6)}, diff=${Math.abs(actualAnkleMass - expectedAnkleMass).toFixed(6)}`);
+
+  const totalLegMass = actualHipMass + actualKneeMass + actualAnkleMass;
+  console.log(`  Total leg mass: ${totalLegMass.toFixed(6)}`);
 
   // === Create Foot ===
   // From Unity prefab line 138: m_BodyType: 2 (Kinematic)

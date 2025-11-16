@@ -42,33 +42,35 @@ async function main() {
     const terrain = createSimpleArena();
     game.setTerrain(terrain);
 
-    // Create spider with heavily reduced forces for stability testing
+    // Create spider with UNITY DEFAULT CONFIG
+    // Now that we've fixed angular damping (0.05 instead of 1.0), test with Unity values
     logger.info('Creating spider...');
+    logger.info('Using Unity default config (angular damping fixed to 0.05)');
     const testConfig = {
-      // Leg geometry (unchanged)
+      // Leg geometry - Unity values
       segmentLength1: 1.3,
       segmentLength2: 1.0,
       segmentLength3: 0.7,
 
-      // Vertical control - DRASTICALLY REDUCED (40x) for stability
-      verticalAccelGain: 0.05,  // Was 2.0, now 0.05 - "only move slightly up"
+      // Vertical control - UNITY VALUES (not reduced!)
+      verticalAccelGain: 2.0,  // Unity default
       maxTotalFootForceY: 20.0,
 
-      // Horizontal control - REDUCED (7x) for stability
-      horizontalAccelGain: 0.3,  // Was 2.0, now 0.3 - still allow movement
+      // Horizontal control - UNITY VALUES (not reduced!)
+      horizontalAccelGain: 2.0,  // Unity default
       maxTotalFootForceX: 20.0,
 
-      // Torque scaling - DRASTICALLY REDUCED (40x) for stability
-      torqueGain: 0.05,  // Was 2.0, now 0.05 - prevent leg explosion
+      // Torque scaling - UNITY VALUES (not reduced!)
+      torqueGain: 2.0,  // Unity default
       maxJointTorque: 100.0,
 
-      // Joint limit springs (unchanged)
+      // Joint limit springs - Unity values
       enableHipJointLimits: true,
       enableKneeAnkleJointLimits: true,
       jointLimitKp: 0.1,
       jointLimitKd: 0.05,
 
-      // Joint limits (unchanged)
+      // Joint limits - Unity values
       hipLimitFreeMin: 0.0,
       hipLimitFreeMax: 60.0,
       kneeLimitFreeMin: 20.0,
@@ -76,7 +78,7 @@ async function main() {
       ankleLimitFreeMin: 20.0,
       ankleLimitFreeMax: 150.0,
 
-      // Rotation stabilization (unchanged)
+      // Rotation stabilization - Unity values
       stabilizeRotation: true,
       targetBodyAngle: 0.0,
       rotationStiffness: 0.1,
