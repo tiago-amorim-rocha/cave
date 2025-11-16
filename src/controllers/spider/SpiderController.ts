@@ -36,6 +36,9 @@ export class SpiderController implements IPlayerController {
   private spider: SpiderAssembly;
   public config: SpiderConfig; // Public for debug UI access
   private joystick: VirtualJoystick | null = null;
+  private frameCount: number = 0;
+  private lastInputX: number = 0;
+  private lastInputY: number = 0;
 
   constructor(engine: RapierEngine, x: number, y: number, config?: SpiderConfig) {
     this.engine = engine;
@@ -62,8 +65,19 @@ export class SpiderController implements IPlayerController {
 
     this.spider = buildSpider(world, x, y, this.config);
 
+    // Log total spider mass
+    const totalMass = this.spider.allBodies.reduce((sum, body) => sum + body.mass(), 0);
+    const bodyMass = this.spider.body.mass();
+    const leftLegMass = this.spider.leftLeg.hip.mass() + this.spider.leftLeg.knee.mass() + this.spider.leftLeg.ankle.mass();
+    const rightLegMass = this.spider.rightLeg.hip.mass() + this.spider.rightLeg.knee.mass() + this.spider.rightLeg.ankle.mass();
+
     console.log('[SpiderController] Spider controller created successfully');
     console.log('[SpiderController] Movement: Jacobian-based inverse kinematics');
+    console.log('[SpiderController] Mass breakdown:');
+    console.log(`[SpiderController]   Body: ${bodyMass.toFixed(6)} (${(bodyMass/totalMass*100).toFixed(1)}%)`);
+    console.log(`[SpiderController]   Left leg: ${leftLegMass.toFixed(6)} (${(leftLegMass/totalMass*100).toFixed(1)}%)`);
+    console.log(`[SpiderController]   Right leg: ${rightLegMass.toFixed(6)} (${(rightLegMass/totalMass*100).toFixed(1)}%)`);
+    console.log(`[SpiderController]   Total: ${totalMass.toFixed(6)}`);
     console.log('[SpiderController] Use virtual joystick to control spider');
     console.log('[SpiderController] Enable physics debug view to see the rig structure');
     console.log('[SpiderController] ==========================================');
@@ -84,6 +98,8 @@ export class SpiderController implements IPlayerController {
     this.spider.rightLeg.knee.resetForces(true);
     this.spider.rightLeg.ankle.resetForces(true);
 
+    this.frameCount++;
+
     // 1. Read input from joystick (clamped to [-1, 1])
     const input = this.joystick?.getInput() ?? { x: 0, y: 0, magnitude: 0 };
     const horizontalInput = clamp(input.x, -1, 1);
@@ -91,24 +107,43 @@ export class SpiderController implements IPlayerController {
     // Unity convention is positive = up, so negate
     const verticalInput = clamp(-input.y, -1, 1);
 
-    // DEBUG: Log input and body state
-    const bodyVel = this.spider.body.linvel();
-    const bodyAngVel = this.spider.body.angvel();
-    console.log('[Spider] Input:', {
-      horiz: horizontalInput.toFixed(3),
-      vert: verticalInput.toFixed(3),
-      bodyVel: { x: bodyVel.x.toFixed(3), y: bodyVel.y.toFixed(3) },
-      bodyAngVel: bodyAngVel.toFixed(3)
-    });
+    // Only log when input changes or every 120 frames (2 seconds at 60fps)
+    const inputChanged = Math.abs(horizontalInput - this.lastInputX) > 0.01 || Math.abs(verticalInput - this.lastInputY) > 0.01;
+    const shouldLog = inputChanged || (this.frameCount % 120 === 0 && (Math.abs(horizontalInput) > 0.01 || Math.abs(verticalInput) > 0.01));
+
+    if (shouldLog) {
+      const bodyVel = this.spider.body.linvel();
+      const bodyAngVel = this.spider.body.angvel();
+      const bodyRot = this.spider.body.rotation();
+
+      console.log('[Spider] Frame', this.frameCount, 'Input:', {
+        horiz: horizontalInput.toFixed(3),
+        vert: verticalInput.toFixed(3),
+        bodyVel: { x: bodyVel.x.toFixed(3), y: bodyVel.y.toFixed(3) },
+        bodyAngVel: bodyAngVel.toFixed(3),
+        bodyRotDeg: (bodyRot * 180 / Math.PI).toFixed(1)
+      });
+    }
+
+    this.lastInputX = horizontalInput;
+    this.lastInputY = verticalInput;
 
     // 2. Compute desired forces on each leg
     const { leftForce, rightForce } = this.computeLegForces(verticalInput, horizontalInput);
 
-    // DEBUG: Log computed forces
-    console.log('[Spider] Forces:', {
-      left: { x: leftForce.x.toFixed(2), y: leftForce.y.toFixed(2) },
-      right: { x: rightForce.x.toFixed(2), y: rightForce.y.toFixed(2) }
-    });
+    // Verify force symmetry (both legs should get EXACTLY the same forces)
+    if (shouldLog && (Math.abs(horizontalInput) > 0.01 || Math.abs(verticalInput) > 0.01)) {
+      const forceSymmetric = Math.abs(leftForce.x - rightForce.x) < 0.001 && Math.abs(leftForce.y - rightForce.y) < 0.001;
+      console.log('[Spider] Forces:', {
+        left: { x: leftForce.x.toFixed(2), y: leftForce.y.toFixed(2) },
+        right: { x: rightForce.x.toFixed(2), y: rightForce.y.toFixed(2) },
+        symmetric: forceSymmetric ? 'YES' : 'NO - ASYMMETRIC!'
+      });
+
+      if (!forceSymmetric) {
+        console.warn('[Spider] WARNING: Force asymmetry detected! This will cause body rotation.');
+      }
+    }
 
     // 3. Apply torques to joints using Jacobian transpose
     // Note: Negate forces (equal-and-opposite reaction)
@@ -228,17 +263,26 @@ export class SpiderController implements IPlayerController {
     tauB = clamp(tauB * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
     tauC = clamp(tauC * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
 
-    // DEBUG: Log applied torques and angular velocities
-    const legName = leg === this.spider.leftLeg ? 'LEFT' : 'RIGHT';
-    console.log(`[Spider ${legName}] Torques:`, {
-      input: { Fx: Fx.toFixed(2), Fy: Fy.toFixed(2) },
-      torques: { hip: tauA.toFixed(2), knee: tauB.toFixed(2), ankle: tauC.toFixed(2) },
-      angVels: {
-        hip: hip.angvel().toFixed(3),
-        knee: knee.angvel().toFixed(3),
-        ankle: ankle.angvel().toFixed(3)
-      }
-    });
+    // Only log torques when input is active and at intervals (use parent's shouldLog logic)
+    // We can't access shouldLog here, so log every 120 frames if there's significant torque
+    const hasTorque = Math.abs(tauA) > 0.1 || Math.abs(tauB) > 0.1 || Math.abs(tauC) > 0.1;
+    if (hasTorque && this.frameCount % 120 === 0) {
+      const legName = leg === this.spider.leftLeg ? 'LEFT' : 'RIGHT';
+      console.log(`[Spider ${legName}] Torques:`, {
+        input: { Fx: Fx.toFixed(2), Fy: Fy.toFixed(2) },
+        torques: { hip: tauA.toFixed(2), knee: tauB.toFixed(2), ankle: tauC.toFixed(2) },
+        angVels: {
+          hip: hip.angvel().toFixed(3),
+          knee: knee.angvel().toFixed(3),
+          ankle: ankle.angvel().toFixed(3)
+        },
+        masses: {
+          hip: hip.mass().toFixed(3),
+          knee: knee.mass().toFixed(3),
+          ankle: ankle.mass().toFixed(3)
+        }
+      });
+    }
 
     // === Apply Torques ===
     // Rapier API: addTorque(torque, wakeup)
