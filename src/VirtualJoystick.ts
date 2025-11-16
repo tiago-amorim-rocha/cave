@@ -203,6 +203,26 @@ export class VirtualJoystick {
   }
 
   /**
+   * Inject test input (for debugging)
+   * @param x - Horizontal input (-1 to 1)
+   * @param y - Vertical input (-1 to 1, -1 is up)
+   */
+  injectTestInput(x: number, y: number): void {
+    const magnitude = Math.min(1, Math.sqrt(x * x + y * y));
+    this.input = { x, y, magnitude };
+    this.active = magnitude > 0;
+
+    // Update stick position for visual feedback
+    if (magnitude > 0) {
+      this.stickX = x * this.options.maxDisplacement;
+      this.stickY = y * this.options.maxDisplacement;
+    } else {
+      this.stickX = 0;
+      this.stickY = 0;
+    }
+  }
+
+  /**
    * Check if joystick is active
    */
   isActive(): boolean {
