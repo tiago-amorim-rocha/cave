@@ -45,13 +45,14 @@ export function buildSpider(
     // === Create Central Body ===
     // 1m × 1m square, positioned at (x, y)
     console.log('[SpiderBuilder] Step 1: Creating bodyDef');
-    const bodyDef = new b2BodyDef();
-    bodyDef.type = b2BodyType.b2_dynamicBody;
-    bodyDef.position.Set(x, y);
-    bodyDef.angle = 0;
-    bodyDef.linearDamping = 0;
-    bodyDef.angularDamping = 0.05;
-    bodyDef.gravityScale = 0; // Spider has zero gravity (like Unity)
+    const bodyDef: b2BodyDef = {
+      type: b2BodyType.b2_dynamicBody,
+      position: { x, y },
+      angle: 0,
+      linearDamping: 0,
+      angularDamping: 0.05,
+      gravityScale: 0, // Spider has zero gravity (like Unity)
+    };
 
     console.log('[SpiderBuilder] Step 2: Creating body from world');
     const body = world.CreateBody(bodyDef);
@@ -59,15 +60,15 @@ export function buildSpider(
 
     // Body shape: 1m × 1m box
     console.log('[SpiderBuilder] Step 3: Creating body shape');
-    const bodyShape = new b2PolygonShape();
-    bodyShape.SetAsBox(0.5, 0.5); // Half-widths
+    const bodyShape = b2PolygonShape.MakeBox(0.5, 0.5); // Half-widths
 
     console.log('[SpiderBuilder] Step 4: Creating fixture def');
-    const bodyFixture = new b2FixtureDef();
-    bodyFixture.shape = bodyShape;
-    bodyFixture.density = 1.0; // Will set mass explicitly
-    bodyFixture.friction = 0.3;
-    bodyFixture.restitution = 0.1;
+    const bodyFixture: b2FixtureDef = {
+      shape: bodyShape,
+      density: 1.0, // Will set mass explicitly
+      friction: 0.3,
+      restitution: 0.1,
+    };
 
     console.log('[SpiderBuilder] Step 5: Creating fixture on body');
     body.CreateFixture(bodyFixture);
@@ -227,20 +228,21 @@ function createLeg(
   );
 
   // === Create Foot (kinematic, pinned to ground) ===
-  const footDef = new b2BodyDef();
-  footDef.type = b2BodyType.b2_kinematicBody; // Kinematic = fixed in place
-  footDef.position.Set(footPos.x, footPos.y);
-  footDef.angle = 0;
+  const footDef: b2BodyDef = {
+    type: b2BodyType.b2_kinematicBody, // Kinematic = fixed in place
+    position: { x: footPos.x, y: footPos.y },
+    angle: 0,
+  };
 
   const foot = world.CreateBody(footDef);
 
   // Foot shape: 0.2m × 0.2m square
-  const footShape = new b2PolygonShape();
-  footShape.SetAsBox(0.1, 0.1);
+  const footShape = b2PolygonShape.MakeBox(0.1, 0.1);
 
-  const footFixture = new b2FixtureDef();
-  footFixture.shape = footShape;
-  footFixture.density = 1.0;
+  const footFixture: b2FixtureDef = {
+    shape: footShape,
+    density: 1.0,
+  };
 
   foot.CreateFixture(footFixture);
 
@@ -309,32 +311,32 @@ function createSegment(
   y: number,
   angleDeg: number
 ): any {
-  const bodyDef = new b2BodyDef();
-  bodyDef.type = b2BodyType.b2_dynamicBody;
-
   // Position at the PROXIMAL end (left end of segment)
   // Box2D centres are at the middle, so we offset by half-length along the angle
   const angleRad = degToRad(angleDeg);
   const centerX = x + (length / 2) * Math.cos(angleRad);
   const centerY = y + (length / 2) * Math.sin(angleRad);
 
-  bodyDef.position.Set(centerX, centerY);
-  bodyDef.angle = angleRad;
-  bodyDef.linearDamping = 0;
-  bodyDef.angularDamping = 0.05;
-  bodyDef.gravityScale = 0; // Zero gravity for spider segments
+  const bodyDef: b2BodyDef = {
+    type: b2BodyType.b2_dynamicBody,
+    position: { x: centerX, y: centerY },
+    angle: angleRad,
+    linearDamping: 0,
+    angularDamping: 0.05,
+    gravityScale: 0, // Zero gravity for spider segments
+  };
 
   const body = world.CreateBody(bodyDef);
 
   // Segment shape: box with length × width
-  const shape = new b2PolygonShape();
-  shape.SetAsBox(length / 2, width / 2);
+  const shape = b2PolygonShape.MakeBox(length / 2, width / 2);
 
-  const fixture = new b2FixtureDef();
-  fixture.shape = shape;
-  fixture.density = mass / (length * width); // Density = mass / area
-  fixture.friction = 0.3;
-  fixture.restitution = 0.1;
+  const fixture: b2FixtureDef = {
+    shape: shape,
+    density: mass / (length * width), // Density = mass / area
+    friction: 0.3,
+    restitution: 0.1,
+  };
 
   body.CreateFixture(fixture);
 
@@ -361,13 +363,15 @@ function createRevoluteJoint(
   bodyB: any,
   anchorWorld: XY
 ): void {
-  const jointDef = new b2RevoluteJointDef();
-  jointDef.Initialize(bodyA, bodyB, new b2Vec2(anchorWorld.x, anchorWorld.y));
-
-  // No motor, no limits (we use soft limits via torques in the controller)
-  jointDef.enableMotor = false;
-  jointDef.enableLimit = false;
-  jointDef.collideConnected = false; // Don't collide connected bodies
+  const jointDef: b2RevoluteJointDef = {
+    bodyA: bodyA,
+    bodyB: bodyB,
+    localAnchorA: bodyA.GetLocalPoint({ x: anchorWorld.x, y: anchorWorld.y }),
+    localAnchorB: bodyB.GetLocalPoint({ x: anchorWorld.x, y: anchorWorld.y }),
+    enableMotor: false,
+    enableLimit: false,
+    collideConnected: false, // Don't collide connected bodies
+  };
 
   world.CreateJoint(jointDef);
 }
