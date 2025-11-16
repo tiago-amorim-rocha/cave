@@ -896,6 +896,15 @@ export class DebugConsole {
     });
   }
 
+  /**
+   * Clear all logs from the console
+   */
+  clearLogs(): void {
+    this.logs = [];
+    this.logContainer.innerHTML = '';
+    console.log('[DebugConsole] Logs cleared');
+  }
+
   private addLog(type: string, args: any[], color: string): void {
     const timestamp = new Date().toLocaleTimeString();
     const message = args.map(arg => {
