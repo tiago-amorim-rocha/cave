@@ -38,11 +38,20 @@ let fpsFrameCount = 0;
 function initWorld(): void {
   console.log('[Main] Initializing Box2D world');
 
-  // Create world with zero gravity (spider has gravity scale = 0 anyway)
-  const gravity = new b2Vec2(0, 0);
-  world = b2World.Create(gravity);
+  try {
+    // Create world with zero gravity (spider has gravity scale = 0 anyway)
+    console.log('[Main] Creating gravity vector (0, 0)');
+    const gravity = new b2Vec2(0, 0);
 
-  console.log('[Main] World created');
+    console.log('[Main] Calling b2World.Create()');
+    world = b2World.Create(gravity);
+
+    console.log('[Main] World created:', world);
+    console.log('[Main] World type:', typeof world);
+  } catch (error) {
+    console.error('[Main] Error creating Box2D world:', error);
+    throw error;
+  }
 }
 
 /**
@@ -278,10 +287,21 @@ async function main() {
 
   try {
     // Initialize systems
+    console.log('[Main] Initializing world...');
     initWorld();
+    console.log('[Main] World initialized successfully');
+
+    console.log('[Main] Initializing spider...');
     initSpider();
+    console.log('[Main] Spider initialized successfully');
+
+    console.log('[Main] Initializing renderer...');
     initRenderer();
+    console.log('[Main] Renderer initialized successfully');
+
+    console.log('[Main] Initializing UI...');
     initUI();
+    console.log('[Main] UI initialized successfully');
 
     console.log('[Main] All systems initialized');
     console.log('[Main] Starting update loop');
@@ -291,8 +311,21 @@ async function main() {
     // Start update loop
     requestAnimationFrame(update);
   } catch (error) {
-    console.error('[Main] Initialization error:', error);
-    throw error;
+    console.error('[Main] ==================== INITIALIZATION ERROR ====================');
+    console.error('[Main] Error object:', error);
+    console.error('[Main] Error type:', typeof error);
+    console.error('[Main] Error constructor:', error?.constructor?.name);
+
+    if (error instanceof Error) {
+      console.error('[Main] Error message:', error.message);
+      console.error('[Main] Error stack:', error.stack);
+    } else {
+      console.error('[Main] Error string:', String(error));
+      console.error('[Main] Error JSON:', JSON.stringify(error, null, 2));
+    }
+    console.error('[Main] ================================================================');
+
+    // Don't re-throw, let the app show the error in the log window
   }
 }
 
