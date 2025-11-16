@@ -51,7 +51,7 @@ export class DensityField {
    * @param octaves - Number of noise layers
    * @param threshold - Cave threshold (higher = more caves, range: -1 to 1)
    */
-  generateCaves(seed?: number, scale: number = 0.05, octaves: number = 4, threshold: number = 0.1): void {
+  generateCaves(seed?: number, scale: number = 0.05, octaves: number = 4, threshold: number = -0.25): void {
     console.log('[CaveGen] Starting cave generation with parameters:');
     console.log(`  seed: ${seed ?? 'random'}`);
     console.log(`  scale: ${scale}`);
