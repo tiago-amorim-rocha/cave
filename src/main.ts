@@ -170,6 +170,11 @@ class CarvableCaves {
   // Control mode (true = character control, false = camera pan/zoom)
   private characterControlMode = true;
 
+  // Automated joystick test (for debugging spider movement)
+  private testEnabled = true; // Set to false to disable automated test
+  private testStartFrame = 0;
+  private testPhase: 'waiting' | 'input' | 'release' | 'done' = 'waiting';
+
   constructor() {
     try {
       // World configuration
@@ -522,6 +527,11 @@ class CarvableCaves {
     // Update FPS
     this.updateFPS();
 
+    // Automated joystick test (for debugging spider movement)
+    if (this.testEnabled) {
+      this.runAutomatedTest();
+    }
+
     // Update physics simulation with fixed timestep (60Hz)
     // Controller updates are registered as fixed callbacks inside the physics engine
     this.physics.update(deltaMs);
@@ -616,6 +626,72 @@ class CarvableCaves {
       if (fpsElement) {
         fpsElement.textContent = this.fps.toString();
       }
+    }
+  }
+
+  /**
+   * Run automated joystick test to debug spider movement
+   * Test sequence:
+   * 1. Wait 60 frames (~1 second) for spider to settle
+   * 2. Apply small upward force for 10 frames
+   * 3. Release for 20 frames and observe behavior
+   */
+  private runAutomatedTest(): void {
+    const currentFrame = this.frameCount;
+
+    switch (this.testPhase) {
+      case 'waiting':
+        // Wait 60 frames for spider to settle
+        if (this.testStartFrame === 0) {
+          this.testStartFrame = currentFrame;
+          console.log('[TEST] ========================================');
+          console.log('[TEST] AUTOMATED JOYSTICK TEST STARTING');
+          console.log('[TEST] Phase 1: Waiting 60 frames for spider to settle...');
+          console.log('[TEST] ========================================');
+        }
+        if (currentFrame - this.testStartFrame >= 60) {
+          this.testPhase = 'input';
+          console.log('[TEST] ========================================');
+          console.log('[TEST] Phase 2: Applying small upward force (y=-0.2) for 10 frames...');
+          console.log('[TEST] ========================================');
+        }
+        break;
+
+      case 'input':
+        // Apply small upward force for 10 frames
+        // Note: VirtualJoystick y is -1 for up
+        this.joystick.injectTestInput(0, -0.2);
+
+        if (currentFrame - this.testStartFrame >= 70) {
+          this.testPhase = 'release';
+          console.log('[TEST] ========================================');
+          console.log('[TEST] Phase 3: RELEASED - Observing for 20 frames...');
+          console.log('[TEST] Watch for: input→0, forces→0, velocities decreasing');
+          console.log('[TEST] ========================================');
+        }
+        break;
+
+      case 'release':
+        // Release joystick (zero input)
+        this.joystick.injectTestInput(0, 0);
+
+        if (currentFrame - this.testStartFrame >= 90) {
+          this.testPhase = 'done';
+          console.log('[TEST] ========================================');
+          console.log('[TEST] TEST COMPLETE - Check logs above');
+          console.log('[TEST] Expected behavior:');
+          console.log('[TEST]   - Input should be 0.000 after release');
+          console.log('[TEST]   - Forces should be 0.00 when input is 0');
+          console.log('[TEST]   - Body velocity should decrease (not increase!)');
+          console.log('[TEST]   - Angular velocities should decrease');
+          console.log('[TEST] ========================================');
+          this.testEnabled = false; // Stop test
+        }
+        break;
+
+      case 'done':
+        // Test complete, do nothing
+        break;
     }
   }
 
