@@ -37,6 +37,7 @@ export class CoreGame {
   private logger: JSONLLogger;
   private fixedDt: number;
   private stepCount: number = 0;
+  private spiderUpdateCallback: ((dt: number) => void) | null = null;
 
   constructor(logger: JSONLLogger, config: CoreGameConfig = {}) {
     this.logger = logger;
@@ -79,6 +80,12 @@ export class CoreGame {
    * @param config - Spider configuration (optional)
    */
   createSpider(x: number, y: number, config?: SpiderConfig): void {
+    // Unregister old callback if spider exists
+    if (this.spiderUpdateCallback) {
+      this.engine.unregisterFixedUpdate(this.spiderUpdateCallback);
+      this.spiderUpdateCallback = null;
+    }
+
     if (this.spider) {
       this.logger.warn('Spider already exists, destroying old spider');
       this.spider.destroy();
@@ -96,6 +103,15 @@ export class CoreGame {
     };
 
     this.spider.setJoystick(fakeJoystick as any);
+
+    // CRITICAL: Register spider.update() for fixed timestep (60Hz)
+    // Without this, spider controller never runs and spider won't move!
+    this.spiderUpdateCallback = (dt: number) => {
+      if (this.spider) {
+        this.spider.update(dt);
+      }
+    };
+    this.engine.registerFixedUpdate(this.spiderUpdateCallback);
 
     this.logger.info('Spider created', {
       typeName: this.spider.getTypeName(),
@@ -205,6 +221,12 @@ export class CoreGame {
    * Clean up resources
    */
   destroy(): void {
+    // Unregister update callback
+    if (this.spiderUpdateCallback) {
+      this.engine.unregisterFixedUpdate(this.spiderUpdateCallback);
+      this.spiderUpdateCallback = null;
+    }
+
     if (this.spider) {
       this.spider.destroy();
       this.spider = null;
