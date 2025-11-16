@@ -11,6 +11,42 @@ export interface BallRenderData {
 }
 
 /**
+ * Spider segment rendering data
+ */
+export interface SpiderSegmentData {
+  x: number;
+  y: number;
+  rotation: number; // radians
+  length: number;
+  width: number;
+}
+
+/**
+ * Spider rendering data
+ */
+export interface SpiderRenderData {
+  body: {
+    x: number;
+    y: number;
+    rotation: number; // radians
+    width: number;
+    height: number;
+  };
+  leftLeg: {
+    hip: SpiderSegmentData;
+    knee: SpiderSegmentData;
+    ankle: SpiderSegmentData;
+    foot: { x: number; y: number };
+  };
+  rightLeg: {
+    hip: SpiderSegmentData;
+    knee: SpiderSegmentData;
+    ankle: SpiderSegmentData;
+    foot: { x: number; y: number };
+  };
+}
+
+/**
  * Canvas2D renderer with device-pixel-ratio awareness
  */
 export class Renderer {
@@ -104,6 +140,7 @@ export class Renderer {
    * @param physicsDebugDraw - Optional callback to draw physics debug
    * @param playerDebugDraw - Optional callback to draw player debug info
    * @param joystickDraw - Optional callback to draw virtual joystick
+   * @param spider - Optional spider rendering data
    */
   render(
     playerPosition?: { x: number; y: number },
@@ -111,7 +148,8 @@ export class Renderer {
     balls?: BallRenderData[],
     physicsDebugDraw?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
     playerDebugDraw?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
-    joystickDraw?: (ctx: CanvasRenderingContext2D) => void
+    joystickDraw?: (ctx: CanvasRenderingContext2D) => void,
+    spider?: SpiderRenderData
   ): void {
     try {
       const dpr = window.devicePixelRatio || 1;
@@ -143,6 +181,11 @@ export class Renderer {
       // Draw player
       if (playerPosition && playerRadius) {
         this.drawPlayer(width, height, playerPosition, playerRadius);
+      }
+
+      // Draw spider
+      if (spider) {
+        this.drawSpider(width, height, spider);
       }
 
       // Draw test balls
@@ -180,6 +223,105 @@ export class Renderer {
   private drawPlayer(canvasWidth: number, canvasHeight: number, position: { x: number; y: number }, radius: number): void {
     // Player rendering disabled - use physics debug visualization instead
     // The physics debug shows the actual capsule shape and foot sensor
+  }
+
+  /**
+   * Draw spider controller with Canvas2D
+   */
+  private drawSpider(canvasWidth: number, canvasHeight: number, spider: SpiderRenderData): void {
+    this.ctx.save();
+
+    // Draw main body (1m × 1m square)
+    const bodyScreen = this.camera.worldToScreen(spider.body.x, spider.body.y, canvasWidth, canvasHeight);
+    const bodyWidthScreen = spider.body.width * this.camera.zoom;
+    const bodyHeightScreen = spider.body.height * this.camera.zoom;
+
+    this.ctx.translate(bodyScreen.x, bodyScreen.y);
+    this.ctx.rotate(spider.body.rotation);
+
+    // Body fill (dark red-purple from palette)
+    this.ctx.fillStyle = '#665779';
+    this.ctx.fillRect(-bodyWidthScreen / 2, -bodyHeightScreen / 2, bodyWidthScreen, bodyHeightScreen);
+
+    // Body outline (medium purple)
+    this.ctx.strokeStyle = '#9c7fa3';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(-bodyWidthScreen / 2, -bodyHeightScreen / 2, bodyWidthScreen, bodyHeightScreen);
+
+    this.ctx.restore();
+
+    // Draw left leg
+    this.drawLeg(canvasWidth, canvasHeight, spider.leftLeg.hip, spider.leftLeg.knee, spider.leftLeg.ankle, spider.leftLeg.foot);
+
+    // Draw right leg
+    this.drawLeg(canvasWidth, canvasHeight, spider.rightLeg.hip, spider.rightLeg.knee, spider.rightLeg.ankle, spider.rightLeg.foot);
+  }
+
+  /**
+   * Draw a single leg (hip → knee → ankle → foot)
+   */
+  private drawLeg(
+    canvasWidth: number,
+    canvasHeight: number,
+    hip: SpiderSegmentData,
+    knee: SpiderSegmentData,
+    ankle: SpiderSegmentData,
+    foot: { x: number; y: number }
+  ): void {
+    // Draw hip segment
+    this.drawSegment(canvasWidth, canvasHeight, hip);
+
+    // Draw knee segment
+    this.drawSegment(canvasWidth, canvasHeight, knee);
+
+    // Draw ankle segment
+    this.drawSegment(canvasWidth, canvasHeight, ankle);
+
+    // Draw foot (small circle)
+    const footScreen = this.camera.worldToScreen(foot.x, foot.y, canvasWidth, canvasHeight);
+    const footRadius = 0.1 * this.camera.zoom; // 0.2m diameter foot
+
+    this.ctx.save();
+    this.ctx.fillStyle = '#a2babc'; // Light blue-gray from palette
+    this.ctx.beginPath();
+    this.ctx.arc(footScreen.x, footScreen.y, footRadius, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    this.ctx.strokeStyle = '#9c7fa3';
+    this.ctx.lineWidth = 1;
+    this.ctx.stroke();
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw a single leg segment (rectangle rotated around pivot point)
+   */
+  private drawSegment(canvasWidth: number, canvasHeight: number, segment: SpiderSegmentData): void {
+    this.ctx.save();
+
+    const screen = this.camera.worldToScreen(segment.x, segment.y, canvasWidth, canvasHeight);
+    const lengthScreen = segment.length * this.camera.zoom;
+    const widthScreen = segment.width * this.camera.zoom;
+
+    this.ctx.translate(screen.x, screen.y);
+    this.ctx.rotate(segment.rotation);
+
+    // Segment fill (light cream from palette, slightly darker)
+    this.ctx.fillStyle = '#e6d5b8';
+    this.ctx.fillRect(0, -widthScreen / 2, lengthScreen, widthScreen);
+
+    // Segment outline (medium purple)
+    this.ctx.strokeStyle = '#9c7fa3';
+    this.ctx.lineWidth = 1.5;
+    this.ctx.strokeRect(0, -widthScreen / 2, lengthScreen, widthScreen);
+
+    // Draw joint marker at pivot (small circle)
+    this.ctx.fillStyle = '#665779';
+    this.ctx.beginPath();
+    this.ctx.arc(0, 0, widthScreen / 2 * 1.2, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    this.ctx.restore();
   }
 
   /**

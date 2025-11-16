@@ -157,6 +157,57 @@ export class SpiderController implements IPlayerController {
   }
 
   /**
+   * Get spider render data for Canvas2D drawing
+   * Returns all segment positions and rotations for the renderer
+   */
+  getRenderData(): any {
+    const body = this.spider.body;
+    const bodyPos = body.translation();
+    const bodyRot = body.rotation();
+
+    // Helper to get segment data
+    const getSegmentData = (segment: RAPIER.RigidBody, length: number) => {
+      const pos = segment.translation();
+      const rot = segment.rotation();
+      return {
+        x: pos.x,
+        y: pos.y,
+        rotation: rot,
+        length: length,
+        width: 0.1 // Segment width (from SpiderBuilder)
+      };
+    };
+
+    return {
+      body: {
+        x: bodyPos.x,
+        y: bodyPos.y,
+        rotation: bodyRot,
+        width: 1.0,
+        height: 1.0
+      },
+      leftLeg: {
+        hip: getSegmentData(this.spider.leftLeg.hip, this.config.segmentLength1),
+        knee: getSegmentData(this.spider.leftLeg.knee, this.config.segmentLength2),
+        ankle: getSegmentData(this.spider.leftLeg.ankle, this.config.segmentLength3),
+        foot: {
+          x: this.spider.leftLeg.foot!.translation().x,
+          y: this.spider.leftLeg.foot!.translation().y
+        }
+      },
+      rightLeg: {
+        hip: getSegmentData(this.spider.rightLeg.hip, this.config.segmentLength1),
+        knee: getSegmentData(this.spider.rightLeg.knee, this.config.segmentLength2),
+        ankle: getSegmentData(this.spider.rightLeg.ankle, this.config.segmentLength3),
+        foot: {
+          x: this.spider.rightLeg.foot!.translation().x,
+          y: this.spider.rightLeg.foot!.translation().y
+        }
+      }
+    };
+  }
+
+  /**
    * Optional debug draw
    * Spider bodies will be visible in physics debug view automatically
    */

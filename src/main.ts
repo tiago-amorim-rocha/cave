@@ -550,7 +550,13 @@ class CarvableCaves {
       this.joystick.render(ctx);
     };
 
-    this.renderer.render(playerPos, player?.getRadius() ?? 0.6, ballsForRender, physicsDebugDraw, undefined, joystickDraw);
+    // Get spider render data if using spider controller
+    let spiderData = undefined;
+    if (player && 'getRenderData' in player) {
+      spiderData = (player as any).getRenderData();
+    }
+
+    this.renderer.render(playerPos, player?.getRadius() ?? 0.6, ballsForRender, physicsDebugDraw, undefined, joystickDraw, spiderData);
   };
 
   private remesh(): void {
