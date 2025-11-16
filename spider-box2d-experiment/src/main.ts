@@ -8,6 +8,7 @@
 import { b2World, b2Vec2 } from '@box2d/core';
 import { SpiderController } from './SpiderController';
 import { SpiderRenderer } from './SpiderRenderer';
+import { LogWindow } from './LogWindow';
 
 // === Configuration ===
 const PHYSICS_HZ = 60; // Fixed timestep: 60 Hz (matches Unity)
@@ -197,6 +198,26 @@ function render(): void {
 
   // Draw spider
   const renderData = spider.getRenderData();
+
+  // Log render data periodically
+  if (frameCount % 120 === 0 || frameCount <= 3) {
+    console.log(`[Render] Frame ${frameCount}:`, {
+      body: {
+        x: renderData.body.x.toFixed(3),
+        y: renderData.body.y.toFixed(3),
+        angle: (renderData.body.angle * 180 / Math.PI).toFixed(1) + '°',
+      },
+      leftLeg: {
+        hip: { x: renderData.leftLeg.hip.x.toFixed(3), y: renderData.leftLeg.hip.y.toFixed(3) },
+        foot: { x: renderData.leftLeg.foot.x.toFixed(3), y: renderData.leftLeg.foot.y.toFixed(3) },
+      },
+      rightLeg: {
+        hip: { x: renderData.rightLeg.hip.x.toFixed(3), y: renderData.rightLeg.hip.y.toFixed(3) },
+        foot: { x: renderData.rightLeg.foot.x.toFixed(3), y: renderData.rightLeg.foot.y.toFixed(3) },
+      },
+    });
+  }
+
   renderer.drawSpider(renderData);
 
   fpsFrameCount++;
@@ -206,6 +227,11 @@ function render(): void {
  * Main update loop
  */
 function update(time: number): void {
+  // Log first update call
+  if (frameCount === 0) {
+    console.log('[Main] Update loop started at time:', time);
+  }
+
   // Convert time to seconds
   time = time / 1000;
 
@@ -242,6 +268,9 @@ function update(time: number): void {
  * Main entry point
  */
 async function main() {
+  // Initialize log window FIRST to capture all logs
+  const logWindow = new LogWindow();
+
   console.log('[Main] ========================================');
   console.log('[Main] Spider Box2D Experiment');
   console.log('[Main] 1-to-1 Unity port using Box2D TypeScript');
