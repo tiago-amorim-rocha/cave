@@ -39,9 +39,16 @@ function initWorld(): void {
   console.log('[Main] Initializing Box2D world');
 
   try {
+    // Check if Box2D classes are available
+    console.log('[Main] Checking Box2D availability...');
+    console.log('[Main] b2World:', typeof b2World);
+    console.log('[Main] b2Vec2:', typeof b2Vec2);
+    console.log('[Main] b2World.Create:', typeof b2World.Create);
+
     // Create world with zero gravity (spider has gravity scale = 0 anyway)
     console.log('[Main] Creating gravity vector (0, 0)');
     const gravity = new b2Vec2(0, 0);
+    console.log('[Main] Gravity created:', gravity);
 
     console.log('[Main] Calling b2World.Create()');
     world = b2World.Create(gravity);
@@ -50,6 +57,9 @@ function initWorld(): void {
     console.log('[Main] World type:', typeof world);
   } catch (error) {
     console.error('[Main] Error creating Box2D world:', error);
+    console.error('[Main] Error type:', typeof error);
+    console.error('[Main] Error message:', error instanceof Error ? error.message : String(error));
+    console.error('[Main] Error stack:', error instanceof Error ? error.stack : 'N/A');
     throw error;
   }
 }
