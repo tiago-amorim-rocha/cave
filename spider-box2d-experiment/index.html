@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spider Box2D Experiment</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #1a1a1a;
+      color: #ffffff;
+      font-family: 'Monaco', 'Consolas', monospace;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    #canvas {
+      display: block;
+      background: #0a0a0a;
+      flex: 1;
+    }
+
+    #controls {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 10px;
+      border: 2px solid #00ff00;
+    }
+
+    button {
+      padding: 20px 40px;
+      font-size: 18px;
+      font-weight: bold;
+      background: #00ff00;
+      color: #000;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+      min-width: 120px;
+    }
+
+    button:hover {
+      background: #00cc00;
+      transform: scale(1.05);
+    }
+
+    button:active {
+      background: #00aa00;
+      transform: scale(0.95);
+    }
+
+    #info {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 15px;
+      border-radius: 5px;
+      border: 1px solid #00ff00;
+      font-size: 12px;
+      line-height: 1.6;
+      max-width: 400px;
+    }
+
+    #info h2 {
+      color: #00ff00;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    #stats {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 15px;
+      border-radius: 5px;
+      border: 1px solid #00ff00;
+      font-size: 12px;
+      line-height: 1.6;
+      min-width: 200px;
+    }
+
+    #stats h2 {
+      color: #00ff00;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .stat-line {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+
+    .stat-label {
+      color: #888;
+    }
+
+    .stat-value {
+      color: #00ff00;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div id="info">
+    <h2>Box2D Spider Experiment</h2>
+    <p>1-to-1 Unity port using Box2D TypeScript</p>
+    <p style="margin-top: 10px;">
+      <strong>Controls:</strong><br>
+      • Press "UP" button to move spider upward<br>
+      • Feet are pinned to ground (kinematic bodies)<br>
+      • Uses Jacobian transpose for inverse kinematics
+    </p>
+  </div>
+
+  <div id="stats">
+    <h2>Stats</h2>
+    <div class="stat-line">
+      <span class="stat-label">FPS:</span>
+      <span class="stat-value" id="fps">0</span>
+    </div>
+    <div class="stat-line">
+      <span class="stat-label">Input:</span>
+      <span class="stat-value" id="input">0.00</span>
+    </div>
+    <div class="stat-line">
+      <span class="stat-label">Body Y:</span>
+      <span class="stat-value" id="body-y">0.00</span>
+    </div>
+    <div class="stat-line">
+      <span class="stat-label">Body Vel Y:</span>
+      <span class="stat-value" id="body-vel-y">0.00</span>
+    </div>
+    <div class="stat-line">
+      <span class="stat-label">Body Rot:</span>
+      <span class="stat-value" id="body-rot">0.0°</span>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button id="up-button">UP ↑</button>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
