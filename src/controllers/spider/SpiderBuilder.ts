@@ -41,7 +41,7 @@ export function buildSpider(
     .setCcdEnabled(true) // Enable CCD for fast movement
     .setGravityScale(0)  // No gravity (spider uses forces only)
     .setLinearDamping(0)       // Unity prefab line 1012
-    .setAngularDamping(0.05);  // Unity prefab line 1013
+    .setAngularDamping(1.0);   // INCREASED from 0.05 for stability (20x)
 
   const body = world.createRigidBody(bodyDesc);
 
@@ -189,7 +189,7 @@ function buildLeg(
     .setCcdEnabled(true)
     .setGravityScale(0)
     .setLinearDamping(0)       // Unity prefab line 868
-    .setAngularDamping(0.05);  // Unity prefab line 869
+    .setAngularDamping(1.0);   // INCREASED from 0.05 for stability (20x)
 
   const hip = world.createRigidBody(hipDesc);
 
@@ -209,7 +209,7 @@ function buildLeg(
     .setCcdEnabled(true)
     .setGravityScale(0)
     .setLinearDamping(0)       // Unity prefab line 723
-    .setAngularDamping(0.05);  // Unity prefab line 724
+    .setAngularDamping(1.0);   // INCREASED from 0.05 for stability (20x)
 
   const knee = world.createRigidBody(kneeDesc);
 
@@ -229,7 +229,7 @@ function buildLeg(
     .setCcdEnabled(true)
     .setGravityScale(0)
     .setLinearDamping(0)       // Unity prefab line 288
-    .setAngularDamping(0.05);  // Unity prefab line 289
+    .setAngularDamping(1.0);   // INCREASED from 0.05 for stability (20x)
 
   const ankle = world.createRigidBody(ankleDesc);
 
