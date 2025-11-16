@@ -150,6 +150,18 @@ export class SpiderController implements IPlayerController {
     // Spider pushes on ground, ground pushes on spider
     this.applyLegTorques(this.spider.leftLeg, -leftForce.x, -leftForce.y);
     this.applyLegTorques(this.spider.rightLeg, -rightForce.x, -rightForce.y);
+
+    // CRITICAL DEBUG: Track body angular acceleration to detect asymmetric torques
+    if (shouldLog && (Math.abs(horizontalInput) > 0.01 || Math.abs(verticalInput) > 0.01)) {
+      // Get body state BEFORE and AFTER next physics step
+      const bodyAngVelBefore = this.spider.body.angvel();
+      const bodyRotBefore = this.spider.body.rotation();
+
+      console.log('[Spider Body] BEFORE physics step:');
+      console.log(`  Angular velocity: ${bodyAngVelBefore.toFixed(6)} rad/s`);
+      console.log(`  Rotation: ${(bodyRotBefore * 180 / Math.PI).toFixed(3)}°`);
+      console.log(`  Expected: Zero angular acceleration if torques are balanced`);
+    }
   }
 
   /**
