@@ -41,6 +41,15 @@ export class SpiderController implements IPlayerController {
     this.engine = engine;
     this.config = config || DEFAULT_SPIDER_CONFIG;
 
+    // Clear debug console for focused spider debugging
+    const debugConsole = (window as any).debugConsole;
+    if (debugConsole && debugConsole.clearLogs) {
+      debugConsole.clearLogs();
+    }
+
+    console.log('[SpiderController] ==========================================');
+    console.log('[SpiderController] SPIDER DEBUG MODE - Console Cleared');
+    console.log('[SpiderController] ==========================================');
     console.log('[SpiderController] Creating spider controller at (', x.toFixed(2), ',', y.toFixed(2), ')');
 
     // Build the spider rig
@@ -55,6 +64,7 @@ export class SpiderController implements IPlayerController {
     console.log('[SpiderController] Movement: Jacobian-based inverse kinematics');
     console.log('[SpiderController] Use virtual joystick to control spider');
     console.log('[SpiderController] Enable physics debug view to see the rig structure');
+    console.log('[SpiderController] ==========================================');
   }
 
   /**
@@ -79,8 +89,24 @@ export class SpiderController implements IPlayerController {
     // Unity convention is positive = up, so negate
     const verticalInput = clamp(-input.y, -1, 1);
 
+    // DEBUG: Log input and body state
+    const bodyVel = this.spider.body.linvel();
+    const bodyAngVel = this.spider.body.angvel();
+    console.log('[Spider] Input:', {
+      horiz: horizontalInput.toFixed(3),
+      vert: verticalInput.toFixed(3),
+      bodyVel: { x: bodyVel.x.toFixed(3), y: bodyVel.y.toFixed(3) },
+      bodyAngVel: bodyAngVel.toFixed(3)
+    });
+
     // 2. Compute desired forces on each leg
     const { leftForce, rightForce } = this.computeLegForces(verticalInput, horizontalInput);
+
+    // DEBUG: Log computed forces
+    console.log('[Spider] Forces:', {
+      left: { x: leftForce.x.toFixed(2), y: leftForce.y.toFixed(2) },
+      right: { x: rightForce.x.toFixed(2), y: rightForce.y.toFixed(2) }
+    });
 
     // 3. Apply torques to joints using Jacobian transpose
     // Note: Negate forces (equal-and-opposite reaction)
@@ -199,6 +225,18 @@ export class SpiderController implements IPlayerController {
     tauA = clamp(tauA * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
     tauB = clamp(tauB * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
     tauC = clamp(tauC * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
+
+    // DEBUG: Log applied torques and angular velocities
+    const legName = leg === this.spider.leftLeg ? 'LEFT' : 'RIGHT';
+    console.log(`[Spider ${legName}] Torques:`, {
+      input: { Fx: Fx.toFixed(2), Fy: Fy.toFixed(2) },
+      torques: { hip: tauA.toFixed(2), knee: tauB.toFixed(2), ankle: tauC.toFixed(2) },
+      angVels: {
+        hip: hip.angvel().toFixed(3),
+        knee: knee.angvel().toFixed(3),
+        ankle: ankle.angvel().toFixed(3)
+      }
+    });
 
     // === Apply Torques ===
     // Rapier API: addTorque(torque, wakeup)
