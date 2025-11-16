@@ -7,6 +7,7 @@ import type { RapierEngine } from '../physics/engine';
 import type { IPlayerController, ControllerConfig } from './IPlayerController';
 import { ControllerType } from './IPlayerController';
 import { ForcePlayerController } from './ForcePlayerController';
+import { SpiderController } from './spider/SpiderController';
 
 /**
  * Factory for creating player controllers
@@ -30,8 +31,7 @@ export class ControllerFactory {
         return new ForcePlayerController(this.engine, config.x, config.y);
 
       case ControllerType.SPIDER:
-        // TODO: Implement SpiderController
-        throw new Error(`[ControllerFactory] Spider controller not yet implemented`);
+        return new SpiderController(this.engine, config.x, config.y);
 
       default:
         throw new Error(`[ControllerFactory] Unknown controller type: ${type}`);
@@ -44,7 +44,7 @@ export class ControllerFactory {
   getAvailableTypes(): ControllerType[] {
     return [
       ControllerType.FORCE,
-      // ControllerType.SPIDER will be added when implemented
+      ControllerType.SPIDER,
     ];
   }
 
@@ -97,8 +97,8 @@ export class ControllerManager {
    * @returns New controller instance
    */
   switchController(type: ControllerType, preservePosition: boolean = true): IPlayerController {
-    let spawnX = 25; // Default spawn X (center of 50m world)
-    let spawnY = 15; // Default spawn Y (center of 30m world)
+    let spawnX = 32; // Default spawn X (center of 64m world)
+    let spawnY = 32; // Default spawn Y (center of 64m world)
 
     // Get current position if we want to preserve it
     if (preservePosition && this.currentController) {
