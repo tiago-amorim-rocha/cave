@@ -68,9 +68,7 @@ export function buildSpider(
     body,
     config,
     true,
-    new b2Vec2(x - 0.5, y),
-    new b2Vec2(x - 0.5 - config.segmentLength1 * Math.cos(degToRad(60)),
-              y - config.segmentLength1 * Math.sin(degToRad(60)))
+    new b2Vec2(x - 0.5, y)
   );
 
   const rightLeg = createLeg(
@@ -78,9 +76,7 @@ export function buildSpider(
     body,
     config,
     false,
-    new b2Vec2(x + 0.5, y),
-    new b2Vec2(x + 0.5 + config.segmentLength1 * Math.cos(degToRad(60)),
-              y - config.segmentLength1 * Math.sin(degToRad(60)))
+    new b2Vec2(x + 0.5, y)
   );
 
   const allBodies = [
@@ -120,8 +116,7 @@ function createLeg(
   body: any,
   config: SpiderConfig,
   isLeft: boolean,
-  hipPos: XY,
-  footPos: XY
+  hipJointPos: XY
 ): ControllerLeg {
 
   // Segment lengths (from config)
@@ -141,22 +136,24 @@ function createLeg(
   const angle2 = isLeft ? 30 : -30; // Knee relative to hip
   const angle3 = isLeft ? 30 : -30; // Ankle relative to knee
 
-  // === Create Hip Segment (segment1: body -> knee) ===
+  // === Create Hip Segment ===
+  // Position center at body-to-hip joint
   const hip = createSegment(
     world,
     'hip',
     L1,
     0.1,
     M1,
-    hipPos.x,
-    hipPos.y,
+    hipJointPos.x,
+    hipJointPos.y,
     angle1
   );
 
-  // === Create Knee Segment (segment2: knee -> ankle) ===
-  const kneePos = {
-    x: hipPos.x + L1 * Math.cos(degToRad(angle1)),
-    y: hipPos.y + L1 * Math.sin(degToRad(angle1)),
+  // === Create Knee Segment ===
+  // Hip-to-knee joint is at hip's distal end
+  const kneeJointPos = {
+    x: hipJointPos.x + L1 * Math.cos(degToRad(angle1)),
+    y: hipJointPos.y + L1 * Math.sin(degToRad(angle1)),
   };
 
   const knee = createSegment(
@@ -165,15 +162,16 @@ function createLeg(
     L2,
     0.1,
     M2,
-    kneePos.x,
-    kneePos.y,
+    kneeJointPos.x,
+    kneeJointPos.y,
     angle1 + angle2
   );
 
-  // === Create Ankle Segment (segment3: ankle -> foot) ===
-  const anklePos = {
-    x: kneePos.x + L2 * Math.cos(degToRad(angle1 + angle2)),
-    y: kneePos.y + L2 * Math.sin(degToRad(angle1 + angle2)),
+  // === Create Ankle Segment ===
+  // Knee-to-ankle joint is at knee's distal end
+  const ankleJointPos = {
+    x: kneeJointPos.x + L2 * Math.cos(degToRad(angle1 + angle2)),
+    y: kneeJointPos.y + L2 * Math.sin(degToRad(angle1 + angle2)),
   };
 
   const ankle = createSegment(
@@ -182,15 +180,21 @@ function createLeg(
     L3,
     0.1,
     M3,
-    anklePos.x,
-    anklePos.y,
+    ankleJointPos.x,
+    ankleJointPos.y,
     angle1 + angle2 + angle3
   );
 
   // === Create Foot (kinematic, pinned to ground) ===
+  // Ankle-to-foot joint is at ankle's distal end
+  const footJointPos = {
+    x: ankleJointPos.x + L3 * Math.cos(degToRad(angle1 + angle2 + angle3)),
+    y: ankleJointPos.y + L3 * Math.sin(degToRad(angle1 + angle2 + angle3)),
+  };
+
   const footDef: b2BodyDef = {
     type: b2BodyType.b2_kinematicBody, // Kinematic = fixed in place
-    position: { x: footPos.x, y: footPos.y },
+    position: { x: footJointPos.x, y: footJointPos.y },
     angle: 0,
   };
 
@@ -208,23 +212,19 @@ function createLeg(
   foot.CreateFixture(footFixture);
 
   // === Create Joints ===
-  // All joints are revolute joints (hinge joints in Unity)
+  // All joints connect at the segment start positions
+  // Each segment's center is at its proximal joint, so local anchor is {0, 0}
 
-  // Body -> Hip joint (at hip proximal end)
-  createRevoluteJoint(world, body, hip, hipPos);
+  // Body -> Hip joint
+  createRevoluteJoint(world, body, hip, hipJointPos);
 
-  // Hip -> Knee joint (at knee proximal end)
-  createRevoluteJoint(world, hip, knee, kneePos);
+  // Hip -> Knee joint
+  createRevoluteJoint(world, hip, knee, kneeJointPos);
 
-  // Knee -> Ankle joint (at ankle proximal end)
-  createRevoluteJoint(world, knee, ankle, anklePos);
+  // Knee -> Ankle joint
+  createRevoluteJoint(world, knee, ankle, ankleJointPos);
 
-  // Ankle -> Foot joint (at foot position)
-  // Calculate foot position based on ankle tip
-  const footJointPos = {
-    x: anklePos.x + L3 * Math.cos(degToRad(angle1 + angle2 + angle3)),
-    y: anklePos.y + L3 * Math.sin(degToRad(angle1 + angle2 + angle3)),
-  };
+  // Ankle -> Foot joint
   createRevoluteJoint(world, ankle, foot, footJointPos);
 
   return {
@@ -242,15 +242,15 @@ function createLeg(
  * Segments are boxes with:
  * - Length along local X axis
  * - Width along local Y axis
- * - Pivot at left end (proximal joint)
+ * - Center positioned at proximal joint
  *
  * @param world - Box2D world
  * @param name - Segment name (for debugging)
  * @param length - Segment length (metres)
  * @param width - Segment width (metres)
  * @param mass - Segment mass (kg)
- * @param x - Initial X position (centre of box)
- * @param y - Initial Y position (centre of box)
+ * @param centerX - Center X position (at proximal joint)
+ * @param centerY - Center Y position (at proximal joint)
  * @param angleDeg - Initial angle (degrees, 0 = pointing right)
  * @returns Created body
  */
@@ -260,15 +260,11 @@ function createSegment(
   length: number,
   width: number,
   mass: number,
-  x: number,
-  y: number,
+  centerX: number,
+  centerY: number,
   angleDeg: number
 ): any {
-  // Position at the PROXIMAL end (left end of segment)
-  // Box2D centres are at the middle, so we offset by half-length along the angle
   const angleRad = degToRad(angleDeg);
-  const centerX = x + (length / 2) * Math.cos(angleRad);
-  const centerY = y + (length / 2) * Math.sin(angleRad);
 
   const bodyDef: b2BodyDef = {
     type: b2BodyType.b2_dynamicBody,
