@@ -37,7 +37,7 @@ export class CaveGeneratorUI {
       seed: Date.now(),
       scale: 0.05,
       octaves: 4,
-      threshold: 0.1
+      threshold: -0.25
     };
 
     // Create UI elements
