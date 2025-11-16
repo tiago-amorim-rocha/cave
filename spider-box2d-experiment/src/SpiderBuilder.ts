@@ -12,6 +12,7 @@ import {
   b2RevoluteJointDef,
   b2BodyType,
   b2Vec2,
+  b2JointType,
   XY,
 } from '@box2d/core';
 import type { SpiderAssembly, SpiderConfig, ControllerLeg } from './SpiderTypes';
@@ -378,6 +379,7 @@ function createRevoluteJoint(
   };
 
   const jointDef: b2RevoluteJointDef = {
+    type: b2JointType.e_revoluteJoint,
     bodyA: bodyA,
     bodyB: bodyB,
     localAnchorA: localAnchorA,
