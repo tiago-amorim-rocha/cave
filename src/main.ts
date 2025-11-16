@@ -3,6 +3,7 @@ import { DensityField } from './DensityField';
 import { MarchingSquares } from './MarchingSquares';
 import { Renderer } from './Renderer';
 import { DebugConsole } from './DebugConsole';
+import { SpiderDebugUI } from './SpiderDebugUI';
 import { CaveGeneratorUI, type PerlinCaveParams } from './CaveGeneratorUI';
 import { CharacterControllerUI } from './CharacterControllerUI';
 import { LoopCache } from './LoopCache';
@@ -17,6 +18,7 @@ import type { WorldConfig, BrushSettings } from './types';
 import RAPIER from '@dimforge/rapier2d-compat';
 import * as SpiderMath from './controllers/spider/SpiderMath';
 import { DEFAULT_SPIDER_CONFIG } from './controllers/spider/SpiderTypes';
+import type { SpiderController } from './controllers/spider/SpiderController';
 
 /**
  * Test spider math functions (Phase 1 verification)
@@ -283,6 +285,26 @@ class CarvableCaves {
   /**
    * Wire up character controller UI callbacks (called after player is created)
    */
+  private setupSpiderDebugUI(): void {
+    const player = this.controllerManager?.getCurrentController();
+    const spiderUI = (window as any).spiderDebugUI as SpiderDebugUI;
+
+    if (spiderUI && player) {
+      // Type check for SpiderController
+      const isSpiderController = (ctrl: any): ctrl is SpiderController => {
+        return ctrl.getTypeName && ctrl.getTypeName().includes('Spider');
+      };
+
+      if (isSpiderController(player)) {
+        // Attach the controller and its config to the debug UI
+        const config = (player as any).config; // Access private config
+        spiderUI.attachController(player, config);
+      } else {
+        spiderUI.hide();
+      }
+    }
+  }
+
   private setupCharacterControllerUI(): void {
     const player = this.controllerManager?.getCurrentController();
     if ((window as any).characterControllerUI && player) {
@@ -370,6 +392,7 @@ class CarvableCaves {
 
     // Wire up character controller UI (now that player exists)
     this.setupCharacterControllerUI();
+    this.setupSpiderDebugUI();
 
     // Start render loop
     this.loop();
@@ -743,9 +766,20 @@ class CarvableCaves {
 
 // Initialize debug console (hidden by default)
 let debugConsole: DebugConsole;
+let spiderDebugUI: SpiderDebugUI;
 try {
   debugConsole = new DebugConsole();
   (window as any).debugConsole = debugConsole; // Make accessible for stats updates
+
+  spiderDebugUI = new SpiderDebugUI();
+  (window as any).spiderDebugUI = spiderDebugUI; // Make accessible
+
+  // Add keyboard shortcut for spider debug UI (P key)
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'p' || e.key === 'P') {
+      spiderDebugUI.toggle();
+    }
+  });
 } catch (error) {
   console.error('Failed to create debug console:', error);
   alert('Failed to create debug console: ' + error);

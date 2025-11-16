@@ -139,13 +139,13 @@ function buildLeg(
   console.log(`[SpiderBuilder] Building ${legName} leg at (${hipX.toFixed(2)}, ${hipY.toFixed(2)})`);
 
   // === Initial Pose ===
-  // From Unity prefab lines 382-392
-  // Left leg: angle1=130°, angle2=100°, angle3=40°
-  // Right leg: angle1=50°, angle2=-100°, angle3=-40°
-  // These create a stable "standing" pose
-  const angle1Deg = isLeft ? 130 : 50;
-  const angle2Deg = isLeft ? 100 : -100;
-  const angle3Deg = isLeft ? 40 : -40;
+  // From Unity prefab lines 382-392, but adjusted for Y-down coordinate system
+  // Unity uses Y-up, we use Y-down, so flip the angles
+  // Original: Left leg: 130°, 100°, 40° | Right leg: 50°, -100°, -40°
+  // Flipped: subtract from 360° to invert Y direction
+  const angle1Deg = isLeft ? (360 - 130) : (360 - 50); // Left: 230°, Right: 310°
+  const angle2Deg = isLeft ? -100 : 100; // Keep relative bends but flip sign
+  const angle3Deg = isLeft ? -40 : 40;
 
   // Compute segment directions
   const dir1 = angleToDir(angle1Deg);
