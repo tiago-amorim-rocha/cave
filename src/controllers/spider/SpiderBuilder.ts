@@ -35,11 +35,13 @@ export function buildSpider(
 
   // === Create Main Body ===
   // Central 1m × 1m square, dynamic rigid body
-  // From Unity: body sprite is 1x1, mass determined by segments attached
+  // From Unity prefab: body sprite is 1x1, mass = 1.0 (line 1011)
   const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
     .setTranslation(x, y)
     .setCcdEnabled(true) // Enable CCD for fast movement
-    .setGravityScale(0); // No gravity (spider uses forces only)
+    .setGravityScale(0)  // No gravity (spider uses forces only)
+    .setLinearDamping(0)       // Unity prefab line 1012
+    .setAngularDamping(0.05);  // Unity prefab line 1013
 
   const body = world.createRigidBody(bodyDesc);
 
@@ -49,14 +51,14 @@ export function buildSpider(
   // - Terrain: 0x0001FFFF (member of group 0, filter for all groups)
   // Spider parts WON'T collide with each other but WILL collide with terrain
   const bodyCollider = RAPIER.ColliderDesc.cuboid(0.5, 0.5) // half-extents
-    .setDensity(1.0)
+    .setDensity(1.0)  // Mass = density * area = 1.0 * (1.0 * 1.0) = 1.0 (matches Unity)
     .setFriction(0.3)
     .setRestitution(0.1)
     .setCollisionGroups(0x00020001); // Spider collision group
 
   world.createCollider(bodyCollider, body);
 
-  console.log('[SpiderBuilder] Created body: 1.0m × 1.0m square with collision filtering');
+  console.log('[SpiderBuilder] Created body: 1.0m × 1.0m square, mass=1.0');
 
   // === Build Legs ===
   // From Unity SpiderController.cs line 183-194:
@@ -137,14 +139,13 @@ function buildLeg(
   console.log(`[SpiderBuilder] Building ${legName} leg at (${hipX.toFixed(2)}, ${hipY.toFixed(2)})`);
 
   // === Initial Pose ===
-  // From Unity prefab: legs start in a "crouch" pose
-  // Angles from Unity editor (approximate):
-  // - angle1: -90° (pointing down)
-  // - angle2: 120° (knee bent forward)
-  // - angle3: 120° (ankle bent forward)
-  const angle1Deg = -90;  // Hip: point down
-  const angle2Deg = 120;  // Knee: bend forward
-  const angle3Deg = 120;  // Ankle: bend forward
+  // From Unity prefab lines 382-392
+  // Left leg: angle1=130°, angle2=100°, angle3=40°
+  // Right leg: angle1=50°, angle2=-100°, angle3=-40°
+  // These create a stable "standing" pose
+  const angle1Deg = isLeft ? 130 : 50;
+  const angle2Deg = isLeft ? 100 : -100;
+  const angle3Deg = isLeft ? 40 : -40;
 
   // Compute segment directions
   const dir1 = angleToDir(angle1Deg);
@@ -166,22 +167,35 @@ function buildLeg(
   const footY = ankleY + dir3.y * L3;
 
   // === Create Segment Bodies ===
-  // Segments have colliders for mass, but use collision filtering to prevent self-collision
+  // Masses from Unity prefab (baseSegmentMass=0.2, ratio=1.3):
+  // - Hip (segment a): 0.2 (line 867, 1420)
+  // - Knee (segment b): 0.15384616 (line 722, 577)
+  // - Ankle (segment c): 0.118343204 (line 287, 1275)
+  //
+  // Rapier uses density, so we need: density = mass / area
+  // All segments have width = 0.1
   const segmentWidth = 0.1;
   const segmentHalfWidth = segmentWidth / 2;
+
+  // Calculate densities to achieve exact Unity masses
+  const densityHip = 0.2 / (L1 * segmentWidth);           // 0.2 / 0.13 ≈ 1.538
+  const densityKnee = 0.15384616 / (L2 * segmentWidth);   // 0.15384616 / 0.1 = 1.5385
+  const densityAnkle = 0.118343204 / (L3 * segmentWidth); // 0.118343204 / 0.07 ≈ 1.690
 
   // Segment 1 (Hip)
   const hipDesc = RAPIER.RigidBodyDesc.dynamic()
     .setTranslation(hipX, hipY)
     .setRotation(degToRad(angle1Deg))
     .setCcdEnabled(true)
-    .setGravityScale(0);
+    .setGravityScale(0)
+    .setLinearDamping(0)       // Unity prefab line 868
+    .setAngularDamping(0.05);  // Unity prefab line 869
 
   const hip = world.createRigidBody(hipDesc);
 
   const hipCollider = RAPIER.ColliderDesc.cuboid(L1 / 2, segmentHalfWidth)
     .setTranslation(L1 / 2, 0) // Offset so pivot is at left edge
-    .setDensity(1.0)
+    .setDensity(densityHip)
     .setFriction(0.3)
     .setRestitution(0.1)
     .setCollisionGroups(0x00020001); // Spider collision group
@@ -193,13 +207,15 @@ function buildLeg(
     .setTranslation(kneeX, kneeY)
     .setRotation(degToRad(angle1Deg + angle2Deg))
     .setCcdEnabled(true)
-    .setGravityScale(0);
+    .setGravityScale(0)
+    .setLinearDamping(0)       // Unity prefab line 723
+    .setAngularDamping(0.05);  // Unity prefab line 724
 
   const knee = world.createRigidBody(kneeDesc);
 
   const kneeCollider = RAPIER.ColliderDesc.cuboid(L2 / 2, segmentHalfWidth)
     .setTranslation(L2 / 2, 0)
-    .setDensity(1.0)
+    .setDensity(densityKnee)
     .setFriction(0.3)
     .setRestitution(0.1)
     .setCollisionGroups(0x00020001); // Spider collision group
@@ -211,13 +227,15 @@ function buildLeg(
     .setTranslation(ankleX, ankleY)
     .setRotation(degToRad(angle1Deg + angle2Deg + angle3Deg))
     .setCcdEnabled(true)
-    .setGravityScale(0);
+    .setGravityScale(0)
+    .setLinearDamping(0)       // Unity prefab line 288
+    .setAngularDamping(0.05);  // Unity prefab line 289
 
   const ankle = world.createRigidBody(ankleDesc);
 
   const ankleCollider = RAPIER.ColliderDesc.cuboid(L3 / 2, segmentHalfWidth)
     .setTranslation(L3 / 2, 0)
-    .setDensity(1.0)
+    .setDensity(densityAnkle)
     .setFriction(0.3)
     .setRestitution(0.1)
     .setCollisionGroups(0x00020001); // Spider collision group
@@ -227,6 +245,7 @@ function buildLeg(
   // === Create Foot ===
   // From Unity prefab line 138: m_BodyType: 2 (Kinematic)
   // Foot is 0.2m × 0.2m square, locked to ground
+  // Note: Damping values still set in Unity even though kinematic
   const footDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
     .setTranslation(footX, footY);
 

@@ -118,53 +118,59 @@ export interface SpiderConfig {
 
 /**
  * Default spider controller configuration
- * Values extracted from Unity SpiderController.cs default inspector values
+ * Values extracted from Unity spider.prefab (lines 393-422)
  *
- * Segment lengths use baseSegmentLength=1.3 with ratio=1.3:
- * - L1 = 1.3m
- * - L2 = 1.3/1.3 = 1.0m
- * - L3 = 1.0/1.3 ≈ 0.769m (rounded to 0.7m in Unity)
+ * IMPORTANT: These values match the working Unity prefab exactly!
+ * Do not change without testing in Unity first.
+ *
+ * Segment lengths: baseSegmentLength=1.3, ratio=1.3
+ * Segment masses: baseSegmentMass=0.2, ratio=1.3
+ * - L1 = 1.3m, M1 = 0.2
+ * - L2 = 1.0m, M2 = 0.15384616
+ * - L3 = 0.7m, M3 = 0.118343204
  */
 export const DEFAULT_SPIDER_CONFIG: SpiderConfig = {
-  // Leg geometry (from Unity lines 66-68)
+  // Leg geometry (from Unity prefab lines 400-402)
   segmentLength1: 1.3,
   segmentLength2: 1.0,
   segmentLength3: 0.7,
 
-  // Vertical control (from Unity lines 71-75)
-  verticalAccelGain: 1.0,
+  // Vertical control (from Unity prefab lines 403-404)
+  verticalAccelGain: 2.0,  // Unity value, NOT 1.0!
   maxTotalFootForceY: 20.0,
 
-  // Horizontal control (from Unity lines 77-82)
-  horizontalAccelGain: 1.0,
+  // Horizontal control (from Unity prefab lines 405-406)
+  horizontalAccelGain: 2.0,  // Unity value, NOT 1.0!
   maxTotalFootForceX: 20.0,
 
-  // Torque scaling (from Unity lines 84-86)
-  torqueGain: 1.0,
+  // Torque scaling (from Unity prefab lines 407-408)
+  torqueGain: 2.0,  // Unity value, NOT 1.0!
   maxJointTorque: 100.0,
 
-  // Joint limit springs (from Unity lines 88-99)
+  // Joint limit springs (from Unity prefab lines 409-412)
   enableHipJointLimits: true,
   enableKneeAnkleJointLimits: true,
-  jointLimitKp: 10.0,
-  jointLimitKd: 1.0,
+  jointLimitKp: 0.1,   // Unity value, NOT 10.0!
+  jointLimitKd: 0.05,  // Unity value, NOT 1.0!
 
-  // Hip joint limits (from Unity lines 101-106)
+  // Hip joint limits (from Unity prefab lines 413-414)
+  // Note: Unity uses 281.2-436.5, but that's after ApplyMirrorIfNeeded
+  // The actual range in the prefab is mirrored, so we use the direct values
   hipLimitFreeMin: 0.0,
   hipLimitFreeMax: 60.0,
 
-  // Knee joint limits (from Unity lines 108-113)
-  kneeLimitFreeMin: 10.0,
-  kneeLimitFreeMax: 160.0,
+  // Knee joint limits (from Unity prefab lines 415-416)
+  kneeLimitFreeMin: 20.0,   // Unity value, NOT 10.0!
+  kneeLimitFreeMax: 150.0,  // Unity value, NOT 160.0!
 
-  // Ankle joint limits (from Unity lines 115-120)
-  ankleLimitFreeMin: 10.0,
-  ankleLimitFreeMax: 160.0,
+  // Ankle joint limits (from Unity prefab lines 417-418)
+  ankleLimitFreeMin: 20.0,   // Unity value, NOT 10.0!
+  ankleLimitFreeMax: 150.0,  // Unity value, NOT 160.0!
 
-  // Rotation stabilization (from Unity lines 122-133)
+  // Rotation stabilization (from Unity prefab lines 419-422)
   stabilizeRotation: true,
   targetBodyAngle: 0.0,
-  rotationStiffness: 0.5,
+  rotationStiffness: 0.1,  // Unity value, NOT 0.5!
   rotationDamping: 0.1,
 };
 
