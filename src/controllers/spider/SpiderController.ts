@@ -263,6 +263,11 @@ export class SpiderController implements IPlayerController {
     let tauB = j12 * Fx + j22 * Fy; // Knee torque
     let tauC = j13 * Fx + j23 * Fy; // Ankle torque
 
+    // Save pre-gain torques for logging (to match Unity's output)
+    const tauA_preGain = tauA;
+    const tauB_preGain = tauB;
+    const tauC_preGain = tauC;
+
     // TODO: Add joint limit springs here (deferred)
 
     // === Scale and Clamp Torques ===
@@ -271,20 +276,48 @@ export class SpiderController implements IPlayerController {
     tauC = clamp(tauC * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
 
     // UNITY-STYLE LOGGING: Match Unity's detailed output format
-    // Log first 100 frames for detailed comparison with Unity
-    const shouldLogTorques = this.frameCount <= 100;
+    // Log first 3 frames with MAXIMUM detail for angle debugging
+    const shouldLogTorques = this.frameCount <= 3;
     if (shouldLogTorques) {
       const legName = leg === this.spider.leftLeg ? 'LEFT' : 'RIGHT';
 
+      // DEEP DEBUG: Log all angles and trig values
+      console.log(`\n=== Frame ${this.frameCount} ${legName} LEG ANGLES ===`);
+      console.log(`  Raw Rapier rotations (radians):`);
+      console.log(`    hip.rotation() = ${hip.rotation().toFixed(6)} rad = ${hipRotDeg.toFixed(3)}°`);
+      console.log(`    knee.rotation() = ${knee.rotation().toFixed(6)} rad = ${kneeRotDeg.toFixed(3)}°`);
+      console.log(`    ankle.rotation() = ${ankle.rotation().toFixed(6)} rad = ${ankleRotDeg.toFixed(3)}°`);
+
+      console.log(`  Computed relative angles (for Jacobian):`);
+      console.log(`    thetaA (hip abs) = ${thetaA.toFixed(6)} rad = ${(thetaA * 180 / Math.PI).toFixed(3)}°`);
+      console.log(`    thetaB (knee rel) = ${thetaB.toFixed(6)} rad = ${(thetaB * 180 / Math.PI).toFixed(3)}°`);
+      console.log(`    thetaC (ankle rel) = ${thetaC.toFixed(6)} rad = ${(thetaC * 180 / Math.PI).toFixed(3)}°`);
+
+      console.log(`  Angle sums (for Jacobian):`);
+      console.log(`    thetaA = ${(thetaA * 180 / Math.PI).toFixed(3)}°`);
+      console.log(`    thetaA+thetaB = ${((thetaA + thetaB) * 180 / Math.PI).toFixed(3)}°`);
+      console.log(`    thetaA+thetaB+thetaC = ${((thetaA + thetaB + thetaC) * 180 / Math.PI).toFixed(3)}°`);
+
+      console.log(`  Trig values:`);
+      console.log(`    cos(thetaA) = ${cA.toFixed(4)}, sin(thetaA) = ${sA.toFixed(4)}`);
+      console.log(`    cos(thetaA+thetaB) = ${cAB.toFixed(4)}, sin(thetaA+thetaB) = ${sAB.toFixed(4)}`);
+      console.log(`    cos(thetaA+thetaB+thetaC) = ${cABC.toFixed(4)}, sin(thetaA+thetaB+thetaC) = ${sABC.toFixed(4)}`);
+
       // Log Jacobian vertical components (like Unity)
       console.log(`${legName} leg Jacobian vertical components:`);
-      console.log(`  j21 (hip vertical) = ${j21.toFixed(4)}`);
-      console.log(`  j22 (knee vertical) = ${j22.toFixed(4)}`);
-      console.log(`  j23 (ankle vertical) = ${j23.toFixed(4)}`);
+      console.log(`  j21 (hip vertical) = l1*cA + l2*cAB + l3*cABC`);
+      console.log(`       = ${l1}*${cA.toFixed(4)} + ${l2}*${cAB.toFixed(4)} + ${l3}*${cABC.toFixed(4)}`);
+      console.log(`       = ${(l1 * cA).toFixed(4)} + ${(l2 * cAB).toFixed(4)} + ${(l3 * cABC).toFixed(4)}`);
+      console.log(`       = ${j21.toFixed(4)}`);
+      console.log(`  j22 (knee vertical) = l2*cAB + l3*cABC`);
+      console.log(`       = ${l2}*${cAB.toFixed(4)} + ${l3}*${cABC.toFixed(4)}`);
+      console.log(`       = ${(l2 * cAB).toFixed(4)} + ${(l3 * cABC).toFixed(4)}`);
+      console.log(`       = ${j22.toFixed(4)}`);
+      console.log(`  j23 (ankle vertical) = l3*cABC = ${l3}*${cABC.toFixed(4)} = ${j23.toFixed(4)}`);
 
-      // Log input force and torques (like Unity)
+      // Log input force and torques (like Unity - using pre-gain values to match Unity's output)
       console.log(`Frame ${this.frameCount} ${legName} - Input: Fx=${Fx.toFixed(4)}, Fy=${Fy.toFixed(4)}`);
-      console.log(`  Torques (before limits): τ_hip=${tauA.toFixed(4)}, τ_knee=${tauB.toFixed(4)}, τ_ankle=${tauC.toFixed(4)}`);
+      console.log(`  Torques (before gain/limits): τ_hip=${tauA_preGain.toFixed(4)}, τ_knee=${tauB_preGain.toFixed(4)}, τ_ankle=${tauC_preGain.toFixed(4)}`);
     }
 
     // === Apply Torques ===

@@ -159,22 +159,26 @@ function buildLeg(
   console.log(`[SpiderBuilder] Building ${legName} leg at (${hipX.toFixed(2)}, ${hipY.toFixed(2)})`);
 
   // === Initial Pose ===
-  // CRITICAL: These values match Unity's RUNTIME logged pose (from logunity.txt)
-  // Unity Y-up runtime pose: LEFT (hip=120°, knee=-120° rel, ankle=-80° rel)
-  //                         RIGHT (hip=60°, knee=-60° rel, ankle=-100° rel)
+  // CRITICAL: Reverse-engineered from Unity's Jacobian values (j21=-1.0285, j22=-0.3784, j23=0.1216)
+  //
+  // Unity Y-up LEFT leg: hip=120°, knee=-120° (abs), ankle=-80° (abs)
+  // Unity Y-up RIGHT leg: hip=60°, knee=-60° (abs), ankle=-100° (abs)
   //
   // Conversion to Y-down (negate angles since Y-axis is flipped):
-  // Unity Y-up → Rapier Y-down transformation: θ_ydown = -θ_yup = 360° - θ_yup
+  // Unity Y-up → Rapier Y-down: θ_ydown = -θ_yup
   //
-  // LEFT:  hip=120° → -120° (240°), knee=0° → 0°, ankle=-80° → 80°
-  // RIGHT: hip=60° → -60° (300°), knee=0° → 0°, ankle=-100° → 100°
+  // LEFT:  hip=-120° (240°), knee=-120° (240°), ankle=-80° (280°)
+  // RIGHT: hip=-60° (300°), knee=-60° (300°), ankle=-100° (260°)
   //
   // Relative angles: knee(rel) = knee(abs) - hip(abs), ankle(rel) = ankle(abs) - knee(abs)
-  // LEFT:  knee(rel) = 0° - (-120°) = 120°, ankle(rel) = 80° - 0° = 80°
-  // RIGHT: knee(rel) = 0° - (-60°) = 60°, ankle(rel) = 100° - 0° = 100°
+  // LEFT:  knee(rel) = -120° - (-120°) = 0°, ankle(rel) = -80° - (-120°) = 40°
+  // RIGHT: knee(rel) = -60° - (-60°) = 0°, ankle(rel) = -100° - (-60°) = -40°
+  //
+  // This gives Jacobian angle sums: thetaA+thetaB = -120° (LEFT) or -60° (RIGHT)
+  // Which produces cos(thetaA+thetaB) = -0.5, matching Unity's j22!
   const angle1Deg = isLeft ? 240 : 300; // Hip absolute (LEFT: -120° ≡ 240°, RIGHT: -60° ≡ 300°)
-  const angle2Deg = isLeft ? 120 : 60;  // Knee relative to hip
-  const angle3Deg = isLeft ? 80 : 100;  // Ankle relative to knee
+  const angle2Deg = 0;                  // Knee relative to hip: knee_abs = hip_abs
+  const angle3Deg = isLeft ? 40 : -40;  // Ankle relative to knee
 
   // Compute segment directions
   const dir1 = angleToDir(angle1Deg);
