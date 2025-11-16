@@ -74,14 +74,7 @@ export function buildSpider(
     console.log('[SpiderBuilder] Step 5: Creating fixture on body');
     body.CreateFixture(bodyFixture);
 
-    // Set explicit mass (from Unity: body mass is separate from legs)
-    // We'll use 1.0 for the main body
-    console.log('[SpiderBuilder] Step 6: Setting mass data');
-    const bodyMassData = body.GetMassData();
-    bodyMassData.mass = 1.0;
-    body.SetMassData(bodyMassData);
-
-      console.log('[SpiderBuilder] Created body: mass =', body.GetMass().toFixed(6));
+    console.log('[SpiderBuilder] Step 6: Body created with mass =', body.GetMass().toFixed(6));
 
     // === Create Legs ===
     console.log('[SpiderBuilder] Step 7: Creating left leg');
