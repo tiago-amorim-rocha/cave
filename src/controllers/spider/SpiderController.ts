@@ -151,16 +151,11 @@ export class SpiderController implements IPlayerController {
     this.applyLegTorques(this.spider.leftLeg, -leftForce.x, -leftForce.y);
     this.applyLegTorques(this.spider.rightLeg, -rightForce.x, -rightForce.y);
 
-    // CRITICAL DEBUG: Track body angular acceleration to detect asymmetric torques
-    if (shouldLog && (Math.abs(horizontalInput) > 0.01 || Math.abs(verticalInput) > 0.01)) {
-      // Get body state BEFORE and AFTER next physics step
-      const bodyAngVelBefore = this.spider.body.angvel();
-      const bodyRotBefore = this.spider.body.rotation();
-
-      console.log('[Spider Body] BEFORE physics step:');
-      console.log(`  Angular velocity: ${bodyAngVelBefore.toFixed(6)} rad/s`);
-      console.log(`  Rotation: ${(bodyRotBefore * 180 / Math.PI).toFixed(3)}°`);
-      console.log(`  Expected: Zero angular acceleration if torques are balanced`);
+    // UNITY-STYLE LOGGING: Log body angular velocity (like Unity SpiderController.cs line 458)
+    if (this.frameCount <= 100) {
+      const bodyAngVel = this.spider.body.angvel();
+      const bodyRot = this.spider.body.rotation();
+      console.log(`Frame ${this.frameCount} BODY: angVel=${bodyAngVel.toFixed(6)} rad/s, rotation=${(bodyRot * 180 / Math.PI).toFixed(3)}°`);
     }
   }
 
@@ -275,61 +270,21 @@ export class SpiderController implements IPlayerController {
     tauB = clamp(tauB * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
     tauC = clamp(tauC * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
 
-    // DEEP LOGGING: Log torques every frame during first 10 frames, then every 30 frames
-    const shouldLogTorques = this.frameCount <= 10 || this.frameCount % 30 === 0;
+    // UNITY-STYLE LOGGING: Match Unity's detailed output format
+    // Log first 100 frames for detailed comparison with Unity
+    const shouldLogTorques = this.frameCount <= 100;
     if (shouldLogTorques) {
       const legName = leg === this.spider.leftLeg ? 'LEFT' : 'RIGHT';
 
-      // Get current angles (in degrees for readability)
-      const hipRotDeg = radToDeg(hip.rotation());
-      const kneeRotDeg = radToDeg(knee.rotation());
-      const ankleRotDeg = radToDeg(ankle.rotation());
+      // Log Jacobian vertical components (like Unity)
+      console.log(`${legName} leg Jacobian vertical components:`);
+      console.log(`  j21 (hip vertical) = ${j21.toFixed(4)}`);
+      console.log(`  j22 (knee vertical) = ${j22.toFixed(4)}`);
+      console.log(`  j23 (ankle vertical) = ${j23.toFixed(4)}`);
 
-      // Get angular velocities
-      const hipAngVel = hip.angvel();
-      const kneeAngVel = knee.angvel();
-      const ankleAngVel = ankle.angvel();
-
-      // Get linear velocities
-      const hipLinVel = hip.linvel();
-      const kneeLinVel = knee.linvel();
-      const ankleLinVel = ankle.linvel();
-
-      console.log(`[Spider ${legName} Frame ${this.frameCount}] DETAILED TORQUE ANALYSIS:`);
-      console.log(`  Input Force: Fx=${Fx.toFixed(4)}, Fy=${Fy.toFixed(4)}`);
-      console.log(`  Applied Torques (after gain=${this.config.torqueGain}):`);
-      console.log(`    Hip:   τ=${tauA.toFixed(4)} N⋅m (clamped to ±${this.config.maxJointTorque})`);
-      console.log(`    Knee:  τ=${tauB.toFixed(4)} N⋅m`);
-      console.log(`    Ankle: τ=${tauC.toFixed(4)} N⋅m`);
-      console.log(`  Joint Angles (deg):`);
-      console.log(`    Hip:   ${hipRotDeg.toFixed(2)}° (abs), rel=${thetaA * 180 / Math.PI}`);
-      console.log(`    Knee:  ${kneeRotDeg.toFixed(2)}° (abs), rel=${thetaB * 180 / Math.PI}`);
-      console.log(`    Ankle: ${ankleRotDeg.toFixed(2)}° (abs), rel=${thetaC * 180 / Math.PI}`);
-      console.log(`  Angular Velocities (rad/s):`);
-      console.log(`    Hip:   ω=${hipAngVel.toFixed(4)} rad/s`);
-      console.log(`    Knee:  ω=${kneeAngVel.toFixed(4)} rad/s`);
-      console.log(`    Ankle: ω=${ankleAngVel.toFixed(4)} rad/s`);
-      console.log(`  Linear Velocities (m/s):`);
-      console.log(`    Hip:   v=(${hipLinVel.x.toFixed(3)}, ${hipLinVel.y.toFixed(3)})`);
-      console.log(`    Knee:  v=(${kneeLinVel.x.toFixed(3)}, ${kneeLinVel.y.toFixed(3)})`);
-      console.log(`    Ankle: v=(${ankleLinVel.x.toFixed(3)}, ${ankleLinVel.y.toFixed(3)})`);
-      console.log(`  Masses: Hip=${hip.mass().toFixed(4)}, Knee=${knee.mass().toFixed(4)}, Ankle=${ankle.mass().toFixed(4)}`);
-
-      // Calculate moment of inertia estimates (for rectangular segments rotating about center)
-      // For a rectangle rotating about its center: I = m * L² / 12
-      const L1 = this.config.segmentLength1;
-      const L2 = this.config.segmentLength2;
-      const L3 = this.config.segmentLength3;
-      const hipMOI = hip.mass() * (L1 * L1) / 12;
-      const kneeMOI = knee.mass() * (L2 * L2) / 12;
-      const ankleMOI = ankle.mass() * (L3 * L3) / 12;
-      console.log(`  Moment of Inertia (approx): Hip=${hipMOI.toFixed(6)}, Knee=${kneeMOI.toFixed(6)}, Ankle=${ankleMOI.toFixed(6)}`);
-
-      // Calculate expected angular acceleration: α = τ / I
-      const hipExpectedAccel = tauA / hipMOI;
-      const kneeExpectedAccel = tauB / kneeMOI;
-      const ankleExpectedAccel = tauC / ankleMOI;
-      console.log(`  Expected α=τ/I (rad/s²): Hip=${hipExpectedAccel.toFixed(2)}, Knee=${kneeExpectedAccel.toFixed(2)}, Ankle=${ankleExpectedAccel.toFixed(2)}`);
+      // Log input force and torques (like Unity)
+      console.log(`Frame ${this.frameCount} ${legName} - Input: Fx=${Fx.toFixed(4)}, Fy=${Fy.toFixed(4)}`);
+      console.log(`  Torques (before limits): τ_hip=${tauA.toFixed(4)}, τ_knee=${tauB.toFixed(4)}, τ_ankle=${tauC.toFixed(4)}`);
     }
 
     // === Apply Torques ===

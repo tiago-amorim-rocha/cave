@@ -99,6 +99,23 @@ export function buildSpider(
     ...(rightLeg.foot ? [rightLeg.foot] : [])
   ];
 
+  // UNITY-STYLE LOGGING: Log initial pose like Unity SpiderController.cs lines 708-710
+  const leftHipRotDeg = (leftLeg.hip.rotation() * 180 / Math.PI);
+  const leftKneeRotDeg = (leftLeg.knee.rotation() * 180 / Math.PI);
+  const leftAnkleRotDeg = (leftLeg.ankle.rotation() * 180 / Math.PI);
+  const leftKneeRel = leftKneeRotDeg - leftHipRotDeg;
+  const leftAnkleRel = leftAnkleRotDeg - leftKneeRotDeg;
+
+  const rightHipRotDeg = (rightLeg.hip.rotation() * 180 / Math.PI);
+  const rightKneeRotDeg = (rightLeg.knee.rotation() * 180 / Math.PI);
+  const rightAnkleRotDeg = (rightLeg.ankle.rotation() * 180 / Math.PI);
+  const rightKneeRel = rightKneeRotDeg - rightHipRotDeg;
+  const rightAnkleRel = rightAnkleRotDeg - rightKneeRotDeg;
+
+  console.log('=== INITIAL POSE ===');
+  console.log(`LEFT leg: hip=${leftHipRotDeg.toFixed(1)}°, knee=${leftKneeRel.toFixed(1)}°, ankle=${leftAnkleRel.toFixed(1)}°`);
+  console.log(`RIGHT leg: hip=${rightHipRotDeg.toFixed(1)}°, knee=${rightKneeRel.toFixed(1)}°, ankle=${rightAnkleRel.toFixed(1)}°`);
+
   console.log('[SpiderBuilder] Spider assembly complete!');
   console.log('[SpiderBuilder]   Total bodies:', allBodies.length);
   console.log('[SpiderBuilder]   Left leg: 3 segments + foot');

@@ -5,7 +5,7 @@
  * to observe how forces propagate through the leg joints.
  */
 
-import type { ScenarioInput, IScenario } from './types';
+import type { InputEvent, IScenario } from './types';
 
 export class VerticalPulseScenario implements IScenario {
   private readonly duration: number; // seconds
@@ -33,7 +33,11 @@ export class VerticalPulseScenario implements IScenario {
     return Math.floor(this.duration * this.fps);
   }
 
-  getInput(step: number): ScenarioInput {
+  isDone(step: number): boolean {
+    return step >= this.getTotalSteps();
+  }
+
+  getInput(step: number): InputEvent {
     // Vertical input only (negative y = up in VirtualJoystick convention)
     return {
       x: 0,

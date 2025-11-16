@@ -5,7 +5,7 @@
  * to observe torque accumulation and segment behavior in detail.
  */
 
-import type { ScenarioInput, IScenario } from './types';
+import type { InputEvent, IScenario } from './types';
 
 export class TinyForceScenario implements IScenario {
   private readonly duration: number; // seconds
@@ -33,7 +33,11 @@ export class TinyForceScenario implements IScenario {
     return Math.floor(this.duration * this.fps);
   }
 
-  getInput(step: number): ScenarioInput {
+  isDone(step: number): boolean {
+    return step >= this.getTotalSteps();
+  }
+
+  getInput(step: number): InputEvent {
     // Constant tiny horizontal input throughout duration
     return {
       x: this.inputMagnitude,

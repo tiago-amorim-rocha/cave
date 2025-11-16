@@ -1,0 +1,13 @@
+Launching browser...
+Navigating to http://localhost:5173/cave/
+Build: 2d85ca1
+Time: 2025-11-16T20:39:43.079Z
+Location: http://localhost:5173/cave/
+Base URL: http://localhost:5173/cave/
+ES Modules supported: true
+--- Waiting for module to load... ---
+PAGE CRASHED!
+Error during test: page.goto: Page crashed
+Call log:
+  - navigating to "http://localhost:5173/cave/", waiting until "load"
+
