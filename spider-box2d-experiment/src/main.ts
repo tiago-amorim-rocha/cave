@@ -36,58 +36,26 @@ let fpsFrameCount = 0;
  * Initialize Box2D world
  */
 function initWorld(): void {
-  console.log('[Main] Initializing Box2D world');
-
-  try {
-    // Check if Box2D classes are available
-    console.log('[Main] Checking Box2D availability...');
-    console.log('[Main] b2World:', typeof b2World);
-    console.log('[Main] b2Vec2:', typeof b2Vec2);
-    console.log('[Main] b2World.Create:', typeof b2World.Create);
-
-    // Create world with zero gravity (spider has gravity scale = 0 anyway)
-    console.log('[Main] Creating gravity vector (0, 0)');
-    const gravity = new b2Vec2(0, 0);
-    console.log('[Main] Gravity created:', gravity);
-
-    console.log('[Main] Calling b2World.Create()');
-    world = b2World.Create(gravity);
-
-    console.log('[Main] World created:', world);
-    console.log('[Main] World type:', typeof world);
-  } catch (error) {
-    console.error('[Main] Error creating Box2D world:', error);
-    console.error('[Main] Error type:', typeof error);
-    console.error('[Main] Error message:', error instanceof Error ? error.message : String(error));
-    console.error('[Main] Error stack:', error instanceof Error ? error.stack : 'N/A');
-    throw error;
-  }
+  const gravity = new b2Vec2(0, 0);
+  world = b2World.Create(gravity);
 }
 
 /**
  * Initialize spider controller
  */
 function initSpider(): void {
-  console.log('[Main] Initializing spider controller');
-
-  // Create spider at origin, feet at y = -2
   spider = new SpiderController(world, 0, 0);
-
-  console.log('[Main] Spider controller created');
 }
 
 /**
  * Initialize renderer
  */
 function initRenderer(): void {
-  console.log('[Main] Initializing renderer');
-
   canvas = document.getElementById('canvas') as HTMLCanvasElement;
   if (!canvas) {
     throw new Error('Canvas element not found');
   }
 
-  // Set canvas size to fill window
   const resize = () => {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -99,56 +67,24 @@ function initRenderer(): void {
   window.addEventListener('resize', resize);
 
   renderer = new SpiderRenderer(canvas);
-  renderer.setScale(50); // 50 pixels per metre
-
-  console.log('[Main] Renderer created');
+  renderer.setScale(50);
 }
 
 /**
  * Initialize UI and input handlers
  */
 function initUI(): void {
-  console.log('[Main] Initializing UI');
-
-  // UP button
   const upButton = document.getElementById('up-button');
   if (!upButton) {
     throw new Error('UP button not found');
   }
 
-  // Mouse/touch events
-  upButton.addEventListener('mousedown', () => {
-    upButtonPressed = true;
-    console.log('[Input] UP button pressed');
-  });
-
-  upButton.addEventListener('mouseup', () => {
-    upButtonPressed = false;
-    console.log('[Input] UP button released');
-  });
-
-  upButton.addEventListener('mouseleave', () => {
-    upButtonPressed = false;
-  });
-
-  upButton.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    upButtonPressed = true;
-    console.log('[Input] UP button pressed (touch)');
-  });
-
-  upButton.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    upButtonPressed = false;
-    console.log('[Input] UP button released (touch)');
-  });
-
-  upButton.addEventListener('touchcancel', (e) => {
-    e.preventDefault();
-    upButtonPressed = false;
-  });
-
-  console.log('[Main] UI initialized');
+  upButton.addEventListener('mousedown', () => { upButtonPressed = true; });
+  upButton.addEventListener('mouseup', () => { upButtonPressed = false; });
+  upButton.addEventListener('mouseleave', () => { upButtonPressed = false; });
+  upButton.addEventListener('touchstart', (e) => { e.preventDefault(); upButtonPressed = true; });
+  upButton.addEventListener('touchend', (e) => { e.preventDefault(); upButtonPressed = false; });
+  upButton.addEventListener('touchcancel', (e) => { e.preventDefault(); upButtonPressed = false; });
 }
 
 /**
@@ -206,37 +142,11 @@ function fixedUpdate(): void {
  * Render frame
  */
 function render(): void {
-  // Clear canvas
   renderer.clear();
-
-  // Draw grid
   renderer.drawGrid(1);
-
-  // Draw ground reference line (y = -2)
   renderer.drawGround(-2);
 
-  // Draw spider
   const renderData = spider.getRenderData();
-
-  // Log render data periodically
-  if (frameCount % 120 === 0 || frameCount <= 3) {
-    console.log(`[Render] Frame ${frameCount}:`, {
-      body: {
-        x: renderData.body.x.toFixed(3),
-        y: renderData.body.y.toFixed(3),
-        angle: (renderData.body.angle * 180 / Math.PI).toFixed(1) + '°',
-      },
-      leftLeg: {
-        hip: { x: renderData.leftLeg.hip.x.toFixed(3), y: renderData.leftLeg.hip.y.toFixed(3) },
-        foot: { x: renderData.leftLeg.foot.x.toFixed(3), y: renderData.leftLeg.foot.y.toFixed(3) },
-      },
-      rightLeg: {
-        hip: { x: renderData.rightLeg.hip.x.toFixed(3), y: renderData.rightLeg.hip.y.toFixed(3) },
-        foot: { x: renderData.rightLeg.foot.x.toFixed(3), y: renderData.rightLeg.foot.y.toFixed(3) },
-      },
-    });
-  }
-
   renderer.drawSpider(renderData);
 
   fpsFrameCount++;
@@ -246,12 +156,6 @@ function render(): void {
  * Main update loop
  */
 function update(time: number): void {
-  // Log first update call
-  if (frameCount === 0) {
-    console.log('[Main] Update loop started at time:', time);
-  }
-
-  // Convert time to seconds
   time = time / 1000;
 
   // Calculate delta time
@@ -287,56 +191,14 @@ function update(time: number): void {
  * Main entry point
  */
 async function main() {
-  // Initialize log window FIRST to capture all logs
   const logWindow = new LogWindow();
 
-  console.log('[Main] ========================================');
-  console.log('[Main] Spider Box2D Experiment');
-  console.log('[Main] 1-to-1 Unity port using Box2D TypeScript');
-  console.log('[Main] ========================================');
+  initWorld();
+  initSpider();
+  initRenderer();
+  initUI();
 
-  try {
-    // Initialize systems
-    console.log('[Main] Initializing world...');
-    initWorld();
-    console.log('[Main] World initialized successfully');
-
-    console.log('[Main] Initializing spider...');
-    initSpider();
-    console.log('[Main] Spider initialized successfully');
-
-    console.log('[Main] Initializing renderer...');
-    initRenderer();
-    console.log('[Main] Renderer initialized successfully');
-
-    console.log('[Main] Initializing UI...');
-    initUI();
-    console.log('[Main] UI initialized successfully');
-
-    console.log('[Main] All systems initialized');
-    console.log('[Main] Starting update loop');
-    console.log('[Main] Press UP button to move spider upward');
-    console.log('[Main] ========================================');
-
-    // Start update loop
-    requestAnimationFrame(update);
-  } catch (error) {
-    console.error('[Main] ==================== INITIALIZATION ERROR ====================');
-    console.error('[Main] Error object:', error);
-    console.error('[Main] Error type:', typeof error);
-    console.error('[Main] Error constructor:', error?.constructor?.name);
-
-    if (error instanceof Error) {
-      console.error('[Main] Error message:', error.message);
-      console.error('[Main] Error stack:', error.stack);
-    } else {
-      console.error('[Main] Error string:', String(error));
-      console.error('[Main] Error JSON:', JSON.stringify(error, null, 2));
-    }
-    console.error('[Main] ================================================================');
-
-    // Don't re-throw, let the app show the error in the log window
-  }
+  requestAnimationFrame(update);
 }
 
 // Start the app

@@ -32,34 +32,7 @@ export class SpiderController {
   constructor(world: b2World, x: number, y: number, config?: SpiderConfig) {
     this.world = world;
     this.config = config || DEFAULT_SPIDER_CONFIG;
-
-    console.log('[SpiderController] ==========================================');
-    console.log('[SpiderController] Creating Box2D spider controller');
-    console.log('[SpiderController] ==========================================');
-
-    // Build spider rig
     this.spider = buildSpider(world, x, y, this.config);
-
-    // Log mass breakdown
-    const totalMass = this.spider.allBodies.reduce((sum, b) => sum + b.GetMass(), 0);
-    const bodyMass = this.spider.body.GetMass();
-    const leftLegMass =
-      this.spider.leftLeg.hip.GetMass() +
-      this.spider.leftLeg.knee.GetMass() +
-      this.spider.leftLeg.ankle.GetMass();
-    const rightLegMass =
-      this.spider.rightLeg.hip.GetMass() +
-      this.spider.rightLeg.knee.GetMass() +
-      this.spider.rightLeg.ankle.GetMass();
-
-    console.log('[SpiderController] Spider controller created successfully');
-    console.log('[SpiderController] Mass breakdown:');
-    console.log(`[SpiderController]   Body: ${bodyMass.toFixed(6)} (${((bodyMass / totalMass) * 100).toFixed(1)}%)`);
-    console.log(`[SpiderController]   Left leg: ${leftLegMass.toFixed(6)} (${((leftLegMass / totalMass) * 100).toFixed(1)}%)`);
-    console.log(`[SpiderController]   Right leg: ${rightLegMass.toFixed(6)} (${((rightLegMass / totalMass) * 100).toFixed(1)}%)`);
-    console.log(`[SpiderController]   Total: ${totalMass.toFixed(6)}`);
-    console.log('[SpiderController] Use UP button to control spider');
-    console.log('[SpiderController] ==========================================');
   }
 
   /**
@@ -81,27 +54,6 @@ export class SpiderController {
    */
   update(dt: number): void {
     this.frameCount++;
-
-    // Log input and state periodically
-    if (this.frameCount % 60 === 0 || this.frameCount <= 3) {
-      const bodyPos = this.spider.body.GetPosition();
-      const bodyVel = this.spider.body.GetLinearVelocity();
-      const bodyAngVel = this.spider.body.GetAngularVelocity();
-      const bodyAngle = this.spider.body.GetAngle();
-
-      console.log(`[Spider] Frame ${this.frameCount}:`, {
-        input: {
-          vert: this.verticalInput.toFixed(3),
-          horiz: this.horizontalInput.toFixed(3),
-        },
-        body: {
-          pos: { x: bodyPos.x.toFixed(3), y: bodyPos.y.toFixed(3) },
-          vel: { x: bodyVel.x.toFixed(3), y: bodyVel.y.toFixed(3) },
-          angVel: bodyAngVel.toFixed(3),
-          angle: radToDeg(bodyAngle).toFixed(1) + '°',
-        },
-      });
-    }
 
     // 1. Compute desired forces on each leg
     const { leftForce, rightForce } = this.computeLegForces(this.verticalInput, this.horizontalInput);
@@ -320,17 +272,6 @@ export class SpiderController {
     tauA = clamp(tauA * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
     tauB = clamp(tauB * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
     tauC = clamp(tauC * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
-
-    // Log first 3 frames with detail
-    if (this.frameCount <= 3) {
-      const legName = leg.isLeft ? 'LEFT' : 'RIGHT';
-      console.log(`\n=== Frame ${this.frameCount} ${legName} LEG ===`);
-      console.log(`  Angles (deg): hip=${hipRotDeg.toFixed(1)}°, knee=${kneeRotDeg.toFixed(1)}°, ankle=${ankleRotDeg.toFixed(1)}°`);
-      console.log(`  Jacobian vertical: j21=${j21.toFixed(4)}, j22=${j22.toFixed(4)}, j23=${j23.toFixed(4)}`);
-      console.log(`  Input: Fx=${Fx.toFixed(4)}, Fy=${Fy.toFixed(4)}`);
-      console.log(`  Torques (pre-gain): τ_hip=${tauA_preGain.toFixed(4)}, τ_knee=${tauB_preGain.toFixed(4)}, τ_ankle=${tauC_preGain.toFixed(4)}`);
-      console.log(`  Torques (final): τ_hip=${tauA.toFixed(4)}, τ_knee=${tauB.toFixed(4)}, τ_ankle=${tauC.toFixed(4)}`);
-    }
 
     // === Apply Torques ===
     // From Unity SpiderController.cs lines 608-610
