@@ -1,0 +1,531 @@
+=== INITIAL POSE ===
+UnityEngine.Debug:Log (object)
+SpiderController:TryLogInitialPose (SpiderController/ControllerLeg,SpiderController/ControllerLeg) (at Assets/SpiderController.cs:708)
+SpiderController:TryLogInitialPose () (at Assets/SpiderController.cs:700)
+SpiderController:Start () (at Assets/SpiderController.cs:421)
+
+LEFT leg: hip=120.0°, knee=-120.0°, ankle=-80.0°
+UnityEngine.Debug:Log (object)
+SpiderController:TryLogInitialPose (SpiderController/ControllerLeg,SpiderController/ControllerLeg) (at Assets/SpiderController.cs:709)
+SpiderController:TryLogInitialPose () (at Assets/SpiderController.cs:700)
+SpiderController:Start () (at Assets/SpiderController.cs:421)
+
+RIGHT leg: hip=60.0°, knee=-60.0°, ankle=-100.0°
+UnityEngine.Debug:Log (object)
+SpiderController:TryLogInitialPose (SpiderController/ControllerLeg,SpiderController/ControllerLeg) (at Assets/SpiderController.cs:710)
+SpiderController:TryLogInitialPose () (at Assets/SpiderController.cs:700)
+SpiderController:Start () (at Assets/SpiderController.cs:421)
+
+LEFT leg Jacobian vertical components:
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:568)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  j21 (hip vertical) = -1.0285
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:569)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  j22 (knee vertical) = -0.3784
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:570)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  j23 (ankle vertical) = 0.1216
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:571)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+Frame 1 LEFT - Input: Fx=0.0000, Fy=-0.1001
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  Torques (before limits): τ_hip=0.1030, τ_knee=0.0379, τ_ankle=-0.0122
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+RIGHT leg Jacobian vertical components:
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:568)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  j21 (hip vertical) = 1.0285
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:569)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  j22 (knee vertical) = 0.3784
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:570)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  j23 (ankle vertical) = -0.1216
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:571)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 1 RIGHT - Input: Fx=0.0000, Fy=-0.1001
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  Torques (before limits): τ_hip=-0.1030, τ_knee=-0.0379, τ_ankle=0.0122
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 1 BODY: angVel=0.001776 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 2 LEFT - Input: Fx=0.0000, Fy=-0.1855
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  Torques (before limits): τ_hip=0.1908, τ_knee=0.0702, τ_ankle=-0.0226
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+Frame 2 RIGHT - Input: Fx=0.0000, Fy=-0.1855
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  Torques (before limits): τ_hip=-0.1908, τ_knee=-0.0702, τ_ankle=0.0226
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 2 BODY: angVel=0.004588 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 3 LEFT - Input: Fx=0.0000, Fy=-0.2240
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  Torques (before limits): τ_hip=0.2303, τ_knee=0.0847, τ_ankle=-0.0272
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+Frame 3 RIGHT - Input: Fx=0.0000, Fy=-0.2240
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  Torques (before limits): τ_hip=-0.2303, τ_knee=-0.0847, τ_ankle=0.0272
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 3 BODY: angVel=0.008394 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 4 BODY: angVel=0.009794 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 5 BODY: angVel=0.009691 rad/s, rotation=0.001°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+[HipLimits]   L angle=-59.3 limits=[-78.8,76.5] tau=0.00 | R angle=59.3 limits=[-76.5,78.8] tau=0.00
+[KneeLimits]  L angle=120.0 limits=[20.0,150.0] tau=0.00 | R angle=-120.0 limits=[-150.0,-20.0] tau=0.00
+[AnkleLimits] L angle=39.5 limits=[20.0,150.0] tau=0.00 | R angle=-39.5 limits=[-150.0,-20.0] tau=0.00
+UnityEngine.Debug:Log (object)
+SpiderControllerDebug:LogJointLimits () (at Assets/SpiderControllerDebug.cs:113)
+SpiderControllerDebug:FixedUpdate () (at Assets/SpiderControllerDebug.cs:107)
+
+[HipLimits]   L angle=-57.5 limits=[-78.8,76.5] tau=0.00 | R angle=57.5 limits=[-76.5,78.8] tau=0.00
+[KneeLimits]  L angle=120.0 limits=[20.0,150.0] tau=0.00 | R angle=-120.0 limits=[-150.0,-20.0] tau=0.00
+[AnkleLimits] L angle=38.2 limits=[20.0,150.0] tau=0.00 | R angle=-38.2 limits=[-150.0,-20.0] tau=0.00
+UnityEngine.Debug:Log (object)
+SpiderControllerDebug:LogJointLimits () (at Assets/SpiderControllerDebug.cs:113)
+SpiderControllerDebug:FixedUpdate () (at Assets/SpiderControllerDebug.cs:107)
+
+  j21 (hip vertical) = -1.0296
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:569)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  j22 (knee vertical) = -0.3139
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:570)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  j23 (ankle vertical) = 0.1333
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:571)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+Frame 1 LEFT - Input: Fx=0.0000, Fy=-0.1083
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  Torques (before limits): τ_hip=0.1115, τ_knee=0.0340, τ_ankle=-0.0144
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  j21 (hip vertical) = 1.0296
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:569)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  j22 (knee vertical) = 0.3139
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:570)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  j23 (ankle vertical) = -0.1333
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:571)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 1 RIGHT - Input: Fx=0.0000, Fy=-0.1083
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  Torques (before limits): τ_hip=-0.1115, τ_knee=-0.0340, τ_ankle=0.0144
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 1 BODY: angVel=0.001772 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 2 LEFT - Input: Fx=0.0000, Fy=-0.1633
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  Torques (before limits): τ_hip=0.1681, τ_knee=0.0510, τ_ankle=-0.0218
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+Frame 2 RIGHT - Input: Fx=0.0000, Fy=-0.1633
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  Torques (before limits): τ_hip=-0.1681, τ_knee=-0.0510, τ_ankle=0.0218
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 2 BODY: angVel=0.004690 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 3 LEFT - Input: Fx=0.0000, Fy=-0.2243
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  Torques (before limits): τ_hip=0.2309, τ_knee=0.0698, τ_ankle=-0.0300
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+Frame 3 RIGHT - Input: Fx=0.0000, Fy=-0.2243
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  Torques (before limits): τ_hip=-0.2309, τ_knee=-0.0698, τ_ankle=0.0300
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 3 BODY: angVel=0.007206 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 4 BODY: angVel=0.008797 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 5 BODY: angVel=0.009201 rad/s, rotation=0.001°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+[HipLimits]   L angle=-55.5 limits=[-78.8,76.5] tau=0.00 | R angle=55.5 limits=[-76.5,78.8] tau=0.00
+[KneeLimits]  L angle=120.0 limits=[20.0,150.0] tau=0.00 | R angle=-120.0 limits=[-150.0,-20.0] tau=0.00
+[AnkleLimits] L angle=36.8 limits=[20.0,150.0] tau=0.00 | R angle=-36.8 limits=[-150.0,-20.0] tau=0.00
+UnityEngine.Debug:Log (object)
+SpiderControllerDebug:LogJointLimits () (at Assets/SpiderControllerDebug.cs:113)
+SpiderControllerDebug:FixedUpdate () (at Assets/SpiderControllerDebug.cs:107)
+
+[HipLimits]   L angle=-53.0 limits=[-78.8,76.5] tau=0.00 | R angle=53.0 limits=[-76.5,78.8] tau=0.00
+[KneeLimits]  L angle=119.9 limits=[20.0,150.0] tau=0.00 | R angle=-119.9 limits=[-150.0,-20.0] tau=0.00
+[AnkleLimits] L angle=35.0 limits=[20.0,150.0] tau=0.00 | R angle=-35.0 limits=[-150.0,-20.0] tau=0.00
+UnityEngine.Debug:Log (object)
+SpiderControllerDebug:LogJointLimits () (at Assets/SpiderControllerDebug.cs:113)
+SpiderControllerDebug:FixedUpdate () (at Assets/SpiderControllerDebug.cs:107)
+
+  j21 (hip vertical) = -1.0312
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:569)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  j22 (knee vertical) = -0.2205
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:570)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  j23 (ankle vertical) = 0.1490
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:571)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+Frame 1 LEFT - Input: Fx=0.0000, Fy=-0.0538
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  Torques (before limits): τ_hip=0.0555, τ_knee=0.0119, τ_ankle=-0.0080
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  j21 (hip vertical) = 1.0311
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:569)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  j22 (knee vertical) = 0.2205
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:570)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  j23 (ankle vertical) = -0.1490
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:571)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 1 RIGHT - Input: Fx=0.0000, Fy=-0.0538
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  Torques (before limits): τ_hip=-0.0555, τ_knee=-0.0119, τ_ankle=0.0080
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 1 BODY: angVel=0.000034 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 2 LEFT - Input: Fx=0.0000, Fy=-0.1160
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  Torques (before limits): τ_hip=0.1196, τ_knee=0.0254, τ_ankle=-0.0173
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+Frame 2 RIGHT - Input: Fx=0.0000, Fy=-0.1160
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  Torques (before limits): τ_hip=-0.1196, τ_knee=-0.0254, τ_ankle=0.0173
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 2 BODY: angVel=0.001902 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 3 LEFT - Input: Fx=0.0000, Fy=-0.1694
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  Torques (before limits): τ_hip=0.1746, τ_knee=0.0368, τ_ankle=-0.0253
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+Frame 3 RIGHT - Input: Fx=0.0000, Fy=-0.1694
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  Torques (before limits): τ_hip=-0.1746, τ_knee=-0.0368, τ_ankle=0.0253
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 3 BODY: angVel=0.004685 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 4 BODY: angVel=0.006823 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 5 BODY: angVel=0.008044 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+[HipLimits]   L angle=-50.2 limits=[-78.8,76.5] tau=0.00 | R angle=50.2 limits=[-76.5,78.8] tau=0.00
+[KneeLimits]  L angle=119.6 limits=[20.0,150.0] tau=0.00 | R angle=-119.6 limits=[-150.0,-20.0] tau=0.00
+[AnkleLimits] L angle=33.2 limits=[20.0,150.0] tau=0.00 | R angle=-33.2 limits=[-150.0,-20.0] tau=0.00
+UnityEngine.Debug:Log (object)
+SpiderControllerDebug:LogJointLimits () (at Assets/SpiderControllerDebug.cs:113)
+SpiderControllerDebug:FixedUpdate () (at Assets/SpiderControllerDebug.cs:107)
+
+[HipLimits]   L angle=-46.2 limits=[-78.8,76.5] tau=0.00 | R angle=46.2 limits=[-76.5,78.8] tau=0.00
+[KneeLimits]  L angle=119.0 limits=[20.0,150.0] tau=0.00 | R angle=-119.0 limits=[-150.0,-20.0] tau=0.00
+[AnkleLimits] L angle=30.7 limits=[20.0,150.0] tau=0.00 | R angle=-30.7 limits=[-150.0,-20.0] tau=0.00
+UnityEngine.Debug:Log (object)
+SpiderControllerDebug:LogJointLimits () (at Assets/SpiderControllerDebug.cs:113)
+SpiderControllerDebug:FixedUpdate () (at Assets/SpiderControllerDebug.cs:107)
+
+  j21 (hip vertical) = -1.0332
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:569)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  j22 (knee vertical) = -0.0863
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:570)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  j23 (ankle vertical) = 0.1703
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:571)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+Frame 1 LEFT - Input: Fx=0.0000, Fy=-0.1183
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  Torques (before limits): τ_hip=0.1223, τ_knee=0.0102, τ_ankle=-0.0202
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  j21 (hip vertical) = 1.0332
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:569)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  j22 (knee vertical) = 0.0863
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:570)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  j23 (ankle vertical) = -0.1703
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:571)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 1 RIGHT - Input: Fx=0.0000, Fy=-0.1183
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  Torques (before limits): τ_hip=-0.1223, τ_knee=-0.0102, τ_ankle=0.0202
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 1 BODY: angVel=0.001573 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 2 LEFT - Input: Fx=0.0000, Fy=-0.1695
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  Torques (before limits): τ_hip=0.1752, τ_knee=0.0142, τ_ankle=-0.0289
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+Frame 2 RIGHT - Input: Fx=0.0000, Fy=-0.1695
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  Torques (before limits): τ_hip=-0.1752, τ_knee=-0.0142, τ_ankle=0.0289
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 2 BODY: angVel=0.004269 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 3 LEFT - Input: Fx=0.0000, Fy=-0.2228
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+  Torques (before limits): τ_hip=0.2302, τ_knee=0.0181, τ_ankle=-0.0381
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:453)
+
+Frame 3 RIGHT - Input: Fx=0.0000, Fy=-0.2228
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:576)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+  Torques (before limits): τ_hip=-0.2302, τ_knee=-0.0181, τ_ankle=0.0381
+UnityEngine.Debug:Log (object)
+SpiderController:ApplyLegTorques (SpiderController/ControllerLeg,single,single) (at Assets/SpiderController.cs:577)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:454)
+
+Frame 3 BODY: angVel=0.006088 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 4 BODY: angVel=0.006751 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+Frame 5 BODY: angVel=0.004462 rad/s, rotation=0.000°
+UnityEngine.Debug:Log (object)
+SpiderController:FixedUpdate () (at Assets/SpiderController.cs:458)
+
+[HipLimits]   L angle=-42.1 limits=[-78.8,76.5] tau=0.00 | R angle=42.1 limits=[-76.5,78.8] tau=0.00
+[KneeLimits]  L angle=118.1 limits=[20.0,150.0] tau=0.00 | R angle=-118.1 limits=[-150.0,-20.0] tau=0.00
+[AnkleLimits] L angle=28.3 limits=[20.0,150.0] tau=0.00 | R angle=-28.3 limits=[-150.0,-20.0] tau=0.00
+UnityEngine.Debug:Log (object)
+SpiderControllerDebug:LogJointLimits () (at Assets/SpiderControllerDebug.cs:113)
+SpiderControllerDebug:FixedUpdate () (at Assets/SpiderControllerDebug.cs:107)
+
+[HipLimits]   L angle=-37.5 limits=[-78.8,76.5] tau=0.00 | R angle=37.5 limits=[-76.5,78.8] tau=0.00
+[KneeLimits]  L angle=116.8 limits=[20.0,150.0] tau=0.00 | R angle=-116.8 limits=[-150.0,-20.0] tau=0.00
+[AnkleLimits] L angle=25.8 limits=[20.0,150.0] tau=0.00 | R angle=-25.8 limits=[-150.0,-20.0] tau=0.00
+UnityEngine.Debug:Log (object)
+SpiderControllerDebug:LogJointLimits () (at Assets/SpiderControllerDebug.cs:113)
+SpiderControllerDebug:FixedUpdate () (at Assets/SpiderControllerDebug.cs:107)
+
+[HipLimits]   L angle=-32.9 limits=[-78.8,76.5] tau=0.00 | R angle=32.9 limits=[-76.5,78.8] tau=0.00
+[KneeLimits]  L angle=115.2 limits=[20.0,150.0] tau=0.00 | R angle=-115.2 limits=[-150.0,-20.0] tau=0.00
+[AnkleLimits] L angle=23.4 limits=[20.0,150.0] tau=0.00 | R angle=-23.4 limits=[-150.0,-20.0] tau=0.00
+UnityEngine.Debug:Log (object)
+SpiderControllerDebug:LogJointLimits () (at Assets/SpiderControllerDebug.cs:113)
+SpiderControllerDebug:FixedUpdate () (at Assets/SpiderControllerDebug.cs:107)
+
