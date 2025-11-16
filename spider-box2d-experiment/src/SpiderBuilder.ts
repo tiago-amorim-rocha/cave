@@ -60,7 +60,8 @@ export function buildSpider(
 
     // Body shape: 1m × 1m box
     console.log('[SpiderBuilder] Step 3: Creating body shape');
-    const bodyShape = b2PolygonShape.MakeBox(0.5, 0.5); // Half-widths
+    const bodyShape = new b2PolygonShape();
+    bodyShape.SetAsBox(0.5, 0.5); // Half-widths
 
     console.log('[SpiderBuilder] Step 4: Creating fixture def');
     const bodyFixture: b2FixtureDef = {
@@ -237,7 +238,8 @@ function createLeg(
   const foot = world.CreateBody(footDef);
 
   // Foot shape: 0.2m × 0.2m square
-  const footShape = b2PolygonShape.MakeBox(0.1, 0.1);
+  const footShape = new b2PolygonShape();
+  footShape.SetAsBox(0.1, 0.1);
 
   const footFixture: b2FixtureDef = {
     shape: footShape,
@@ -329,7 +331,8 @@ function createSegment(
   const body = world.CreateBody(bodyDef);
 
   // Segment shape: box with length × width
-  const shape = b2PolygonShape.MakeBox(length / 2, width / 2);
+  const shape = new b2PolygonShape();
+  shape.SetAsBox(length / 2, width / 2);
 
   const fixture: b2FixtureDef = {
     shape: shape,
