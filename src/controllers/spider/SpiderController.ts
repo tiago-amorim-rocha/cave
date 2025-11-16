@@ -263,25 +263,61 @@ export class SpiderController implements IPlayerController {
     tauB = clamp(tauB * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
     tauC = clamp(tauC * this.config.torqueGain, -this.config.maxJointTorque, this.config.maxJointTorque);
 
-    // Only log torques when input is active and at intervals (use parent's shouldLog logic)
-    // We can't access shouldLog here, so log every 120 frames if there's significant torque
-    const hasTorque = Math.abs(tauA) > 0.1 || Math.abs(tauB) > 0.1 || Math.abs(tauC) > 0.1;
-    if (hasTorque && this.frameCount % 120 === 0) {
+    // DEEP LOGGING: Log torques every frame during first 10 frames, then every 30 frames
+    const shouldLogTorques = this.frameCount <= 10 || this.frameCount % 30 === 0;
+    if (shouldLogTorques) {
       const legName = leg === this.spider.leftLeg ? 'LEFT' : 'RIGHT';
-      console.log(`[Spider ${legName}] Torques:`, {
-        input: { Fx: Fx.toFixed(2), Fy: Fy.toFixed(2) },
-        torques: { hip: tauA.toFixed(2), knee: tauB.toFixed(2), ankle: tauC.toFixed(2) },
-        angVels: {
-          hip: hip.angvel().toFixed(3),
-          knee: knee.angvel().toFixed(3),
-          ankle: ankle.angvel().toFixed(3)
-        },
-        masses: {
-          hip: hip.mass().toFixed(3),
-          knee: knee.mass().toFixed(3),
-          ankle: ankle.mass().toFixed(3)
-        }
-      });
+
+      // Get current angles (in degrees for readability)
+      const hipRotDeg = radToDeg(hip.rotation());
+      const kneeRotDeg = radToDeg(knee.rotation());
+      const ankleRotDeg = radToDeg(ankle.rotation());
+
+      // Get angular velocities
+      const hipAngVel = hip.angvel();
+      const kneeAngVel = knee.angvel();
+      const ankleAngVel = ankle.angvel();
+
+      // Get linear velocities
+      const hipLinVel = hip.linvel();
+      const kneeLinVel = knee.linvel();
+      const ankleLinVel = ankle.linvel();
+
+      console.log(`[Spider ${legName} Frame ${this.frameCount}] DETAILED TORQUE ANALYSIS:`);
+      console.log(`  Input Force: Fx=${Fx.toFixed(4)}, Fy=${Fy.toFixed(4)}`);
+      console.log(`  Applied Torques (after gain=${this.config.torqueGain}):`);
+      console.log(`    Hip:   τ=${tauA.toFixed(4)} N⋅m (clamped to ±${this.config.maxJointTorque})`);
+      console.log(`    Knee:  τ=${tauB.toFixed(4)} N⋅m`);
+      console.log(`    Ankle: τ=${tauC.toFixed(4)} N⋅m`);
+      console.log(`  Joint Angles (deg):`);
+      console.log(`    Hip:   ${hipRotDeg.toFixed(2)}° (abs), rel=${thetaA * 180 / Math.PI}`);
+      console.log(`    Knee:  ${kneeRotDeg.toFixed(2)}° (abs), rel=${thetaB * 180 / Math.PI}`);
+      console.log(`    Ankle: ${ankleRotDeg.toFixed(2)}° (abs), rel=${thetaC * 180 / Math.PI}`);
+      console.log(`  Angular Velocities (rad/s):`);
+      console.log(`    Hip:   ω=${hipAngVel.toFixed(4)} rad/s`);
+      console.log(`    Knee:  ω=${kneeAngVel.toFixed(4)} rad/s`);
+      console.log(`    Ankle: ω=${ankleAngVel.toFixed(4)} rad/s`);
+      console.log(`  Linear Velocities (m/s):`);
+      console.log(`    Hip:   v=(${hipLinVel.x.toFixed(3)}, ${hipLinVel.y.toFixed(3)})`);
+      console.log(`    Knee:  v=(${kneeLinVel.x.toFixed(3)}, ${kneeLinVel.y.toFixed(3)})`);
+      console.log(`    Ankle: v=(${ankleLinVel.x.toFixed(3)}, ${ankleLinVel.y.toFixed(3)})`);
+      console.log(`  Masses: Hip=${hip.mass().toFixed(4)}, Knee=${knee.mass().toFixed(4)}, Ankle=${ankle.mass().toFixed(4)}`);
+
+      // Calculate moment of inertia estimates (for rectangular segments rotating about center)
+      // For a rectangle rotating about its center: I = m * L² / 12
+      const L1 = this.config.segmentLength1;
+      const L2 = this.config.segmentLength2;
+      const L3 = this.config.segmentLength3;
+      const hipMOI = hip.mass() * (L1 * L1) / 12;
+      const kneeMOI = knee.mass() * (L2 * L2) / 12;
+      const ankleMOI = ankle.mass() * (L3 * L3) / 12;
+      console.log(`  Moment of Inertia (approx): Hip=${hipMOI.toFixed(6)}, Knee=${kneeMOI.toFixed(6)}, Ankle=${ankleMOI.toFixed(6)}`);
+
+      // Calculate expected angular acceleration: α = τ / I
+      const hipExpectedAccel = tauA / hipMOI;
+      const kneeExpectedAccel = tauB / kneeMOI;
+      const ankleExpectedAccel = tauC / ankleMOI;
+      console.log(`  Expected α=τ/I (rad/s²): Hip=${hipExpectedAccel.toFixed(2)}, Knee=${kneeExpectedAccel.toFixed(2)}, Ankle=${ankleExpectedAccel.toFixed(2)}`);
     }
 
     // === Apply Torques ===

@@ -15,6 +15,7 @@ import { CoreGame } from './CoreGame';
 import { JSONLLogger } from './logger';
 import { createSimpleArena } from './terrain';
 import { HoldRightScenario } from './scenarios/HoldRightScenario';
+import { TinyForceScenario } from './scenarios/TinyForceScenario';
 
 /**
  * Main headless simulation loop
@@ -87,9 +88,9 @@ async function main() {
 
     game.createSpider(0, 10, testConfig); // Spawn at y=10, ground is at y=15
 
-    // Create scenario: Hold right for 5 seconds
+    // Create scenario: Start with TINY force to observe torque accumulation
     logger.info('Creating scenario...');
-    const scenario = new HoldRightScenario(5, 1.0); // 5 seconds, full input
+    const scenario = new TinyForceScenario(3, 0.01); // 3 seconds, 1% input (TINY force)
     logger.info('Scenario:', {
       name: scenario.getName(),
       description: scenario.getDescription(),
