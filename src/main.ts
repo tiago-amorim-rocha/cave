@@ -8,7 +8,8 @@ import { CharacterControllerUI } from './CharacterControllerUI';
 import { LoopCache } from './LoopCache';
 import { InputHandler } from './InputHandler';
 import { RapierPhysics } from './RapierPhysics';
-import { PlayerController } from './PlayerController';
+import { ControllerManager } from './controllers/ControllerFactory';
+import { ControllerType } from './controllers/IPlayerController';
 import { VirtualJoystick } from './VirtualJoystick';
 import { RemeshManager, type RemeshStats } from './RemeshManager';
 import { VersionChecker } from './VersionChecker';
@@ -27,7 +28,7 @@ class CarvableCaves {
   private loopCache: LoopCache;
   private inputHandler: InputHandler;
   private physics: RapierPhysics;
-  private player!: PlayerController; // Initialized asynchronously in start()
+  private controllerManager!: ControllerManager; // Initialized asynchronously in start()
   private joystick: VirtualJoystick;
   private remeshManager!: RemeshManager; // Initialized after physics
 
@@ -185,32 +186,40 @@ class CarvableCaves {
    * Wire up character controller UI callbacks (called after player is created)
    */
   private setupCharacterControllerUI(): void {
-    if ((window as any).characterControllerUI && this.player) {
+    const player = this.controllerManager?.getCurrentController();
+    if ((window as any).characterControllerUI && player) {
       const ui = (window as any).characterControllerUI;
 
-      ui.onForceChange = (force: number) => {
-        this.player.setMovementForce(force);
+      // Type check for ForcePlayerController-specific methods
+      const hasForceControllerMethods = (ctrl: any): ctrl is import('./controllers/ForcePlayerController').ForcePlayerController => {
+        return 'setMovementForce' in ctrl && 'setDrag' in ctrl;
       };
 
-      ui.onDragChange = (drag: number) => {
-        this.player.setDrag(drag);
-      };
+      if (hasForceControllerMethods(player)) {
+        ui.onForceChange = (force: number) => {
+          player.setMovementForce(force);
+        };
 
-      ui.onGroundAttractionChange = (force: number) => {
-        this.player.setGroundAttractionForce(force);
-      };
+        ui.onDragChange = (drag: number) => {
+          player.setDrag(drag);
+        };
 
-      ui.onFootSensorRadiusChange = (multiplier: number) => {
-        this.player.setFootSensorRadiusMultiplier(multiplier);
-      };
+        ui.onGroundAttractionChange = (force: number) => {
+          player.setGroundAttractionForce(force);
+        };
 
-      // Initialize UI with current values
-      ui.updateValues(
-        this.player.getMovementForce(),
-        this.player.getDrag(),
-        this.player.getGroundAttractionForce(),
-        this.player.getFootSensorRadiusMultiplier()
-      );
+        ui.onFootSensorRadiusChange = (multiplier: number) => {
+          player.setFootSensorRadiusMultiplier(multiplier);
+        };
+
+        // Initialize UI with current values
+        ui.updateValues(
+          player.getMovementForce(),
+          player.getDrag(),
+          player.getGroundAttractionForce(),
+          player.getFootSensorRadiusMultiplier()
+        );
+      }
     }
   }
 
@@ -256,9 +265,10 @@ class CarvableCaves {
       console.warn(`[Player] No valid position found, spawning at preferred position (may be inside rock)`);
     }
 
-    // Create player after physics world is ready
-    this.player = new PlayerController(this.physics.getEngine(), actualSpawnX, actualSpawnY);
-    this.player.setJoystick(this.joystick); // Connect joystick to player
+    // Create controller manager and initialize with force controller
+    this.controllerManager = new ControllerManager(this.physics.getEngine());
+    const player = this.controllerManager.initialize(ControllerType.FORCE, actualSpawnX, actualSpawnY);
+    player.setJoystick(this.joystick); // Connect joystick to player
 
     // Wire up character controller UI (now that player exists)
     this.setupCharacterControllerUI();
@@ -371,8 +381,8 @@ class CarvableCaves {
   private loop = (): void => {
     this.animationFrameId = requestAnimationFrame(this.loop);
 
-    // Wait for player to be initialized
-    if (!this.player) {
+    // Wait for controller manager to be initialized
+    if (!this.controllerManager?.getCurrentController()) {
       return;
     }
 
@@ -392,7 +402,10 @@ class CarvableCaves {
     this.updateFPS();
 
     // Update player input (with delta time for physics calculations)
-    this.player.update(deltaMs);
+    const player = this.controllerManager?.getCurrentController();
+    if (player) {
+      player.update(deltaMs);
+    }
 
     // Update physics simulation (Rapier handles fixed timestep internally)
     this.physics.update(deltaMs);
@@ -404,7 +417,7 @@ class CarvableCaves {
     }
 
     // Camera smoothly follows player in character control mode
-    const playerPos = this.player.getPosition();
+    const playerPos = player?.getPosition() ?? { x: 0, y: 0 };
     if (this.characterControlMode) {
       // Use smooth following with lerp factor of 0.08 for gentle camera movement
       this.camera.smoothFollow(playerPos.x, playerPos.y, 0.08);
@@ -439,7 +452,7 @@ class CarvableCaves {
       this.joystick.render(ctx);
     };
 
-    this.renderer.render(playerPos, this.player.getRadius(), ballsForRender, physicsDebugDraw, undefined, joystickDraw);
+    this.renderer.render(playerPos, player?.getRadius() ?? 0.6, ballsForRender, physicsDebugDraw, undefined, joystickDraw);
   };
 
   private remesh(): void {
@@ -574,8 +587,9 @@ class CarvableCaves {
       console.warn('[Regenerate] No valid spawn position found, using preferred position (may be inside rock)');
     }
 
-    if (this.player) {
-      this.player.respawn(actualSpawnX, actualSpawnY);
+    const player = this.controllerManager?.getCurrentController();
+    if (player) {
+      player.respawn(actualSpawnX, actualSpawnY);
     }
 
     // Center camera on spawn
@@ -601,7 +615,8 @@ class CarvableCaves {
    * Respawn player at camera center (for iOS touch button)
    */
   respawnPlayer(): void {
-    if (this.player) {
+    const player = this.controllerManager?.getCurrentController();
+    if (player) {
       const spawnPos = this.findValidSpawnPosition(this.camera.x, this.camera.y, this.playerRadius);
 
       let actualSpawnX = this.camera.x;
@@ -615,7 +630,7 @@ class CarvableCaves {
         console.warn(`[Respawn] No valid spawn position found near camera, using camera center (may be inside rock)`);
       }
 
-      this.player.respawn(actualSpawnX, actualSpawnY);
+      player.respawn(actualSpawnX, actualSpawnY);
     }
   }
 }
