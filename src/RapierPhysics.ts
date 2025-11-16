@@ -41,6 +41,23 @@ export class RapierPhysics {
   }
 
   /**
+   * Register a callback to be called during fixed timestep (60Hz)
+   * Use this for controllers and other physics-related updates
+   * @param callback - Function to call with fixed dt in milliseconds
+   */
+  registerFixedUpdate(callback: (dt: number) => void): void {
+    this.engine.registerFixedUpdate(callback);
+  }
+
+  /**
+   * Unregister a fixed update callback
+   * @param callback - Function to remove
+   */
+  unregisterFixedUpdate(callback: (dt: number) => void): void {
+    this.engine.unregisterFixedUpdate(callback);
+  }
+
+  /**
    * Create static collision bodies from cave contours
    * Uses segment colliders for exact match to marching squares output
    * @param contours - Array of polylines representing cave walls

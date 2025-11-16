@@ -522,13 +522,8 @@ class CarvableCaves {
     // Update FPS
     this.updateFPS();
 
-    // Update player input (with delta time for physics calculations)
-    const player = this.controllerManager?.getCurrentController();
-    if (player) {
-      player.update(deltaMs);
-    }
-
-    // Update physics simulation (Rapier handles fixed timestep internally)
+    // Update physics simulation with fixed timestep (60Hz)
+    // Controller updates are registered as fixed callbacks inside the physics engine
     this.physics.update(deltaMs);
 
     // Ball spawning disabled for spider controller testing
@@ -536,6 +531,9 @@ class CarvableCaves {
     //   this.spawnTestBall();
     //   this.lastBallSpawnTime = now;
     // }
+
+    // Get player reference for rendering (update is handled by physics fixed timestep)
+    const player = this.controllerManager?.getCurrentController();
 
     // Camera smoothly follows player in character control mode
     const playerPos = player?.getPosition() ?? { x: 0, y: 0 };

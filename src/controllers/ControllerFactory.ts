@@ -66,14 +66,18 @@ export class ControllerFactory {
 /**
  * Manager for switching between different controllers
  * Handles cleanup of old controller and creation of new one
+ * Registers controllers for fixed timestep updates (60Hz)
  */
 export class ControllerManager {
   private factory: ControllerFactory;
   private currentController: IPlayerController | null = null;
   private currentType: ControllerType | null = null;
+  private engine: RapierEngine;
+  private currentUpdateCallback: ((dt: number) => void) | null = null;
 
   constructor(engine: RapierEngine) {
     this.factory = new ControllerFactory(engine);
+    this.engine = engine;
   }
 
   /**
@@ -107,6 +111,12 @@ export class ControllerManager {
       spawnY = pos.y;
     }
 
+    // Unregister old controller's update callback
+    if (this.currentUpdateCallback) {
+      this.engine.unregisterFixedUpdate(this.currentUpdateCallback);
+      this.currentUpdateCallback = null;
+    }
+
     // Destroy old controller if it exists
     if (this.currentController) {
       console.log(`[ControllerManager] Destroying ${this.currentController.getTypeName()}`);
@@ -118,6 +128,15 @@ export class ControllerManager {
     this.currentController = this.factory.createController(type, { x: spawnX, y: spawnY });
     this.currentType = type;
 
+    // Register new controller's update callback for fixed timestep (60Hz)
+    this.currentUpdateCallback = (dt: number) => {
+      if (this.currentController) {
+        this.currentController.update(dt);
+      }
+    };
+    this.engine.registerFixedUpdate(this.currentUpdateCallback);
+    console.log(`[ControllerManager] Registered ${this.factory.getTypeName(type)} for fixed timestep updates (60Hz)`);
+
     return this.currentController;
   }
 
@@ -127,6 +146,16 @@ export class ControllerManager {
   initialize(type: ControllerType, x: number, y: number): IPlayerController {
     this.currentController = this.factory.createController(type, { x, y });
     this.currentType = type;
+
+    // Register controller's update callback for fixed timestep (60Hz)
+    this.currentUpdateCallback = (dt: number) => {
+      if (this.currentController) {
+        this.currentController.update(dt);
+      }
+    };
+    this.engine.registerFixedUpdate(this.currentUpdateCallback);
+    console.log(`[ControllerManager] Registered ${this.factory.getTypeName(type)} for fixed timestep updates (60Hz)`);
+
     return this.currentController;
   }
 
@@ -141,6 +170,12 @@ export class ControllerManager {
    * Cleanup (destroy current controller)
    */
   destroy(): void {
+    // Unregister update callback
+    if (this.currentUpdateCallback) {
+      this.engine.unregisterFixedUpdate(this.currentUpdateCallback);
+      this.currentUpdateCallback = null;
+    }
+
     if (this.currentController) {
       this.currentController.destroy();
       this.currentController = null;
