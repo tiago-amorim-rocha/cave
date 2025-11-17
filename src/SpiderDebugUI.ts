@@ -75,14 +75,14 @@ export class SpiderDebugUI {
 
     content.innerHTML = `
       ${this.createSection('Leg Geometry', [
-        { key: 'legSegmentWidth', label: 'Leg Width (m)', min: 0.05, max: 0.5, step: 0.01, tooltip: 'Width of leg colliders - thicker = more inertia (RESPAWN to apply)' },
+        { key: 'legSegmentWidth', label: 'Leg Width (m)', min: 0.05, max: 0.5, step: 0.01, tooltip: 'Width of leg colliders - PRIMARY inertia control (RESPAWN to apply)' },
       ])}
 
       ${this.createSection('Mass & Inertia', [
-        { key: 'bodyMassScale', label: 'Body Mass Scale', min: 0.1, max: 5.0, step: 0.1, tooltip: 'Higher = heavier body = more stable' },
-        { key: 'legMassScale', label: 'Leg Mass Scale', min: 0.1, max: 5.0, step: 0.1, tooltip: 'Higher = less noodly legs' },
-        { key: 'bodyInertiaScale', label: 'Body Inertia Scale', min: 0.1, max: 5.0, step: 0.1, tooltip: 'Higher = resists rotation' },
-        { key: 'legInertiaScale', label: 'Leg Inertia Scale', min: 0.1, max: 5.0, step: 0.1, tooltip: 'Higher = smoother leg motion' },
+        { key: 'bodyMassScale', label: 'Body Mass Scale', min: 0.1, max: 5.0, step: 0.1, tooltip: 'Higher = heavier body = more stable (updates in real-time)' },
+        { key: 'legMassScale', label: 'Leg Mass Scale', min: 0.1, max: 5.0, step: 0.1, tooltip: 'Higher = less noodly legs (updates in real-time)' },
+        { key: 'bodyInertiaScale', label: 'Body Inertia Scale', min: 0.1, max: 5.0, step: 0.1, tooltip: 'Higher = resists rotation (DISABLED - use Leg Width instead)' },
+        { key: 'legInertiaScale', label: 'Leg Inertia Scale', min: 0.1, max: 5.0, step: 0.1, tooltip: 'Higher = smoother leg motion (DISABLED - use Leg Width instead)' },
       ])}
 
       ${this.createSection('Damping', [

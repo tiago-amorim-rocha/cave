@@ -500,21 +500,10 @@ export class SpiderController {
     // This automatically recalculates mass and inertia based on the new density
     body.ResetMassData();
 
-    // Now apply inertia scale if needed (inertiaScale !== 1.0)
-    if (Math.abs(inertiaScale - 1.0) > 0.001) {
-      try {
-        const massData = body.GetMassData();
-        const newMassData = {
-          mass: massData.mass,
-          center: { x: massData.center.x, y: massData.center.y }, // Clone the center Vec2
-          I: massData.I * inertiaScale, // Scale the inertia
-        };
-        body.SetMassData(newMassData);
-      } catch (error) {
-        console.error('Error setting mass data:', error);
-        // Continue without inertia scaling if it fails
-      }
-    }
+    // Note: Inertia scaling during runtime is complex in Box2D because it expects
+    // mass/inertia to be consistent with fixtures. For best results, change
+    // legSegmentWidth and respawn to get different inertia values.
+    // Runtime inertia scaling is disabled to prevent Box2D errors.
   }
 
   /**
