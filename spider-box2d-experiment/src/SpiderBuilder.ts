@@ -91,6 +91,9 @@ export function buildSpider(
     rightLeg.foot!,
   ];
 
+  // Log positions once after building
+  logSpiderPositions(body, leftLeg, rightLeg);
+
   return {
     body,
     leftLeg,
@@ -337,4 +340,35 @@ function createRevoluteJoint(
   };
 
   world.CreateJoint(jointDef);
+}
+
+/**
+ * Log all spider body positions for debugging
+ */
+function logSpiderPositions(body: any, leftLeg: ControllerLeg, rightLeg: ControllerLeg): void {
+  const bodyPos = body.GetPosition();
+
+  console.log('=== SPIDER INITIAL POSITIONS ===');
+  console.log('Body:', { x: bodyPos.x.toFixed(3), y: bodyPos.y.toFixed(3) });
+
+  console.log('\nLeft Leg:');
+  const leftHipPos = leftLeg.hip.GetPosition();
+  const leftKneePos = leftLeg.knee.GetPosition();
+  const leftAnklePos = leftLeg.ankle.GetPosition();
+  const leftFootPos = leftLeg.foot.GetPosition();
+  console.log('  Hip:', { x: leftHipPos.x.toFixed(3), y: leftHipPos.y.toFixed(3) });
+  console.log('  Knee:', { x: leftKneePos.x.toFixed(3), y: leftKneePos.y.toFixed(3) });
+  console.log('  Ankle:', { x: leftAnklePos.x.toFixed(3), y: leftAnklePos.y.toFixed(3) });
+  console.log('  Foot:', { x: leftFootPos.x.toFixed(3), y: leftFootPos.y.toFixed(3) });
+
+  console.log('\nRight Leg:');
+  const rightHipPos = rightLeg.hip.GetPosition();
+  const rightKneePos = rightLeg.knee.GetPosition();
+  const rightAnklePos = rightLeg.ankle.GetPosition();
+  const rightFootPos = rightLeg.foot.GetPosition();
+  console.log('  Hip:', { x: rightHipPos.x.toFixed(3), y: rightHipPos.y.toFixed(3) });
+  console.log('  Knee:', { x: rightKneePos.x.toFixed(3), y: rightKneePos.y.toFixed(3) });
+  console.log('  Ankle:', { x: rightAnklePos.x.toFixed(3), y: rightAnklePos.y.toFixed(3) });
+  console.log('  Foot:', { x: rightFootPos.x.toFixed(3), y: rightFootPos.y.toFixed(3) });
+  console.log('================================\n');
 }

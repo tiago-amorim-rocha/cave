@@ -69,9 +69,6 @@ export class SpiderRenderer {
    * Draw spider using render data
    */
   drawSpider(renderData: any): void {
-    console.log('=== SPIDER POSITIONS ===');
-    console.log('Body:', { x: renderData.body.x, y: renderData.body.y });
-
     // Draw legs first (behind body)
     this.drawLeg(renderData.leftLeg, '#00ff00', 'LEFT');
     this.drawLeg(renderData.rightLeg, '#00ff00', 'RIGHT');
@@ -108,12 +105,6 @@ export class SpiderRenderer {
    * Draw a single leg (3 segments + foot)
    */
   private drawLeg(legData: any, color: string, legName: string): void {
-    console.log(`${legName} leg:`);
-    console.log('  Hip:', { x: legData.hip.x, y: legData.hip.y });
-    console.log('  Knee:', { x: legData.knee.x, y: legData.knee.y });
-    console.log('  Ankle:', { x: legData.ankle.x, y: legData.ankle.y });
-    console.log('  Foot:', { x: legData.foot.x, y: legData.foot.y });
-
     // Calculate joint positions
     const joint1 = { x: legData.hip.x, y: legData.hip.y };
     const joint2 = {
@@ -128,8 +119,6 @@ export class SpiderRenderer {
       x: legData.ankle.x + legData.ankle.length * Math.cos(legData.ankle.angle),
       y: legData.ankle.y + legData.ankle.length * Math.sin(legData.ankle.angle)
     };
-
-    console.log('  Joints:', { joint1, joint2, joint3, joint4 });
 
     // Draw segments
     this.drawSegment(legData.hip, color);

@@ -76,6 +76,35 @@ export class LogWindow {
     const title = document.createElement('span');
     title.textContent = '📝 Debug Console';
 
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = `
+      display: flex;
+      gap: 8px;
+    `;
+
+    const copyButton = document.createElement('button');
+    copyButton.textContent = 'Copy';
+    copyButton.style.cssText = `
+      background: transparent;
+      border: 1px solid #00ff00;
+      color: #00ff00;
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 10px;
+      transition: all 0.2s;
+    `;
+    copyButton.onmouseover = () => {
+      copyButton.style.background = '#00ff00';
+      copyButton.style.color = '#000';
+    };
+    copyButton.onmouseout = () => {
+      copyButton.style.background = 'transparent';
+      copyButton.style.color = '#00ff00';
+    };
+    copyButton.onclick = () => this.copyToClipboard();
+
     const clearButton = document.createElement('button');
     clearButton.textContent = 'Clear';
     clearButton.style.cssText = `
@@ -99,8 +128,10 @@ export class LogWindow {
     };
     clearButton.onclick = () => this.clear();
 
+    buttonContainer.appendChild(copyButton);
+    buttonContainer.appendChild(clearButton);
     header.appendChild(title);
-    header.appendChild(clearButton);
+    header.appendChild(buttonContainer);
     return header;
   }
 
@@ -241,6 +272,16 @@ export class LogWindow {
   public clear(): void {
     this.logList.innerHTML = '';
     this.originalLog('[LogWindow] Console cleared');
+  }
+
+  public async copyToClipboard(): Promise<void> {
+    try {
+      const text = this.logList.textContent || '';
+      await navigator.clipboard.writeText(text);
+      this.originalLog('[LogWindow] Console content copied to clipboard');
+    } catch (err) {
+      this.originalError('[LogWindow] Failed to copy to clipboard:', err);
+    }
   }
 
   public toggle(): void {
