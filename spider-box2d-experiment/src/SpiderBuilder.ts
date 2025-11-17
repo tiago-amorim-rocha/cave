@@ -357,32 +357,77 @@ function createRevoluteJoint(
 }
 
 /**
- * Log all spider body positions for debugging
+ * Log all spider joint positions for debugging
  */
 function logSpiderPositions(body: any, leftLeg: ControllerLeg, rightLeg: ControllerLeg): void {
   const bodyPos = body.GetPosition();
 
-  console.log('=== SPIDER INITIAL POSITIONS ===');
-  console.log('Body:', { x: bodyPos.x.toFixed(3), y: bodyPos.y.toFixed(3) });
+  console.log('=== SPIDER JOINT POSITIONS ===');
+  console.log('Body center:', { x: bodyPos.x.toFixed(3), y: bodyPos.y.toFixed(3) });
 
-  console.log('\nLeft Leg:');
+  console.log('\nLeft Leg Joints:');
   const leftHipPos = leftLeg.hip.GetPosition();
+  const leftHipAngle = leftLeg.hip.GetAngle();
   const leftKneePos = leftLeg.knee.GetPosition();
+  const leftKneeAngle = leftLeg.knee.GetAngle();
   const leftAnklePos = leftLeg.ankle.GetPosition();
+  const leftAnkleAngle = leftLeg.ankle.GetAngle();
   const leftFootPos = leftLeg.foot.GetPosition();
-  console.log('  Hip:', { x: leftHipPos.x.toFixed(3), y: leftHipPos.y.toFixed(3) });
-  console.log('  Knee:', { x: leftKneePos.x.toFixed(3), y: leftKneePos.y.toFixed(3) });
-  console.log('  Ankle:', { x: leftAnklePos.x.toFixed(3), y: leftAnklePos.y.toFixed(3) });
-  console.log('  Foot:', { x: leftFootPos.x.toFixed(3), y: leftFootPos.y.toFixed(3) });
 
-  console.log('\nRight Leg:');
+  // Calculate joint positions from segment centers and angles
+  const leftJ1 = {
+    x: (leftHipPos.x - 0.65 * Math.cos(leftHipAngle)).toFixed(3),
+    y: (leftHipPos.y - 0.65 * Math.sin(leftHipAngle)).toFixed(3)
+  };
+  const leftJ2 = {
+    x: (leftHipPos.x + 0.65 * Math.cos(leftHipAngle)).toFixed(3),
+    y: (leftHipPos.y + 0.65 * Math.sin(leftHipAngle)).toFixed(3)
+  };
+  const leftJ3 = {
+    x: (leftKneePos.x + 0.5 * Math.cos(leftKneeAngle)).toFixed(3),
+    y: (leftKneePos.y + 0.5 * Math.sin(leftKneeAngle)).toFixed(3)
+  };
+  const leftJ4 = {
+    x: (leftAnklePos.x + 0.35 * Math.cos(leftAnkleAngle)).toFixed(3),
+    y: (leftAnklePos.y + 0.35 * Math.sin(leftAnkleAngle)).toFixed(3)
+  };
+
+  console.log('  Joint 1 (body-to-hip):', leftJ1);
+  console.log('  Joint 2 (hip-to-knee):', leftJ2);
+  console.log('  Joint 3 (knee-to-ankle):', leftJ3);
+  console.log('  Joint 4 (ankle-to-foot):', leftJ4);
+  console.log('  Foot center:', { x: leftFootPos.x.toFixed(3), y: leftFootPos.y.toFixed(3) });
+
+  console.log('\nRight Leg Joints:');
   const rightHipPos = rightLeg.hip.GetPosition();
+  const rightHipAngle = rightLeg.hip.GetAngle();
   const rightKneePos = rightLeg.knee.GetPosition();
+  const rightKneeAngle = rightLeg.knee.GetAngle();
   const rightAnklePos = rightLeg.ankle.GetPosition();
+  const rightAnkleAngle = rightLeg.ankle.GetAngle();
   const rightFootPos = rightLeg.foot.GetPosition();
-  console.log('  Hip:', { x: rightHipPos.x.toFixed(3), y: rightHipPos.y.toFixed(3) });
-  console.log('  Knee:', { x: rightKneePos.x.toFixed(3), y: rightKneePos.y.toFixed(3) });
-  console.log('  Ankle:', { x: rightAnklePos.x.toFixed(3), y: rightAnklePos.y.toFixed(3) });
-  console.log('  Foot:', { x: rightFootPos.x.toFixed(3), y: rightFootPos.y.toFixed(3) });
+
+  const rightJ1 = {
+    x: (rightHipPos.x - 0.65 * Math.cos(rightHipAngle)).toFixed(3),
+    y: (rightHipPos.y - 0.65 * Math.sin(rightHipAngle)).toFixed(3)
+  };
+  const rightJ2 = {
+    x: (rightHipPos.x + 0.65 * Math.cos(rightHipAngle)).toFixed(3),
+    y: (rightHipPos.y + 0.65 * Math.sin(rightHipAngle)).toFixed(3)
+  };
+  const rightJ3 = {
+    x: (rightKneePos.x + 0.5 * Math.cos(rightKneeAngle)).toFixed(3),
+    y: (rightKneePos.y + 0.5 * Math.sin(rightKneeAngle)).toFixed(3)
+  };
+  const rightJ4 = {
+    x: (rightAnklePos.x + 0.35 * Math.cos(rightAnkleAngle)).toFixed(3),
+    y: (rightAnklePos.y + 0.35 * Math.sin(rightAnkleAngle)).toFixed(3)
+  };
+
+  console.log('  Joint 1 (body-to-hip):', rightJ1);
+  console.log('  Joint 2 (hip-to-knee):', rightJ2);
+  console.log('  Joint 3 (knee-to-ankle):', rightJ3);
+  console.log('  Joint 4 (ankle-to-foot):', rightJ4);
+  console.log('  Foot center:', { x: rightFootPos.x.toFixed(3), y: rightFootPos.y.toFixed(3) });
   console.log('================================\n');
 }
