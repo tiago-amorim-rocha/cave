@@ -16,7 +16,7 @@ import {
   XY,
 } from '@box2d/core';
 import type { SpiderAssembly, SpiderConfig, ControllerLeg } from './SpiderTypes';
-import { DEFAULT_SPIDER_CONFIG } from './SpiderTypes';
+import { DEFAULT_SPIDER_CONFIG, SPIDER_COLLISION_GROUP } from './SpiderTypes';
 import { degToRad } from './SpiderMath';
 
 /**
@@ -64,6 +64,9 @@ export function buildSpider(
     density: actualDensity,
     friction: 0.3 * config.contactFrictionScale,
     restitution: 0.1,
+    filter: {
+      groupIndex: SPIDER_COLLISION_GROUP, // Prevent self-collision with other spider parts
+    },
   };
 
   body.CreateFixture(bodyFixture);
@@ -234,6 +237,9 @@ function createLeg(
   const footFixture: b2FixtureDef = {
     shape: footShape,
     density: 1.0,
+    filter: {
+      groupIndex: SPIDER_COLLISION_GROUP, // Prevent self-collision with other spider parts
+    },
   };
 
   foot.CreateFixture(footFixture);
@@ -320,6 +326,9 @@ function createSegment(
     density: actualDensity,
     friction: 0.3 * config.contactFrictionScale,
     restitution: 0.1,
+    filter: {
+      groupIndex: SPIDER_COLLISION_GROUP, // Prevent self-collision with other spider parts
+    },
   };
 
   body.CreateFixture(fixture);
