@@ -44,9 +44,9 @@ export function buildSpider(
     type: b2BodyType.b2_dynamicBody,
     position: { x, y },
     angle: 0,
-    linearDamping: 0,
-    angularDamping: 0.05,
-    gravityScale: 0,
+    linearDamping: config.bodyLinearDamping,
+    angularDamping: config.bodyAngularDamping,
+    gravityScale: config.gravityScale,
   };
 
   const body = world.CreateBody(bodyDef);
@@ -54,10 +54,15 @@ export function buildSpider(
   const bodyShape = new b2PolygonShape();
   bodyShape.SetAsBox(0.5, 0.5);
 
+  // Apply mass scale: density = mass / area, mass = density × area × massScale
+  const bodyArea = 1.0; // 1m × 1m square
+  const baseDensity = 1.0;
+  const actualDensity = baseDensity * config.bodyMassScale;
+
   const bodyFixture: b2FixtureDef = {
     shape: bodyShape,
-    density: 1.0,
-    friction: 0.3,
+    density: actualDensity,
+    friction: 0.3 * config.contactFrictionScale,
     restitution: 0.1,
   };
 
@@ -175,7 +180,8 @@ function createLeg(
     M1,
     hipCenterX,
     hipCenterY,
-    angle1
+    angle1,
+    config
   );
 
   // === Create Knee Segment ===
@@ -191,7 +197,8 @@ function createLeg(
     M2,
     kneeCenterX,
     kneeCenterY,
-    angle1 + angle2
+    angle1 + angle2,
+    config
   );
 
   // === Create Ankle Segment ===
@@ -207,7 +214,8 @@ function createLeg(
     M3,
     ankleCenterX,
     ankleCenterY,
-    angle1 + angle2 + angle3
+    angle1 + angle2 + angle3,
+    config
   );
 
   // === Create Foot (kinematic, pinned to ground) ===
@@ -271,6 +279,7 @@ function createLeg(
  * @param centerX - Center X position (midpoint between joints)
  * @param centerY - Center Y position (midpoint between joints)
  * @param angleDeg - Initial angle (degrees, 0 = pointing right)
+ * @param config - Spider configuration
  * @returns Created body
  */
 function createSegment(
@@ -281,7 +290,8 @@ function createSegment(
   mass: number,
   centerX: number,
   centerY: number,
-  angleDeg: number
+  angleDeg: number,
+  config: SpiderConfig
 ): any {
   const angleRad = degToRad(angleDeg);
 
@@ -289,9 +299,9 @@ function createSegment(
     type: b2BodyType.b2_dynamicBody,
     position: { x: centerX, y: centerY },
     angle: angleRad,
-    linearDamping: 0,
-    angularDamping: 0.05,
-    gravityScale: 0, // Zero gravity for spider segments
+    linearDamping: config.legLinearDamping,
+    angularDamping: config.legAngularDamping,
+    gravityScale: config.gravityScale,
   };
 
   const body = world.CreateBody(bodyDef);
@@ -300,10 +310,15 @@ function createSegment(
   const shape = new b2PolygonShape();
   shape.SetAsBox(length / 2, width / 2);
 
+  // Apply leg mass scale to density
+  const area = length * width;
+  const baseDensity = mass / area;
+  const actualDensity = baseDensity * config.legMassScale;
+
   const fixture: b2FixtureDef = {
     shape: shape,
-    density: mass / (length * width), // Density = mass / area
-    friction: 0.3,
+    density: actualDensity,
+    friction: 0.3 * config.contactFrictionScale,
     restitution: 0.1,
   };
 

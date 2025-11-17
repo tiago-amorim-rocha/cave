@@ -54,6 +54,18 @@ async function main() {
       segmentLength2: 1.0,
       segmentLength3: 0.7,
 
+      // Mass & Inertia
+      bodyMassScale: 1.0,
+      legMassScale: 1.0,
+      bodyInertiaScale: 1.0,
+      legInertiaScale: 1.0,
+
+      // Damping
+      bodyLinearDamping: 0.0,
+      bodyAngularDamping: 0.05,
+      legLinearDamping: 0.0,
+      legAngularDamping: 0.05,
+
       // Vertical control - UNITY VALUES (not reduced!)
       verticalAccelGain: 2.0,  // Unity default
       maxTotalFootForceY: 20.0,
@@ -72,6 +84,10 @@ async function main() {
       jointLimitKp: 0.1,
       jointLimitKd: 0.05,
 
+      // Joint posture control
+      jointRotationKp: 0.0,
+      jointRotationKd: 0.0,
+
       // Joint limits - Unity values
       hipLimitFreeMin: 0.0,
       hipLimitFreeMax: 60.0,
@@ -85,6 +101,10 @@ async function main() {
       targetBodyAngle: 0.0,
       rotationStiffness: 0.1,
       rotationDamping: 0.1,
+
+      // Global physics
+      gravityScale: 0.0,
+      contactFrictionScale: 1.0,
     };
 
     game.createSpider(0, 10, testConfig); // Spawn at y=10, ground is at y=15
