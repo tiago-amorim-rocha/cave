@@ -237,7 +237,8 @@ export class Renderer {
     const bodyHeightScreen = spider.body.height * this.camera.zoom;
 
     this.ctx.translate(bodyScreen.x, bodyScreen.y);
-    this.ctx.rotate(spider.body.rotation);
+    // Add 180° (π radians) to fix upside-down orientation
+    this.ctx.rotate(spider.body.rotation + Math.PI);
 
     // Body fill (dark red-purple from palette)
     this.ctx.fillStyle = '#665779';
@@ -277,6 +278,22 @@ export class Renderer {
     // Draw ankle segment
     this.drawSegment(canvasWidth, canvasHeight, ankle);
 
+    // Draw joint at distal end of ankle (ankle-to-foot connection)
+    this.ctx.save();
+    const ankleScreen = this.camera.worldToScreen(ankle.x, ankle.y, canvasWidth, canvasHeight);
+    const lengthScreen = ankle.length * this.camera.zoom;
+    const widthScreen = ankle.width * this.camera.zoom;
+
+    this.ctx.translate(ankleScreen.x, ankleScreen.y);
+    // Add 180° (π radians) to match segment rotation fix
+    this.ctx.rotate(ankle.rotation + Math.PI);
+
+    this.ctx.fillStyle = '#665779';
+    this.ctx.beginPath();
+    this.ctx.arc(lengthScreen / 2, 0, widthScreen / 2 * 1.2, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.restore();
+
     // Draw foot (small circle)
     const footScreen = this.camera.worldToScreen(foot.x, foot.y, canvasWidth, canvasHeight);
     const footRadius = 0.1 * this.camera.zoom; // 0.2m diameter foot
@@ -305,7 +322,8 @@ export class Renderer {
     const widthScreen = segment.width * this.camera.zoom;
 
     this.ctx.translate(screen.x, screen.y);
-    this.ctx.rotate(segment.rotation);
+    // Add 180° (π radians) to fix upside-down orientation
+    this.ctx.rotate(segment.rotation + Math.PI);
 
     // Segment fill (light cream from palette, slightly darker)
     // Draw centered at pivot (Box2D body center is at segment center)
@@ -317,10 +335,10 @@ export class Renderer {
     this.ctx.lineWidth = 1.5;
     this.ctx.strokeRect(-lengthScreen / 2, -widthScreen / 2, lengthScreen, widthScreen);
 
-    // Draw joint marker at pivot (small circle)
+    // Draw joint marker at proximal end (start of segment)
     this.ctx.fillStyle = '#665779';
     this.ctx.beginPath();
-    this.ctx.arc(0, 0, widthScreen / 2 * 1.2, 0, Math.PI * 2);
+    this.ctx.arc(-lengthScreen / 2, 0, widthScreen / 2 * 1.2, 0, Math.PI * 2);
     this.ctx.fill();
 
     this.ctx.restore();
