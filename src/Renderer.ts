@@ -237,8 +237,7 @@ export class Renderer {
     const bodyHeightScreen = spider.body.height * this.camera.zoom;
 
     this.ctx.translate(bodyScreen.x, bodyScreen.y);
-    // Add 180° (π radians) to fix upside-down orientation
-    this.ctx.rotate(spider.body.rotation + Math.PI);
+    this.ctx.rotate(spider.body.rotation);
 
     // Body fill (dark red-purple from palette)
     this.ctx.fillStyle = '#665779';
@@ -285,8 +284,7 @@ export class Renderer {
     const widthScreen = ankle.width * this.camera.zoom;
 
     this.ctx.translate(ankleScreen.x, ankleScreen.y);
-    // Add 180° (π radians) to match segment rotation fix
-    this.ctx.rotate(ankle.rotation + Math.PI);
+    this.ctx.rotate(ankle.rotation);
 
     this.ctx.fillStyle = '#665779';
     this.ctx.beginPath();
@@ -322,8 +320,7 @@ export class Renderer {
     const widthScreen = segment.width * this.camera.zoom;
 
     this.ctx.translate(screen.x, screen.y);
-    // Add 180° (π radians) to fix upside-down orientation
-    this.ctx.rotate(segment.rotation + Math.PI);
+    this.ctx.rotate(segment.rotation);
 
     // Segment fill (light cream from palette, slightly darker)
     // Draw centered at pivot (Box2D body center is at segment center)
