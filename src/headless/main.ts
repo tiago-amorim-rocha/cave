@@ -53,6 +53,7 @@ async function main() {
       segmentLength1: 1.3,
       segmentLength2: 1.0,
       segmentLength3: 0.7,
+      legSegmentWidth: 0.1,
 
       // Mass & Inertia
       bodyMassScale: 1.0,

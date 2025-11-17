@@ -74,6 +74,10 @@ export class SpiderDebugUI {
     if (!content) return;
 
     content.innerHTML = `
+      ${this.createSection('Leg Geometry', [
+        { key: 'legSegmentWidth', label: 'Leg Width (m)', min: 0.05, max: 0.5, step: 0.01, tooltip: 'Width of leg colliders - thicker = more inertia (RESPAWN to apply)' },
+      ])}
+
       ${this.createSection('Mass & Inertia', [
         { key: 'bodyMassScale', label: 'Body Mass Scale', min: 0.1, max: 5.0, step: 0.1, tooltip: 'Higher = heavier body = more stable' },
         { key: 'legMassScale', label: 'Leg Mass Scale', min: 0.1, max: 5.0, step: 0.1, tooltip: 'Higher = less noodly legs' },
