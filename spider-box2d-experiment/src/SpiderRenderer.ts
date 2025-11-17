@@ -105,19 +105,23 @@ export class SpiderRenderer {
    * Draw a single leg (3 segments + foot)
    */
   private drawLeg(legData: any, color: string, legName: string): void {
-    // Calculate joint positions
-    const joint1 = { x: legData.hip.x, y: legData.hip.y };
+    // Calculate joint positions (segments are centered at midpoint between joints)
+    // Joint = segment_center +/- (length/2) along segment angle
+    const joint1 = {
+      x: legData.hip.x - (legData.hip.length / 2) * Math.cos(legData.hip.angle),
+      y: legData.hip.y - (legData.hip.length / 2) * Math.sin(legData.hip.angle)
+    };
     const joint2 = {
-      x: legData.hip.x + legData.hip.length * Math.cos(legData.hip.angle),
-      y: legData.hip.y + legData.hip.length * Math.sin(legData.hip.angle)
+      x: legData.hip.x + (legData.hip.length / 2) * Math.cos(legData.hip.angle),
+      y: legData.hip.y + (legData.hip.length / 2) * Math.sin(legData.hip.angle)
     };
     const joint3 = {
-      x: legData.knee.x + legData.knee.length * Math.cos(legData.knee.angle),
-      y: legData.knee.y + legData.knee.length * Math.sin(legData.knee.angle)
+      x: legData.knee.x + (legData.knee.length / 2) * Math.cos(legData.knee.angle),
+      y: legData.knee.y + (legData.knee.length / 2) * Math.sin(legData.knee.angle)
     };
     const joint4 = {
-      x: legData.ankle.x + legData.ankle.length * Math.cos(legData.ankle.angle),
-      y: legData.ankle.y + legData.ankle.length * Math.sin(legData.ankle.angle)
+      x: legData.ankle.x + (legData.ankle.length / 2) * Math.cos(legData.ankle.angle),
+      y: legData.ankle.y + (legData.ankle.length / 2) * Math.sin(legData.ankle.angle)
     };
 
     // Draw segments
