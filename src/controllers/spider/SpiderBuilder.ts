@@ -135,11 +135,13 @@ function createLeg(
   const M3 = 0.118343204; // M2 / 1.3
 
   // Initial angles (degrees, from Unity prefab)
-  // Left leg: segment1=130°, segment2=100° (relative), segment3=40° (relative)
-  // Right leg: segment1=50°, segment2=-100° (relative), segment3=-40° (relative)
-  const angle1 = isLeft ? 130 : 50; // Hip absolute angle
-  const angle2 = isLeft ? 100 : -100; // Knee relative to hip
-  const angle3 = isLeft ? 40 : -40; // Ankle relative to knee
+  // Unity uses Y-up, Box2D uses Y-down, so we negate angles to flip vertically
+  // Unity Left leg: segment1=130°, segment2=100° (relative), segment3=40° (relative)
+  // Unity Right leg: segment1=50°, segment2=-100° (relative), segment3=-40° (relative)
+  // Box2D angles (negated for Y-down):
+  const angle1 = isLeft ? -130 : -50; // Hip absolute angle (negated from Unity)
+  const angle2 = isLeft ? -100 : 100; // Knee relative to hip (negated from Unity)
+  const angle3 = isLeft ? -40 : 40; // Ankle relative to knee (negated from Unity)
 
   // === Calculate joint positions ===
   // Hip-to-knee joint

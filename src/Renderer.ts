@@ -295,6 +295,7 @@ export class Renderer {
 
   /**
    * Draw a single leg segment (rectangle rotated around pivot point)
+   * Segments are centered at their pivot (Box2D body center)
    */
   private drawSegment(canvasWidth: number, canvasHeight: number, segment: SpiderSegmentData): void {
     this.ctx.save();
@@ -307,13 +308,14 @@ export class Renderer {
     this.ctx.rotate(segment.rotation);
 
     // Segment fill (light cream from palette, slightly darker)
+    // Draw centered at pivot (Box2D body center is at segment center)
     this.ctx.fillStyle = '#e6d5b8';
-    this.ctx.fillRect(0, -widthScreen / 2, lengthScreen, widthScreen);
+    this.ctx.fillRect(-lengthScreen / 2, -widthScreen / 2, lengthScreen, widthScreen);
 
     // Segment outline (medium purple)
     this.ctx.strokeStyle = '#9c7fa3';
     this.ctx.lineWidth = 1.5;
-    this.ctx.strokeRect(0, -widthScreen / 2, lengthScreen, widthScreen);
+    this.ctx.strokeRect(-lengthScreen / 2, -widthScreen / 2, lengthScreen, widthScreen);
 
     // Draw joint marker at pivot (small circle)
     this.ctx.fillStyle = '#665779';
