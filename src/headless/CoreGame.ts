@@ -3,10 +3,13 @@
  *
  * Runs the spider controller with physics, but no rendering or UI.
  * All game state is logged to JSONL for analysis.
+ *
+ * TODO: Update to use Box2DEngine instead of RapierEngine
  */
 
-import RAPIER from '@dimforge/rapier2d-compat';
-import { RapierEngine } from '../physics/engine';
+// import RAPIER from '@dimforge/rapier2d-compat';
+// import { RapierEngine } from '../physics/engine';
+import { Box2DEngine } from '../physics/Box2DEngine';
 import { SpiderController } from '../controllers/spider/SpiderController';
 import type { SpiderConfig } from '../controllers/spider/SpiderTypes';
 import type { JSONLLogger } from './logger';
@@ -32,7 +35,7 @@ export interface CoreGameConfig {
  * - State logging
  */
 export class CoreGame {
-  private engine: RapierEngine;
+  private engine: Box2DEngine;
   private spider: SpiderController | null = null;
   private logger: JSONLLogger;
   private fixedDt: number;
@@ -41,7 +44,7 @@ export class CoreGame {
 
   constructor(logger: JSONLLogger, config: CoreGameConfig = {}) {
     this.logger = logger;
-    this.engine = new RapierEngine();
+    this.engine = new Box2DEngine();
     this.fixedDt = config.fixedDt ?? (1 / 60); // 60 Hz default
 
     this.logger.info('CoreGame created', {
@@ -81,10 +84,11 @@ export class CoreGame {
    */
   createSpider(x: number, y: number, config?: SpiderConfig): void {
     // Unregister old callback if spider exists
-    if (this.spiderUpdateCallback) {
-      this.engine.unregisterFixedUpdate(this.spiderUpdateCallback);
-      this.spiderUpdateCallback = null;
-    }
+    // TODO: Implement unregisterFixedUpdate in Box2DEngine
+    // if (this.spiderUpdateCallback) {
+    //   this.engine.unregisterFixedUpdate(this.spiderUpdateCallback);
+    //   this.spiderUpdateCallback = null;
+    // }
 
     if (this.spider) {
       this.logger.warn('Spider already exists, destroying old spider');
@@ -93,7 +97,7 @@ export class CoreGame {
 
     this.logger.info('Creating spider', { x, y });
 
-    this.spider = new SpiderController(this.engine, x, y, config);
+    this.spider = new SpiderController(this.engine.getWorld(), x, y, config);
 
     // Create a fake joystick interface for headless mode
     const fakeJoystick = {
@@ -222,10 +226,11 @@ export class CoreGame {
    */
   destroy(): void {
     // Unregister update callback
-    if (this.spiderUpdateCallback) {
-      this.engine.unregisterFixedUpdate(this.spiderUpdateCallback);
-      this.spiderUpdateCallback = null;
-    }
+    // TODO: Implement unregisterFixedUpdate in Box2DEngine
+    // if (this.spiderUpdateCallback) {
+    //   this.engine.unregisterFixedUpdate(this.spiderUpdateCallback);
+    //   this.spiderUpdateCallback = null;
+    // }
 
     if (this.spider) {
       this.spider.destroy();

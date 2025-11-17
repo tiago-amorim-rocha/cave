@@ -1,353 +1,438 @@
 /**
- * Spider Builder - Programmatic Multi-Body Rig Assembly
+ * Spider Builder for Box2D
+ * Creates spider rig from scratch using Box2D bodies and joints
+ * Ported from Unity spider.prefab
+ */
+
+import {
+  b2World,
+  b2BodyDef,
+  b2FixtureDef,
+  b2PolygonShape,
+  b2RevoluteJointDef,
+  b2BodyType,
+  b2Vec2,
+  b2JointType,
+  XY,
+} from '@box2d/core';
+import type { SpiderAssembly, SpiderConfig, ControllerLeg } from './SpiderTypes';
+import { DEFAULT_SPIDER_CONFIG } from './SpiderTypes';
+import { degToRad } from './SpiderMath';
+
+/**
+ * Build spider rig in Box2D world
  *
- * Creates the spider's physical structure using Rapier 2D:
- * - 1 main body (1m × 1m square)
- * - 2 legs × 3 segments = 6 leg segments
+ * Creates:
+ * - Central body (1m × 1m square)
+ * - 2 legs, each with 3 segments (hip, knee, ankle)
  * - 2 feet (kinematic, pinned to ground)
  * - Revolute joints connecting everything
  *
- * Based on Unity spider.prefab and SpiderController.cs ApplyLegLayout()
- * See spider-unity-version/SpiderController_Port_TS.md section 4
- */
-
-import RAPIER from '@dimforge/rapier2d-compat';
-import type { SpiderConfig, SpiderAssembly, ControllerLeg } from './SpiderTypes';
-import { DEFAULT_SPIDER_CONFIG } from './SpiderTypes';
-import { angleToDir, rotateDir, degToRad } from './SpiderMath';
-
-/**
- * Build a complete spider rig
- *
- * @param world - Rapier world to create bodies in
- * @param x - Spawn X position (metres)
- * @param y - Spawn Y position (metres)
- * @param config - Spider configuration (optional, uses defaults if not provided)
- * @returns Complete spider assembly ready for controller
+ * @param world - Box2D world
+ * @param x - Initial X position (metres)
+ * @param y - Initial Y position (metres)
+ * @param config - Spider configuration
+ * @returns Spider assembly with all bodies and references
  */
 export function buildSpider(
-  world: RAPIER.World,
+  world: b2World,
   x: number,
   y: number,
   config: SpiderConfig = DEFAULT_SPIDER_CONFIG
 ): SpiderAssembly {
-  console.log('[SpiderBuilder] Building spider at (', x.toFixed(2), ',', y.toFixed(2), ')');
+  const bodyDef: b2BodyDef = {
+    type: b2BodyType.b2_dynamicBody,
+    position: { x, y },
+    angle: 0,
+    linearDamping: 0,
+    angularDamping: 0.05,
+    gravityScale: 0,
+  };
 
-  // === Create Main Body ===
-  // Central 1m × 1m square, dynamic rigid body
-  // From Unity prefab: body sprite is 1x1, mass = 1.0 (line 1011)
-  const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
-    .setTranslation(x, y)
-    .setCcdEnabled(true) // Enable CCD for fast movement
-    .setGravityScale(0)  // No gravity (spider uses forces only)
-    .setLinearDamping(0)       // Unity prefab line 1012
-    .setAngularDamping(0.05);  // Unity prefab line 1013 - MUST MATCH!
+  const body = world.CreateBody(bodyDef);
 
-  const body = world.createRigidBody(bodyDesc);
+  const bodyShape = new b2PolygonShape();
+  bodyShape.SetAsBox(0.5, 0.5);
 
-  // Body collider with collision filtering to prevent self-collision
-  // Collision group format: memberships(high 16 bits) | filter(low 16 bits)
-  // - Spider parts: 0x00020001 (member of group 1, filter for group 0 only)
-  // - Terrain: 0x0001FFFF (member of group 0, filter for all groups)
-  // Spider parts WON'T collide with each other but WILL collide with terrain
-  const bodyCollider = RAPIER.ColliderDesc.cuboid(0.5, 0.5) // half-extents
-    .setDensity(1.0)  // Mass = density * area = 1.0 * (1.0 * 1.0) = 1.0 (matches Unity)
-    .setFriction(0.3)
-    .setRestitution(0.1)
-    .setCollisionGroups(0x00020001); // Spider collision group
+  const bodyFixture: b2FixtureDef = {
+    shape: bodyShape,
+    density: 1.0,
+    friction: 0.3,
+    restitution: 0.1,
+  };
 
-  world.createCollider(bodyCollider, body);
+  body.CreateFixture(bodyFixture);
 
-  const actualBodyMass = body.mass();
-  console.log('[SpiderBuilder] Created body: 1.0m × 1.0m square');
-  console.log('[SpiderBuilder]   Expected mass: 1.0, Actual mass:', actualBodyMass.toFixed(6));
-  console.log('[SpiderBuilder]   Linear damping: 0, Angular damping: 0.05');
-
-  // === Build Legs ===
-  // From Unity SpiderController.cs line 183-194:
-  // - Left leg attaches at body.x - 0.5 (left side of body)
-  // - Right leg attaches at body.x + 0.5 (right side of body)
-
-  const leftLeg = buildLeg(
+  const leftLeg = createLeg(
     world,
     body,
-    x - 0.5, // hip X (left side)
-    y,       // hip Y (same as body)
     config,
-    true     // isLeft
+    true,
+    new b2Vec2(x - 0.5, y)
   );
 
-  const rightLeg = buildLeg(
+  const rightLeg = createLeg(
     world,
     body,
-    x + 0.5, // hip X (right side)
-    y,       // hip Y (same as body)
     config,
-    false    // isLeft = false (right leg)
+    false,
+    new b2Vec2(x + 0.5, y)
   );
 
-  // Collect all bodies for cleanup and collision filtering
   const allBodies = [
     body,
     leftLeg.hip,
     leftLeg.knee,
     leftLeg.ankle,
-    ...(leftLeg.foot ? [leftLeg.foot] : []),
+    leftLeg.foot!,
     rightLeg.hip,
     rightLeg.knee,
     rightLeg.ankle,
-    ...(rightLeg.foot ? [rightLeg.foot] : [])
+    rightLeg.foot!,
   ];
 
-  // UNITY-STYLE LOGGING: Log initial pose like Unity SpiderController.cs lines 708-710
-  const leftHipRotDeg = (leftLeg.hip.rotation() * 180 / Math.PI);
-  const leftKneeRotDeg = (leftLeg.knee.rotation() * 180 / Math.PI);
-  const leftAnkleRotDeg = (leftLeg.ankle.rotation() * 180 / Math.PI);
-  const leftKneeRel = leftKneeRotDeg - leftHipRotDeg;
-  const leftAnkleRel = leftAnkleRotDeg - leftKneeRotDeg;
-
-  const rightHipRotDeg = (rightLeg.hip.rotation() * 180 / Math.PI);
-  const rightKneeRotDeg = (rightLeg.knee.rotation() * 180 / Math.PI);
-  const rightAnkleRotDeg = (rightLeg.ankle.rotation() * 180 / Math.PI);
-  const rightKneeRel = rightKneeRotDeg - rightHipRotDeg;
-  const rightAnkleRel = rightAnkleRotDeg - rightKneeRotDeg;
-
-  console.log('=== INITIAL POSE ===');
-  console.log(`LEFT leg: hip=${leftHipRotDeg.toFixed(1)}°, knee=${leftKneeRel.toFixed(1)}°, ankle=${leftAnkleRel.toFixed(1)}°`);
-  console.log(`RIGHT leg: hip=${rightHipRotDeg.toFixed(1)}°, knee=${rightKneeRel.toFixed(1)}°, ankle=${rightAnkleRel.toFixed(1)}°`);
-
-  console.log('[SpiderBuilder] Spider assembly complete!');
-  console.log('[SpiderBuilder]   Total bodies:', allBodies.length);
-  console.log('[SpiderBuilder]   Left leg: 3 segments + foot');
-  console.log('[SpiderBuilder]   Right leg: 3 segments + foot');
+  // Log positions once after building
+  logSpiderPositions(body, leftLeg, rightLeg);
 
   return {
     body,
     leftLeg,
     rightLeg,
     allBodies,
-    config
+    config,
   };
 }
 
 /**
- * Build a single 3-segment leg with foot
+ * Create a single leg (3 segments + foot)
  *
- * From Unity SpiderController.cs line 183-240:
- * - Each segment pivots at its proximal (near) end
- * - Segments are L1=1.3m, L2=1.0m, L3=0.7m
- * - Joints connect at segment endpoints
- * - Foot is kinematic, locked to ground
+ * Leg structure:
+ * - Body --[revolute]--> Hip --[revolute]--> Knee --[revolute]--> Ankle --[revolute]--> Foot
+ * - Foot is kinematic (pinned to ground)
+ * - Segments are centered between their connection joints
+ * - Joints appear at segment ends (not centers)
  *
- * @param world - Rapier world
- * @param body - Main body to attach to
- * @param hipX - Hip attachment X position (world)
- * @param hipY - Hip attachment Y position (world)
- * @param config - Spider configuration
- * @param isLeft - True for left leg, false for right
- * @returns ControllerLeg with all segments and foot
+ * Initial pose:
+ * - Segments angled to form a bent leg
+ * - Matches Unity prefab initial angles
  */
-function buildLeg(
-  world: RAPIER.World,
-  body: RAPIER.RigidBody,
-  hipX: number,
-  hipY: number,
+function createLeg(
+  world: b2World,
+  body: any,
   config: SpiderConfig,
-  isLeft: boolean
+  isLeft: boolean,
+  hipJointPos: XY
 ): ControllerLeg {
-  const legName = isLeft ? 'left' : 'right';
-  console.log(`[SpiderBuilder] Building ${legName} leg at (${hipX.toFixed(2)}, ${hipY.toFixed(2)})`);
 
-  // === Initial Pose ===
-  // CRITICAL: Reverse-engineered from Unity's Jacobian values (j21=-1.0285, j22=-0.3784, j23=0.1216)
-  //
-  // Unity Y-up LEFT leg: hip=120°, knee=-120° (abs), ankle=-80° (abs)
-  // Unity Y-up RIGHT leg: hip=60°, knee=-60° (abs), ankle=-100° (abs)
-  //
-  // Conversion to Y-down (negate angles since Y-axis is flipped):
-  // Unity Y-up → Rapier Y-down: θ_ydown = -θ_yup
-  //
-  // LEFT:  hip=-120° (240°), knee=-120° (240°), ankle=-80° (280°)
-  // RIGHT: hip=-60° (300°), knee=-60° (300°), ankle=-100° (260°)
-  //
-  // Relative angles: knee(rel) = knee(abs) - hip(abs), ankle(rel) = ankle(abs) - knee(abs)
-  // LEFT:  knee(rel) = -120° - (-120°) = 0°, ankle(rel) = -80° - (-120°) = 40°
-  // RIGHT: knee(rel) = -60° - (-60°) = 0°, ankle(rel) = -100° - (-60°) = -40°
-  //
-  // This gives Jacobian angle sums: thetaA+thetaB = -120° (LEFT) or -60° (RIGHT)
-  // Which produces cos(thetaA+thetaB) = -0.5, matching Unity's j22!
-  const angle1Deg = isLeft ? 240 : 300; // Hip absolute (LEFT: -120° ≡ 240°, RIGHT: -60° ≡ 300°)
-  const angle2Deg = 0;                  // Knee relative to hip: knee_abs = hip_abs
-  const angle3Deg = isLeft ? 40 : -40;  // Ankle relative to knee
+  // Segment lengths (from config)
+  const L1 = config.segmentLength1; // 1.3m
+  const L2 = config.segmentLength2; // 1.0m
+  const L3 = config.segmentLength3; // 0.7m
 
-  // Compute segment directions
-  const dir1 = angleToDir(angle1Deg);
-  const dir2 = rotateDir(dir1, angle2Deg);
-  const dir3 = rotateDir(dir2, angle3Deg);
+  // Segment masses (calculated with ratio 1.3)
+  const M1 = 0.2; // Base mass
+  const M2 = 0.15384616; // M1 / 1.3
+  const M3 = 0.118343204; // M2 / 1.3
 
-  // Compute joint positions (from Unity line 204-207)
-  const L1 = config.segmentLength1;
-  const L2 = config.segmentLength2;
-  const L3 = config.segmentLength3;
+  // Initial angles (degrees, from Unity prefab)
+  // Left leg: segment1=130°, segment2=100° (relative), segment3=40° (relative)
+  // Right leg: segment1=50°, segment2=-100° (relative), segment3=-40° (relative)
+  const angle1 = isLeft ? 130 : 50; // Hip absolute angle
+  const angle2 = isLeft ? 100 : -100; // Knee relative to hip
+  const angle3 = isLeft ? 40 : -40; // Ankle relative to knee
 
-  const kneeX = hipX + dir1.x * L1;
-  const kneeY = hipY + dir1.y * L1;
+  // === Calculate joint positions ===
+  // Hip-to-knee joint
+  const kneeJointPos = {
+    x: hipJointPos.x + L1 * Math.cos(degToRad(angle1)),
+    y: hipJointPos.y + L1 * Math.sin(degToRad(angle1)),
+  };
 
-  const ankleX = kneeX + dir2.x * L2;
-  const ankleY = kneeY + dir2.y * L2;
+  // Knee-to-ankle joint
+  const ankleJointPos = {
+    x: kneeJointPos.x + L2 * Math.cos(degToRad(angle1 + angle2)),
+    y: kneeJointPos.y + L2 * Math.sin(degToRad(angle1 + angle2)),
+  };
 
-  const footX = ankleX + dir3.x * L3;
-  const footY = ankleY + dir3.y * L3;
+  // Ankle-to-foot joint
+  const footJointPos = {
+    x: ankleJointPos.x + L3 * Math.cos(degToRad(angle1 + angle2 + angle3)),
+    y: ankleJointPos.y + L3 * Math.sin(degToRad(angle1 + angle2 + angle3)),
+  };
 
-  // === Create Segment Bodies ===
-  // Masses from Unity prefab (baseSegmentMass=0.2, ratio=1.3):
-  // - Hip (segment a): 0.2 (line 867, 1420)
-  // - Knee (segment b): 0.15384616 (line 722, 577)
-  // - Ankle (segment c): 0.118343204 (line 287, 1275)
-  //
-  // Rapier uses density, so we need: density = mass / area
-  // All segments have width = 0.1
-  const segmentWidth = 0.1;
-  const segmentHalfWidth = segmentWidth / 2;
+  // === Create Hip Segment ===
+  // Position center between body-to-hip and hip-to-knee joints
+  const hipCenterX = hipJointPos.x + (L1 / 2) * Math.cos(degToRad(angle1));
+  const hipCenterY = hipJointPos.y + (L1 / 2) * Math.sin(degToRad(angle1));
 
-  // Calculate densities to achieve exact Unity masses
-  const densityHip = 0.2 / (L1 * segmentWidth);           // 0.2 / 0.13 ≈ 1.538
-  const densityKnee = 0.15384616 / (L2 * segmentWidth);   // 0.15384616 / 0.1 = 1.5385
-  const densityAnkle = 0.118343204 / (L3 * segmentWidth); // 0.118343204 / 0.07 ≈ 1.690
-
-  // Segment 1 (Hip)
-  const hipDesc = RAPIER.RigidBodyDesc.dynamic()
-    .setTranslation(hipX, hipY)
-    .setRotation(degToRad(angle1Deg))
-    .setCcdEnabled(true)
-    .setGravityScale(0)
-    .setLinearDamping(0)       // Unity prefab line 868
-    .setAngularDamping(0.05);  // Unity prefab line 869 - MUST MATCH!
-
-  const hip = world.createRigidBody(hipDesc);
-
-  const hipCollider = RAPIER.ColliderDesc.cuboid(L1 / 2, segmentHalfWidth)
-    .setTranslation(L1 / 2, 0) // Offset so pivot is at left edge
-    .setDensity(densityHip)
-    .setFriction(0.3)
-    .setRestitution(0.1)
-    .setCollisionGroups(0x00020001); // Spider collision group
-
-  world.createCollider(hipCollider, hip);
-
-  // Segment 2 (Knee)
-  const kneeDesc = RAPIER.RigidBodyDesc.dynamic()
-    .setTranslation(kneeX, kneeY)
-    .setRotation(degToRad(angle1Deg + angle2Deg))
-    .setCcdEnabled(true)
-    .setGravityScale(0)
-    .setLinearDamping(0)       // Unity prefab line 723
-    .setAngularDamping(0.05);  // Unity prefab line 724 - MUST MATCH!
-
-  const knee = world.createRigidBody(kneeDesc);
-
-  const kneeCollider = RAPIER.ColliderDesc.cuboid(L2 / 2, segmentHalfWidth)
-    .setTranslation(L2 / 2, 0)
-    .setDensity(densityKnee)
-    .setFriction(0.3)
-    .setRestitution(0.1)
-    .setCollisionGroups(0x00020001); // Spider collision group
-
-  world.createCollider(kneeCollider, knee);
-
-  // Segment 3 (Ankle)
-  const ankleDesc = RAPIER.RigidBodyDesc.dynamic()
-    .setTranslation(ankleX, ankleY)
-    .setRotation(degToRad(angle1Deg + angle2Deg + angle3Deg))
-    .setCcdEnabled(true)
-    .setGravityScale(0)
-    .setLinearDamping(0)       // Unity prefab line 288
-    .setAngularDamping(0.05);  // Unity prefab line 289 - MUST MATCH!
-
-  const ankle = world.createRigidBody(ankleDesc);
-
-  const ankleCollider = RAPIER.ColliderDesc.cuboid(L3 / 2, segmentHalfWidth)
-    .setTranslation(L3 / 2, 0)
-    .setDensity(densityAnkle)
-    .setFriction(0.3)
-    .setRestitution(0.1)
-    .setCollisionGroups(0x00020001); // Spider collision group
-
-  world.createCollider(ankleCollider, ankle);
-
-  // Verify actual masses match Unity
-  const actualHipMass = hip.mass();
-  const actualKneeMass = knee.mass();
-  const actualAnkleMass = ankle.mass();
-  const expectedHipMass = 0.2;
-  const expectedKneeMass = 0.15384616;
-  const expectedAnkleMass = 0.118343204;
-
-  console.log(`[SpiderBuilder] ${legName} leg masses:`);
-  console.log(`  Hip:   expected=${expectedHipMass.toFixed(6)}, actual=${actualHipMass.toFixed(6)}, diff=${Math.abs(actualHipMass - expectedHipMass).toFixed(6)}`);
-  console.log(`  Knee:  expected=${expectedKneeMass.toFixed(6)}, actual=${actualKneeMass.toFixed(6)}, diff=${Math.abs(actualKneeMass - expectedKneeMass).toFixed(6)}`);
-  console.log(`  Ankle: expected=${expectedAnkleMass.toFixed(6)}, actual=${actualAnkleMass.toFixed(6)}, diff=${Math.abs(actualAnkleMass - expectedAnkleMass).toFixed(6)}`);
-
-  const totalLegMass = actualHipMass + actualKneeMass + actualAnkleMass;
-  console.log(`  Total leg mass: ${totalLegMass.toFixed(6)}`);
-
-  // === Create Foot ===
-  // From Unity prefab line 138: m_BodyType: 2 (Kinematic)
-  // Foot is 0.2m × 0.2m square, locked to ground
-  // Note: Damping values still set in Unity even though kinematic
-  const footDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
-    .setTranslation(footX, footY);
-
-  const foot = world.createRigidBody(footDesc);
-
-  // Foot collider with collision filtering
-  const footCollider = RAPIER.ColliderDesc.cuboid(0.1, 0.1) // Small 0.2m × 0.2m square
-    .setDensity(1.0)
-    .setFriction(0.8) // High friction for ground contact
-    .setRestitution(0.0) // No bounce
-    .setCollisionGroups(0x00020001); // Spider collision group
-
-  world.createCollider(footCollider, foot);
-
-  // === Create Revolute Joints ===
-  // From Unity SpiderController.cs line 225-240
-  // Joints connect at segment endpoints
-
-  // Body ↔ Hip (at hip position)
-  const bodyHipJoint = RAPIER.JointData.revolute(
-    { x: hipX - body.translation().x, y: hipY - body.translation().y }, // anchor on body
-    { x: 0, y: 0 } // anchor on hip (hip pivots at its origin)
+  const hip = createSegment(
+    world,
+    'hip',
+    L1,
+    0.1,
+    M1,
+    hipCenterX,
+    hipCenterY,
+    angle1
   );
-  world.createImpulseJoint(bodyHipJoint, body, hip, true);
 
-  // Hip ↔ Knee (at knee position)
-  const hipKneeJoint = RAPIER.JointData.revolute(
-    { x: L1, y: 0 }, // anchor on hip (end of segment)
-    { x: 0, y: 0 }   // anchor on knee (knee pivots at its origin)
+  // === Create Knee Segment ===
+  // Position center between hip-to-knee and knee-to-ankle joints
+  const kneeCenterX = kneeJointPos.x + (L2 / 2) * Math.cos(degToRad(angle1 + angle2));
+  const kneeCenterY = kneeJointPos.y + (L2 / 2) * Math.sin(degToRad(angle1 + angle2));
+
+  const knee = createSegment(
+    world,
+    'knee',
+    L2,
+    0.1,
+    M2,
+    kneeCenterX,
+    kneeCenterY,
+    angle1 + angle2
   );
-  world.createImpulseJoint(hipKneeJoint, hip, knee, true);
 
-  // Knee ↔ Ankle (at ankle position)
-  const kneeAnkleJoint = RAPIER.JointData.revolute(
-    { x: L2, y: 0 }, // anchor on knee (end of segment)
-    { x: 0, y: 0 }   // anchor on ankle (ankle pivots at its origin)
+  // === Create Ankle Segment ===
+  // Position center between knee-to-ankle and ankle-to-foot joints
+  const ankleCenterX = ankleJointPos.x + (L3 / 2) * Math.cos(degToRad(angle1 + angle2 + angle3));
+  const ankleCenterY = ankleJointPos.y + (L3 / 2) * Math.sin(degToRad(angle1 + angle2 + angle3));
+
+  const ankle = createSegment(
+    world,
+    'ankle',
+    L3,
+    0.1,
+    M3,
+    ankleCenterX,
+    ankleCenterY,
+    angle1 + angle2 + angle3
   );
-  world.createImpulseJoint(kneeAnkleJoint, knee, ankle, true);
 
-  // Ankle ↔ Foot (at foot position)
-  const ankleFootJoint = RAPIER.JointData.revolute(
-    { x: L3, y: 0 }, // anchor on ankle (end of segment)
-    { x: 0, y: 0 }   // anchor on foot
-  );
-  world.createImpulseJoint(ankleFootJoint, ankle, foot, true);
+  // === Create Foot (kinematic, pinned to ground) ===
+  const footDef: b2BodyDef = {
+    type: b2BodyType.b2_kinematicBody, // Kinematic = fixed in place
+    position: { x: footJointPos.x, y: footJointPos.y },
+    angle: 0,
+  };
 
-  console.log(`[SpiderBuilder] ${legName} leg complete: hip→knee→ankle→foot`);
+  const foot = world.CreateBody(footDef);
+
+  // Foot shape: 0.2m × 0.2m square
+  const footShape = new b2PolygonShape();
+  footShape.SetAsBox(0.1, 0.1);
+
+  const footFixture: b2FixtureDef = {
+    shape: footShape,
+    density: 1.0,
+  };
+
+  foot.CreateFixture(footFixture);
+
+  // === Create Joints ===
+  // All joints connect at the segment start positions
+  // Each segment's center is at its proximal joint, so local anchor is {0, 0}
+
+  // Body -> Hip joint
+  createRevoluteJoint(world, body, hip, hipJointPos);
+
+  // Hip -> Knee joint
+  createRevoluteJoint(world, hip, knee, kneeJointPos);
+
+  // Knee -> Ankle joint
+  createRevoluteJoint(world, knee, ankle, ankleJointPos);
+
+  // Ankle -> Foot joint
+  createRevoluteJoint(world, ankle, foot, footJointPos);
 
   return {
     hip,
     knee,
     ankle,
     foot,
-    isLeft
+    isLeft,
   };
+}
+
+/**
+ * Create a leg segment (box-shaped rigid body)
+ *
+ * Segments are boxes with:
+ * - Length along local X axis
+ * - Width along local Y axis
+ * - Center positioned between proximal and distal joints
+ *
+ * @param world - Box2D world
+ * @param name - Segment name (for debugging)
+ * @param length - Segment length (metres)
+ * @param width - Segment width (metres)
+ * @param mass - Segment mass (kg)
+ * @param centerX - Center X position (midpoint between joints)
+ * @param centerY - Center Y position (midpoint between joints)
+ * @param angleDeg - Initial angle (degrees, 0 = pointing right)
+ * @returns Created body
+ */
+function createSegment(
+  world: b2World,
+  name: string,
+  length: number,
+  width: number,
+  mass: number,
+  centerX: number,
+  centerY: number,
+  angleDeg: number
+): any {
+  const angleRad = degToRad(angleDeg);
+
+  const bodyDef: b2BodyDef = {
+    type: b2BodyType.b2_dynamicBody,
+    position: { x: centerX, y: centerY },
+    angle: angleRad,
+    linearDamping: 0,
+    angularDamping: 0.05,
+    gravityScale: 0, // Zero gravity for spider segments
+  };
+
+  const body = world.CreateBody(bodyDef);
+
+  // Segment shape: box with length × width
+  const shape = new b2PolygonShape();
+  shape.SetAsBox(length / 2, width / 2);
+
+  const fixture: b2FixtureDef = {
+    shape: shape,
+    density: mass / (length * width), // Density = mass / area
+    friction: 0.3,
+    restitution: 0.1,
+  };
+
+  body.CreateFixture(fixture);
+
+  return body;
+}
+
+/**
+ * Create a revolute joint (hinge joint) between two bodies
+ *
+ * @param world - Box2D world
+ * @param bodyA - First body (parent)
+ * @param bodyB - Second body (child)
+ * @param anchorWorld - Joint anchor position in world coordinates
+ */
+function createRevoluteJoint(
+  world: b2World,
+  bodyA: any,
+  bodyB: any,
+  anchorWorld: XY
+): void {
+  // Compute local anchors manually
+  const posA = bodyA.GetPosition();
+  const angleA = bodyA.GetAngle();
+  const posB = bodyB.GetPosition();
+  const angleB = bodyB.GetAngle();
+
+  // Transform world anchor to local space for body A
+  const localAnchorA = new b2Vec2(
+    Math.cos(-angleA) * (anchorWorld.x - posA.x) - Math.sin(-angleA) * (anchorWorld.y - posA.y),
+    Math.sin(-angleA) * (anchorWorld.x - posA.x) + Math.cos(-angleA) * (anchorWorld.y - posA.y)
+  );
+
+  // Transform world anchor to local space for body B
+  const localAnchorB = new b2Vec2(
+    Math.cos(-angleB) * (anchorWorld.x - posB.x) - Math.sin(-angleB) * (anchorWorld.y - posB.y),
+    Math.sin(-angleB) * (anchorWorld.x - posB.x) + Math.cos(-angleB) * (anchorWorld.y - posB.y)
+  );
+
+  const jointDef = {
+    type: b2JointType.e_revoluteJoint,
+    bodyA: bodyA,
+    bodyB: bodyB,
+    localAnchorA: localAnchorA,
+    localAnchorB: localAnchorB,
+    referenceAngle: 0,
+    enableMotor: false,
+    motorSpeed: 0,
+    maxMotorTorque: 0,
+    enableLimit: false,
+    lowerAngle: 0,
+    upperAngle: 0,
+    collideConnected: false, // Don't collide connected bodies
+  };
+
+  world.CreateJoint(jointDef as any);
+}
+
+/**
+ * Log all spider joint positions for debugging
+ */
+function logSpiderPositions(body: any, leftLeg: ControllerLeg, rightLeg: ControllerLeg): void {
+  const bodyPos = body.GetPosition();
+
+  console.log('=== SPIDER JOINT POSITIONS ===');
+  console.log('Body center:', { x: bodyPos.x.toFixed(3), y: bodyPos.y.toFixed(3) });
+
+  console.log('\nLeft Leg Joints:');
+  const leftHipPos = leftLeg.hip.GetPosition();
+  const leftHipAngle = leftLeg.hip.GetAngle();
+  const leftKneePos = leftLeg.knee.GetPosition();
+  const leftKneeAngle = leftLeg.knee.GetAngle();
+  const leftAnklePos = leftLeg.ankle.GetPosition();
+  const leftAnkleAngle = leftLeg.ankle.GetAngle();
+  const leftFootPos = leftLeg.foot!.GetPosition();
+
+  // Calculate joint positions from segment centers and angles
+  const leftJ1 = {
+    x: (leftHipPos.x - 0.65 * Math.cos(leftHipAngle)).toFixed(3),
+    y: (leftHipPos.y - 0.65 * Math.sin(leftHipAngle)).toFixed(3)
+  };
+  const leftJ2 = {
+    x: (leftHipPos.x + 0.65 * Math.cos(leftHipAngle)).toFixed(3),
+    y: (leftHipPos.y + 0.65 * Math.sin(leftHipAngle)).toFixed(3)
+  };
+  const leftJ3 = {
+    x: (leftKneePos.x + 0.5 * Math.cos(leftKneeAngle)).toFixed(3),
+    y: (leftKneePos.y + 0.5 * Math.sin(leftKneeAngle)).toFixed(3)
+  };
+  const leftJ4 = {
+    x: (leftAnklePos.x + 0.35 * Math.cos(leftAnkleAngle)).toFixed(3),
+    y: (leftAnklePos.y + 0.35 * Math.sin(leftAnkleAngle)).toFixed(3)
+  };
+
+  console.log('  Joint 1 (body-to-hip):', leftJ1);
+  console.log('  Joint 2 (hip-to-knee):', leftJ2);
+  console.log('  Joint 3 (knee-to-ankle):', leftJ3);
+  console.log('  Joint 4 (ankle-to-foot):', leftJ4);
+  console.log('  Foot center:', { x: leftFootPos.x.toFixed(3), y: leftFootPos.y.toFixed(3) });
+
+  console.log('\nRight Leg Joints:');
+  const rightHipPos = rightLeg.hip.GetPosition();
+  const rightHipAngle = rightLeg.hip.GetAngle();
+  const rightKneePos = rightLeg.knee.GetPosition();
+  const rightKneeAngle = rightLeg.knee.GetAngle();
+  const rightAnklePos = rightLeg.ankle.GetPosition();
+  const rightAnkleAngle = rightLeg.ankle.GetAngle();
+  const rightFootPos = rightLeg.foot!.GetPosition();
+
+  const rightJ1 = {
+    x: (rightHipPos.x - 0.65 * Math.cos(rightHipAngle)).toFixed(3),
+    y: (rightHipPos.y - 0.65 * Math.sin(rightHipAngle)).toFixed(3)
+  };
+  const rightJ2 = {
+    x: (rightHipPos.x + 0.65 * Math.cos(rightHipAngle)).toFixed(3),
+    y: (rightHipPos.y + 0.65 * Math.sin(rightHipAngle)).toFixed(3)
+  };
+  const rightJ3 = {
+    x: (rightKneePos.x + 0.5 * Math.cos(rightKneeAngle)).toFixed(3),
+    y: (rightKneePos.y + 0.5 * Math.sin(rightKneeAngle)).toFixed(3)
+  };
+  const rightJ4 = {
+    x: (rightAnklePos.x + 0.35 * Math.cos(rightAnkleAngle)).toFixed(3),
+    y: (rightAnklePos.y + 0.35 * Math.sin(rightAnkleAngle)).toFixed(3)
+  };
+
+  console.log('  Joint 1 (body-to-hip):', rightJ1);
+  console.log('  Joint 2 (hip-to-knee):', rightJ2);
+  console.log('  Joint 3 (knee-to-ankle):', rightJ3);
+  console.log('  Joint 4 (ankle-to-foot):', rightJ4);
+  console.log('  Foot center:', { x: rightFootPos.x.toFixed(3), y: rightFootPos.y.toFixed(3) });
+  console.log('================================\n');
 }

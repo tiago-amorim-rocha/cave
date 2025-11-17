@@ -8,17 +8,14 @@ import { CaveGeneratorUI, type PerlinCaveParams } from './CaveGeneratorUI';
 import { CharacterControllerUI } from './CharacterControllerUI';
 import { LoopCache } from './LoopCache';
 import { InputHandler } from './InputHandler';
-import { RapierPhysics } from './RapierPhysics';
-import { ControllerManager } from './controllers/ControllerFactory';
-import { ControllerType } from './controllers/IPlayerController';
+import { Box2DPhysics } from './Box2DPhysics';
 import { VirtualJoystick } from './VirtualJoystick';
 import { RemeshManager, type RemeshStats } from './RemeshManager';
 import { VersionChecker } from './VersionChecker';
 import type { WorldConfig, BrushSettings } from './types';
-import RAPIER from '@dimforge/rapier2d-compat';
 import * as SpiderMath from './controllers/spider/SpiderMath';
+import { SpiderController } from './controllers/spider/SpiderController';
 import { DEFAULT_SPIDER_CONFIG } from './controllers/spider/SpiderTypes';
-import type { SpiderController } from './controllers/spider/SpiderController';
 
 /**
  * Test spider math functions (Phase 1 verification)
@@ -75,11 +72,11 @@ function testSpiderMath() {
   // Test 4: applyMirrorIfNeeded
   console.log('\nTest 4: applyMirrorIfNeeded (left/right leg symmetry)');
 
-  const leftRange = { freeMin: 10, freeMax: 160 };
+  const leftRange = { min: 10, max: 160 };
   SpiderMath.applyMirrorIfNeeded(true, leftRange);
   console.log('  Left leg [10°, 160°] → ', leftRange, '(expected: unchanged)');
 
-  const rightRange = { freeMin: 10, freeMax: 160 };
+  const rightRange = { min: 10, max: 160 };
   SpiderMath.applyMirrorIfNeeded(false, rightRange);
   console.log('  Right leg [10°, 160°] → ', rightRange, '(expected: [-160°, -10°])');
 
@@ -127,21 +124,19 @@ class CarvableCaves {
   private renderer: Renderer;
   private loopCache: LoopCache;
   private inputHandler: InputHandler;
-  private physics: RapierPhysics;
-  private controllerManager!: ControllerManager; // Initialized asynchronously in start()
+  private physics: Box2DPhysics;
+  private spider: SpiderController | null = null; // Spider controller
   private joystick: VirtualJoystick;
   private remeshManager!: RemeshManager; // Initialized after physics
 
   private needsRemesh = true;
   private animationFrameId = 0;
-  private lastBallSpawnTime = 0; // Track ball spawning
 
   // Performance tracking
   private frameCount = 0;
   private lastFpsTime = performance.now();
   private fps = 0;
   private lastPhysicsTime = 0;
-  private ballBodies: RAPIER.RigidBody[] = []; // Track all balls for rendering
 
   // Resize handling
   private pendingResize = false;
@@ -239,7 +234,7 @@ class CarvableCaves {
       this.inputHandler.setCameraControlsEnabled(!this.characterControlMode);
 
       // Initialize physics (will be initialized async in start())
-      this.physics = new RapierPhysics();
+      this.physics = new Box2DPhysics();
 
       // Initialize virtual joystick for mobile controls
       this.joystick = new VirtualJoystick();
@@ -288,68 +283,25 @@ class CarvableCaves {
   }
 
   /**
-   * Wire up character controller UI callbacks (called after player is created)
+   * Wire up spider debug UI callbacks (called after spider is created)
    */
   private setupSpiderDebugUI(): void {
-    const player = this.controllerManager?.getCurrentController();
     const spiderUI = (window as any).spiderDebugUI as SpiderDebugUI;
 
-    if (spiderUI && player) {
-      // Type check for SpiderController
-      const isSpiderController = (ctrl: any): ctrl is SpiderController => {
-        return ctrl.getTypeName && ctrl.getTypeName().includes('Spider');
-      };
-
-      if (isSpiderController(player)) {
-        // Attach the controller and its config to the debug UI
-        const config = (player as any).config; // Access private config
-        spiderUI.attachController(player, config);
-      } else {
-        spiderUI.hide();
-      }
+    if (spiderUI && this.spider) {
+      // Attach the controller and its config to the debug UI
+      spiderUI.attachController(this.spider, this.spider.config);
     }
   }
 
   private setupCharacterControllerUI(): void {
-    const player = this.controllerManager?.getCurrentController();
-    if ((window as any).characterControllerUI && player) {
-      const ui = (window as any).characterControllerUI;
-
-      // Type check for ForcePlayerController-specific methods
-      const hasForceControllerMethods = (ctrl: any): ctrl is import('./controllers/ForcePlayerController').ForcePlayerController => {
-        return 'setMovementForce' in ctrl && 'setDrag' in ctrl;
-      };
-
-      if (hasForceControllerMethods(player)) {
-        ui.onForceChange = (force: number) => {
-          player.setMovementForce(force);
-        };
-
-        ui.onDragChange = (drag: number) => {
-          player.setDrag(drag);
-        };
-
-        ui.onGroundAttractionChange = (force: number) => {
-          player.setGroundAttractionForce(force);
-        };
-
-        ui.onFootSensorRadiusChange = (multiplier: number) => {
-          player.setFootSensorRadiusMultiplier(multiplier);
-        };
-
-        // Initialize UI with current values
-        ui.updateValues(
-          player.getMovementForce(),
-          player.getDrag(),
-          player.getGroundAttractionForce(),
-          player.getFootSensorRadiusMultiplier()
-        );
-      }
-    }
+    // STUB: This method was for the old ForcePlayerController
+    // Spider controller uses SpiderDebugUI instead
+    // Character controller UI is no longer used with spider
   }
 
   private async start(gridPitch: number): Promise<void> {
-    // Initialize Rapier physics
+    // Initialize Box2D physics
     await this.physics.init();
 
     // Initialize remesh manager (after physics is ready)
@@ -371,8 +323,8 @@ class CarvableCaves {
     // Generate initial mesh and physics bodies
     this.remesh();
 
-    // Find valid spawn position for player
-    console.log(`[Player] Finding valid spawn position near (${this.preferredSpawnX.toFixed(1)}, ${this.preferredSpawnY.toFixed(1)})...`);
+    // Find valid spawn position for spider
+    console.log(`[Spider] Finding valid spawn position near (${this.preferredSpawnX.toFixed(1)}, ${this.preferredSpawnY.toFixed(1)})...`);
     const spawnPos = this.findValidSpawnPosition(
       this.preferredSpawnX,
       this.preferredSpawnY,
@@ -385,18 +337,28 @@ class CarvableCaves {
     if (spawnPos) {
       actualSpawnX = spawnPos.x;
       actualSpawnY = spawnPos.y;
-      console.log(`[Player] Spawning at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
+      console.log(`[Spider] Spawning at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
     } else {
-      console.warn(`[Player] No valid position found, spawning at preferred position (may be inside rock)`);
+      console.warn(`[Spider] No valid position found, spawning at preferred position (may be inside rock)`);
     }
 
-    // Create controller manager and initialize with spider controller
-    this.controllerManager = new ControllerManager(this.physics.getEngine());
-    const player = this.controllerManager.initialize(ControllerType.SPIDER, actualSpawnX, actualSpawnY);
-    player.setJoystick(this.joystick); // Connect joystick to player
+    // Create spider controller
+    const world = this.physics.getEngine().getWorld();
+    this.spider = new SpiderController(world, actualSpawnX, actualSpawnY, DEFAULT_SPIDER_CONFIG);
 
-    // Wire up character controller UI (now that player exists)
-    this.setupCharacterControllerUI();
+    // Register spider's update with physics engine
+    this.physics.getEngine().registerFixedUpdate((dt) => {
+      if (this.spider) {
+        // Get input from joystick
+        const joystickDir = this.joystick.getInput();
+        this.spider.setInput(joystickDir.y, joystickDir.x); // (vertical, horizontal)
+
+        // Update spider (dt is in milliseconds, convert to seconds)
+        this.spider.update(dt / 1000);
+      }
+    });
+
+    // Wire up spider debug UI (now that spider exists)
     this.setupSpiderDebugUI();
 
     // Start render loop
@@ -485,30 +447,31 @@ class CarvableCaves {
 
   /**
    * Spawn a test ball at random position in the world (with spawn validation)
+   * COMMENTED OUT: Not using balls anymore with spider controller
    */
-  private spawnTestBall(): void {
-    const margin = 2; // Stay 2m away from edges
-    const worldWidth = this.densityField.config.width;
-    const worldHeight = this.densityField.config.height;
-    const radius = 0.5;
+  // private spawnTestBall(): void {
+  //   const margin = 2; // Stay 2m away from edges
+  //   const worldWidth = this.densityField.config.width;
+  //   const worldHeight = this.densityField.config.height;
+  //   const radius = 0.5;
 
-    // Try to find a random valid spawn position
-    const preferredX = margin + Math.random() * (worldWidth - 2 * margin);
-    const preferredY = margin + Math.random() * (worldHeight - 2 * margin);
+  //   // Try to find a random valid spawn position
+  //   const preferredX = margin + Math.random() * (worldWidth - 2 * margin);
+  //   const preferredY = margin + Math.random() * (worldHeight - 2 * margin);
 
-    const spawnPos = this.findValidSpawnPosition(preferredX, preferredY, radius);
+  //   const spawnPos = this.findValidSpawnPosition(preferredX, preferredY, radius);
 
-    if (spawnPos) {
-      const ball = this.physics.createBall(spawnPos.x, spawnPos.y, radius);
-      this.ballBodies.push(ball);
-    }
-  }
+  //   if (spawnPos) {
+  //     const ball = this.physics.createBall(spawnPos.x, spawnPos.y, radius);
+  //     this.ballBodies.push(ball);
+  //   }
+  // }
 
   private loop = (): void => {
     this.animationFrameId = requestAnimationFrame(this.loop);
 
-    // Wait for controller manager to be initialized
-    if (!this.controllerManager?.getCurrentController()) {
+    // Wait for spider to be initialized
+    if (!this.spider) {
       return;
     }
 
@@ -533,20 +496,13 @@ class CarvableCaves {
     }
 
     // Update physics simulation with fixed timestep (60Hz)
-    // Controller updates are registered as fixed callbacks inside the physics engine
+    // Spider updates are registered as fixed callbacks inside the physics engine
     this.physics.update(deltaMs);
 
-    // Ball spawning disabled for spider controller testing
-    // if (now - this.lastBallSpawnTime > 5000) {
-    //   this.spawnTestBall();
-    //   this.lastBallSpawnTime = now;
-    // }
+    // Get spider body position for camera
+    const playerPos = this.spider.getBodyPosition();
 
-    // Get player reference for rendering (update is handled by physics fixed timestep)
-    const player = this.controllerManager?.getCurrentController();
-
-    // Camera smoothly follows player in character control mode
-    const playerPos = player?.getPosition() ?? { x: 0, y: 0 };
+    // Camera smoothly follows spider in character control mode
     if (this.characterControlMode) {
       // Use smooth following with lerp factor of 0.08 for gentle camera movement
       this.camera.smoothFollow(playerPos.x, playerPos.y, 0.08);
@@ -558,19 +514,6 @@ class CarvableCaves {
       this.needsRemesh = false;
     }
 
-    // Render with player, all balls, and physics debug
-
-    // Convert Rapier balls to format expected by Renderer
-    const ballsForRender = this.ballBodies.map(ball => {
-      const translation = ball.translation();
-      const collider = ball.collider(0);
-      const radius = collider ? (collider.shape as RAPIER.Ball).radius : 0.5;
-      return {
-        position: { x: translation.x, y: translation.y },
-        circleRadius: radius
-      };
-    });
-
     // Create physics debug draw callback
     const physicsDebugDraw = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
       this.physics.debugDraw(ctx, this.camera, width, height);
@@ -581,13 +524,11 @@ class CarvableCaves {
       this.joystick.render(ctx);
     };
 
-    // Get spider render data if using spider controller
-    let spiderData = undefined;
-    if (player && 'getRenderData' in player) {
-      spiderData = (player as any).getRenderData();
-    }
+    // Get spider render data
+    const spiderData = this.spider.getRenderData();
 
-    this.renderer.render(playerPos, player?.getRadius() ?? 0.6, ballsForRender, physicsDebugDraw, undefined, joystickDraw, spiderData);
+    // Render (no player capsule or balls, just spider)
+    this.renderer.render(playerPos, 0.6, [], physicsDebugDraw, undefined, joystickDraw, spiderData);
   };
 
   private remesh(): void {
@@ -760,18 +701,12 @@ class CarvableCaves {
     // Generate new caves with Perlin noise
     this.densityField.generateCaves(params.seed, params.scale, params.octaves, params.threshold);
 
-    // Clear existing balls
-    for (const ball of this.ballBodies) {
-      this.physics.removeBody(ball);
-    }
-    this.ballBodies = [];
-
     // Trigger remesh to update physics bodies before spawning
     this.needsRemesh = true;
     this.remeshManager.requestFullHeal();
     this.remesh();
 
-    // Reset player to center of world (with validation)
+    // Reset spider to center of world (with validation)
     const preferredX = params.worldWidth / 2;
     const preferredY = params.worldHeight / 2;
 
@@ -783,14 +718,13 @@ class CarvableCaves {
     if (spawnPos) {
       actualSpawnX = spawnPos.x;
       actualSpawnY = spawnPos.y;
-      console.log(`[Regenerate] Player respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
+      console.log(`[Regenerate] Spider respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
     } else {
       console.warn('[Regenerate] No valid spawn position found, using preferred position (may be inside rock)');
     }
 
-    const player = this.controllerManager?.getCurrentController();
-    if (player) {
-      player.respawn(actualSpawnX, actualSpawnY);
+    if (this.spider) {
+      this.spider.respawn(actualSpawnX, actualSpawnY);
     }
 
     // Center camera on spawn
@@ -813,11 +747,10 @@ class CarvableCaves {
   }
 
   /**
-   * Respawn player at camera center (for iOS touch button)
+   * Respawn spider at camera center (for iOS touch button)
    */
   respawnPlayer(): void {
-    const player = this.controllerManager?.getCurrentController();
-    if (player) {
+    if (this.spider) {
       const spawnPos = this.findValidSpawnPosition(this.camera.x, this.camera.y, this.playerRadius);
 
       let actualSpawnX = this.camera.x;
@@ -826,12 +759,12 @@ class CarvableCaves {
       if (spawnPos) {
         actualSpawnX = spawnPos.x;
         actualSpawnY = spawnPos.y;
-        console.log(`[Respawn] Player respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
+        console.log(`[Respawn] Spider respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
       } else {
         console.warn(`[Respawn] No valid spawn position found near camera, using camera center (may be inside rock)`);
       }
 
-      player.respawn(actualSpawnX, actualSpawnY);
+      this.spider.respawn(actualSpawnX, actualSpawnY);
     }
   }
 }
