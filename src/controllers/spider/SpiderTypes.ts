@@ -37,6 +37,7 @@ export interface SpiderConfig {
   segmentLength1: number; // hip -> knee
   segmentLength2: number; // knee -> ankle
   segmentLength3: number; // ankle -> foot
+  legSegmentWidth: number; // width of leg segment colliders (affects inertia)
 
   // === Mass & Inertia ===
   bodyMassScale: number;        // Multiplier for body mass (higher = heavier, more stable)
@@ -104,6 +105,7 @@ export const DEFAULT_SPIDER_CONFIG: SpiderConfig = {
   segmentLength1: 1.3,
   segmentLength2: 1.0,
   segmentLength3: 0.7,
+  legSegmentWidth: 0.1, // Default width of leg segments (metres)
 
   // Mass & Inertia (scale = 1.0 means use default calculated values)
   bodyMassScale: 1.0,

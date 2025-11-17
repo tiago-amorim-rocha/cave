@@ -323,7 +323,7 @@ export class SpiderController {
         y: pos.y,
         rotation: angle,  // Changed from 'angle' to 'rotation' to match Renderer interface
         length: length,
-        width: 0.1,
+        width: this.config.legSegmentWidth,
       };
     };
 
@@ -472,15 +472,15 @@ export class SpiderController {
     );
 
     // Update leg segments
-    const updateLeg = (leg: any, segment1Length: number, segment2Length: number, segment3Length: number) => {
+    const updateLeg = (leg: any, segment1Length: number, segment2Length: number, segment3Length: number, width: number) => {
       // Hip segment
       leg.hip.SetLinearDamping(this.config.legLinearDamping);
       leg.hip.SetAngularDamping(this.config.legAngularDamping);
       leg.hip.SetGravityScale(this.config.gravityScale);
       this.updateBodyMassAndInertia(
         leg.hip,
-        segment1Length * 0.1,
-        0.2 / (segment1Length * 0.1),
+        segment1Length * width,
+        0.2 / (segment1Length * width),
         this.config.legMassScale,
         this.config.legInertiaScale,
         this.config.contactFrictionScale
@@ -492,8 +492,8 @@ export class SpiderController {
       leg.knee.SetGravityScale(this.config.gravityScale);
       this.updateBodyMassAndInertia(
         leg.knee,
-        segment2Length * 0.1,
-        0.15384616 / (segment2Length * 0.1),
+        segment2Length * width,
+        0.15384616 / (segment2Length * width),
         this.config.legMassScale,
         this.config.legInertiaScale,
         this.config.contactFrictionScale
@@ -505,16 +505,16 @@ export class SpiderController {
       leg.ankle.SetGravityScale(this.config.gravityScale);
       this.updateBodyMassAndInertia(
         leg.ankle,
-        segment3Length * 0.1,
-        0.118343204 / (segment3Length * 0.1),
+        segment3Length * width,
+        0.118343204 / (segment3Length * width),
         this.config.legMassScale,
         this.config.legInertiaScale,
         this.config.contactFrictionScale
       );
     };
 
-    updateLeg(this.spider.leftLeg, this.config.segmentLength1, this.config.segmentLength2, this.config.segmentLength3);
-    updateLeg(this.spider.rightLeg, this.config.segmentLength1, this.config.segmentLength2, this.config.segmentLength3);
+    updateLeg(this.spider.leftLeg, this.config.segmentLength1, this.config.segmentLength2, this.config.segmentLength3, this.config.legSegmentWidth);
+    updateLeg(this.spider.rightLeg, this.config.segmentLength1, this.config.segmentLength2, this.config.segmentLength3, this.config.legSegmentWidth);
   }
 
   /**
