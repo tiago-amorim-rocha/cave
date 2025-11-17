@@ -370,6 +370,11 @@ export class Box2DPhysics {
    ```typescript
    // In main.ts or similar:
    const world = physics.getEngine().getWorld();
+
+   // Find safe spawn location (not overlapping with walls)
+   const spawnX = findSafeSpawnX(cave);
+   const spawnY = findSafeSpawnY(cave);
+
    const spider = new SpiderController(world, spawnX, spawnY);
    ```
 
@@ -387,6 +392,14 @@ export class Box2DPhysics {
    if (spider) {
      spider.SetMoveInput(joystick.direction.x, joystick.direction.y);
    }
+   ```
+
+5. **Camera setup:** Fixed/simple camera with spider full screen
+   ```typescript
+   // Set camera to spider position (no auto-follow during gameplay)
+   camera.x = spider.getPosition().x;
+   camera.y = spider.getPosition().y;
+   camera.zoom = 40; // Pixels-per-meter for "full screen" spider view
    ```
 
 ### 4.3 Update main.ts
@@ -510,16 +523,139 @@ if (spider) {
 renderer.renderUI();
 ```
 
-### 4.5 Update SpiderDebugUI
+### 4.5 Expand SpiderDebugUI
+
+**Current controls (already in SpiderDebugUI.ts):**
+- Vertical/Horizontal Gain
+- Torque Gain / Max Joint Torque
+- Joint Limit Kp/Kd
+- Rotation Stiffness/Damping
+- Reset/Respawn buttons
+
+**ADD new controls (from full SpiderConfig):**
+
+```typescript
+// In SpiderDebugUI.rebuildUI():
+content.innerHTML = `
+  <!-- Existing controls -->
+  ${this.createSlider('Vertical Gain', 'verticalAccelGain', 0.1, 10, 0.1)}
+  ${this.createSlider('Horizontal Gain', 'horizontalAccelGain', 0.1, 10, 0.1)}
+  ${this.createSlider('Torque Gain', 'torqueGain', 0.1, 10, 0.1)}
+  ${this.createSlider('Max Joint Torque', 'maxJointTorque', 10, 500, 10)}
+
+  <!-- NEW: Segment Lengths -->
+  <hr style="border-color: #00ff00; margin: 10px 0;">
+  <h4 style="margin: 5px 0; color: #ffff00;">Leg Geometry</h4>
+  ${this.createSlider('Segment 1 Length', 'segmentLength1', 0.5, 3.0, 0.1)}
+  ${this.createSlider('Segment 2 Length', 'segmentLength2', 0.5, 3.0, 0.1)}
+  ${this.createSlider('Segment 3 Length', 'segmentLength3', 0.5, 3.0, 0.1)}
+
+  <!-- NEW: Max Foot Forces -->
+  <hr style="border-color: #00ff00; margin: 10px 0;">
+  <h4 style="margin: 5px 0; color: #ffff00;">Force Limits</h4>
+  ${this.createSlider('Max Foot Force X', 'maxTotalFootForceX', 5, 100, 5)}
+  ${this.createSlider('Max Foot Force Y', 'maxTotalFootForceY', 5, 100, 5)}
+
+  <!-- Existing joint limit springs -->
+  <hr style="border-color: #00ff00; margin: 10px 0;">
+  <h4 style="margin: 5px 0; color: #ffff00;">Joint Limit Springs</h4>
+  ${this.createSlider('Joint Limit Kp', 'jointLimitKp', 0.01, 1, 0.01)}
+  ${this.createSlider('Joint Limit Kd', 'jointLimitKd', 0.01, 0.5, 0.01)}
+
+  <!-- NEW: Joint Limit Ranges -->
+  <details style="margin-top: 5px;">
+    <summary style="cursor: pointer; color: #ffff00;">Hip Joint Limits</summary>
+    ${this.createSlider('Hip Free Min', 'hipLimitFreeMin', 0, 180, 5)}
+    ${this.createSlider('Hip Free Max', 'hipLimitFreeMax', 0, 180, 5)}
+  </details>
+
+  <details style="margin-top: 5px;">
+    <summary style="cursor: pointer; color: #ffff00;">Knee Joint Limits</summary>
+    ${this.createSlider('Knee Free Min', 'kneeLimitFreeMin', 0, 180, 5)}
+    ${this.createSlider('Knee Free Max', 'kneeLimitFreeMax', 0, 180, 5)}
+  </details>
+
+  <details style="margin-top: 5px;">
+    <summary style="cursor: pointer; color: #ffff00;">Ankle Joint Limits</summary>
+    ${this.createSlider('Ankle Free Min', 'ankleLimitFreeMin', 0, 180, 5)}
+    ${this.createSlider('Ankle Free Max', 'ankleLimitFreeMax', 0, 180, 5)}
+  </details>
+
+  <!-- NEW: Enable/Disable Toggles -->
+  <hr style="border-color: #00ff00; margin: 10px 0;">
+  ${this.createCheckbox('Enable Hip Joint Limits', 'enableHipJointLimits')}
+  ${this.createCheckbox('Enable Knee/Ankle Limits', 'enableKneeAnkleJointLimits')}
+  ${this.createCheckbox('Stabilize Rotation', 'stabilizeRotation')}
+
+  <!-- Existing rotation controls -->
+  <hr style="border-color: #00ff00; margin: 10px 0;">
+  <h4 style="margin: 5px 0; color: #ffff00;">Rotation Stabilization</h4>
+  ${this.createSlider('Target Body Angle', 'targetBodyAngle', -180, 180, 5)}
+  ${this.createSlider('Rotation Stiffness', 'rotationStiffness', 0.01, 1, 0.01)}
+  ${this.createSlider('Rotation Damping', 'rotationDamping', 0.01, 0.5, 0.01)}
+
+  <!-- Buttons (remove respawn since spider doesn't die) -->
+  <hr style="border-color: #00ff00; margin: 10px 0;">
+  <button id="spider-reset-btn" style="width: 100%; padding: 5px; background: #ff0000; color: white; border: none; border-radius: 4px; cursor: pointer;">
+    Reset to Defaults
+  </button>
+
+  <!-- Info panel -->
+  <div style="margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; font-size: 10px;">
+    <div id="spider-debug-info"></div>
+  </div>
+`;
+```
+
+**Add createCheckbox() helper:**
+
+```typescript
+private createCheckbox(label: string, key: keyof SpiderConfig): string {
+  const checked = this.config[key] as boolean;
+  return `
+    <div style="margin-bottom: 8px;">
+      <label style="display: flex; align-items: center; gap: 8px; font-size: 10px; cursor: pointer;">
+        <input
+          type="checkbox"
+          id="${key}"
+          ${checked ? 'checked' : ''}
+          style="cursor: pointer;"
+        />
+        <span>${label}</span>
+      </label>
+    </div>
+  `;
+}
+```
+
+**Update attachSliderListeners() to handle checkboxes:**
+
+```typescript
+// Add after slider listeners:
+const checkboxes = this.panel.querySelectorAll('input[type="checkbox"]');
+checkboxes.forEach(checkbox => {
+  const input = checkbox as HTMLInputElement;
+  const key = input.id as keyof SpiderConfig;
+
+  input.addEventListener('change', () => {
+    (this.config as any)[key] = input.checked;
+  });
+});
+```
 
 Ensure `SpiderDebugUI` works with the integrated spider controller:
 
 ```typescript
 // In main.ts:
-const spiderDebugUI = new SpiderDebugUI(spider, spiderConfig);
+const spiderDebugUI = new SpiderDebugUI();
+spiderDebugUI.attachController(spider, spiderConfig);
 
-// In render loop:
-spiderDebugUI.update(spider);
+// Toggle with keyboard shortcut or button
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'S' && e.shiftKey) {
+    spiderDebugUI.toggle();
+  }
+});
 ```
 
 ---
@@ -883,15 +1019,69 @@ If migration fails or has critical issues:
 
 ---
 
-## Questions for Next Chat
+## Implementation Decisions (CONFIRMED)
 
-Before starting implementation, clarify:
+### **Camera & Spawn**
+1. ✅ **Camera:** Fixed/simple camera with spider basically full screen (manual pan/zoom disabled during play)
+2. ✅ **Spawn location:** Safe location in cave (find safe spot, avoid walls)
+3. ✅ **Respawn:** NO respawn button (spider doesn't die)
 
-1. **Camera behavior:** Should camera follow spider, or stay user-controlled?
-2. **Spawn location:** Where should spider spawn? (center of cave, specific location?)
-3. **Input method:** Virtual joystick only, or WASD + joystick?
-4. **Visual style:** Keep spider simple (circles), or add more detail?
-5. **Debug UI:** Keep all debug controls, or simplify?
+### **Input & Controls**
+4. ✅ **Input methods:** Virtual joystick (mobile) + WASD keyboard (desktop)
+5. ✅ **Camera controls:** Same as before (two-finger pan/zoom available - can disconnect via debug)
+
+### **Infrastructure (KEEP ALL)**
+6. ✅ **Keep everything:**
+   - DebugConsole.ts (bug button 🐛)
+   - VersionChecker.ts (update detection)
+   - PWA infrastructure (service worker, offline)
+   - GitHub workflows (autopromote, deploy, cleanup)
+   - Cache busting (version.json polling)
+
+### **UI Components**
+7. ✅ **Keep:**
+   - SpiderDebugUI (ADD MORE CONTROLS - see below)
+   - CaveGeneratorUI (Perlin noise params)
+   - VirtualJoystick (touch controls)
+   - Visual debug button (👁️) - physics visualization
+   - Text log button (📝) - console overlay
+8. ❌ **Remove:**
+   - CharacterControllerUI (capsule-specific)
+   - Respawn button (spider doesn't die)
+
+### **Debug Visualization**
+8. ✅ **Keep all modes:**
+   - Physics mesh (chain shapes)
+   - Original/optimized vertices
+   - Density field grid/heatmap
+   - Spider joints/segments
+
+### **Spider UI - Additional Controls to Add**
+**Currently shown:**
+- ✅ Vertical/Horizontal Gain
+- ✅ Torque Gain / Max Joint Torque
+- ✅ Joint Limit Kp/Kd
+- ✅ Rotation Stiffness/Damping
+
+**ADD (from SpiderConfig):**
+- 🆕 Segment Lengths (L1, L2, L3) - sliders 0.5-3.0m
+- 🆕 Max Foot Forces (X and Y) - sliders 5-100N
+- 🆕 Joint Limit Ranges (collapsible sections):
+  - Hip: freeMin/freeMax (0-180°)
+  - Knee: freeMin/freeMax (0-180°)
+  - Ankle: freeMin/freeMax (0-180°)
+- 🆕 Toggle switches:
+  - Enable hip joint limits (checkbox)
+  - Enable knee/ankle joint limits (checkbox)
+  - Stabilize rotation (checkbox)
+- 🆕 Target Body Angle (rotation stabilization target, -180 to 180°)
+
+### **Visual & Features**
+9. ✅ **Spider rendering:** As the experiment (simple circles for segments)
+10. ✅ **Cave rendering:** No changes (keep current style + optimization controls)
+11. ❌ **Ball spawning:** Remove entirely
+12. ⏸️ **Carving:** Keep disabled (will add later)
+13. ✅ **Optimization controls:** Keep all (Visvalingam, Chaikin, ISO-snapping)
 
 ---
 
