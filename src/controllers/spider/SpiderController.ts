@@ -535,32 +535,30 @@ export class SpiderController {
     inertiaScale: number,
     frictionScale: number
   ): void {
-    // Get current mass data
-    const massData = body.GetMassData();
-
-    // Calculate new mass (density × area × massScale)
-    const newMass = baseDensity * area * massScale;
-
-    // Scale inertia proportionally
-    // Inertia = mass × (shape factor), so scale by massScale × inertiaScale
-    const currentInertia = massData.I;
-    const baseInertia = currentInertia / (massScale * inertiaScale); // Approximate base
-    const newInertia = baseInertia * massScale * inertiaScale;
-
-    // Set new mass data
-    massData.mass = newMass;
-    massData.I = newInertia;
-    body.SetMassData(massData);
-
-    // Update fixture friction
+    // Update fixture density and friction
     let fixture = body.GetFixtureList();
     while (fixture) {
+      // Calculate new density: density = mass / area, so density_new = baseDensity * massScale
+      const newDensity = baseDensity * massScale;
+      fixture.SetDensity(newDensity);
       fixture.SetFriction(0.3 * frictionScale);
       fixture = fixture.GetNext();
     }
 
-    // Reset mass data to apply changes
+    // Reset mass data to recalculate from fixtures
+    // This automatically recalculates mass and inertia based on the new density
     body.ResetMassData();
+
+    // Now apply inertia scale if needed (inertiaScale !== 1.0)
+    if (Math.abs(inertiaScale - 1.0) > 0.001) {
+      const massData = body.GetMassData();
+      const newMassData = {
+        mass: massData.mass,
+        center: massData.center,
+        I: massData.I * inertiaScale, // Scale the inertia
+      };
+      body.SetMassData(newMassData);
+    }
   }
 
   /**
