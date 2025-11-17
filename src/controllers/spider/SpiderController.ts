@@ -502,13 +502,18 @@ export class SpiderController {
 
     // Now apply inertia scale if needed (inertiaScale !== 1.0)
     if (Math.abs(inertiaScale - 1.0) > 0.001) {
-      const massData = body.GetMassData();
-      const newMassData = {
-        mass: massData.mass,
-        center: massData.center,
-        I: massData.I * inertiaScale, // Scale the inertia
-      };
-      body.SetMassData(newMassData);
+      try {
+        const massData = body.GetMassData();
+        const newMassData = {
+          mass: massData.mass,
+          center: { x: massData.center.x, y: massData.center.y }, // Clone the center Vec2
+          I: massData.I * inertiaScale, // Scale the inertia
+        };
+        body.SetMassData(newMassData);
+      } catch (error) {
+        console.error('Error setting mass data:', error);
+        // Continue without inertia scaling if it fails
+      }
     }
   }
 
