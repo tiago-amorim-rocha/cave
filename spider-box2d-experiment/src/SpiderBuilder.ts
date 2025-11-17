@@ -109,6 +109,8 @@ export function buildSpider(
  * Leg structure:
  * - Body --[revolute]--> Hip --[revolute]--> Knee --[revolute]--> Ankle --[revolute]--> Foot
  * - Foot is kinematic (pinned to ground)
+ * - Segments are centered between their connection joints
+ * - Joints appear at segment ends (not centers)
  *
  * Initial pose:
  * - Segments angled to form a bent leg
@@ -139,25 +141,45 @@ function createLeg(
   const angle2 = isLeft ? 30 : -30; // Knee relative to hip
   const angle3 = isLeft ? 30 : -30; // Ankle relative to knee
 
+  // === Calculate joint positions ===
+  // Hip-to-knee joint
+  const kneeJointPos = {
+    x: hipJointPos.x + L1 * Math.cos(degToRad(angle1)),
+    y: hipJointPos.y + L1 * Math.sin(degToRad(angle1)),
+  };
+
+  // Knee-to-ankle joint
+  const ankleJointPos = {
+    x: kneeJointPos.x + L2 * Math.cos(degToRad(angle1 + angle2)),
+    y: kneeJointPos.y + L2 * Math.sin(degToRad(angle1 + angle2)),
+  };
+
+  // Ankle-to-foot joint
+  const footJointPos = {
+    x: ankleJointPos.x + L3 * Math.cos(degToRad(angle1 + angle2 + angle3)),
+    y: ankleJointPos.y + L3 * Math.sin(degToRad(angle1 + angle2 + angle3)),
+  };
+
   // === Create Hip Segment ===
-  // Position center at body-to-hip joint
+  // Position center between body-to-hip and hip-to-knee joints
+  const hipCenterX = hipJointPos.x + (L1 / 2) * Math.cos(degToRad(angle1));
+  const hipCenterY = hipJointPos.y + (L1 / 2) * Math.sin(degToRad(angle1));
+
   const hip = createSegment(
     world,
     'hip',
     L1,
     0.1,
     M1,
-    hipJointPos.x,
-    hipJointPos.y,
+    hipCenterX,
+    hipCenterY,
     angle1
   );
 
   // === Create Knee Segment ===
-  // Hip-to-knee joint is at hip's distal end
-  const kneeJointPos = {
-    x: hipJointPos.x + L1 * Math.cos(degToRad(angle1)),
-    y: hipJointPos.y + L1 * Math.sin(degToRad(angle1)),
-  };
+  // Position center between hip-to-knee and knee-to-ankle joints
+  const kneeCenterX = kneeJointPos.x + (L2 / 2) * Math.cos(degToRad(angle1 + angle2));
+  const kneeCenterY = kneeJointPos.y + (L2 / 2) * Math.sin(degToRad(angle1 + angle2));
 
   const knee = createSegment(
     world,
@@ -165,17 +187,15 @@ function createLeg(
     L2,
     0.1,
     M2,
-    kneeJointPos.x,
-    kneeJointPos.y,
+    kneeCenterX,
+    kneeCenterY,
     angle1 + angle2
   );
 
   // === Create Ankle Segment ===
-  // Knee-to-ankle joint is at knee's distal end
-  const ankleJointPos = {
-    x: kneeJointPos.x + L2 * Math.cos(degToRad(angle1 + angle2)),
-    y: kneeJointPos.y + L2 * Math.sin(degToRad(angle1 + angle2)),
-  };
+  // Position center between knee-to-ankle and ankle-to-foot joints
+  const ankleCenterX = ankleJointPos.x + (L3 / 2) * Math.cos(degToRad(angle1 + angle2 + angle3));
+  const ankleCenterY = ankleJointPos.y + (L3 / 2) * Math.sin(degToRad(angle1 + angle2 + angle3));
 
   const ankle = createSegment(
     world,
@@ -183,18 +203,12 @@ function createLeg(
     L3,
     0.1,
     M3,
-    ankleJointPos.x,
-    ankleJointPos.y,
+    ankleCenterX,
+    ankleCenterY,
     angle1 + angle2 + angle3
   );
 
   // === Create Foot (kinematic, pinned to ground) ===
-  // Ankle-to-foot joint is at ankle's distal end
-  const footJointPos = {
-    x: ankleJointPos.x + L3 * Math.cos(degToRad(angle1 + angle2 + angle3)),
-    y: ankleJointPos.y + L3 * Math.sin(degToRad(angle1 + angle2 + angle3)),
-  };
-
   const footDef: b2BodyDef = {
     type: b2BodyType.b2_kinematicBody, // Kinematic = fixed in place
     position: { x: footJointPos.x, y: footJointPos.y },
@@ -245,15 +259,15 @@ function createLeg(
  * Segments are boxes with:
  * - Length along local X axis
  * - Width along local Y axis
- * - Center positioned at proximal joint
+ * - Center positioned between proximal and distal joints
  *
  * @param world - Box2D world
  * @param name - Segment name (for debugging)
  * @param length - Segment length (metres)
  * @param width - Segment width (metres)
  * @param mass - Segment mass (kg)
- * @param centerX - Center X position (at proximal joint)
- * @param centerY - Center Y position (at proximal joint)
+ * @param centerX - Center X position (midpoint between joints)
+ * @param centerY - Center Y position (midpoint between joints)
  * @param angleDeg - Initial angle (degrees, 0 = pointing right)
  * @returns Created body
  */
