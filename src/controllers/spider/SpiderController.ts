@@ -450,6 +450,120 @@ export class SpiderController {
   }
 
   /**
+   * Apply config changes to existing spider bodies
+   * Called when debug UI sliders are changed
+   *
+   * Updates physics properties in real-time without respawning
+   */
+  applyConfigChanges(): void {
+    // Update main body properties
+    this.spider.body.SetLinearDamping(this.config.bodyLinearDamping);
+    this.spider.body.SetAngularDamping(this.config.bodyAngularDamping);
+    this.spider.body.SetGravityScale(this.config.gravityScale);
+
+    // Update body mass and inertia
+    this.updateBodyMassAndInertia(
+      this.spider.body,
+      1.0, // 1m × 1m square area
+      1.0, // base density
+      this.config.bodyMassScale,
+      this.config.bodyInertiaScale,
+      this.config.contactFrictionScale
+    );
+
+    // Update leg segments
+    const updateLeg = (leg: any, segment1Length: number, segment2Length: number, segment3Length: number) => {
+      // Hip segment
+      leg.hip.SetLinearDamping(this.config.legLinearDamping);
+      leg.hip.SetAngularDamping(this.config.legAngularDamping);
+      leg.hip.SetGravityScale(this.config.gravityScale);
+      this.updateBodyMassAndInertia(
+        leg.hip,
+        segment1Length * 0.1,
+        0.2 / (segment1Length * 0.1),
+        this.config.legMassScale,
+        this.config.legInertiaScale,
+        this.config.contactFrictionScale
+      );
+
+      // Knee segment
+      leg.knee.SetLinearDamping(this.config.legLinearDamping);
+      leg.knee.SetAngularDamping(this.config.legAngularDamping);
+      leg.knee.SetGravityScale(this.config.gravityScale);
+      this.updateBodyMassAndInertia(
+        leg.knee,
+        segment2Length * 0.1,
+        0.15384616 / (segment2Length * 0.1),
+        this.config.legMassScale,
+        this.config.legInertiaScale,
+        this.config.contactFrictionScale
+      );
+
+      // Ankle segment
+      leg.ankle.SetLinearDamping(this.config.legLinearDamping);
+      leg.ankle.SetAngularDamping(this.config.legAngularDamping);
+      leg.ankle.SetGravityScale(this.config.gravityScale);
+      this.updateBodyMassAndInertia(
+        leg.ankle,
+        segment3Length * 0.1,
+        0.118343204 / (segment3Length * 0.1),
+        this.config.legMassScale,
+        this.config.legInertiaScale,
+        this.config.contactFrictionScale
+      );
+    };
+
+    updateLeg(this.spider.leftLeg, this.config.segmentLength1, this.config.segmentLength2, this.config.segmentLength3);
+    updateLeg(this.spider.rightLeg, this.config.segmentLength1, this.config.segmentLength2, this.config.segmentLength3);
+  }
+
+  /**
+   * Update mass, inertia, and friction for a body
+   *
+   * @param body - Box2D body to update
+   * @param area - Shape area (m²)
+   * @param baseDensity - Base density (kg/m²)
+   * @param massScale - Mass scale multiplier
+   * @param inertiaScale - Inertia scale multiplier
+   * @param frictionScale - Friction scale multiplier
+   */
+  private updateBodyMassAndInertia(
+    body: any,
+    area: number,
+    baseDensity: number,
+    massScale: number,
+    inertiaScale: number,
+    frictionScale: number
+  ): void {
+    // Get current mass data
+    const massData = body.GetMassData();
+
+    // Calculate new mass (density × area × massScale)
+    const newMass = baseDensity * area * massScale;
+
+    // Scale inertia proportionally
+    // Inertia = mass × (shape factor), so scale by massScale × inertiaScale
+    const currentInertia = massData.I;
+    const baseInertia = currentInertia / (massScale * inertiaScale); // Approximate base
+    const newInertia = baseInertia * massScale * inertiaScale;
+
+    // Set new mass data
+    massData.mass = newMass;
+    massData.I = newInertia;
+    body.SetMassData(massData);
+
+    // Update fixture friction
+    let fixture = body.GetFixtureList();
+    while (fixture) {
+      fixture.SetFriction(0.3 * frictionScale);
+      fixture = fixture.GetNext();
+    }
+
+    // Reset mass data to apply changes
+    body.ResetMassData();
+  }
+
+  /**
    * Destroy spider and cleanup
    */
   destroy(): void {

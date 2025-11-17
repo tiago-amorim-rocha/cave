@@ -38,6 +38,18 @@ export interface SpiderConfig {
   segmentLength2: number; // knee -> ankle
   segmentLength3: number; // ankle -> foot
 
+  // === Mass & Inertia ===
+  bodyMassScale: number;        // Multiplier for body mass (higher = heavier, more stable)
+  legMassScale: number;          // Multiplier for leg segment masses (higher = less noodly)
+  bodyInertiaScale: number;      // Multiplier for body rotational inertia (higher = resists rotation)
+  legInertiaScale: number;       // Multiplier for leg segment inertia (higher = smoother motion)
+
+  // === Damping ===
+  bodyLinearDamping: number;     // Resistance to body linear motion
+  bodyAngularDamping: number;    // Resistance to body rotation (higher = less oscillation)
+  legLinearDamping: number;      // Resistance to leg linear motion (subtle)
+  legAngularDamping: number;     // Resistance to leg rotation (BIG for spaghetti control)
+
   // === Vertical Control ===
   verticalAccelGain: number;
   maxTotalFootForceY: number;
@@ -47,14 +59,18 @@ export interface SpiderConfig {
   maxTotalFootForceX: number;
 
   // === Torque Scaling ===
-  torqueGain: number;
-  maxJointTorque: number;
+  torqueGain: number;            // Jacobian torque gain (higher = stronger pushes)
+  maxJointTorque: number;        // Upper bound on torque per joint (prevents explosive wobble)
 
-  // === Joint Limit Springs ===
+  // === Joint Springs & Limits ===
   enableHipJointLimits: boolean;
   enableKneeAnkleJointLimits: boolean;
-  jointLimitKp: number;
-  jointLimitKd: number;
+  jointLimitKp: number;          // Stiffness of soft limit springs
+  jointLimitKd: number;          // Damping of soft limit springs
+
+  // === Joint Posture Control ===
+  jointRotationKp: number;       // Stiffness of posture control (higher = snappier)
+  jointRotationKd: number;       // Damping of posture control (higher = less oscillation)
 
   // === Hip Joint Limits (degrees) ===
   hipLimitFreeMin: number;
@@ -73,6 +89,10 @@ export interface SpiderConfig {
   targetBodyAngle: number;
   rotationStiffness: number;
   rotationDamping: number;
+
+  // === Global Physics ===
+  gravityScale: number;          // Scale applied to gravity (0 = no gravity, 1 = normal)
+  contactFrictionScale: number;  // Multiplier on ground friction (higher = sticky feet)
 }
 
 /**
@@ -84,6 +104,18 @@ export const DEFAULT_SPIDER_CONFIG: SpiderConfig = {
   segmentLength1: 1.3,
   segmentLength2: 1.0,
   segmentLength3: 0.7,
+
+  // Mass & Inertia (scale = 1.0 means use default calculated values)
+  bodyMassScale: 1.0,
+  legMassScale: 1.0,
+  bodyInertiaScale: 1.0,
+  legInertiaScale: 1.0,
+
+  // Damping (from SpiderBuilder defaults)
+  bodyLinearDamping: 0.0,
+  bodyAngularDamping: 0.05,
+  legLinearDamping: 0.0,
+  legAngularDamping: 0.05,
 
   // Vertical control
   verticalAccelGain: 2.0,
@@ -102,6 +134,10 @@ export const DEFAULT_SPIDER_CONFIG: SpiderConfig = {
   enableKneeAnkleJointLimits: true,
   jointLimitKp: 0.1,
   jointLimitKd: 0.05,
+
+  // Joint posture control (disabled by default - set Kp > 0 to enable)
+  jointRotationKp: 0.0,
+  jointRotationKd: 0.0,
 
   // Hip joint limits (NEGATED and SWAPPED to match negated initial angles)
   // Original: min=-78.8°, max=76.5° → Negated: min=-76.5°, max=78.8°
@@ -123,6 +159,10 @@ export const DEFAULT_SPIDER_CONFIG: SpiderConfig = {
   targetBodyAngle: 0.0,
   rotationStiffness: 0.1,
   rotationDamping: 0.1,
+
+  // Global physics
+  gravityScale: 0.0,           // Zero gravity by default
+  contactFrictionScale: 1.0,   // 1.0 = use default friction (0.3)
 };
 
 /**
