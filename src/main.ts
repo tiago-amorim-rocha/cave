@@ -322,6 +322,7 @@ class CarvableCaves {
 
     // Generate initial mesh and physics bodies
     this.remesh();
+    this.needsRemesh = false; // Prevent double-remesh on first frame
 
     // Find valid spawn position for spider
     console.log(`[Spider] Finding valid spawn position near (${this.preferredSpawnX.toFixed(1)}, ${this.preferredSpawnY.toFixed(1)})...`);
