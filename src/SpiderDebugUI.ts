@@ -134,7 +134,7 @@ export class SpiderDebugUI {
       resetBtn.addEventListener('click', () => {
         if (this.controller) {
           // Reset to defaults - would need to re-import DEFAULT_SPIDER_CONFIG
-          console.log('[SpiderDebugUI] Reset to defaults');
+          // console.log('[SpiderDebugUI] Reset to defaults');
           // For now, just respawn
           const pos = this.controller.getPosition();
           this.controller.respawn(pos.x, pos.y);

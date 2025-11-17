@@ -83,7 +83,7 @@ export class RemeshManager {
         return this.incrementalUpdate();
       }
     } catch (error) {
-      console.error('Error during remesh:', error);
+      // console.error('Error during remesh:', error);
       return null;
     }
   }
@@ -99,7 +99,7 @@ export class RemeshManager {
    * Full world remesh - rebuild all loops
    */
   private fullHeal(): RemeshStats {
-    console.log('[FullHeal] Rebuilding all loops...');
+    // console.log('[FullHeal] Rebuilding all loops...');
     const startTime = performance.now();
 
     // Clear cache
@@ -132,7 +132,7 @@ export class RemeshManager {
       return this.isRockLoop(loop);
     });
 
-    console.log(`[FullHeal] Classified ${allPolylines.length} loops: ${rockLoops.length} rock, ${allPolylines.length - rockLoops.length} cave`);
+    // console.log(`[FullHeal] Classified ${allPolylines.length} loops: ${rockLoops.length} rock, ${allPolylines.length - rockLoops.length} cave`);
 
     // Run vertex optimization pipeline
     const optimizationResult = this.optimizationPipeline.optimize(rockLoops, this.optimizationOptions);
@@ -150,7 +150,7 @@ export class RemeshManager {
     this.densityField.clearDirty();
 
     const elapsed = performance.now() - startTime;
-    console.log(`[FullHeal] Complete. ${allLoops.length} loops in ${elapsed.toFixed(1)}ms`);
+    // console.log(`[FullHeal] Complete. ${allLoops.length} loops in ${elapsed.toFixed(1)}ms`);
 
     return optimizationResult.statistics;
   }

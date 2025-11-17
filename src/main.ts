@@ -22,25 +22,25 @@ import { DEFAULT_SPIDER_CONFIG } from './controllers/spider/SpiderTypes';
  * This runs once at startup and logs results to console
  */
 function testSpiderMath() {
-  console.log('\n=== SPIDER MATH TESTS (Phase 1) ===\n');
+  // console.log('\n=== SPIDER MATH TESTS (Phase 1) ===\n');
 
   // Test 1: deltaAngle (shortest angular difference)
-  console.log('Test 1: deltaAngle (shortest angular difference)');
-  console.log('  deltaAngle(10, 50) =', SpiderMath.deltaAngle(10, 50), '(expected: 40)');
-  console.log('  deltaAngle(350, 10) =', SpiderMath.deltaAngle(350, 10), '(expected: 20)');
-  console.log('  deltaAngle(10, 350) =', SpiderMath.deltaAngle(10, 350), '(expected: -20)');
-  console.log('  deltaAngle(170, -170) =', SpiderMath.deltaAngle(170, -170), '(expected: 20)');
+  // console.log('Test 1: deltaAngle (shortest angular difference)');
+  // console.log('  deltaAngle(10, 50) =', SpiderMath.deltaAngle(10, 50), '(expected: 40)');
+  // console.log('  deltaAngle(350, 10) =', SpiderMath.deltaAngle(350, 10), '(expected: 20)');
+  // console.log('  deltaAngle(10, 350) =', SpiderMath.deltaAngle(10, 350), '(expected: -20)');
+  // console.log('  deltaAngle(170, -170) =', SpiderMath.deltaAngle(170, -170), '(expected: 20)');
 
   // Test 2: normalizeAngle180
-  console.log('\nTest 2: normalizeAngle180 (wrap to [-180, 180])');
-  console.log('  normalizeAngle180(0) =', SpiderMath.normalizeAngle180(0), '(expected: 0)');
-  console.log('  normalizeAngle180(190) =', SpiderMath.normalizeAngle180(190), '(expected: -170)');
-  console.log('  normalizeAngle180(-190) =', SpiderMath.normalizeAngle180(-190), '(expected: 170)');
-  console.log('  normalizeAngle180(360) =', SpiderMath.normalizeAngle180(360), '(expected: 0)');
-  console.log('  normalizeAngle180(720) =', SpiderMath.normalizeAngle180(720), '(expected: 0)');
+  // console.log('\nTest 2: normalizeAngle180 (wrap to [-180, 180])');
+  // console.log('  normalizeAngle180(0) =', SpiderMath.normalizeAngle180(0), '(expected: 0)');
+  // console.log('  normalizeAngle180(190) =', SpiderMath.normalizeAngle180(190), '(expected: -170)');
+  // console.log('  normalizeAngle180(-190) =', SpiderMath.normalizeAngle180(-190), '(expected: 170)');
+  // console.log('  normalizeAngle180(360) =', SpiderMath.normalizeAngle180(360), '(expected: 0)');
+  // console.log('  normalizeAngle180(720) =', SpiderMath.normalizeAngle180(720), '(expected: 0)');
 
   // Test 3: computeJointLimitTorque (PD controller)
-  console.log('\nTest 3: computeJointLimitTorque (PD controller for soft limits)');
+  // console.log('\nTest 3: computeJointLimitTorque (PD controller for soft limits)');
 
   // Inside free range [10, 160] - should return 0
   const torque1 = SpiderMath.computeJointLimitTorque(
@@ -49,7 +49,7 @@ function testSpiderMath() {
     10, 1, // Kp=10, Kd=1
     0, 0 // no angular velocity
   );
-  console.log('  Inside range [10°, 160°]: rel=45° → torque =', torque1, '(expected: 0)');
+  // console.log('  Inside range [10°, 160°]: rel=45° → torque =', torque1, '(expected: 0)');
 
   // Below free range - should push toward min
   const torque2 = SpiderMath.computeJointLimitTorque(
@@ -58,7 +58,7 @@ function testSpiderMath() {
     10, 1, // Kp=10, Kd=1
     0, 0 // no angular velocity
   );
-  console.log('  Below range: rel=5° (min=10°) → torque =', torque2, '(expected: 50 = 10*(10-5))');
+  // console.log('  Below range: rel=5° (min=10°) → torque =', torque2, '(expected: 50 = 10*(10-5))');
 
   // Above free range - should push toward max
   const torque3 = SpiderMath.computeJointLimitTorque(
@@ -67,50 +67,50 @@ function testSpiderMath() {
     10, 1, // Kp=10, Kd=1
     0, 0 // no angular velocity
   );
-  console.log('  Above range: rel=170° (max=160°) → torque =', torque3, '(expected: -100 = 10*(160-170))');
+  // console.log('  Above range: rel=170° (max=160°) → torque =', torque3, '(expected: -100 = 10*(160-170))');
 
   // Test 4: applyMirrorIfNeeded
-  console.log('\nTest 4: applyMirrorIfNeeded (left/right leg symmetry)');
+  // console.log('\nTest 4: applyMirrorIfNeeded (left/right leg symmetry)');
 
   const leftRange = { min: 10, max: 160 };
   SpiderMath.applyMirrorIfNeeded(true, leftRange);
-  console.log('  Left leg [10°, 160°] → ', leftRange, '(expected: unchanged)');
+  // console.log('  Left leg [10°, 160°] → ', leftRange, '(expected: unchanged)');
 
   const rightRange = { min: 10, max: 160 };
   SpiderMath.applyMirrorIfNeeded(false, rightRange);
-  console.log('  Right leg [10°, 160°] → ', rightRange, '(expected: [-160°, -10°])');
+  // console.log('  Right leg [10°, 160°] → ', rightRange, '(expected: [-160°, -10°])');
 
   // Test 5: angleToDir
-  console.log('\nTest 5: angleToDir (angle to direction vector)');
+  // console.log('\nTest 5: angleToDir (angle to direction vector)');
   const dir0 = SpiderMath.angleToDir(0);
-  console.log('  angleToDir(0°) =', `{x: ${dir0.x.toFixed(3)}, y: ${dir0.y.toFixed(3)}}`, '(expected: {x: 1, y: 0})');
+  // console.log('  angleToDir(0°) =', `{x: ${dir0.x.toFixed(3)}, y: ${dir0.y.toFixed(3)}}`, '(expected: {x: 1, y: 0})');
 
   const dir90 = SpiderMath.angleToDir(90);
-  console.log('  angleToDir(90°) =', `{x: ${dir90.x.toFixed(3)}, y: ${dir90.y.toFixed(3)}}`, '(expected: {x: 0, y: 1})');
+  // console.log('  angleToDir(90°) =', `{x: ${dir90.x.toFixed(3)}, y: ${dir90.y.toFixed(3)}}`, '(expected: {x: 0, y: 1})');
 
   const dir180 = SpiderMath.angleToDir(180);
-  console.log('  angleToDir(180°) =', `{x: ${dir180.x.toFixed(3)}, y: ${dir180.y.toFixed(3)}}`, '(expected: {x: -1, y: 0})');
+  // console.log('  angleToDir(180°) =', `{x: ${dir180.x.toFixed(3)}, y: ${dir180.y.toFixed(3)}}`, '(expected: {x: -1, y: 0})');
 
   // Test 6: rotateDir
-  console.log('\nTest 6: rotateDir (rotate direction vector)');
+  // console.log('\nTest 6: rotateDir (rotate direction vector)');
   const rotated = SpiderMath.rotateDir({ x: 1, y: 0 }, 90);
-  console.log('  rotateDir({1, 0}, 90°) =', `{x: ${rotated.x.toFixed(3)}, y: ${rotated.y.toFixed(3)}}`, '(expected: {x: 0, y: 1})');
+  // console.log('  rotateDir({1, 0}, 90°) =', `{x: ${rotated.x.toFixed(3)}, y: ${rotated.y.toFixed(3)}}`, '(expected: {x: 0, y: 1})');
 
   // Test 7: DEFAULT_SPIDER_CONFIG
-  console.log('\nTest 7: DEFAULT_SPIDER_CONFIG (verify Unity defaults loaded)');
-  console.log('  Segment lengths: L1=', DEFAULT_SPIDER_CONFIG.segmentLength1,
-              'L2=', DEFAULT_SPIDER_CONFIG.segmentLength2,
-              'L3=', DEFAULT_SPIDER_CONFIG.segmentLength3);
-  console.log('  Torque: gain=', DEFAULT_SPIDER_CONFIG.torqueGain,
-              'max=', DEFAULT_SPIDER_CONFIG.maxJointTorque);
-  console.log('  Joint limit PD: Kp=', DEFAULT_SPIDER_CONFIG.jointLimitKp,
-              'Kd=', DEFAULT_SPIDER_CONFIG.jointLimitKd);
-  console.log('  Hip limits: [', DEFAULT_SPIDER_CONFIG.hipLimitFreeMin, '°,',
-              DEFAULT_SPIDER_CONFIG.hipLimitFreeMax, '°]');
-  console.log('  Knee limits: [', DEFAULT_SPIDER_CONFIG.kneeLimitFreeMin, '°,',
-              DEFAULT_SPIDER_CONFIG.kneeLimitFreeMax, '°]');
+  // console.log('\nTest 7: DEFAULT_SPIDER_CONFIG (verify Unity defaults loaded)');
+  // console.log('  Segment lengths: L1=', DEFAULT_SPIDER_CONFIG.segmentLength1,
+  //             'L2=', DEFAULT_SPIDER_CONFIG.segmentLength2,
+  //             'L3=', DEFAULT_SPIDER_CONFIG.segmentLength3);
+  // console.log('  Torque: gain=', DEFAULT_SPIDER_CONFIG.torqueGain,
+  //             'max=', DEFAULT_SPIDER_CONFIG.maxJointTorque);
+  // console.log('  Joint limit PD: Kp=', DEFAULT_SPIDER_CONFIG.jointLimitKp,
+  //             'Kd=', DEFAULT_SPIDER_CONFIG.jointLimitKd);
+  // console.log('  Hip limits: [', DEFAULT_SPIDER_CONFIG.hipLimitFreeMin, '°,',
+  //             DEFAULT_SPIDER_CONFIG.hipLimitFreeMax, '°]');
+  // console.log('  Knee limits: [', DEFAULT_SPIDER_CONFIG.kneeLimitFreeMin, '°,',
+  //             DEFAULT_SPIDER_CONFIG.kneeLimitFreeMax, '°]');
 
-  console.log('\n=== END SPIDER MATH TESTS ===\n');
+  // console.log('\n=== END SPIDER MATH TESTS ===\n');
 }
 
 /**
@@ -273,7 +273,7 @@ class CarvableCaves {
       // Start render loop (async initialization happens there)
       this.start(worldConfig.gridPitch);
     } catch (error) {
-      console.error('Failed to initialize CarvableCaves:', error);
+      // console.error('Failed to initialize CarvableCaves:', error);
       throw error;
     }
   }
@@ -325,7 +325,7 @@ class CarvableCaves {
     this.needsRemesh = false; // Prevent double-remesh on first frame
 
     // Find valid spawn position for spider
-    console.log(`[Spider] Finding valid spawn position near (${this.preferredSpawnX.toFixed(1)}, ${this.preferredSpawnY.toFixed(1)})...`);
+    // console.log(`[Spider] Finding valid spawn position near (${this.preferredSpawnX.toFixed(1)}, ${this.preferredSpawnY.toFixed(1)})...`);
     const spawnPos = this.findValidSpawnPosition(
       this.preferredSpawnX,
       this.preferredSpawnY,
@@ -338,9 +338,9 @@ class CarvableCaves {
     if (spawnPos) {
       actualSpawnX = spawnPos.x;
       actualSpawnY = spawnPos.y;
-      console.log(`[Spider] Spawning at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
+      // console.log(`[Spider] Spawning at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
     } else {
-      console.warn(`[Spider] No valid position found, spawning at preferred position (may be inside rock)`);
+      // console.warn(`[Spider] No valid position found, spawning at preferred position (may be inside rock)`);
     }
 
     // Create spider controller
@@ -414,7 +414,7 @@ class CarvableCaves {
     }
 
     // No valid position found in entire world
-    console.error('[Spawn] No valid spawn position found in entire world');
+    // console.error('[Spawn] No valid spawn position found in entire world');
     return null;
   }
 
@@ -586,16 +586,16 @@ class CarvableCaves {
         // Wait 60 frames for spider to settle
         if (this.testStartFrame === 0) {
           this.testStartFrame = currentFrame;
-          console.log('[TEST] ========================================');
-          console.log('[TEST] AUTOMATED JOYSTICK TEST STARTING');
-          console.log('[TEST] Phase 1: Waiting 60 frames for spider to settle...');
-          console.log('[TEST] ========================================');
+          // console.log('[TEST] ========================================');
+          // console.log('[TEST] AUTOMATED JOYSTICK TEST STARTING');
+          // console.log('[TEST] Phase 1: Waiting 60 frames for spider to settle...');
+          // console.log('[TEST] ========================================');
         }
         if (currentFrame - this.testStartFrame >= 60) {
           this.testPhase = 'input';
-          console.log('[TEST] ========================================');
-          console.log('[TEST] Phase 2: Applying small upward force (y=-0.2) for 10 frames...');
-          console.log('[TEST] ========================================');
+          // console.log('[TEST] ========================================');
+          // console.log('[TEST] Phase 2: Applying small upward force (y=-0.2) for 10 frames...');
+          // console.log('[TEST] ========================================');
         }
         break;
 
@@ -606,10 +606,10 @@ class CarvableCaves {
 
         if (currentFrame - this.testStartFrame >= 70) {
           this.testPhase = 'release';
-          console.log('[TEST] ========================================');
-          console.log('[TEST] Phase 3: RELEASED - Observing for 20 frames...');
-          console.log('[TEST] Watch for: input→0, forces→0, velocities decreasing');
-          console.log('[TEST] ========================================');
+          // console.log('[TEST] ========================================');
+          // console.log('[TEST] Phase 3: RELEASED - Observing for 20 frames...');
+          // console.log('[TEST] Watch for: input→0, forces→0, velocities decreasing');
+          // console.log('[TEST] ========================================');
         }
         break;
 
@@ -619,14 +619,14 @@ class CarvableCaves {
 
         if (currentFrame - this.testStartFrame >= 90) {
           this.testPhase = 'done';
-          console.log('[TEST] ========================================');
-          console.log('[TEST] TEST COMPLETE - Check logs above');
-          console.log('[TEST] Expected behavior:');
-          console.log('[TEST]   - Input should be 0.000 after release');
-          console.log('[TEST]   - Forces should be 0.00 when input is 0');
-          console.log('[TEST]   - Body velocity should decrease (not increase!)');
-          console.log('[TEST]   - Angular velocities should decrease');
-          console.log('[TEST] ========================================');
+          // console.log('[TEST] ========================================');
+          // console.log('[TEST] TEST COMPLETE - Check logs above');
+          // console.log('[TEST] Expected behavior:');
+          // console.log('[TEST]   - Input should be 0.000 after release');
+          // console.log('[TEST]   - Forces should be 0.00 when input is 0');
+          // console.log('[TEST]   - Body velocity should decrease (not increase!)');
+          // console.log('[TEST]   - Angular velocities should decrease');
+          // console.log('[TEST] ========================================');
           this.testEnabled = false; // Stop test
         }
         break;
@@ -686,12 +686,12 @@ class CarvableCaves {
    * Regenerate caves using Perlin noise
    */
   regenerateCaves(params: PerlinCaveParams): void {
-    console.log('[Main] Regenerating caves with Perlin noise...');
+    // console.log('[Main] Regenerating caves with Perlin noise...');
 
     // Check if world size has changed
     if (params.worldWidth !== this.densityField.config.width ||
         params.worldHeight !== this.densityField.config.height) {
-      console.log(`[Main] Resizing world from ${this.densityField.config.width}×${this.densityField.config.height} to ${params.worldWidth}×${params.worldHeight}`);
+      // console.log(`[Main] Resizing world from ${this.densityField.config.width}×${this.densityField.config.height} to ${params.worldWidth}×${params.worldHeight}`);
       this.densityField.resize(params.worldWidth, params.worldHeight);
 
       // Update camera bounds
@@ -719,9 +719,9 @@ class CarvableCaves {
     if (spawnPos) {
       actualSpawnX = spawnPos.x;
       actualSpawnY = spawnPos.y;
-      console.log(`[Regenerate] Spider respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
+      // console.log(`[Regenerate] Spider respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
     } else {
-      console.warn('[Regenerate] No valid spawn position found, using preferred position (may be inside rock)');
+      // console.warn('[Regenerate] No valid spawn position found, using preferred position (may be inside rock)');
     }
 
     if (this.spider) {
@@ -760,9 +760,9 @@ class CarvableCaves {
       if (spawnPos) {
         actualSpawnX = spawnPos.x;
         actualSpawnY = spawnPos.y;
-        console.log(`[Respawn] Spider respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
+        // console.log(`[Respawn] Spider respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
       } else {
-        console.warn(`[Respawn] No valid spawn position found near camera, using camera center (may be inside rock)`);
+        // console.warn(`[Respawn] No valid spawn position found near camera, using camera center (may be inside rock)`);
       }
 
       this.spider.respawn(actualSpawnX, actualSpawnY);
@@ -782,7 +782,7 @@ try {
   spiderDebugUI = new SpiderDebugUI();
   (window as any).spiderDebugUI = spiderDebugUI; // Make accessible
 } catch (error) {
-  console.error('Failed to create debug console:', error);
+  // console.error('Failed to create debug console:', error);
   alert('Failed to create debug console: ' + error);
   throw error;
 }
@@ -880,7 +880,7 @@ let caveGeneratorUI: CaveGeneratorUI;
 try {
   caveGeneratorUI = new CaveGeneratorUI();
 } catch (error) {
-  console.error('Failed to create cave generator UI:', error);
+  // console.error('Failed to create cave generator UI:', error);
   alert('Failed to create cave generator UI: ' + error);
   throw error;
 }
@@ -898,7 +898,7 @@ try {
   characterControllerUI = new CharacterControllerUI();
   (window as any).characterControllerUI = characterControllerUI; // Make accessible for setup after player creation
 } catch (error) {
-  console.error('Failed to create character controller UI:', error);
+  // console.error('Failed to create character controller UI:', error);
   throw error;
 }
 
@@ -948,7 +948,7 @@ try {
 
   // Note: Character controller UI callbacks are wired up in start() after player is created
 } catch (error) {
-  console.error('Fatal error during initialization:', error);
+  // console.error('Fatal error during initialization:', error);
   debugConsole.showTextLog();
   throw error;
 }

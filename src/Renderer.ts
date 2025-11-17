@@ -87,7 +87,7 @@ export class Renderer {
     const height = window.innerHeight;
 
     const orientation = width > height ? 'landscape' : 'portrait';
-    console.log(`[Canvas] ${width}x${height} (${orientation}, DPR=${dpr}, buffer=${width * dpr}x${height * dpr})`);
+    // console.log(`[Canvas] ${width}x${height} (${orientation}, DPR=${dpr}, buffer=${width * dpr}x${height * dpr})`);
 
     // Set canvas internal resolution
     this.canvas.width = width * dpr;
@@ -213,7 +213,7 @@ export class Renderer {
         joystickDraw(this.ctx);
       }
     } catch (error) {
-      console.error('Error during render:', error);
+      // console.error('Error during render:', error);
     }
   }
 
