@@ -3,9 +3,6 @@
  * This allows swapping between different controller types (force-based, spider, etc.)
  */
 
-import type RAPIER from '@dimforge/rapier2d-compat';
-import type { VirtualJoystick } from '../VirtualJoystick';
-
 export interface IPlayerController {
   /**
    * Update controller physics based on input
@@ -33,7 +30,7 @@ export interface IPlayerController {
    * Get the main player rigid body
    * For multi-body controllers, this is the "body" or "torso"
    */
-  getBody(): RAPIER.RigidBody;
+  getBody(): any;
 
   /**
    * Respawn player at new position
@@ -44,9 +41,9 @@ export interface IPlayerController {
 
   /**
    * Set virtual joystick for mobile input
-   * @param joystick - Virtual joystick instance
+   * @param joystick - Joystick input { x, y } in [-1, 1]
    */
-  setJoystick(joystick: VirtualJoystick): void;
+  setJoystick(joystick: { x: number; y: number }): void;
 
   /**
    * Check if player is grounded
@@ -67,7 +64,7 @@ export interface IPlayerController {
    * Get all rigid bodies managed by this controller
    * Used for collision filtering and debug visualization
    */
-  getAllBodies(): RAPIER.RigidBody[];
+  getAllBodies(): any[];
 
   /**
    * Optional debug draw method

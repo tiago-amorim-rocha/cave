@@ -3,19 +3,19 @@
  * Supports multiple controller types and runtime switching
  */
 
-import type { RapierEngine } from '../physics/engine';
+import type { Box2DEngine } from '../physics/Box2DEngine';
 import type { IPlayerController, ControllerConfig } from './IPlayerController';
 import { ControllerType } from './IPlayerController';
-import { ForcePlayerController } from './ForcePlayerController';
+// import { ForcePlayerController } from './ForcePlayerController'; // TODO: Implement for Box2D
 import { SpiderController } from './spider/SpiderController';
 
 /**
  * Factory for creating player controllers
  */
 export class ControllerFactory {
-  private engine: RapierEngine;
+  private engine: Box2DEngine;
 
-  constructor(engine: RapierEngine) {
+  constructor(engine: Box2DEngine) {
     this.engine = engine;
   }
 
@@ -28,10 +28,11 @@ export class ControllerFactory {
   createController(type: ControllerType, config: ControllerConfig): IPlayerController {
     switch (type) {
       case ControllerType.FORCE:
-        return new ForcePlayerController(this.engine, config.x, config.y);
+        throw new Error(`[ControllerFactory] ForcePlayerController not yet implemented for Box2D`);
+        // return new ForcePlayerController(this.engine, config.x, config.y);
 
       case ControllerType.SPIDER:
-        return new SpiderController(this.engine, config.x, config.y);
+        return new SpiderController(this.engine.getWorld(), config.x, config.y);
 
       default:
         throw new Error(`[ControllerFactory] Unknown controller type: ${type}`);
@@ -72,10 +73,10 @@ export class ControllerManager {
   private factory: ControllerFactory;
   private currentController: IPlayerController | null = null;
   private currentType: ControllerType | null = null;
-  private engine: RapierEngine;
+  private engine: Box2DEngine;
   private currentUpdateCallback: ((dt: number) => void) | null = null;
 
-  constructor(engine: RapierEngine) {
+  constructor(engine: Box2DEngine) {
     this.factory = new ControllerFactory(engine);
     this.engine = engine;
   }
@@ -112,10 +113,11 @@ export class ControllerManager {
     }
 
     // Unregister old controller's update callback
-    if (this.currentUpdateCallback) {
-      this.engine.unregisterFixedUpdate(this.currentUpdateCallback);
-      this.currentUpdateCallback = null;
-    }
+    // TODO: Implement unregisterFixedUpdate in Box2DEngine
+    // if (this.currentUpdateCallback) {
+    //   this.engine.unregisterFixedUpdate(this.currentUpdateCallback);
+    //   this.currentUpdateCallback = null;
+    // }
 
     // Destroy old controller if it exists
     if (this.currentController) {
@@ -171,10 +173,11 @@ export class ControllerManager {
    */
   destroy(): void {
     // Unregister update callback
-    if (this.currentUpdateCallback) {
-      this.engine.unregisterFixedUpdate(this.currentUpdateCallback);
-      this.currentUpdateCallback = null;
-    }
+    // TODO: Implement unregisterFixedUpdate in Box2DEngine
+    // if (this.currentUpdateCallback) {
+    //   this.engine.unregisterFixedUpdate(this.currentUpdateCallback);
+    //   this.currentUpdateCallback = null;
+    // }
 
     if (this.currentController) {
       this.currentController.destroy();

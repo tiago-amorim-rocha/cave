@@ -11,7 +11,7 @@
 import type { DensityField } from './DensityField';
 import type { MarchingSquares } from './MarchingSquares';
 import type { LoopCache } from './LoopCache';
-import type { RapierPhysics } from './RapierPhysics';
+import type { Box2DPhysics } from './Box2DPhysics';
 import type { Renderer } from './Renderer';
 import { VertexOptimizationPipeline, type OptimizationOptions } from './VertexOptimizationPipeline';
 import type { Point } from './types';
@@ -20,7 +20,7 @@ export interface RemeshConfig {
   densityField: DensityField;
   marchingSquares: MarchingSquares;
   loopCache: LoopCache;
-  physics: RapierPhysics;
+  physics: Box2DPhysics;
   renderer: Renderer;
   optimizationOptions: OptimizationOptions;
 }
@@ -36,7 +36,7 @@ export class RemeshManager {
   private densityField: DensityField;
   private marchingSquares: MarchingSquares;
   private loopCache: LoopCache;
-  private physics: RapierPhysics;
+  private physics: Box2DPhysics;
   private renderer: Renderer;
   private optimizationPipeline: VertexOptimizationPipeline;
   private optimizationOptions: OptimizationOptions;
