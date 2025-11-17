@@ -6,6 +6,22 @@
 import type { b2Body } from '@box2d/core';
 
 /**
+ * Collision Filtering Constants
+ *
+ * Box2D collision filtering uses groupIndex:
+ * - Negative groupIndex: Bodies with same negative group NEVER collide
+ * - Zero groupIndex: Use category/mask bits for filtering
+ * - Positive groupIndex: Bodies with same positive group ALWAYS collide
+ */
+
+/**
+ * Spider self-collision group
+ * All spider body parts (body, hip, knee, ankle, foot) use this group
+ * to prevent self-collision while still colliding with terrain/other objects
+ */
+export const SPIDER_COLLISION_GROUP = -1;
+
+/**
  * Runtime leg data structure
  * Holds references to the three segment bodies plus foot
  */
