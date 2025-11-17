@@ -45,7 +45,7 @@ export class VersionChecker {
       });
 
       if (!response.ok) {
-        console.warn('Failed to fetch version.json');
+        // console.warn('Failed to fetch version.json');
         return false;
       }
 
@@ -54,23 +54,23 @@ export class VersionChecker {
       // First time - store current version
       if (!this.currentVersion) {
         this.currentVersion = newVersion;
-        console.log('Current version:', newVersion);
+        // console.log('Current version:', newVersion);
         return false;
       }
 
       // Check if version changed
       if (newVersion.buildId !== this.currentVersion.buildId ||
           newVersion.timestamp !== this.currentVersion.timestamp) {
-        console.log('New version detected!', {
-          current: this.currentVersion,
-          new: newVersion
-        });
+        // console.log('New version detected!', {
+        //   current: this.currentVersion,
+        //   new: newVersion
+        // });
         return true;
       }
 
       return false;
     } catch (error) {
-      console.error('Error checking version:', error);
+      // console.error('Error checking version:', error);
       return false;
     }
   }
@@ -112,7 +112,7 @@ export class VersionChecker {
     const updateButton = document.getElementById('update-button');
     if (updateButton && !updateButton.classList.contains('visible')) {
       updateButton.classList.add('visible');
-      console.log('Update button shown - new version available!');
+      // console.log('Update button shown - new version available!');
     }
   }
 

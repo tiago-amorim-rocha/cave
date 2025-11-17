@@ -856,7 +856,7 @@ export class DebugConsole {
         }
       }
     } catch (error) {
-      console.warn('Failed to load version info:', error);
+      // console.warn('Failed to load version info:', error);
     }
   }
 
@@ -902,7 +902,7 @@ export class DebugConsole {
   clearLogs(): void {
     this.logs = [];
     this.logContainer.innerHTML = '';
-    console.log('[DebugConsole] Logs cleared');
+    // console.log('[DebugConsole] Logs cleared');
   }
 
   private addLog(type: string, args: any[], color: string): void {
@@ -1004,7 +1004,7 @@ export class DebugConsole {
         }, 1000);
       }
     } catch (error) {
-      console.error('Failed to copy logs:', error);
+      // console.error('Failed to copy logs:', error);
       alert('Failed to copy logs to clipboard');
     }
   }

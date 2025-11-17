@@ -55,7 +55,7 @@ export class VirtualJoystick {
   private setupTouchListeners(): void {
     const canvas = document.querySelector('canvas');
     if (!canvas) {
-      console.warn('[VirtualJoystick] Canvas not found, touch events disabled');
+      // console.warn('[VirtualJoystick] Canvas not found, touch events disabled');
       return;
     }
 

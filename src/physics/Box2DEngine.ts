@@ -41,13 +41,13 @@ export class Box2DEngine {
    * Initialize the Box2D world
    */
   async init(): Promise<void> {
-    console.log('[Box2DEngine] Initializing Box2D world...');
+    // console.log('[Box2DEngine] Initializing Box2D world...');
 
     // Create world with gravity (0, 10) m/s² (Y-down)
     const gravity = new b2Vec2(0, 10);
     this.world = b2World.Create(gravity);
 
-    console.log('[Box2DEngine] Box2D world initialized');
+    // console.log('[Box2DEngine] Box2D world initialized');
   }
 
   /**
@@ -74,7 +74,7 @@ export class Box2DEngine {
    */
   setTerrainLoops(loops: Point[][]): void {
     if (!this.world) {
-      console.error('[Box2DEngine] World not initialized!');
+      // console.error('[Box2DEngine] World not initialized!');
       return;
     }
 
@@ -122,7 +122,7 @@ export class Box2DEngine {
         const nextVertex = vertices[vertices.length - 1];
         chainShape.CreateChain(vertices, vertices.length, prevVertex, nextVertex);
         openChains++;
-        console.warn(`[Box2DEngine] Non-closed loop detected! Distance: ${distance.toFixed(4)}m`);
+        // console.warn(`[Box2DEngine] Non-closed loop detected! Distance: ${distance.toFixed(4)}m`);
       }
 
       // Create fixture with physics properties
@@ -137,8 +137,8 @@ export class Box2DEngine {
       totalSegments += loop.length - 1;
     }
 
-    console.log(`[Box2DEngine] Created ${this.terrainBodies.length} terrain bodies (${totalSegments} segments)`);
-    console.log(`[Box2DEngine] Loop closure: ${closedLoops} closed, ${openChains} open`);
+    // console.log(`[Box2DEngine] Created ${this.terrainBodies.length} terrain bodies (${totalSegments} segments)`);
+    // console.log(`[Box2DEngine] Loop closure: ${closedLoops} closed, ${openChains} open`);
   }
 
   /**
@@ -146,7 +146,7 @@ export class Box2DEngine {
    */
   step(dt: number): void {
     if (!this.world) {
-      console.error('[Box2DEngine] World not initialized!');
+      // console.error('[Box2DEngine] World not initialized!');
       return;
     }
 

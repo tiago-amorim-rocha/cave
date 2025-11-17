@@ -50,10 +50,10 @@ export class VertexOptimizationPipeline {
     const cleanedVertexCount = cleanedLoops.reduce((sum, loop) => sum + loop.length, 0);
     const cleanReduction = ((trueOriginalCount - cleanedVertexCount) / trueOriginalCount * 100);
 
-    console.log(`[VertexOpt] Pipeline started:`);
-    console.log(`  1. Original: ${rockLoops.length} contours, ${trueOriginalCount} vertices`);
-    console.log(`  2. After cleanLoop: ${cleanedLoops.length} contours, ${cleanedVertexCount} vertices`);
-    console.log(`     → cleanLoop reduction: ${cleanReduction.toFixed(1)}% (${trueOriginalCount - cleanedVertexCount} vertices removed)`);
+    // console.log(`[VertexOpt] Pipeline started:`);
+    // console.log(`  1. Original: ${rockLoops.length} contours, ${trueOriginalCount} vertices`);
+    // console.log(`  2. After cleanLoop: ${cleanedLoops.length} contours, ${cleanedVertexCount} vertices`);
+    // console.log(`     → cleanLoop reduction: ${cleanReduction.toFixed(1)}% (${trueOriginalCount - cleanedVertexCount} vertices removed)`);
 
     // Apply Visvalingam-Whyatt simplification if epsilon > 0
     let finalLoops = cleanedLoops;
@@ -69,9 +69,9 @@ export class VertexOptimizationPipeline {
       simplificationReduction = ((cleanedVertexCount - simplifiedCount) / cleanedVertexCount * 100);
       const totalReduction = ((trueOriginalCount - simplifiedCount) / trueOriginalCount * 100);
 
-      console.log(`  3. After Visvalingam-Whyatt (ε=${options.simplificationEpsilon.toFixed(3)}m): ${finalLoops.length} contours, ${simplifiedCount} vertices`);
-      console.log(`     → simplification reduction: ${simplificationReduction.toFixed(1)}% (${cleanedVertexCount - simplifiedCount} vertices removed)`);
-      console.log(`     → TOTAL reduction: ${totalReduction.toFixed(1)}%`);
+      // console.log(`  3. After Visvalingam-Whyatt (ε=${options.simplificationEpsilon.toFixed(3)}m): ${finalLoops.length} contours, ${simplifiedCount} vertices`);
+      // console.log(`     → simplification reduction: ${simplificationReduction.toFixed(1)}% (${cleanedVertexCount - simplifiedCount} vertices removed)`);
+      // console.log(`     → TOTAL reduction: ${totalReduction.toFixed(1)}%`);
     }
 
     // Apply Chaikin smoothing if enabled
@@ -84,8 +84,8 @@ export class VertexOptimizationPipeline {
       const afterChaikin = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
       const chaikinIncrease = ((afterChaikin - beforeChaikin) / beforeChaikin * 100);
 
-      console.log(`  ${options.simplificationEpsilon > 0 ? '4' : '3'}. After Chaikin (${options.chaikinIterations} iteration${options.chaikinIterations > 1 ? 's' : ''}): ${finalLoops.length} contours, ${afterChaikin} vertices`);
-      console.log(`     → vertex increase: +${chaikinIncrease.toFixed(1)}% (+${afterChaikin - beforeChaikin} vertices)`);
+      // console.log(`  ${options.simplificationEpsilon > 0 ? '4' : '3'}. After Chaikin (${options.chaikinIterations} iteration${options.chaikinIterations > 1 ? 's' : ''}): ${finalLoops.length} contours, ${afterChaikin} vertices`);
+      // console.log(`     → vertex increase: +${chaikinIncrease.toFixed(1)}% (+${afterChaikin - beforeChaikin} vertices)`);
     }
 
     // Apply post-smoothing simplification
@@ -103,12 +103,12 @@ export class VertexOptimizationPipeline {
       postSimplificationReduction = ((beforePostSimplify - afterPostSimplify) / beforePostSimplify * 100);
 
       const stepNum = (options.simplificationEpsilon > 0 ? (options.chaikinEnabled ? 5 : 4) : (options.chaikinEnabled ? 4 : 3));
-      console.log(`  ${stepNum}. After post-smoothing simplification (ε=${options.simplificationEpsilonPost.toFixed(3)}m): ${finalLoops.length} contours, ${afterPostSimplify} vertices`);
-      console.log(`     → post-smoothing reduction: ${postSimplificationReduction.toFixed(1)}% (${beforePostSimplify - afterPostSimplify} vertices removed)`);
+      // console.log(`  ${stepNum}. After post-smoothing simplification (ε=${options.simplificationEpsilonPost.toFixed(3)}m): ${finalLoops.length} contours, ${afterPostSimplify} vertices`);
+      // console.log(`     → post-smoothing reduction: ${postSimplificationReduction.toFixed(1)}% (${beforePostSimplify - afterPostSimplify} vertices removed)`);
     }
 
     const finalVertexCount = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
-    console.log(`  Average vertices per contour: ${(finalVertexCount / finalLoops.length).toFixed(1)}`);
+    // console.log(`  Average vertices per contour: ${(finalVertexCount / finalLoops.length).toFixed(1)}`);
 
     return {
       finalLoops,

@@ -368,10 +368,10 @@ function createRevoluteJoint(
 function logSpiderPositions(body: any, leftLeg: ControllerLeg, rightLeg: ControllerLeg): void {
   const bodyPos = body.GetPosition();
 
-  console.log('=== SPIDER JOINT POSITIONS ===');
-  console.log('Body center:', { x: bodyPos.x.toFixed(3), y: bodyPos.y.toFixed(3) });
+  // console.log('=== SPIDER JOINT POSITIONS ===');
+  // console.log('Body center:', { x: bodyPos.x.toFixed(3), y: bodyPos.y.toFixed(3) });
 
-  console.log('\nLeft Leg Joints:');
+  // console.log('\nLeft Leg Joints:');
   const leftHipPos = leftLeg.hip.GetPosition();
   const leftHipAngle = leftLeg.hip.GetAngle();
   const leftKneePos = leftLeg.knee.GetPosition();
@@ -398,13 +398,13 @@ function logSpiderPositions(body: any, leftLeg: ControllerLeg, rightLeg: Control
     y: (leftAnklePos.y + 0.35 * Math.sin(leftAnkleAngle)).toFixed(3)
   };
 
-  console.log('  Joint 1 (body-to-hip):', leftJ1);
-  console.log('  Joint 2 (hip-to-knee):', leftJ2);
-  console.log('  Joint 3 (knee-to-ankle):', leftJ3);
-  console.log('  Joint 4 (ankle-to-foot):', leftJ4);
-  console.log('  Foot center:', { x: leftFootPos.x.toFixed(3), y: leftFootPos.y.toFixed(3) });
+  // console.log('  Joint 1 (body-to-hip):', leftJ1);
+  // console.log('  Joint 2 (hip-to-knee):', leftJ2);
+  // console.log('  Joint 3 (knee-to-ankle):', leftJ3);
+  // console.log('  Joint 4 (ankle-to-foot):', leftJ4);
+  // console.log('  Foot center:', { x: leftFootPos.x.toFixed(3), y: leftFootPos.y.toFixed(3) });
 
-  console.log('\nRight Leg Joints:');
+  // console.log('\nRight Leg Joints:');
   const rightHipPos = rightLeg.hip.GetPosition();
   const rightHipAngle = rightLeg.hip.GetAngle();
   const rightKneePos = rightLeg.knee.GetPosition();
@@ -430,10 +430,10 @@ function logSpiderPositions(body: any, leftLeg: ControllerLeg, rightLeg: Control
     y: (rightAnklePos.y + 0.35 * Math.sin(rightAnkleAngle)).toFixed(3)
   };
 
-  console.log('  Joint 1 (body-to-hip):', rightJ1);
-  console.log('  Joint 2 (hip-to-knee):', rightJ2);
-  console.log('  Joint 3 (knee-to-ankle):', rightJ3);
-  console.log('  Joint 4 (ankle-to-foot):', rightJ4);
-  console.log('  Foot center:', { x: rightFootPos.x.toFixed(3), y: rightFootPos.y.toFixed(3) });
-  console.log('================================\n');
+  // console.log('  Joint 1 (body-to-hip):', rightJ1);
+  // console.log('  Joint 2 (hip-to-knee):', rightJ2);
+  // console.log('  Joint 3 (knee-to-ankle):', rightJ3);
+  // console.log('  Joint 4 (ankle-to-foot):', rightJ4);
+  // console.log('  Foot center:', { x: rightFootPos.x.toFixed(3), y: rightFootPos.y.toFixed(3) });
+  // console.log('================================\n');
 }

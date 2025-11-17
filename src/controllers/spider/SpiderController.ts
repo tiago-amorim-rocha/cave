@@ -327,7 +327,7 @@ export class SpiderController {
       };
     };
 
-    return {
+    const renderData = {
       body: {
         x: this.spider.body.GetPosition().x,
         y: this.spider.body.GetPosition().y,
@@ -354,6 +354,57 @@ export class SpiderController {
         },
       },
     };
+
+    // Debug logging for spider position and rotation
+    console.log('=== SPIDER DEBUG ===');
+    console.log('Body:', {
+      x: renderData.body.x.toFixed(3),
+      y: renderData.body.y.toFixed(3),
+      rotation: renderData.body.rotation.toFixed(3) + ' rad (' + (renderData.body.rotation * 180 / Math.PI).toFixed(1) + '°)'
+    });
+    console.log('Left Leg:');
+    console.log('  Hip:', {
+      x: renderData.leftLeg.hip.x.toFixed(3),
+      y: renderData.leftLeg.hip.y.toFixed(3),
+      rotation: renderData.leftLeg.hip.rotation.toFixed(3) + ' rad (' + (renderData.leftLeg.hip.rotation * 180 / Math.PI).toFixed(1) + '°)'
+    });
+    console.log('  Knee:', {
+      x: renderData.leftLeg.knee.x.toFixed(3),
+      y: renderData.leftLeg.knee.y.toFixed(3),
+      rotation: renderData.leftLeg.knee.rotation.toFixed(3) + ' rad (' + (renderData.leftLeg.knee.rotation * 180 / Math.PI).toFixed(1) + '°)'
+    });
+    console.log('  Ankle:', {
+      x: renderData.leftLeg.ankle.x.toFixed(3),
+      y: renderData.leftLeg.ankle.y.toFixed(3),
+      rotation: renderData.leftLeg.ankle.rotation.toFixed(3) + ' rad (' + (renderData.leftLeg.ankle.rotation * 180 / Math.PI).toFixed(1) + '°)'
+    });
+    console.log('  Foot:', {
+      x: renderData.leftLeg.foot.x.toFixed(3),
+      y: renderData.leftLeg.foot.y.toFixed(3)
+    });
+    console.log('Right Leg:');
+    console.log('  Hip:', {
+      x: renderData.rightLeg.hip.x.toFixed(3),
+      y: renderData.rightLeg.hip.y.toFixed(3),
+      rotation: renderData.rightLeg.hip.rotation.toFixed(3) + ' rad (' + (renderData.rightLeg.hip.rotation * 180 / Math.PI).toFixed(1) + '°)'
+    });
+    console.log('  Knee:', {
+      x: renderData.rightLeg.knee.x.toFixed(3),
+      y: renderData.rightLeg.knee.y.toFixed(3),
+      rotation: renderData.rightLeg.knee.rotation.toFixed(3) + ' rad (' + (renderData.rightLeg.knee.rotation * 180 / Math.PI).toFixed(1) + '°)'
+    });
+    console.log('  Ankle:', {
+      x: renderData.rightLeg.ankle.x.toFixed(3),
+      y: renderData.rightLeg.ankle.y.toFixed(3),
+      rotation: renderData.rightLeg.ankle.rotation.toFixed(3) + ' rad (' + (renderData.rightLeg.ankle.rotation * 180 / Math.PI).toFixed(1) + '°)'
+    });
+    console.log('  Foot:', {
+      x: renderData.rightLeg.foot.x.toFixed(3),
+      y: renderData.rightLeg.foot.y.toFixed(3)
+    });
+    console.log('===================');
+
+    return renderData;
   }
 
   /**
