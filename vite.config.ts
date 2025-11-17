@@ -4,6 +4,11 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
   base: '/cave/',
   publicDir: 'public',
+  server: {
+    hmr: {
+      overlay: false // Disable blocking error overlay
+    }
+  },
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
