@@ -321,7 +321,7 @@ export class SpiderController {
       return {
         x: pos.x,
         y: pos.y,
-        angle: angle,
+        rotation: angle,  // Changed from 'angle' to 'rotation' to match Renderer interface
         length: length,
         width: 0.1,
       };
@@ -331,7 +331,7 @@ export class SpiderController {
       body: {
         x: this.spider.body.GetPosition().x,
         y: this.spider.body.GetPosition().y,
-        angle: this.spider.body.GetAngle(),
+        rotation: this.spider.body.GetAngle(),  // Changed from 'angle' to 'rotation'
         width: 1.0,
         height: 1.0,
       },
