@@ -103,9 +103,9 @@ export const DEFAULT_SPIDER_CONFIG: SpiderConfig = {
   jointLimitKp: 0.1,
   jointLimitKd: 0.05,
 
-  // Hip joint limits
-  hipLimitFreeMin: 0.0,
-  hipLimitFreeMax: 60.0,
+  // Hip joint limits (normalized from Unity prefab: 281.2° -> -78.8°, 436.5° -> 76.5°)
+  hipLimitFreeMin: -78.8,
+  hipLimitFreeMax: 76.5,
 
   // Knee joint limits
   kneeLimitFreeMin: 20.0,
