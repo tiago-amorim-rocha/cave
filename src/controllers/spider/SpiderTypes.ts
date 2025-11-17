@@ -103,17 +103,20 @@ export const DEFAULT_SPIDER_CONFIG: SpiderConfig = {
   jointLimitKp: 0.1,
   jointLimitKd: 0.05,
 
-  // Hip joint limits (normalized from Unity prefab: 281.2° -> -78.8°, 436.5° -> 76.5°)
-  hipLimitFreeMin: -78.8,
-  hipLimitFreeMax: 76.5,
+  // Hip joint limits (NEGATED and SWAPPED to match negated initial angles)
+  // Original: min=-78.8°, max=76.5° → Negated: min=-76.5°, max=78.8°
+  hipLimitFreeMin: -76.5,
+  hipLimitFreeMax: 78.8,
 
-  // Knee joint limits
-  kneeLimitFreeMin: 20.0,
-  kneeLimitFreeMax: 150.0,
+  // Knee joint limits (NEGATED and SWAPPED to match negated initial angles)
+  // Original: min=20.0°, max=150.0° → Negated: min=-150.0°, max=-20.0°
+  kneeLimitFreeMin: -150.0,
+  kneeLimitFreeMax: -20.0,
 
-  // Ankle joint limits
-  ankleLimitFreeMin: 20.0,
-  ankleLimitFreeMax: 150.0,
+  // Ankle joint limits (NEGATED and SWAPPED to match negated initial angles)
+  // Original: min=20.0°, max=150.0° → Negated: min=-150.0°, max=-20.0°
+  ankleLimitFreeMin: -150.0,
+  ankleLimitFreeMax: -20.0,
 
   // Rotation stabilization
   stabilizeRotation: true,
