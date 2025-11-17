@@ -782,8 +782,7 @@ try {
   spiderDebugUI = new SpiderDebugUI();
   (window as any).spiderDebugUI = spiderDebugUI; // Make accessible
 } catch (error) {
-  // console.error('Failed to create debug console:', error);
-  alert('Failed to create debug console: ' + error);
+  console.error('Failed to create debug console:', error);
   throw error;
 }
 
@@ -880,8 +879,7 @@ let caveGeneratorUI: CaveGeneratorUI;
 try {
   caveGeneratorUI = new CaveGeneratorUI();
 } catch (error) {
-  // console.error('Failed to create cave generator UI:', error);
-  alert('Failed to create cave generator UI: ' + error);
+  console.error('Failed to create cave generator UI:', error);
   throw error;
 }
 
