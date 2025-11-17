@@ -46,20 +46,17 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: 'spider-box2d-experiment/package-lock.json'
 
-      - name: Install dependencies (Spider Experiment)
+      - name: Install dependencies
         run: npm ci
-        working-directory: ./spider-box2d-experiment
 
-      - name: Build (Spider Experiment)
+      - name: Build
         run: npm run build
-        working-directory: ./spider-box2d-experiment
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./spider-box2d-experiment/dist
+          path: ./dist
 
   deploy:
     environment:
