@@ -10,7 +10,7 @@ export class Camera {
   zoom: number; // pixels per metre (PPM)
 
   minZoom = 10; // minimum PPM
-  maxZoom = 200; // maximum PPM
+  maxZoom = 400; // maximum PPM (2x more than before)
 
   worldWidth: number; // world bounds (metres)
   worldHeight: number;
