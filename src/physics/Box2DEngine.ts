@@ -188,8 +188,9 @@ export class Box2DEngine {
   debugDraw(ctx: CanvasRenderingContext2D, camera: Camera, canvasWidth: number, canvasHeight: number): void {
     if (!this.world || !this.debugDrawEnabled) return;
 
-    // For now, just draw terrain bodies as simple shapes
     ctx.save();
+
+    // Draw terrain bodies (green)
     ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
     ctx.lineWidth = 2;
 
@@ -223,6 +224,59 @@ export class Box2DEngine {
           }
         }
       }
+    }
+
+    // Draw all other bodies (kinematic and dynamic) - blue
+    ctx.strokeStyle = 'rgba(0, 150, 255, 0.8)';
+    ctx.fillStyle = 'rgba(0, 150, 255, 0.3)';
+    ctx.lineWidth = 2;
+
+    let body = this.world.GetBodyList();
+    while (body) {
+      const bodyType = body.GetType();
+
+      // Skip static bodies (already drawn as terrain)
+      if (bodyType !== b2BodyType.b2_staticBody) {
+        const position = body.GetPosition();
+        const angle = body.GetAngle();
+
+        let fixture = body.GetFixtureList();
+        while (fixture) {
+          const shape = fixture.GetShape();
+
+          if (shape.GetType() === 2) { // b2Shape.e_polygon
+            const polygonShape = shape as any;
+            const vertices = polygonShape.m_vertices;
+            const vertexCount = polygonShape.m_count;
+
+            if (vertexCount > 0) {
+              ctx.beginPath();
+
+              // Transform and draw first vertex
+              const x0 = position.x + vertices[0].x * Math.cos(angle) - vertices[0].y * Math.sin(angle);
+              const y0 = position.y + vertices[0].x * Math.sin(angle) + vertices[0].y * Math.cos(angle);
+              const screen0 = camera.worldToScreen(x0, y0, canvasWidth, canvasHeight);
+              ctx.moveTo(screen0.x, screen0.y);
+
+              // Draw remaining vertices
+              for (let i = 1; i < vertexCount; i++) {
+                const xi = position.x + vertices[i].x * Math.cos(angle) - vertices[i].y * Math.sin(angle);
+                const yi = position.y + vertices[i].x * Math.sin(angle) + vertices[i].y * Math.cos(angle);
+                const screeni = camera.worldToScreen(xi, yi, canvasWidth, canvasHeight);
+                ctx.lineTo(screeni.x, screeni.y);
+              }
+
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
+            }
+          }
+
+          fixture = fixture.GetNext();
+        }
+      }
+
+      body = body.GetNext();
     }
 
     ctx.restore();

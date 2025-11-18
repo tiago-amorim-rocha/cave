@@ -221,8 +221,30 @@ export class Renderer {
    * Draw the player (as capsule) - commented out since physics debug shows the actual capsule
    */
   private drawPlayer(canvasWidth: number, canvasHeight: number, position: { x: number; y: number }, radius: number): void {
-    // Player rendering disabled - use physics debug visualization instead
-    // The physics debug shows the actual capsule shape and foot sensor
+    // Draw player as a circle
+    const screen = this.camera.worldToScreen(position.x, position.y, canvasWidth, canvasHeight);
+    const radiusScreen = radius * this.camera.zoom;
+
+    this.ctx.save();
+
+    // Fill (bright green for visibility)
+    this.ctx.fillStyle = '#00ff00';
+    this.ctx.beginPath();
+    this.ctx.arc(screen.x, screen.y, radiusScreen, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // Outline (white)
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 2;
+    this.ctx.stroke();
+
+    // Draw center dot
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.beginPath();
+    this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    this.ctx.restore();
   }
 
   /**

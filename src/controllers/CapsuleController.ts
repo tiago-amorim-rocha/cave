@@ -1,11 +1,12 @@
 /**
- * Simple Capsule Kinematic Controller
+ * Simple Capsule Controller
  *
  * A minimal controller that:
- * - Uses kinematic physics (no gravity, no forces)
- * - Provides direct position-based movement
- * - Collides with cave walls (static terrain)
+ * - Uses dynamic physics with zero gravity
+ * - Force-based movement with high damping for responsive controls
+ * - Properly collides with cave walls (static terrain)
  * - Free movement in all directions
+ * - Fixed rotation (no spinning)
  *
  * Perfect for testing and prototyping without complex physics.
  */
@@ -46,13 +47,14 @@ const DEFAULT_CONFIG: Required<CapsuleConfig> = {
 };
 
 /**
- * Simple Capsule Kinematic Controller
+ * Simple Capsule Controller
  *
  * Features:
- * - Kinematic body (not affected by gravity/forces)
- * - Direct velocity-based movement
- * - Collides with static terrain
+ * - Dynamic body with zero gravity (free flight)
+ * - Force-based movement with high damping
+ * - Properly collides with static terrain
  * - WASD/Joystick input
+ * - Fixed rotation for stability
  */
 export class CapsuleController implements IPlayerController {
   private world: b2World;
@@ -73,13 +75,15 @@ export class CapsuleController implements IPlayerController {
     this.world = world;
     this.config = { ...DEFAULT_CONFIG, ...config };
 
-    // Create kinematic body
+    // Create dynamic body with no gravity (acts like kinematic but with collision response)
     const bodyDef: b2BodyDef = {
-      type: b2BodyType.b2_kinematicBody, // Kinematic: not affected by forces/gravity
+      type: b2BodyType.b2_dynamicBody,
       position: { x, y },
       angle: 0,
-      linearDamping: 0,
-      angularDamping: 0,
+      linearDamping: 10.0,   // High damping for instant stop when no input
+      angularDamping: 10.0,  // Prevent rotation
+      fixedRotation: true,   // Lock rotation completely
+      gravityScale: 0.0,     // No gravity (free flight)
     };
 
     this.body = world.CreateBody(bodyDef);
@@ -93,7 +97,7 @@ export class CapsuleController implements IPlayerController {
 
     const fixtureDef: b2FixtureDef = {
       shape,
-      density: 1.0,      // Doesn't matter for kinematic bodies
+      density: 1.0,
       friction: 0.3,     // Wall sliding friction
       restitution: 0.0,  // No bounce
     };
@@ -181,19 +185,23 @@ export class CapsuleController implements IPlayerController {
       moveY /= magnitude;
     }
 
-    // Set velocity directly (kinematic bodies use velocity, not forces)
-    const velocity = new b2Vec2(
-      moveX * this.config.speed,
-      moveY * this.config.speed
+    // Apply forces for smooth movement with collision response
+    // Using a strong force to overcome the high damping
+    const forceMagnitude = 50.0; // Strong force to overcome damping
+    const force = new b2Vec2(
+      moveX * forceMagnitude,
+      moveY * forceMagnitude
     );
 
-    this.body.SetLinearVelocity(velocity);
+    this.body.ApplyForceToCenter(force, true);
 
-    // Optional: Rotate to face movement direction
-    // if (magnitude > 0.1) {
-    //   const targetAngle = Math.atan2(moveY, moveX);
-    //   this.body.SetTransform(this.body.GetPosition(), targetAngle);
-    // }
+    // Optional: Limit maximum speed
+    const currentVel = this.body.GetLinearVelocity();
+    const currentSpeed = Math.sqrt(currentVel.x * currentVel.x + currentVel.y * currentVel.y);
+    if (currentSpeed > this.config.speed) {
+      const scale = this.config.speed / currentSpeed;
+      this.body.SetLinearVelocity(new b2Vec2(currentVel.x * scale, currentVel.y * scale));
+    }
   }
 
   /**
@@ -255,17 +263,17 @@ export class CapsuleController implements IPlayerController {
   }
 
   /**
-   * Check if grounded (kinematic controller is never "grounded" in physics sense)
+   * Check if grounded (this controller has free flight)
    */
   isGrounded(): boolean {
-    return false; // Kinematic controllers fly freely
+    return false; // Free-flying controller
   }
 
   /**
    * Get controller type name
    */
   getTypeName(): string {
-    return 'Capsule (Kinematic)';
+    return 'Capsule Controller';
   }
 
   /**
