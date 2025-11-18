@@ -16,6 +16,8 @@ import type { WorldConfig, BrushSettings } from './types';
 import * as SpiderMath from './controllers/spider/SpiderMath';
 import { SpiderController } from './controllers/spider/SpiderController';
 import { DEFAULT_SPIDER_CONFIG } from './controllers/spider/SpiderTypes';
+import { CapsuleController } from './controllers/CapsuleController';
+import type { IPlayerController } from './controllers/IPlayerController';
 
 /**
  * Test spider math functions (Phase 1 verification)
@@ -125,7 +127,8 @@ class CarvableCaves {
   private loopCache: LoopCache;
   private inputHandler: InputHandler;
   private physics: Box2DPhysics;
-  private spider: SpiderController | null = null; // Spider controller
+  private spider: SpiderController | null = null; // Spider controller (parked for future reference)
+  private player: IPlayerController | null = null; // Current active player controller
   private joystick: VirtualJoystick;
   private remeshManager!: RemeshManager; // Initialized after physics
 
@@ -343,24 +346,24 @@ class CarvableCaves {
       // console.warn(`[Spider] No valid position found, spawning at preferred position (may be inside rock)`);
     }
 
-    // Create spider controller
+    // Create capsule controller
     const world = this.physics.getEngine().getWorld();
-    this.spider = new SpiderController(world, actualSpawnX, actualSpawnY, DEFAULT_SPIDER_CONFIG);
+    this.player = new CapsuleController(world, actualSpawnX, actualSpawnY);
 
-    // Register spider's update with physics engine
+    // Register player's update with physics engine
     this.physics.getEngine().registerFixedUpdate((dt) => {
-      if (this.spider) {
+      if (this.player) {
         // Get input from joystick
         const joystickDir = this.joystick.getInput();
-        this.spider.setInput(joystickDir.y, joystickDir.x); // (vertical, horizontal)
+        this.player.setJoystick(joystickDir); // Pass joystick input
 
-        // Update spider (dt is in milliseconds, convert to seconds)
-        this.spider.update(dt / 1000);
+        // Update player (dt is in milliseconds)
+        this.player.update(dt);
       }
     });
 
-    // Wire up spider debug UI (now that spider exists)
-    this.setupSpiderDebugUI();
+    // Spider debug UI disabled (using simple capsule controller)
+    // this.setupSpiderDebugUI();
 
     // Start render loop
     this.loop();
@@ -471,8 +474,8 @@ class CarvableCaves {
   private loop = (): void => {
     this.animationFrameId = requestAnimationFrame(this.loop);
 
-    // Wait for spider to be initialized
-    if (!this.spider) {
+    // Wait for player to be initialized
+    if (!this.player) {
       return;
     }
 
@@ -497,13 +500,13 @@ class CarvableCaves {
     }
 
     // Update physics simulation with fixed timestep (60Hz)
-    // Spider updates are registered as fixed callbacks inside the physics engine
+    // Player updates are registered as fixed callbacks inside the physics engine
     this.physics.update(deltaMs);
 
-    // Get spider body position for camera
-    const playerPos = this.spider.getBodyPosition();
+    // Get player position for camera
+    const playerPos = this.player.getPosition();
 
-    // Camera smoothly follows spider in character control mode
+    // Camera smoothly follows player in character control mode
     if (this.characterControlMode) {
       // Use smooth following with lerp factor of 0.08 for gentle camera movement
       this.camera.smoothFollow(playerPos.x, playerPos.y, 0.08);
@@ -525,11 +528,8 @@ class CarvableCaves {
       this.joystick.render(ctx);
     };
 
-    // Get spider render data
-    const spiderData = this.spider.getRenderData();
-
-    // Render (no player capsule or balls, just spider)
-    this.renderer.render(playerPos, 0.6, [], physicsDebugDraw, undefined, joystickDraw, spiderData);
+    // Render (simple capsule player)
+    this.renderer.render(playerPos, this.player.getRadius(), [], physicsDebugDraw, undefined, joystickDraw, undefined);
   };
 
   private remesh(): void {
@@ -724,8 +724,8 @@ class CarvableCaves {
       // console.warn('[Regenerate] No valid spawn position found, using preferred position (may be inside rock)');
     }
 
-    if (this.spider) {
-      this.spider.respawn(actualSpawnX, actualSpawnY);
+    if (this.player) {
+      this.player.respawn(actualSpawnX, actualSpawnY);
     }
 
     // Center camera on spawn
@@ -748,10 +748,10 @@ class CarvableCaves {
   }
 
   /**
-   * Respawn spider at camera center (for iOS touch button)
+   * Respawn player at camera center (for iOS touch button)
    */
   respawnPlayer(): void {
-    if (this.spider) {
+    if (this.player) {
       const spawnPos = this.findValidSpawnPosition(this.camera.x, this.camera.y, this.playerRadius);
 
       let actualSpawnX = this.camera.x;
@@ -760,12 +760,12 @@ class CarvableCaves {
       if (spawnPos) {
         actualSpawnX = spawnPos.x;
         actualSpawnY = spawnPos.y;
-        // console.log(`[Respawn] Spider respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
+        // console.log(`[Respawn] Player respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
       } else {
         // console.warn(`[Respawn] No valid spawn position found near camera, using camera center (may be inside rock)`);
       }
 
-      this.spider.respawn(actualSpawnX, actualSpawnY);
+      this.player.respawn(actualSpawnX, actualSpawnY);
     }
   }
 }

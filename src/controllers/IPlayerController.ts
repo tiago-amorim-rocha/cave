@@ -80,6 +80,7 @@ export interface IPlayerController {
 export enum ControllerType {
   FORCE = 'force',
   SPIDER = 'spider',
+  CAPSULE = 'capsule',
 }
 
 /**

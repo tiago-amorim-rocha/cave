@@ -8,6 +8,7 @@ import type { IPlayerController, ControllerConfig } from './IPlayerController';
 import { ControllerType } from './IPlayerController';
 // import { ForcePlayerController } from './ForcePlayerController'; // TODO: Implement for Box2D
 import { SpiderController } from './spider/SpiderController';
+import { CapsuleController } from './CapsuleController';
 
 /**
  * Factory for creating player controllers
@@ -34,6 +35,9 @@ export class ControllerFactory {
       case ControllerType.SPIDER:
         return new SpiderController(this.engine.getWorld(), config.x, config.y);
 
+      case ControllerType.CAPSULE:
+        return new CapsuleController(this.engine.getWorld(), config.x, config.y);
+
       default:
         throw new Error(`[ControllerFactory] Unknown controller type: ${type}`);
     }
@@ -46,6 +50,7 @@ export class ControllerFactory {
     return [
       ControllerType.FORCE,
       ControllerType.SPIDER,
+      ControllerType.CAPSULE,
     ];
   }
 
@@ -58,6 +63,8 @@ export class ControllerFactory {
         return 'Force Controller';
       case ControllerType.SPIDER:
         return 'Spider Controller';
+      case ControllerType.CAPSULE:
+        return 'Capsule Controller';
       default:
         return 'Unknown';
     }
