@@ -76,13 +76,13 @@ export class CapsuleController implements IPlayerController {
     this.world = world;
     this.config = { ...DEFAULT_CONFIG, ...config };
 
-    // Create dynamic body with no gravity (acts like kinematic but with collision response)
+    // Create dynamic body with no gravity - pure force-driven movement
     const bodyDef: b2BodyDef = {
       type: b2BodyType.b2_dynamicBody,
       position: { x, y },
       angle: 0,
-      linearDamping: 8.0,    // Damping for smooth stop when no input
-      angularDamping: 10.0,  // Prevent rotation
+      linearDamping: 0.0,    // No damping - pure physics
+      angularDamping: 0.0,   // No angular damping
       fixedRotation: true,   // Lock rotation completely
       gravityScale: 0.0,     // No gravity (free flight)
       bullet: true,          // Enable CCD to prevent tunneling through walls
@@ -212,42 +212,14 @@ export class CapsuleController implements IPlayerController {
       moveY /= magnitude;
     }
 
-    // Apply forces for smooth movement with collision response
-    const forceMagnitude = 30.0; // Reduced for better control and less tunneling risk
+    // Apply forces - pure physics, no constraints
+    const forceMagnitude = 30.0;
     const force = new b2Vec2(
       moveX * forceMagnitude,
       moveY * forceMagnitude
     );
 
     this.body.ApplyForceToCenter(force, true);
-
-    // Get current velocity
-    const currentVel = this.body.GetLinearVelocity();
-    const currentSpeed = Math.sqrt(currentVel.x * currentVel.x + currentVel.y * currentVel.y);
-
-    // Hard safety cap to prevent tunneling (1.5x max speed)
-    const absoluteMaxSpeed = this.config.speed * 1.5;
-    if (currentSpeed > absoluteMaxSpeed) {
-      const scale = absoluteMaxSpeed / currentSpeed;
-      this.body.SetLinearVelocity(new b2Vec2(
-        currentVel.x * scale,
-        currentVel.y * scale
-      ));
-    }
-    // Smooth limit at normal max speed
-    else if (currentSpeed > this.config.speed) {
-      // Gentle speed reduction instead of hard clamp
-      const scale = this.config.speed / currentSpeed;
-      const targetVelX = currentVel.x * scale;
-      const targetVelY = currentVel.y * scale;
-
-      // Smooth transition to target velocity
-      const smoothFactor = 0.5;
-      this.body.SetLinearVelocity(new b2Vec2(
-        currentVel.x + (targetVelX - currentVel.x) * smoothFactor,
-        currentVel.y + (targetVelY - currentVel.y) * smoothFactor
-      ));
-    }
   }
 
   /**
