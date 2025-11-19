@@ -244,7 +244,22 @@ export class Box2DEngine {
         while (fixture) {
           const shape = fixture.GetShape();
 
-          if (shape.GetType() === 2) { // b2Shape.e_polygon
+          if (shape.GetType() === 0) { // b2Shape.e_circle
+            const circleShape = shape as any;
+            const circlePos = circleShape.m_p; // Local position of circle center
+            const radius = circleShape.m_radius;
+
+            // Transform circle center to world space
+            const worldX = position.x + circlePos.x * Math.cos(angle) - circlePos.y * Math.sin(angle);
+            const worldY = position.y + circlePos.x * Math.sin(angle) + circlePos.y * Math.cos(angle);
+            const screen = camera.worldToScreen(worldX, worldY, canvasWidth, canvasHeight);
+            const screenRadius = radius * camera.zoom;
+
+            ctx.beginPath();
+            ctx.arc(screen.x, screen.y, screenRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          } else if (shape.GetType() === 2) { // b2Shape.e_polygon
             const polygonShape = shape as any;
             const vertices = polygonShape.m_vertices;
             const vertexCount = polygonShape.m_count;

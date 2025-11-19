@@ -221,16 +221,42 @@ export class Renderer {
    * Draw the player (as capsule) - commented out since physics debug shows the actual capsule
    */
   private drawPlayer(canvasWidth: number, canvasHeight: number, position: { x: number; y: number }, radius: number): void {
-    // Draw player as a circle
+    // Draw player as a capsule (rounded rectangle / pill shape)
     const screen = this.camera.worldToScreen(position.x, position.y, canvasWidth, canvasHeight);
+
+    // Capsule dimensions in screen space
+    // radius parameter is actually width/2 (0.25m)
+    const width = radius * 2; // 0.5m
+    const height = radius * 4; // 1.0m (height = 2 * width)
+    const widthScreen = width * this.camera.zoom;
+    const heightScreen = height * this.camera.zoom;
     const radiusScreen = radius * this.camera.zoom;
+
+    // Calculate capsule components
+    const cylinderHeight = heightScreen - 2 * radiusScreen;
 
     this.ctx.save();
 
     // Fill (bright green for visibility)
     this.ctx.fillStyle = '#00ff00';
+
+    // Draw capsule as a rounded rectangle
     this.ctx.beginPath();
-    this.ctx.arc(screen.x, screen.y, radiusScreen, 0, Math.PI * 2);
+
+    // Start from top-left of rectangle
+    this.ctx.moveTo(screen.x - radiusScreen, screen.y - cylinderHeight / 2);
+
+    // Top semicircle
+    this.ctx.arc(screen.x, screen.y - cylinderHeight / 2, radiusScreen, Math.PI, 0, false);
+
+    // Right edge
+    this.ctx.lineTo(screen.x + radiusScreen, screen.y + cylinderHeight / 2);
+
+    // Bottom semicircle
+    this.ctx.arc(screen.x, screen.y + cylinderHeight / 2, radiusScreen, 0, Math.PI, false);
+
+    // Left edge (close path)
+    this.ctx.closePath();
     this.ctx.fill();
 
     // Outline (white)

@@ -201,8 +201,8 @@ class CarvableCaves {
       // Initialize density field
       this.densityField = new DensityField(worldConfig);
 
-      // Generate initial cave system with lots of open space for spider (negative threshold = more empty space)
-      this.densityField.generateCaves(undefined, 0.05, 4, -0.25);
+      // Generate initial cave system with balanced cave/empty areas (threshold = 0)
+      this.densityField.generateCaves(undefined, 0.05, 4, 0);
 
       // Player spawn position (validated to be in empty area)
       const preferredSpawnX = worldConfig.width / 2;

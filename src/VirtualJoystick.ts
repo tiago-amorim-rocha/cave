@@ -271,34 +271,34 @@ export class VirtualJoystick {
 
     ctx.save();
 
-    // Outer circle (base)
+    // Outer circle (base) - dark blue/purple for visibility on light backgrounds
     ctx.beginPath();
     ctx.arc(this.options.x, this.options.y, this.options.outerRadius, 0, Math.PI * 2);
-    ctx.fillStyle = this.active ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.1)';
+    ctx.fillStyle = this.active ? 'rgba(66, 46, 121, 0.25)' : 'rgba(66, 46, 121, 0.15)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(66, 46, 121, 0.6)';
+    ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Inner stick
+    // Inner stick - darker blue for contrast
     const stickCenterX = this.options.x + this.stickX;
     const stickCenterY = this.options.y + this.stickY;
 
     ctx.beginPath();
     ctx.arc(stickCenterX, stickCenterY, this.options.innerRadius, 0, Math.PI * 2);
-    ctx.fillStyle = this.active ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.3)';
+    ctx.fillStyle = this.active ? 'rgba(46, 26, 101, 0.7)' : 'rgba(46, 26, 101, 0.5)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(46, 26, 101, 0.9)';
+    ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Direction indicator (when active and magnitude > 0)
+    // Direction indicator (when active and magnitude > 0) - medium purple
     if (this.active && this.input.magnitude > 0.1) {
       ctx.beginPath();
       ctx.moveTo(this.options.x, this.options.y);
       ctx.lineTo(stickCenterX, stickCenterY);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(86, 66, 141, 0.7)';
+      ctx.lineWidth = 4;
       ctx.stroke();
     }
 

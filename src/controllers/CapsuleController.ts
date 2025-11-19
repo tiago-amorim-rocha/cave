@@ -16,6 +16,7 @@ import {
   b2BodyDef,
   b2FixtureDef,
   b2PolygonShape,
+  b2CircleShape,
   b2BodyType,
   b2Vec2,
   type b2Body,
@@ -88,21 +89,46 @@ export class CapsuleController implements IPlayerController {
 
     this.body = world.CreateBody(bodyDef);
 
-    // Create capsule-like shape (rounded rectangle)
-    const shape = new b2PolygonShape();
-    shape.SetAsBox(
-      this.config.width / 2,  // Half-width
-      this.config.height / 2  // Half-height
-    );
+    // Create true capsule shape: rectangle + 2 circles
+    // Capsule dimensions: width=0.5m, height=1.0m
+    const radius = this.config.width / 2; // 0.25m
+    const cylinderHeight = this.config.height - 2 * radius; // 0.5m (1.0 - 2*0.25)
 
-    const fixtureDef: b2FixtureDef = {
-      shape,
+    // Common fixture properties
+    const commonFixtureDef = {
       density: 1.0,
-      friction: 0.3,     // Wall sliding friction
-      restitution: 0.0,  // No bounce
+      friction: 0.3,
+      restitution: 0.0,
     };
 
-    this.body.CreateFixture(fixtureDef);
+    // Middle rectangle (vertical)
+    const rectShape = new b2PolygonShape();
+    rectShape.SetAsBox(
+      radius,                   // Half-width: 0.25m
+      cylinderHeight / 2        // Half-height: 0.25m
+    );
+    this.body.CreateFixture({
+      shape: rectShape,
+      ...commonFixtureDef,
+    });
+
+    // Top circle
+    const topCircle = new b2CircleShape();
+    topCircle.m_radius = radius;
+    topCircle.m_p.Set(0, -cylinderHeight / 2); // Position at top of rectangle
+    this.body.CreateFixture({
+      shape: topCircle,
+      ...commonFixtureDef,
+    });
+
+    // Bottom circle
+    const bottomCircle = new b2CircleShape();
+    bottomCircle.m_radius = radius;
+    bottomCircle.m_p.Set(0, cylinderHeight / 2); // Position at bottom of rectangle
+    this.body.CreateFixture({
+      shape: bottomCircle,
+      ...commonFixtureDef,
+    });
 
     console.log(`[CapsuleController] Created at (${x.toFixed(2)}, ${y.toFixed(2)}) - size: ${this.config.width}m × ${this.config.height}m`);
 
