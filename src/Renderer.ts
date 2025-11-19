@@ -445,6 +445,9 @@ export class Renderer {
 
     this.ctx.fill('evenodd');
 
+    // Draw subtle grid lines in cave space (after fill, before stroke)
+    this.drawCaveGrid(canvasWidth, canvasHeight);
+
     // Stroke outlines (medium purple for definition)
     this.ctx.strokeStyle = '#9c7fa3';
     this.ctx.lineWidth = 2;
@@ -604,6 +607,72 @@ export class Renderer {
     this.ctx.save();
     this.ctx.strokeStyle = '#333';
     this.ctx.lineWidth = 1;
+
+    // Draw grid lines every 1 metre in world space
+    const gridSpacing = 1; // metres
+
+    // Calculate visible world bounds
+    const topLeft = this.camera.screenToWorld(0, 0, canvasWidth, canvasHeight);
+    const bottomRight = this.camera.screenToWorld(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
+
+    const startX = Math.floor(topLeft.x / gridSpacing) * gridSpacing;
+    const endX = Math.ceil(bottomRight.x / gridSpacing) * gridSpacing;
+    const startY = Math.floor(topLeft.y / gridSpacing) * gridSpacing;
+    const endY = Math.ceil(bottomRight.y / gridSpacing) * gridSpacing;
+
+    // Vertical lines
+    for (let x = startX; x <= endX; x += gridSpacing) {
+      const top = this.camera.worldToScreen(x, topLeft.y, canvasWidth, canvasHeight);
+      const bottom = this.camera.worldToScreen(x, bottomRight.y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.moveTo(top.x, top.y);
+      this.ctx.lineTo(bottom.x, bottom.y);
+      this.ctx.stroke();
+    }
+
+    // Horizontal lines
+    for (let y = startY; y <= endY; y += gridSpacing) {
+      const left = this.camera.worldToScreen(topLeft.x, y, canvasWidth, canvasHeight);
+      const right = this.camera.worldToScreen(bottomRight.x, y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.moveTo(left.x, left.y);
+      this.ctx.lineTo(right.x, right.y);
+      this.ctx.stroke();
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw subtle grid lines in cave space (empty area)
+   * Grid is almost the same color as the cave background for subtle visual aid
+   */
+  private drawCaveGrid(canvasWidth: number, canvasHeight: number): void {
+    if (this.polylines.length === 0) return;
+
+    this.ctx.save();
+
+    // Create clipping region from polylines (only draw grid inside cave)
+    this.ctx.beginPath();
+    for (const polyline of this.polylines) {
+      if (polyline.length < 2) continue;
+
+      const firstScreen = this.camera.worldToScreen(polyline[0].x, polyline[0].y, canvasWidth, canvasHeight);
+      this.ctx.moveTo(firstScreen.x, firstScreen.y);
+
+      for (let i = 1; i < polyline.length; i++) {
+        const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(screen.x, screen.y);
+      }
+
+      this.ctx.closePath();
+    }
+    this.ctx.clip('evenodd');
+
+    // Very subtle grid color - slightly darker than cave background '#fff8e3'
+    this.ctx.strokeStyle = '#ede5d0';
+    this.ctx.lineWidth = 0.5;
+    this.ctx.globalAlpha = 0.6; // Additional subtlety
 
     // Draw grid lines every 1 metre in world space
     const gridSpacing = 1; // metres
