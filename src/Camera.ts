@@ -15,10 +15,28 @@ export class Camera {
   worldWidth: number; // world bounds (metres)
   worldHeight: number;
 
+  // Dynamic camera parameters
+  private baseZoom = 150; // PPM when stationary (closer view)
+  private minDynamicZoom = 100; // PPM when moving fast
+  private zoomOutFactor = 10; // How much velocity affects zoom
+  private zoomSmoothSpeed = 0.06; // Zoom transition speed
+
+  // Look-ahead parameters
+  private lookAheadX = 0.3; // Horizontal look-ahead factor
+  private lookAheadY = 0.15; // Vertical look-ahead factor
+
+  // Smoothing parameters (frame-rate independent)
+  private smoothX = 0.06; // Horizontal follow smoothing
+  private smoothY = 0.08; // Vertical follow smoothing (more responsive)
+
+  // Target zoom (for smooth transitions)
+  private targetZoom: number;
+
   constructor(x: number, y: number, zoom: number, worldWidth: number = 50, worldHeight: number = 30) {
     this.x = x;
     this.y = y;
     this.zoom = zoom;
+    this.targetZoom = zoom;
     this.worldWidth = worldWidth;
     this.worldHeight = worldHeight;
   }
@@ -102,6 +120,52 @@ export class Camera {
     // Linear interpolation: current + (target - current) * smoothing
     this.x += (targetX - this.x) * smoothing;
     this.y += (targetY - this.y) * smoothing;
+    this.clampToBounds();
+  }
+
+  /**
+   * Advanced camera following with velocity-based zoom and look-ahead
+   * @param playerX - Player X position (metres)
+   * @param playerY - Player Y position (metres)
+   * @param velocityX - Player X velocity (metres/second)
+   * @param velocityY - Player Y velocity (metres/second)
+   * @param deltaTime - Time since last frame (seconds)
+   */
+  followPlayer(
+    playerX: number,
+    playerY: number,
+    velocityX: number,
+    velocityY: number,
+    deltaTime: number
+  ): void {
+    // 1. Calculate velocity magnitude
+    const velocityMagnitude = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+
+    // 2. Calculate target zoom based on velocity (zoom out when moving fast)
+    this.targetZoom = this.baseZoom - (velocityMagnitude * this.zoomOutFactor);
+    this.targetZoom = Math.max(this.minDynamicZoom, Math.min(this.baseZoom, this.targetZoom));
+
+    // 3. Smoothly transition zoom (frame-rate independent)
+    const zoomSmooth = 1 - Math.pow(1 - this.zoomSmoothSpeed, deltaTime * 60);
+    this.zoom += (this.targetZoom - this.zoom) * zoomSmooth;
+    this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom));
+
+    // 4. Calculate look-ahead offset based on velocity
+    const lookAheadOffsetX = velocityX * this.lookAheadX;
+    const lookAheadOffsetY = velocityY * this.lookAheadY;
+
+    // 5. Calculate target camera position (player + look-ahead)
+    const targetX = playerX + lookAheadOffsetX;
+    const targetY = playerY + lookAheadOffsetY;
+
+    // 6. Smoothly follow target with separate X/Y smoothing (frame-rate independent)
+    const smoothFactorX = 1 - Math.pow(1 - this.smoothX, deltaTime * 60);
+    const smoothFactorY = 1 - Math.pow(1 - this.smoothY, deltaTime * 60);
+
+    this.x += (targetX - this.x) * smoothFactorX;
+    this.y += (targetY - this.y) * smoothFactorY;
+
+    // 7. Clamp to world bounds
     this.clampToBounds();
   }
 }

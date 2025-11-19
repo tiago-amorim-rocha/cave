@@ -189,11 +189,11 @@ class CarvableCaves {
         throw new Error('Canvas not found');
       }
 
-      // Initialize camera (centered on world, zoomed out for better view)
+      // Initialize camera (centered on world, closer view for character following)
       this.camera = new Camera(
         worldConfig.width / 2,
         worldConfig.height / 2,
-        30, // initial PPM (pixels per metre) - zoomed out for wider view
+        150, // initial PPM (pixels per metre) - closer view for better character camera
         worldConfig.width,
         worldConfig.height
       );
@@ -506,10 +506,15 @@ class CarvableCaves {
     // Get player position for camera
     const playerPos = this.player.getPosition();
 
-    // Camera smoothly follows player in character control mode
+    // Get player velocity for advanced camera (look-ahead and dynamic zoom)
+    const playerBody = this.player.getBody();
+    const velocity = playerBody.GetLinearVelocity();
+
+    // Camera follows player with advanced features in character control mode
     if (this.characterControlMode) {
-      // Use smooth following with lerp factor of 0.08 for gentle camera movement
-      this.camera.smoothFollow(playerPos.x, playerPos.y, 0.08);
+      // Use advanced camera with velocity-based zoom and look-ahead
+      // deltaMs is in milliseconds, convert to seconds
+      this.camera.followPlayer(playerPos.x, playerPos.y, velocity.x, velocity.y, deltaMs / 1000);
     }
 
     // Remesh if needed
