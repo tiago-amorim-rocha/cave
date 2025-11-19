@@ -879,7 +879,8 @@ class CarvableCaves {
     console.log('[Carve] Brush stamped, triggering remesh...');
 
     // Trigger remesh to update physics
-    this.needsRemesh = true;
+    this.remeshManager.requestFullHeal(); // Request full remesh
+    this.needsRemesh = true; // Trigger remesh on next frame
   }
 }
 
