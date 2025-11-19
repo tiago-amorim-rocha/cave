@@ -207,7 +207,9 @@ class CarvableCaves {
       // Player spawn position (validated to be in empty area)
       const preferredSpawnX = worldConfig.width / 2;
       const preferredSpawnY = worldConfig.height / 2;
-      const playerRadius = 0.6; // Player capsule radius (must match RapierPlayer)
+      // Capsule: width=0.5m, height=1.0m, radius=0.25m
+      // Use 0.8m for spawn validation (larger buffer to account for marching squares drift)
+      const playerRadius = 0.8;
 
       // Store for later use in start()
       this.preferredSpawnX = preferredSpawnX;
@@ -429,19 +431,48 @@ class CarvableCaves {
    * @returns true if position is valid (in empty area)
    */
   private isValidSpawnPosition(x: number, y: number, radius: number): boolean {
+    // Capsule dimensions for proper validation
+    const capsuleHeight = 1.0; // Capsule is 1.0m tall
+    const halfHeight = capsuleHeight / 2;
+
     // Check center
     if (!this.densityField.isEmptyArea(x, y)) {
       return false;
     }
 
-    // Check points around the perimeter (8 points)
-    const numChecks = 8;
+    // Check top and bottom of capsule
+    if (!this.densityField.isEmptyArea(x, y - halfHeight)) {
+      return false;
+    }
+    if (!this.densityField.isEmptyArea(x, y + halfHeight)) {
+      return false;
+    }
+
+    // Check points around the perimeter at center height
+    const numChecks = 12; // Increased from 8 for better coverage
     for (let i = 0; i < numChecks; i++) {
       const angle = (i / numChecks) * Math.PI * 2;
       const checkX = x + Math.cos(angle) * radius;
       const checkY = y + Math.sin(angle) * radius;
 
       if (!this.densityField.isEmptyArea(checkX, checkY)) {
+        return false;
+      }
+    }
+
+    // Check points around the perimeter at top and bottom
+    const numVerticalChecks = 8;
+    for (let i = 0; i < numVerticalChecks; i++) {
+      const angle = (i / numVerticalChecks) * Math.PI * 2;
+      const checkX = x + Math.cos(angle) * radius;
+
+      // Check top ring
+      if (!this.densityField.isEmptyArea(checkX, y - halfHeight)) {
+        return false;
+      }
+
+      // Check bottom ring
+      if (!this.densityField.isEmptyArea(checkX, y + halfHeight)) {
         return false;
       }
     }
