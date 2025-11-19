@@ -398,6 +398,11 @@ export class DensityField {
     const minGridY = Math.max(0, centerGridY - brushCenterY);
     const maxGridY = Math.min(this.gridHeight - 1, centerGridY + brushCenterY);
 
+    console.log(`[stampBrush] Center: grid(${centerGridX}, ${centerGridY}), bounds: [${minGridX}-${maxGridX}, ${minGridY}-${maxGridY}]`);
+
+    let pixelsModified = 0;
+    let totalStrengthApplied = 0;
+
     // Stamp brush onto density field
     for (let gy = minGridY; gy <= maxGridY; gy++) {
       for (let gx = minGridX; gx <= maxGridX; gx++) {
@@ -425,11 +430,17 @@ export class DensityField {
           : Math.max(0, currentDensity - brushStrength);   // Subtract (carve away)
 
         this.set(gx, gy, newDensity);
+
+        pixelsModified++;
+        totalStrengthApplied += brushStrength;
       }
     }
 
+    console.log(`[stampBrush] Modified ${pixelsModified} pixels, avg strength: ${(totalStrengthApplied / pixelsModified).toFixed(1)}`);
+
     // Mark dirty region
     this.expandDirtyAABB(minGridX, minGridY, maxGridX, maxGridY);
+    console.log(`[stampBrush] Dirty AABB: [${minGridX}-${maxGridX}, ${minGridY}-${maxGridY}]`);
   }
 
   /**
