@@ -178,6 +178,7 @@ class CarvableCaves {
   private carveBrush: Brush | null = null;
   private carveRadius = 2.0; // metres
   private carveStrength = 0.25; // 0-1 (25%)
+  private carveOffset = 2.5; // metres - distance ahead of player to place brush
 
   constructor() {
     try {
@@ -213,9 +214,9 @@ class CarvableCaves {
       // Player spawn position (validated to be in empty area)
       const preferredSpawnX = worldConfig.width / 2;
       const preferredSpawnY = worldConfig.height / 2;
-      // Capsule: width=0.5m, height=1.0m, radius=0.25m
-      // Use 0.8m for spawn validation (larger buffer to account for marching squares drift)
-      const playerRadius = 0.8;
+      // Circle: radius=1.0m
+      // Use 1.5m for spawn validation (larger buffer to account for marching squares drift)
+      const playerRadius = 1.5;
 
       // Store for later use in start()
       this.preferredSpawnX = preferredSpawnX;
@@ -457,10 +458,6 @@ class CarvableCaves {
    * @returns true if position is valid (in empty area)
    */
   private isValidSpawnPosition(x: number, y: number, radius: number): boolean {
-    // Capsule dimensions for proper validation
-    const capsuleHeight = 1.0; // Capsule is 1.0m tall
-    const halfHeight = capsuleHeight / 2;
-
     // CRITICAL: Add extra margin to account for marching squares interpolation
     // and smoothing pushing physics colliders into "empty" density field areas
     const safetyMargin = 1.0; // 1m extra clearance
@@ -471,39 +468,14 @@ class CarvableCaves {
       return false;
     }
 
-    // Check top and bottom of capsule (with margin)
-    if (!this.densityField.isEmptyArea(x, y - halfHeight - safetyMargin)) {
-      return false;
-    }
-    if (!this.densityField.isEmptyArea(x, y + halfHeight + safetyMargin)) {
-      return false;
-    }
-
-    // Check points around the perimeter at center height (with margin)
-    const numChecks = 12;
+    // Check points around the perimeter (with margin)
+    const numChecks = 16;
     for (let i = 0; i < numChecks; i++) {
       const angle = (i / numChecks) * Math.PI * 2;
       const checkX = x + Math.cos(angle) * checkRadius;
       const checkY = y + Math.sin(angle) * checkRadius;
 
       if (!this.densityField.isEmptyArea(checkX, checkY)) {
-        return false;
-      }
-    }
-
-    // Check points around the perimeter at top and bottom (with margin)
-    const numVerticalChecks = 8;
-    for (let i = 0; i < numVerticalChecks; i++) {
-      const angle = (i / numVerticalChecks) * Math.PI * 2;
-      const checkX = x + Math.cos(angle) * checkRadius;
-
-      // Check top ring
-      if (!this.densityField.isEmptyArea(checkX, y - halfHeight - safetyMargin)) {
-        return false;
-      }
-
-      // Check bottom ring
-      if (!this.densityField.isEmptyArea(checkX, y + halfHeight + safetyMargin)) {
         return false;
       }
     }
@@ -603,8 +575,11 @@ class CarvableCaves {
       this.joystick.render(ctx);
     };
 
-    // Render (simple capsule player)
-    this.renderer.render(playerPos, this.player.getRadius(), [], physicsDebugDraw, undefined, joystickDraw, undefined);
+    // Get player direction
+    const playerDirection = this.player.getDirection ? this.player.getDirection() : undefined;
+
+    // Render (simple circle player with direction indicator)
+    this.renderer.render(playerPos, this.player.getRadius(), [], physicsDebugDraw, undefined, joystickDraw, undefined, playerDirection);
   };
 
   private remesh(): void {
@@ -877,7 +852,15 @@ class CarvableCaves {
   }
 
   /**
-   * Carve around player with a blurred/soft-edge brush (Photoshop-style stamping)
+   * Set carve offset (distance ahead of player)
+   */
+  setCarveOffset(offset: number): void {
+    this.carveOffset = offset;
+    console.log(`[Carve] Offset changed to ${offset.toFixed(1)}m ahead of player`);
+  }
+
+  /**
+   * Carve ahead of player in the direction they're facing
    */
   carveAroundPlayer(): void {
     if (!this.player) {
@@ -886,6 +869,13 @@ class CarvableCaves {
     }
 
     const pos = this.player.getPosition();
+
+    // Get player direction (if available)
+    const direction = this.player.getDirection ? this.player.getDirection() : 0;
+
+    // Calculate carve position ahead of player
+    const carveX = pos.x + Math.cos(direction) * this.carveOffset;
+    const carveY = pos.y + Math.sin(direction) * this.carveOffset;
 
     // Generate brush if not cached or if parameters changed
     if (!this.carveBrush) {
@@ -898,13 +888,13 @@ class CarvableCaves {
       return;
     }
 
-    console.log(`[Carve] Carving at (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)})`);
+    console.log(`[Carve] Carving at (${carveX.toFixed(2)}, ${carveY.toFixed(2)}) [offset=${this.carveOffset.toFixed(1)}m ahead of player]`);
 
     // Stamp the pre-generated brush onto the density field
     // Strength is pre-baked into the brush texture
     this.densityField.stampBrush(
-      pos.x,
-      pos.y,
+      carveX,
+      carveY,
       this.carveBrush,
       false // false = carve (subtract density)
     );

@@ -27,10 +27,8 @@ import type { IPlayerController } from './IPlayerController';
  * Capsule controller configuration
  */
 export interface CapsuleConfig {
-  /** Capsule width (metres) */
-  width?: number;
-  /** Capsule height (metres) */
-  height?: number;
+  /** Circle radius (metres) */
+  radius?: number;
   /** Movement speed (metres/second) */
   speed?: number;
   /** Rotation speed (degrees/second) */
@@ -41,8 +39,7 @@ export interface CapsuleConfig {
  * Default configuration
  */
 const DEFAULT_CONFIG: Required<CapsuleConfig> = {
-  width: 0.5,      // 0.5m wide
-  height: 1.0,     // 1.0m tall (2:1 aspect ratio)
+  radius: 1.0,     // 1.0m radius circle
   speed: 5.0,      // 5 m/s movement speed
   rotationSpeed: 180.0, // 180 deg/s rotation speed
 };
@@ -67,6 +64,9 @@ export class CapsuleController implements IPlayerController {
   private inputY = 0; // -1 to 1
   private joystick = { x: 0, y: 0 };
 
+  // Direction tracking (angle in radians, 0 = right, PI/2 = down, etc.)
+  private direction = 0; // Default facing right
+
   constructor(
     world: b2World,
     x: number,
@@ -81,7 +81,7 @@ export class CapsuleController implements IPlayerController {
       type: b2BodyType.b2_dynamicBody,
       position: { x, y },
       angle: 0,
-      linearDamping: 4.0,    // Mid-level damping for responsive controls
+      linearDamping: 2.0,    // Reduced from 4.0 for less dampening
       angularDamping: 0.0,   // No angular damping
       fixedRotation: true,   // Lock rotation completely
       gravityScale: 0.0,     // No gravity (free flight)
@@ -90,48 +90,18 @@ export class CapsuleController implements IPlayerController {
 
     this.body = world.CreateBody(bodyDef);
 
-    // Create true capsule shape: rectangle + 2 circles
-    // Capsule dimensions: width=0.5m, height=1.0m
-    const radius = this.config.width / 2; // 0.25m
-    const cylinderHeight = this.config.height - 2 * radius; // 0.5m (1.0 - 2*0.25)
+    // Create circle shape with 1m radius
+    const circleShape = new b2CircleShape();
+    circleShape.m_radius = this.config.radius;
 
-    // Common fixture properties
-    const commonFixtureDef = {
+    this.body.CreateFixture({
+      shape: circleShape,
       density: 1.0,
       friction: 0.3,
       restitution: 0.0,
-    };
-
-    // Middle rectangle (vertical)
-    const rectShape = new b2PolygonShape();
-    rectShape.SetAsBox(
-      radius,                   // Half-width: 0.25m
-      cylinderHeight / 2        // Half-height: 0.25m
-    );
-    this.body.CreateFixture({
-      shape: rectShape,
-      ...commonFixtureDef,
     });
 
-    // Top circle
-    const topCircle = new b2CircleShape();
-    topCircle.m_radius = radius;
-    topCircle.m_p.Set(0, -cylinderHeight / 2); // Position at top of rectangle
-    this.body.CreateFixture({
-      shape: topCircle,
-      ...commonFixtureDef,
-    });
-
-    // Bottom circle
-    const bottomCircle = new b2CircleShape();
-    bottomCircle.m_radius = radius;
-    bottomCircle.m_p.Set(0, cylinderHeight / 2); // Position at bottom of rectangle
-    this.body.CreateFixture({
-      shape: bottomCircle,
-      ...commonFixtureDef,
-    });
-
-    console.log(`[CapsuleController] Created at (${x.toFixed(2)}, ${y.toFixed(2)}) - size: ${this.config.width}m × ${this.config.height}m`);
+    console.log(`[CapsuleController] Created at (${x.toFixed(2)}, ${y.toFixed(2)}) - radius: ${this.config.radius}m`);
 
     // Listen for keyboard input
     this.setupKeyboardInput();
@@ -212,8 +182,13 @@ export class CapsuleController implements IPlayerController {
       moveY /= magnitude;
     }
 
-    // Apply forces - pure physics, no constraints
-    const forceMagnitude = 30.0;
+    // Update direction based on movement (only if actually moving)
+    if (magnitude > 0.1) {
+      this.direction = Math.atan2(moveY, moveX);
+    }
+
+    // Apply forces - reduced magnitude from 30.0 to 15.0
+    const forceMagnitude = 15.0;
     const force = new b2Vec2(
       moveX * forceMagnitude,
       moveY * forceMagnitude
@@ -231,18 +206,24 @@ export class CapsuleController implements IPlayerController {
   }
 
   /**
-   * Get capsule radius (for rendering)
-   * Returns the width/2 (used for collision detection visualization)
+   * Get circle radius (for rendering)
    */
   getRadius(): number {
-    return this.config.width / 2;
+    return this.config.radius;
   }
 
   /**
-   * Get capsule height
+   * Get circle height (diameter)
    */
   getHeight(): number {
-    return this.config.height;
+    return this.config.radius * 2;
+  }
+
+  /**
+   * Get current direction angle in radians
+   */
+  getDirection(): number {
+    return this.direction;
   }
 
   /**
@@ -318,29 +299,29 @@ export class CapsuleController implements IPlayerController {
     worldToScreen: (x: number, y: number) => { x: number; y: number }
   ): void {
     const pos = this.body.GetPosition();
-    const angle = this.body.GetAngle();
     const screen = worldToScreen(pos.x, pos.y);
 
     ctx.save();
     ctx.translate(screen.x, screen.y);
-    ctx.rotate(angle);
 
-    // Draw capsule body
+    // Draw circle body
     ctx.strokeStyle = '#00ff00';
     ctx.lineWidth = 2;
-    ctx.strokeRect(
-      -this.config.width * 25, // Assuming ~50 pixels per meter
-      -this.config.height * 25,
-      this.config.width * 50,
-      this.config.height * 50
-    );
-
-    // Draw direction indicator
-    ctx.strokeStyle = '#ff00ff';
+    const radiusPixels = this.config.radius * 50; // Assuming ~50 pixels per meter
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(30, 0);
+    ctx.arc(0, 0, radiusPixels, 0, Math.PI * 2);
     ctx.stroke();
+
+    // Draw direction indicator (triangle pointing in movement direction)
+    ctx.rotate(this.direction);
+
+    ctx.fillStyle = '#ff00ff';
+    ctx.beginPath();
+    ctx.moveTo(radiusPixels, 0); // Tip of triangle at edge of circle
+    ctx.lineTo(radiusPixels - 15, -10); // Left base
+    ctx.lineTo(radiusPixels - 15, 10); // Right base
+    ctx.closePath();
+    ctx.fill();
 
     ctx.restore();
   }
