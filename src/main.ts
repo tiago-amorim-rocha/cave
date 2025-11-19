@@ -1015,12 +1015,6 @@ debugConsole.onToggleCaveGen = () => {
   }
 };
 
-debugConsole.onToggleSpiderDebug = () => {
-  if (spiderDebugUI) {
-    spiderDebugUI.toggle();
-  }
-};
-
 debugConsole.onCarveRadiusChange = (radius: number) => {
   if (app) {
     app.setCarveRadius(radius);
