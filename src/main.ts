@@ -329,28 +329,43 @@ class CarvableCaves {
     this.remesh();
     this.needsRemesh = false; // Prevent double-remesh on first frame
 
-    // Find valid spawn position using density field
-    console.log(`[SPAWN] Searching for valid spawn near (${this.preferredSpawnX.toFixed(2)}, ${this.preferredSpawnY.toFixed(2)})`);
-    const spawnPos = this.findValidSpawnPosition(
-      this.preferredSpawnX,
-      this.preferredSpawnY,
-      this.playerRadius
-    );
-
+    // Find valid spawn position using density field (retry up to 10 times)
     let actualSpawnX = this.preferredSpawnX;
     let actualSpawnY = this.preferredSpawnY;
+    let spawnPos = null;
+    const maxRetries = 10;
 
-    if (spawnPos) {
-      actualSpawnX = spawnPos.x;
-      actualSpawnY = spawnPos.y;
-      console.log(`[SPAWN] ✓ Found valid spawn at (${actualSpawnX.toFixed(2)}, ${actualSpawnY.toFixed(2)})`);
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      console.log(`[SPAWN] Attempt ${attempt + 1}/${maxRetries}: Searching for valid spawn near (${this.preferredSpawnX.toFixed(2)}, ${this.preferredSpawnY.toFixed(2)})`);
 
-      // Check density at spawn point to verify
-      const { gridX, gridY } = this.densityField.worldToGrid(actualSpawnX, actualSpawnY);
-      const density = this.densityField.get(gridX, gridY);
-      console.log(`[SPAWN] Density at spawn: ${density} (isoValue=${this.densityField.config.isoValue}, ${density < 128 ? 'CAVE' : 'ROCK'})`);
-    } else {
-      console.warn(`[SPAWN] ✗ NO VALID SPAWN FOUND! Using preferred position (${actualSpawnX.toFixed(2)}, ${actualSpawnY.toFixed(2)})`);
+      spawnPos = this.findValidSpawnPosition(
+        this.preferredSpawnX,
+        this.preferredSpawnY,
+        this.playerRadius
+      );
+
+      if (spawnPos) {
+        actualSpawnX = spawnPos.x;
+        actualSpawnY = spawnPos.y;
+        console.log(`[SPAWN] ✓ Found valid spawn at (${actualSpawnX.toFixed(2)}, ${actualSpawnY.toFixed(2)})`);
+
+        // Check density at spawn point to verify
+        const { gridX, gridY } = this.densityField.worldToGrid(actualSpawnX, actualSpawnY);
+        const density = this.densityField.get(gridX, gridY);
+        console.log(`[SPAWN] Density at spawn: ${density} (isoValue=${this.densityField.config.isoValue}, ${density < 128 ? 'CAVE' : 'ROCK'})`);
+        break; // Found valid spawn!
+      } else {
+        console.warn(`[SPAWN] ✗ Attempt ${attempt + 1} failed - no valid spawn found, regenerating world...`);
+
+        // Regenerate world with new random seed
+        this.densityField.generateCaves(undefined, 0.05, 4, -0.2);
+        this.remesh();
+      }
+    }
+
+    // Last resort: use preferred position (should rarely happen)
+    if (!spawnPos) {
+      console.error('[SPAWN] CRITICAL: Failed to find valid spawn after 10 attempts! Spawning at center anyway.');
     }
 
     // Create capsule controller
