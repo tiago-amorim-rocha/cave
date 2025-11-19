@@ -72,6 +72,13 @@ export interface IPlayerController {
    * @param worldToScreen - Function to convert world coordinates to screen coordinates
    */
   debugDraw?(ctx: CanvasRenderingContext2D, worldToScreen: (x: number, y: number) => { x: number; y: number }): void;
+
+  /**
+   * Optional method to get current direction angle in radians
+   * Used for directional rendering and carving
+   * @returns Direction angle in radians (0 = right, PI/2 = down, etc.)
+   */
+  getDirection?(): number;
 }
 
 /**

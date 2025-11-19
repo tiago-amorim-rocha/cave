@@ -141,6 +141,7 @@ export class Renderer {
    * @param playerDebugDraw - Optional callback to draw player debug info
    * @param joystickDraw - Optional callback to draw virtual joystick
    * @param spider - Optional spider rendering data
+   * @param playerDirection - Optional player direction in radians (for rendering direction indicator)
    */
   render(
     playerPosition?: { x: number; y: number },
@@ -149,7 +150,8 @@ export class Renderer {
     physicsDebugDraw?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
     playerDebugDraw?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
     joystickDraw?: (ctx: CanvasRenderingContext2D) => void,
-    spider?: SpiderRenderData
+    spider?: SpiderRenderData,
+    playerDirection?: number
   ): void {
     try {
       const dpr = window.devicePixelRatio || 1;
@@ -180,7 +182,7 @@ export class Renderer {
 
       // Draw player
       if (playerPosition && playerRadius) {
-        this.drawPlayer(width, height, playerPosition, playerRadius);
+        this.drawPlayer(width, height, playerPosition, playerRadius, playerDirection);
       }
 
       // Draw spider
@@ -218,51 +220,55 @@ export class Renderer {
   }
 
   /**
-   * Draw the player (as capsule) - commented out since physics debug shows the actual capsule
+   * Draw the player (as circle with direction indicator)
    */
-  private drawPlayer(canvasWidth: number, canvasHeight: number, position: { x: number; y: number }, radius: number): void {
-    // Draw player as a capsule (rounded rectangle / pill shape)
+  private drawPlayer(
+    canvasWidth: number,
+    canvasHeight: number,
+    position: { x: number; y: number },
+    radius: number,
+    direction?: number
+  ): void {
     const screen = this.camera.worldToScreen(position.x, position.y, canvasWidth, canvasHeight);
-
-    // Capsule dimensions in screen space
-    // radius parameter is actually width/2 (0.25m)
-    const width = radius * 2; // 0.5m
-    const height = radius * 4; // 1.0m (height = 2 * width)
-    const widthScreen = width * this.camera.zoom;
-    const heightScreen = height * this.camera.zoom;
     const radiusScreen = radius * this.camera.zoom;
-
-    // Calculate capsule components
-    const cylinderHeight = heightScreen - 2 * radiusScreen;
 
     this.ctx.save();
 
-    // Fill (bright green for visibility)
+    // Draw circle body (bright green for visibility)
     this.ctx.fillStyle = '#00ff00';
-
-    // Draw capsule as a rounded rectangle
     this.ctx.beginPath();
-
-    // Start from top-left of rectangle
-    this.ctx.moveTo(screen.x - radiusScreen, screen.y - cylinderHeight / 2);
-
-    // Top semicircle
-    this.ctx.arc(screen.x, screen.y - cylinderHeight / 2, radiusScreen, Math.PI, 0, false);
-
-    // Right edge
-    this.ctx.lineTo(screen.x + radiusScreen, screen.y + cylinderHeight / 2);
-
-    // Bottom semicircle
-    this.ctx.arc(screen.x, screen.y + cylinderHeight / 2, radiusScreen, 0, Math.PI, false);
-
-    // Left edge (close path)
-    this.ctx.closePath();
+    this.ctx.arc(screen.x, screen.y, radiusScreen, 0, Math.PI * 2);
     this.ctx.fill();
 
     // Outline (white)
     this.ctx.strokeStyle = '#ffffff';
     this.ctx.lineWidth = 2;
     this.ctx.stroke();
+
+    // Draw direction indicator triangle (if direction is provided)
+    if (direction !== undefined) {
+      this.ctx.save();
+      this.ctx.translate(screen.x, screen.y);
+      this.ctx.rotate(direction);
+
+      // Draw triangle pointing in movement direction
+      this.ctx.fillStyle = '#ff00ff';
+      this.ctx.beginPath();
+      // Triangle at edge of circle
+      const triangleSize = Math.min(radiusScreen * 0.3, 15); // Scale with zoom, max 15px
+      this.ctx.moveTo(radiusScreen - 2, 0); // Tip of triangle at edge
+      this.ctx.lineTo(radiusScreen - triangleSize - 2, -triangleSize / 2); // Left base
+      this.ctx.lineTo(radiusScreen - triangleSize - 2, triangleSize / 2); // Right base
+      this.ctx.closePath();
+      this.ctx.fill();
+
+      // Outline for triangle
+      this.ctx.strokeStyle = '#ffffff';
+      this.ctx.lineWidth = 1;
+      this.ctx.stroke();
+
+      this.ctx.restore();
+    }
 
     // Draw center dot
     this.ctx.fillStyle = '#ffffff';
