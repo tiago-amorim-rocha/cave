@@ -174,6 +174,9 @@ class CarvableCaves {
   private testStartFrame = 0;
   private testPhase: 'waiting' | 'input' | 'release' | 'done' = 'waiting';
 
+  // Carving brush (cached for efficiency)
+  private carveBrush: Brush | null = null;
+
   constructor() {
     try {
       // World configuration
@@ -849,29 +852,31 @@ class CarvableCaves {
     }
 
     const pos = this.player.getPosition();
-    console.log(`[Carve] Carving around player at (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)})`);
 
-    // Carve radius - big enough to go past the capsule borders
-    // Capsule is 0.5m wide × 1.0m tall, so we use 2.0m radius for good clearance
-    const carveRadius = 2.0; // metres
+    // Generate brush once and cache it (lazy initialization)
+    if (!this.carveBrush) {
+      const carveRadius = 2.0; // metres - big enough to go past capsule borders (0.5m × 1.0m)
+      const gridPitch = this.densityField.config.gridPitch;
 
-    // Generate a soft Gaussian brush texture (like Photoshop)
-    // sigma=0.5 gives a nice soft edge with smooth falloff
-    const brush = BrushGenerator.createGaussianBrush(
-      carveRadius,
-      this.densityField.config.gridPitch,
-      0.5 // sigma - controls softness (0.5 = medium soft)
-    );
+      console.log('[Carve] Generating Gaussian brush (one-time cost)...');
+      // Use Gaussian brush for natural, smooth falloff
+      // sigma = 0.5 gives nice soft edges
+      this.carveBrush = BrushGenerator.createGaussianBrush(carveRadius, gridPitch, 0.5);
+      console.log(`[Carve] Brush cached: ${this.carveBrush.width}×${this.carveBrush.height} texture (${this.carveBrush.data.length} pixels)`);
+    }
 
-    // Stamp the brush onto the density field (single pass, much faster!)
+    console.log(`[Carve] Carving at (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)})`);
+
+    // Stamp the pre-generated brush onto the density field
+    // This is like Photoshop: one texture stamp instead of multiple circular passes
     this.densityField.stampBrush(
       pos.x,
       pos.y,
-      brush,
+      this.carveBrush,
       false // false = carve (subtract density)
     );
 
-    console.log(`[Carve] Stamped ${brush.width}×${brush.height} Gaussian brush, triggering remesh...`);
+    console.log('[Carve] Brush stamped, triggering remesh...');
 
     // Trigger remesh to update physics
     this.needsRemesh = true;
