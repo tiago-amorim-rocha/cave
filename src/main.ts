@@ -330,6 +330,7 @@ class CarvableCaves {
     this.needsRemesh = false; // Prevent double-remesh on first frame
 
     // Find valid spawn position using density field
+    console.log(`[SPAWN] Searching for valid spawn near (${this.preferredSpawnX.toFixed(2)}, ${this.preferredSpawnY.toFixed(2)})`);
     const spawnPos = this.findValidSpawnPosition(
       this.preferredSpawnX,
       this.preferredSpawnY,
@@ -342,6 +343,14 @@ class CarvableCaves {
     if (spawnPos) {
       actualSpawnX = spawnPos.x;
       actualSpawnY = spawnPos.y;
+      console.log(`[SPAWN] ✓ Found valid spawn at (${actualSpawnX.toFixed(2)}, ${actualSpawnY.toFixed(2)})`);
+
+      // Check density at spawn point to verify
+      const { gridX, gridY } = this.densityField.worldToGrid(actualSpawnX, actualSpawnY);
+      const density = this.densityField.get(gridX, gridY);
+      console.log(`[SPAWN] Density at spawn: ${density} (isoValue=${this.densityField.config.isoValue}, ${density < 128 ? 'CAVE' : 'ROCK'})`);
+    } else {
+      console.warn(`[SPAWN] ✗ NO VALID SPAWN FOUND! Using preferred position (${actualSpawnX.toFixed(2)}, ${actualSpawnY.toFixed(2)})`);
     }
 
     // Create capsule controller
@@ -431,47 +440,60 @@ class CarvableCaves {
     const capsuleHeight = 1.0; // Capsule is 1.0m tall
     const halfHeight = capsuleHeight / 2;
 
+    // CRITICAL: Add extra margin to account for marching squares interpolation
+    // and smoothing pushing physics colliders into "empty" density field areas
+    const safetyMargin = 1.0; // 1m extra clearance
+    const checkRadius = radius + safetyMargin;
+
     // Check center
     if (!this.densityField.isEmptyArea(x, y)) {
       return false;
     }
 
-    // Check top and bottom of capsule
-    if (!this.densityField.isEmptyArea(x, y - halfHeight)) {
+    // Check top and bottom of capsule (with margin)
+    if (!this.densityField.isEmptyArea(x, y - halfHeight - safetyMargin)) {
       return false;
     }
-    if (!this.densityField.isEmptyArea(x, y + halfHeight)) {
+    if (!this.densityField.isEmptyArea(x, y + halfHeight + safetyMargin)) {
       return false;
     }
 
-    // Check points around the perimeter at center height
+    // Check points around the perimeter at center height (with margin)
     const numChecks = 12;
     for (let i = 0; i < numChecks; i++) {
       const angle = (i / numChecks) * Math.PI * 2;
-      const checkX = x + Math.cos(angle) * radius;
-      const checkY = y + Math.sin(angle) * radius;
+      const checkX = x + Math.cos(angle) * checkRadius;
+      const checkY = y + Math.sin(angle) * checkRadius;
 
       if (!this.densityField.isEmptyArea(checkX, checkY)) {
         return false;
       }
     }
 
-    // Check points around the perimeter at top and bottom
+    // Check points around the perimeter at top and bottom (with margin)
     const numVerticalChecks = 8;
     for (let i = 0; i < numVerticalChecks; i++) {
       const angle = (i / numVerticalChecks) * Math.PI * 2;
-      const checkX = x + Math.cos(angle) * radius;
+      const checkX = x + Math.cos(angle) * checkRadius;
 
       // Check top ring
-      if (!this.densityField.isEmptyArea(checkX, y - halfHeight)) {
+      if (!this.densityField.isEmptyArea(checkX, y - halfHeight - safetyMargin)) {
         return false;
       }
 
       // Check bottom ring
-      if (!this.densityField.isEmptyArea(checkX, y + halfHeight)) {
+      if (!this.densityField.isEmptyArea(checkX, y + halfHeight + safetyMargin)) {
         return false;
       }
     }
+
+    // Additional check: ensure we're not in a tiny pocket
+    // Check cardinal directions at 2m distance to ensure decent open space
+    const openSpaceCheck = 2.0;
+    if (!this.densityField.isEmptyArea(x + openSpaceCheck, y)) return false;
+    if (!this.densityField.isEmptyArea(x - openSpaceCheck, y)) return false;
+    if (!this.densityField.isEmptyArea(x, y + openSpaceCheck)) return false;
+    if (!this.densityField.isEmptyArea(x, y - openSpaceCheck)) return false;
 
     return true;
   }
