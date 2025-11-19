@@ -861,21 +861,20 @@ class CarvableCaves {
       console.log('[Carve] Generating Gaussian brush (one-time cost)...');
       // Use Gaussian brush for natural, smooth falloff
       // sigma = 0.5 gives nice soft edges
-      this.carveBrush = BrushGenerator.createGaussianBrush(carveRadius, gridPitch, 0.5);
+      // strength = 0.25 (25%) for very subtle edges, pre-baked into texture
+      this.carveBrush = BrushGenerator.createGaussianBrush(carveRadius, gridPitch, 0.5, 0.25);
       console.log(`[Carve] Brush cached: ${this.carveBrush.width}×${this.carveBrush.height} texture (${this.carveBrush.data.length} pixels)`);
     }
 
     console.log(`[Carve] Carving at (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)})`);
 
     // Stamp the pre-generated brush onto the density field
-    // This is like Photoshop: one texture stamp instead of multiple circular passes
-    // Strength = 0.4 means the brush acts at 40% power - center carves strongly, edges barely change
+    // Strength is pre-baked into the brush texture (25% = very subtle)
     this.densityField.stampBrush(
       pos.x,
       pos.y,
       this.carveBrush,
-      false, // false = carve (subtract density)
-      0.4    // 40% strength - subtle edges, effective center
+      false // false = carve (subtract density)
     );
 
     console.log('[Carve] Brush stamped, triggering remesh...');

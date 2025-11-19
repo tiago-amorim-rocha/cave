@@ -92,9 +92,10 @@ export class BrushGenerator {
    * @param radiusMetres - Brush radius in metres
    * @param gridPitch - Grid pitch in metres (h)
    * @param sigma - Standard deviation (controls blur amount, higher = softer)
+   * @param strength - Strength multiplier (0-1), pre-baked into texture
    * @returns Brush texture
    */
-  static createGaussianBrush(radiusMetres: number, gridPitch: number, sigma: number = 0.5): Brush {
+  static createGaussianBrush(radiusMetres: number, gridPitch: number, sigma: number = 0.5, strength: number = 1.0): Brush {
     // Convert radius to grid cells
     const radiusGrid = radiusMetres / gridPitch;
 
@@ -122,14 +123,14 @@ export class BrushGenerator {
         const distSq = dx * dx + dy * dy;
 
         // Gaussian function: e^(-dist²/(2σ²))
-        const strength = Math.exp(-distSq / twoSigmaSq);
+        const gaussianValue = Math.exp(-distSq / twoSigmaSq);
 
-        // Convert to 0-255 range
-        data[y * width + x] = Math.floor(strength * 255);
+        // Apply strength multiplier and convert to 0-255 range (pre-baked)
+        data[y * width + x] = Math.floor(gaussianValue * strength * 255);
       }
     }
 
-    console.log(`[BrushGenerator] Created ${width}×${height} Gaussian brush (${radiusMetres.toFixed(2)}m radius, σ=${sigma})`);
+    console.log(`[BrushGenerator] Created ${width}×${height} Gaussian brush (${radiusMetres.toFixed(2)}m radius, σ=${sigma}, strength=${strength})`);
 
     return {
       data,
