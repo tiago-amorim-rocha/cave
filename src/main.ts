@@ -177,8 +177,8 @@ class CarvableCaves {
     try {
       // World configuration
       const worldConfig: WorldConfig = {
-        width: 64, // metres - smaller for spider controller testing
-        height: 64, // metres - smaller for spider controller testing
+        width: 32, // metres - compact world for faster gameplay
+        height: 32, // metres - compact world for faster gameplay
         gridPitch: 0.25, // metres (h)
         isoValue: 128
       };
@@ -201,8 +201,8 @@ class CarvableCaves {
       // Initialize density field
       this.densityField = new DensityField(worldConfig);
 
-      // Generate initial cave system with balanced cave/empty areas (threshold = 0)
-      this.densityField.generateCaves(undefined, 0.05, 4, 0);
+      // Generate initial cave system with more open space (threshold = -0.2 for more caves)
+      this.densityField.generateCaves(undefined, 0.05, 4, -0.2);
 
       // Player spawn position (validated to be in empty area)
       const preferredSpawnX = worldConfig.width / 2;
