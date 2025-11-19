@@ -194,7 +194,7 @@ class CarvableCaves {
       this.camera = new Camera(
         worldConfig.width / 2,
         worldConfig.height / 2,
-        100, // initial PPM (pixels per metre) - 50% zoomed out for wider view
+        50, // initial PPM (pixels per metre) - 2x zoomed out for wider view
         worldConfig.width,
         worldConfig.height
       );
