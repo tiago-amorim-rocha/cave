@@ -15,18 +15,18 @@ export class Camera {
   worldWidth: number; // world bounds (metres)
   worldHeight: number;
 
-  // Dynamic camera parameters
-  private baseZoom = 80; // PPM when stationary (zoomed in for close view)
-  private minDynamicZoom = 50; // PPM when moving fast (zoomed out for wider view)
+  // Dynamic camera parameters (reduced for smoother, more zoomed out view)
+  private baseZoom = 30; // PPM when stationary (slightly zoomed in from initial)
+  private minDynamicZoom = 25; // PPM when moving fast (matches initial zoom)
   private speedThreshold = 3.0; // Speed at which max zoom-out occurs (m/s)
-  private zoomSmoothSpeed = 0.08; // Zoom transition speed (higher = faster)
+  private zoomSmoothSpeed = 0.03; // Zoom transition speed (slower for smoothness)
 
-  // Look-ahead parameters (directional overshoot)
-  private lookAheadDistance = 1.2; // Maximum look-ahead distance in metres
-  private lookAheadSpeed = 3.5; // Speed threshold for max look-ahead (m/s)
+  // Look-ahead parameters (reduced to minimize jarring movement)
+  private lookAheadDistance = 0.6; // Maximum look-ahead distance in metres (reduced by 50%)
+  private lookAheadSpeed = 4.0; // Speed threshold for max look-ahead (m/s)
 
-  // Smoothing parameters (frame-rate independent)
-  private smoothSpeed = 0.12; // Camera follow smoothing (higher = snappier)
+  // Smoothing parameters (reduced for smoother following)
+  private smoothSpeed = 0.06; // Camera follow smoothing (lower = smoother, less snappy)
 
   // Target zoom (for smooth transitions)
   private targetZoom: number;
