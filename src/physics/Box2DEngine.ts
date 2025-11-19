@@ -107,22 +107,28 @@ export class Box2DEngine {
       const distance = Math.sqrt(dx * dx + dy * dy);
       const isClosed = distance < 0.01; // Within 1cm tolerance
 
+      // CRITICAL FIX: Reverse winding order for correct Box2D collision surface direction
+      // Our loops are CCW with rock INSIDE, but Box2D CreateLoop needs collision surface
+      // facing OUTWARD toward the cave. Reversing to CW accomplishes this.
+      const reversedVertices = [...vertices].reverse();
+
       // Create chain shape
       const chainShape = new b2ChainShape();
 
       if (isClosed) {
         // Remove duplicate last vertex and create closed loop
-        const loopVertices = vertices.slice(0, -1);
+        const loopVertices = reversedVertices.slice(0, -1);
+        console.log(`[Box2D] Created closed loop with ${loopVertices.length} vertices (REVERSED winding for collision surface)`);
         chainShape.CreateLoop(loopVertices, loopVertices.length);
         closedLoops++;
       } else {
-        // Create open chain with ghost vertices
-        // Use first and last vertices as ghost vertices to avoid dangling edges
-        const prevVertex = vertices[0];
-        const nextVertex = vertices[vertices.length - 1];
-        chainShape.CreateChain(vertices, vertices.length, prevVertex, nextVertex);
+        // Create open chain with ghost vertices (also reversed)
+        const prevVertex = reversedVertices[0];
+        const nextVertex = reversedVertices[reversedVertices.length - 1];
+        console.log(`[Box2D] Created open chain with ${reversedVertices.length} vertices (REVERSED winding)`);
+        chainShape.CreateChain(reversedVertices, reversedVertices.length, prevVertex, nextVertex);
         openChains++;
-        // console.warn(`[Box2DEngine] Non-closed loop detected! Distance: ${distance.toFixed(4)}m`);
+        console.warn(`[Box2DEngine] Non-closed loop detected! Distance: ${distance.toFixed(4)}m`);
       }
 
       // Create fixture with physics properties
