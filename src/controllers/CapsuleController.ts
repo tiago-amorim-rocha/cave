@@ -81,7 +81,7 @@ export class CapsuleController implements IPlayerController {
       type: b2BodyType.b2_dynamicBody,
       position: { x, y },
       angle: 0,
-      linearDamping: 0.0,    // No damping - pure physics
+      linearDamping: 4.0,    // Mid-level damping for responsive controls
       angularDamping: 0.0,   // No angular damping
       fixedRotation: true,   // Lock rotation completely
       gravityScale: 0.0,     // No gravity (free flight)
