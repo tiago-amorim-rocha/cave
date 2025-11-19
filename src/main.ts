@@ -18,6 +18,7 @@ import { SpiderController } from './controllers/spider/SpiderController';
 import { DEFAULT_SPIDER_CONFIG } from './controllers/spider/SpiderTypes';
 import { CapsuleController } from './controllers/CapsuleController';
 import type { IPlayerController } from './controllers/IPlayerController';
+import { b2AABB } from '@box2d/core';
 
 /**
  * Test spider math functions (Phase 1 verification)
@@ -331,15 +332,13 @@ class CarvableCaves {
 
     // Run warm-up physics steps to initialize Box2D collision structures
     // This prevents wall tunneling when player moves immediately after spawn
-    console.log('[Physics] Running warm-up steps to initialize collision detection...');
     const warmUpSteps = 10; // Run 10 physics steps (~167ms at 60Hz)
     for (let i = 0; i < warmUpSteps; i++) {
       this.physics.getEngine().step(16.67); // 60Hz timestep
     }
-    console.log('[Physics] Warm-up complete');
 
-    // Find valid spawn position for spider
-    // console.log(`[Spider] Finding valid spawn position near (${this.preferredSpawnX.toFixed(1)}, ${this.preferredSpawnY.toFixed(1)})...`);
+    // Find valid spawn position using Box2D collision detection
+    console.log(`[SPAWN] Finding valid position near (${this.preferredSpawnX.toFixed(2)}, ${this.preferredSpawnY.toFixed(2)})...`);
     const spawnPos = this.findValidSpawnPosition(
       this.preferredSpawnX,
       this.preferredSpawnY,
@@ -352,9 +351,9 @@ class CarvableCaves {
     if (spawnPos) {
       actualSpawnX = spawnPos.x;
       actualSpawnY = spawnPos.y;
-      // console.log(`[Spider] Spawning at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
+      console.log(`[SPAWN] ✓ Safe position found at (${actualSpawnX.toFixed(2)}, ${actualSpawnY.toFixed(2)})`);
     } else {
-      // console.warn(`[Spider] No valid position found, spawning at preferred position (may be inside rock)`);
+      console.warn(`[SPAWN] ✗ NO SAFE POSITION FOUND - spawning at (${actualSpawnX.toFixed(2)}, ${actualSpawnY.toFixed(2)}) MAY BE INSIDE WALL!`);
     }
 
     // Create capsule controller
@@ -434,59 +433,45 @@ class CarvableCaves {
 
   /**
    * Check if a position is valid for spawning (not inside rock)
+   * Uses Box2D AABB query to check against actual physics colliders
    * @param x - X position in world coordinates
    * @param y - Y position in world coordinates
    * @param radius - Radius of entity (check center and edges)
-   * @returns true if position is valid (in empty area)
+   * @returns true if position is valid (not overlapping any physics colliders)
    */
   private isValidSpawnPosition(x: number, y: number, radius: number): boolean {
-    // Capsule dimensions for proper validation
-    const capsuleHeight = 1.0; // Capsule is 1.0m tall
+    // CRITICAL: Use Box2D collision detection instead of density field
+    // The density field doesn't match the actual physics colliders due to
+    // marching squares interpolation and smoothing
+
+    // Capsule dimensions
+    const capsuleWidth = 0.5; // Match CapsuleController default
+    const capsuleHeight = 1.0;
+    const halfWidth = capsuleWidth / 2;
     const halfHeight = capsuleHeight / 2;
 
-    // Check center
-    if (!this.densityField.isEmptyArea(x, y)) {
-      return false;
+    // Create AABB that encompasses the entire capsule with extra padding
+    const padding = 0.5; // 0.5m safety margin
+    const aabb = new b2AABB();
+    aabb.lowerBound.Set(x - halfWidth - padding, y - halfHeight - padding);
+    aabb.upperBound.Set(x + halfWidth + padding, y + halfHeight + padding);
+
+    // Query Box2D world for any overlapping fixtures
+    let hasOverlap = false;
+    const world = this.physics.getEngine().getWorld();
+
+    world.QueryAABB(aabb, (fixture: any) => {
+      // Found an overlapping fixture (terrain)
+      hasOverlap = true;
+      console.log(`[SPAWN] Position (${x.toFixed(2)}, ${y.toFixed(2)}) rejected - overlaps physics collider`);
+      return false; // Stop query early
+    });
+
+    // Valid spawn if no overlap found
+    if (!hasOverlap) {
+      console.log(`[SPAWN] Position (${x.toFixed(2)}, ${y.toFixed(2)}) is safe (no collider overlap)`);
     }
-
-    // Check top and bottom of capsule
-    if (!this.densityField.isEmptyArea(x, y - halfHeight)) {
-      return false;
-    }
-    if (!this.densityField.isEmptyArea(x, y + halfHeight)) {
-      return false;
-    }
-
-    // Check points around the perimeter at center height
-    const numChecks = 12; // Increased from 8 for better coverage
-    for (let i = 0; i < numChecks; i++) {
-      const angle = (i / numChecks) * Math.PI * 2;
-      const checkX = x + Math.cos(angle) * radius;
-      const checkY = y + Math.sin(angle) * radius;
-
-      if (!this.densityField.isEmptyArea(checkX, checkY)) {
-        return false;
-      }
-    }
-
-    // Check points around the perimeter at top and bottom
-    const numVerticalChecks = 8;
-    for (let i = 0; i < numVerticalChecks; i++) {
-      const angle = (i / numVerticalChecks) * Math.PI * 2;
-      const checkX = x + Math.cos(angle) * radius;
-
-      // Check top ring
-      if (!this.densityField.isEmptyArea(checkX, y - halfHeight)) {
-        return false;
-      }
-
-      // Check bottom ring
-      if (!this.densityField.isEmptyArea(checkX, y + halfHeight)) {
-        return false;
-      }
-    }
-
-    return true;
+    return !hasOverlap;
   }
 
   /**
