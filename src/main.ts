@@ -869,11 +869,13 @@ class CarvableCaves {
 
     // Stamp the pre-generated brush onto the density field
     // This is like Photoshop: one texture stamp instead of multiple circular passes
+    // Strength = 0.4 means the brush acts at 40% power - center carves strongly, edges barely change
     this.densityField.stampBrush(
       pos.x,
       pos.y,
       this.carveBrush,
-      false // false = carve (subtract density)
+      false, // false = carve (subtract density)
+      0.4    // 40% strength - subtle edges, effective center
     );
 
     console.log('[Carve] Brush stamped, triggering remesh...');
