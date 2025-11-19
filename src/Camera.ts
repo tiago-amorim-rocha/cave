@@ -124,12 +124,12 @@ export class Camera {
   }
 
   /**
-   * Advanced camera following with velocity-based zoom and look-ahead
+   * Simple camera following - just copy player position exactly
    * @param playerX - Player X position (metres)
    * @param playerY - Player Y position (metres)
-   * @param velocityX - Player X velocity (metres/second)
-   * @param velocityY - Player Y velocity (metres/second)
-   * @param deltaTime - Time since last frame (seconds)
+   * @param velocityX - Player X velocity (metres/second) [unused]
+   * @param velocityY - Player Y velocity (metres/second) [unused]
+   * @param deltaTime - Time since last frame (seconds) [unused]
    */
   followPlayer(
     playerX: number,
@@ -138,34 +138,14 @@ export class Camera {
     velocityY: number,
     deltaTime: number
   ): void {
-    // 1. Calculate velocity magnitude
-    const velocityMagnitude = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+    // Directly copy player position - no smoothing, no look-ahead
+    this.x = playerX;
+    this.y = playerY;
 
-    // 2. Calculate target zoom based on velocity (zoom out when moving fast)
-    this.targetZoom = this.baseZoom - (velocityMagnitude * this.zoomOutFactor);
-    this.targetZoom = Math.max(this.minDynamicZoom, Math.min(this.baseZoom, this.targetZoom));
+    // Fixed zoom
+    this.zoom = this.baseZoom;
 
-    // 3. Smoothly transition zoom (frame-rate independent)
-    const zoomSmooth = 1 - Math.pow(1 - this.zoomSmoothSpeed, deltaTime * 60);
-    this.zoom += (this.targetZoom - this.zoom) * zoomSmooth;
-    this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom));
-
-    // 4. Calculate look-ahead offset based on velocity
-    const lookAheadOffsetX = velocityX * this.lookAheadX;
-    const lookAheadOffsetY = velocityY * this.lookAheadY;
-
-    // 5. Calculate target camera position (player + look-ahead)
-    const targetX = playerX + lookAheadOffsetX;
-    const targetY = playerY + lookAheadOffsetY;
-
-    // 6. Smoothly follow target with separate X/Y smoothing (frame-rate independent)
-    const smoothFactorX = 1 - Math.pow(1 - this.smoothX, deltaTime * 60);
-    const smoothFactorY = 1 - Math.pow(1 - this.smoothY, deltaTime * 60);
-
-    this.x += (targetX - this.x) * smoothFactorX;
-    this.y += (targetY - this.y) * smoothFactorY;
-
-    // 7. Clamp to world bounds
+    // Clamp to world bounds
     this.clampToBounds();
   }
 }
