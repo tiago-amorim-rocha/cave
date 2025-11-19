@@ -16,8 +16,8 @@ export class Camera {
   worldHeight: number;
 
   // Dynamic camera parameters
-  private baseZoom = 100; // PPM when stationary (50% zoomed out from original 150)
-  private minDynamicZoom = 70; // PPM when moving fast
+  private baseZoom = 50; // PPM when stationary (2x zoomed out from previous 100)
+  private minDynamicZoom = 35; // PPM when moving fast (2x zoomed out from previous 70)
   private zoomOutFactor = 6; // How much velocity affects zoom
   private zoomSmoothSpeed = 0.06; // Zoom transition speed
 
