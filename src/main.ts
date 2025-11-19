@@ -202,7 +202,7 @@ class CarvableCaves {
       this.densityField = new DensityField(worldConfig);
 
       // Generate initial cave system with more open space (threshold = -0.2 for more caves)
-      this.densityField.generateCaves(undefined, 0.05, 4, -0.2);
+      this.densityField.generateCaves(undefined, 0.05, 4, 0);
 
       // Player spawn position (validated to be in empty area)
       const preferredSpawnX = worldConfig.width / 2;
