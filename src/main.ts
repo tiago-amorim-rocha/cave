@@ -840,7 +840,7 @@ class CarvableCaves {
   }
 
   /**
-   * Carve around player with a blurred/soft-edge brush
+   * Carve around player with a blurred/soft-edge brush (Photoshop-style stamping)
    */
   carveAroundPlayer(): void {
     if (!this.player) {
@@ -855,28 +855,23 @@ class CarvableCaves {
     // Capsule is 0.5m wide × 1.0m tall, so we use 2.0m radius for good clearance
     const carveRadius = 2.0; // metres
 
-    // Apply blurred brush using multiple passes with decreasing strength
-    // This creates a soft edge (gradual density transition from cave to rock)
-    const passes = [
-      { radius: carveRadius * 1.0, strength: 255 }, // Full strength at core
-      { radius: carveRadius * 0.8, strength: 200 }, // 78% strength
-      { radius: carveRadius * 0.6, strength: 150 }, // 59% strength
-      { radius: carveRadius * 0.4, strength: 100 }, // 39% strength
-      { radius: carveRadius * 0.2, strength: 50 },  // 20% strength
-    ];
+    // Generate a soft Gaussian brush texture (like Photoshop)
+    // sigma=0.5 gives a nice soft edge with smooth falloff
+    const brush = BrushGenerator.createGaussianBrush(
+      carveRadius,
+      this.densityField.config.gridPitch,
+      0.5 // sigma - controls softness (0.5 = medium soft)
+    );
 
-    // Apply each pass (from largest to smallest for smooth blend)
-    for (const pass of passes) {
-      this.densityField.applyBrush(
-        pos.x,
-        pos.y,
-        pass.radius,
-        pass.strength,
-        false // false = carve (subtract density)
-      );
-    }
+    // Stamp the brush onto the density field (single pass, much faster!)
+    this.densityField.stampBrush(
+      pos.x,
+      pos.y,
+      brush,
+      false // false = carve (subtract density)
+    );
 
-    console.log(`[Carve] Applied ${passes.length} blur passes, triggering remesh...`);
+    console.log(`[Carve] Stamped ${brush.width}×${brush.height} Gaussian brush, triggering remesh...`);
 
     // Trigger remesh to update physics
     this.needsRemesh = true;
