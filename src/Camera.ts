@@ -16,18 +16,17 @@ export class Camera {
   worldHeight: number;
 
   // Dynamic camera parameters
-  private baseZoom = 50; // PPM when stationary (2x zoomed out from previous 100)
-  private minDynamicZoom = 35; // PPM when moving fast (2x zoomed out from previous 70)
-  private zoomOutFactor = 6; // How much velocity affects zoom
-  private zoomSmoothSpeed = 0.06; // Zoom transition speed
+  private baseZoom = 80; // PPM when stationary (zoomed in for close view)
+  private minDynamicZoom = 50; // PPM when moving fast (zoomed out for wider view)
+  private speedThreshold = 3.0; // Speed at which max zoom-out occurs (m/s)
+  private zoomSmoothSpeed = 0.08; // Zoom transition speed (higher = faster)
 
-  // Look-ahead parameters
-  private lookAheadX = 0.3; // Horizontal look-ahead factor
-  private lookAheadY = 0.15; // Vertical look-ahead factor
+  // Look-ahead parameters (directional overshoot)
+  private lookAheadDistance = 2.5; // Maximum look-ahead distance in metres
+  private lookAheadSpeed = 2.0; // Speed threshold for max look-ahead (m/s)
 
   // Smoothing parameters (frame-rate independent)
-  private smoothX = 0.06; // Horizontal follow smoothing
-  private smoothY = 0.08; // Vertical follow smoothing (more responsive)
+  private smoothSpeed = 0.12; // Camera follow smoothing (higher = snappier)
 
   // Target zoom (for smooth transitions)
   private targetZoom: number;
@@ -124,12 +123,12 @@ export class Camera {
   }
 
   /**
-   * Simple camera following - just copy player position exactly
+   * Advanced camera following with dynamic zoom and directional overshoot
    * @param playerX - Player X position (metres)
    * @param playerY - Player Y position (metres)
-   * @param velocityX - Player X velocity (metres/second) [unused]
-   * @param velocityY - Player Y velocity (metres/second) [unused]
-   * @param deltaTime - Time since last frame (seconds) [unused]
+   * @param velocityX - Player X velocity (metres/second)
+   * @param velocityY - Player Y velocity (metres/second)
+   * @param deltaTime - Time since last frame (seconds)
    */
   followPlayer(
     playerX: number,
@@ -138,12 +137,43 @@ export class Camera {
     velocityY: number,
     deltaTime: number
   ): void {
-    // Directly copy player position - no smoothing, no look-ahead
-    this.x = playerX;
-    this.y = playerY;
+    // Calculate player speed (magnitude of velocity)
+    const speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
 
-    // Fixed zoom
-    this.zoom = this.baseZoom;
+    // === Dynamic Zoom Based on Speed ===
+    // Interpolate between baseZoom (stationary) and minDynamicZoom (moving fast)
+    const zoomFactor = Math.min(speed / this.speedThreshold, 1.0); // 0-1 based on speed
+    this.targetZoom = this.baseZoom - (this.baseZoom - this.minDynamicZoom) * zoomFactor;
+
+    // Smoothly interpolate current zoom towards target zoom
+    this.zoom += (this.targetZoom - this.zoom) * this.zoomSmoothSpeed;
+
+    // === Directional Overshoot (Look-ahead) ===
+    // Calculate look-ahead offset based on velocity direction
+    let lookAheadX = 0;
+    let lookAheadY = 0;
+
+    if (speed > 0.1) { // Only apply look-ahead if actually moving
+      // Normalize velocity to get direction
+      const dirX = velocityX / speed;
+      const dirY = velocityY / speed;
+
+      // Calculate look-ahead factor (0-1 based on speed)
+      const lookAheadFactor = Math.min(speed / this.lookAheadSpeed, 1.0);
+
+      // Apply look-ahead offset in movement direction
+      lookAheadX = dirX * this.lookAheadDistance * lookAheadFactor;
+      lookAheadY = dirY * this.lookAheadDistance * lookAheadFactor;
+    }
+
+    // Target camera position = player position + look-ahead offset
+    const targetX = playerX + lookAheadX;
+    const targetY = playerY + lookAheadY;
+
+    // === Smooth Camera Follow ===
+    // Use exponential smoothing for smooth, frame-rate independent movement
+    this.x += (targetX - this.x) * this.smoothSpeed;
+    this.y += (targetY - this.y) * this.smoothSpeed;
 
     // Clamp to world bounds
     this.clampToBounds();
