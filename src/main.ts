@@ -837,6 +837,49 @@ class CarvableCaves {
       this.player.respawn(actualSpawnX, actualSpawnY);
     }
   }
+
+  /**
+   * Carve around player with a blurred/soft-edge brush
+   */
+  carveAroundPlayer(): void {
+    if (!this.player) {
+      console.warn('[Carve] No player to carve around');
+      return;
+    }
+
+    const pos = this.player.getPosition();
+    console.log(`[Carve] Carving around player at (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)})`);
+
+    // Carve radius - big enough to go past the capsule borders
+    // Capsule is 0.5m wide × 1.0m tall, so we use 2.0m radius for good clearance
+    const carveRadius = 2.0; // metres
+
+    // Apply blurred brush using multiple passes with decreasing strength
+    // This creates a soft edge (gradual density transition from cave to rock)
+    const passes = [
+      { radius: carveRadius * 1.0, strength: 255 }, // Full strength at core
+      { radius: carveRadius * 0.8, strength: 200 }, // 78% strength
+      { radius: carveRadius * 0.6, strength: 150 }, // 59% strength
+      { radius: carveRadius * 0.4, strength: 100 }, // 39% strength
+      { radius: carveRadius * 0.2, strength: 50 },  // 20% strength
+    ];
+
+    // Apply each pass (from largest to smallest for smooth blend)
+    for (const pass of passes) {
+      this.densityField.applyBrush(
+        pos.x,
+        pos.y,
+        pass.radius,
+        pass.strength,
+        false // false = carve (subtract density)
+      );
+    }
+
+    console.log(`[Carve] Applied ${passes.length} blur passes, triggering remesh...`);
+
+    // Trigger remesh to update physics
+    this.needsRemesh = true;
+  }
 }
 
 (window as any).APP_LOADED = true;
@@ -995,6 +1038,55 @@ controllerButton.addEventListener('click', () => {
   characterControllerUI.toggle();
 });
 document.body.appendChild(controllerButton);
+
+// Create carve button (on right side, opposite of joystick)
+const carveButton = document.createElement('button');
+carveButton.id = 'carve-button';
+carveButton.textContent = '⛏️';
+carveButton.title = 'Carve around player';
+carveButton.style.cssText = `
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
+  right: calc(env(safe-area-inset-right, 10px) + 10px);
+  background: rgba(255, 152, 0, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 50%;
+  width: 72px;
+  height: 72px;
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  pointer-events: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  -webkit-tap-highlight-color: rgba(255, 152, 0, 0.3);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.1s ease, background 0.1s ease;
+`;
+carveButton.addEventListener('click', () => {
+  if (app) {
+    app.carveAroundPlayer();
+  }
+});
+carveButton.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  carveButton.style.transform = 'scale(0.95)';
+  carveButton.style.background = 'rgba(255, 152, 0, 1)';
+});
+carveButton.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  carveButton.style.transform = 'scale(1)';
+  carveButton.style.background = 'rgba(255, 152, 0, 0.95)';
+  if (app) {
+    app.carveAroundPlayer();
+  }
+});
+document.body.appendChild(carveButton);
 
 // Test spider math before starting application
 testSpiderMath();
