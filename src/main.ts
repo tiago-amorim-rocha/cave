@@ -176,6 +176,8 @@ class CarvableCaves {
 
   // Carving brush (cached for efficiency)
   private carveBrush: Brush | null = null;
+  private carveRadius = 2.0; // metres
+  private carveStrength = 0.25; // 0-1 (25%)
 
   constructor() {
     try {
@@ -843,6 +845,38 @@ class CarvableCaves {
   }
 
   /**
+   * Regenerate brush with current parameters
+   */
+  private regenerateBrush(): void {
+    const gridPitch = this.densityField.config.gridPitch;
+
+    console.log(`[Carve] Generating Gaussian brush (radius=${this.carveRadius.toFixed(1)}m, strength=${(this.carveStrength * 100).toFixed(0)}%)...`);
+    // Use Gaussian brush for natural, smooth falloff
+    // sigma = 0.5 gives nice soft edges
+    // strength is pre-baked into texture
+    this.carveBrush = BrushGenerator.createGaussianBrush(this.carveRadius, gridPitch, 0.5, this.carveStrength);
+    console.log(`[Carve] Brush cached: ${this.carveBrush.width}×${this.carveBrush.height} texture (${this.carveBrush.data.length} pixels)`);
+  }
+
+  /**
+   * Set carve radius and regenerate brush
+   */
+  setCarveRadius(radius: number): void {
+    this.carveRadius = radius;
+    this.carveBrush = null; // Invalidate cache
+    console.log(`[Carve] Radius changed to ${radius.toFixed(1)}m (brush will regenerate on next carve)`);
+  }
+
+  /**
+   * Set carve strength and regenerate brush
+   */
+  setCarveStrength(strength: number): void {
+    this.carveStrength = strength;
+    this.carveBrush = null; // Invalidate cache
+    console.log(`[Carve] Strength changed to ${(strength * 100).toFixed(0)}% (brush will regenerate on next carve)`);
+  }
+
+  /**
    * Carve around player with a blurred/soft-edge brush (Photoshop-style stamping)
    */
   carveAroundPlayer(): void {
@@ -853,23 +887,21 @@ class CarvableCaves {
 
     const pos = this.player.getPosition();
 
-    // Generate brush once and cache it (lazy initialization)
+    // Generate brush if not cached or if parameters changed
     if (!this.carveBrush) {
-      const carveRadius = 2.0; // metres - big enough to go past capsule borders (0.5m × 1.0m)
-      const gridPitch = this.densityField.config.gridPitch;
+      this.regenerateBrush();
+    }
 
-      console.log('[Carve] Generating Gaussian brush (one-time cost)...');
-      // Use Gaussian brush for natural, smooth falloff
-      // sigma = 0.5 gives nice soft edges
-      // strength = 0.25 (25%) for very subtle edges, pre-baked into texture
-      this.carveBrush = BrushGenerator.createGaussianBrush(carveRadius, gridPitch, 0.5, 0.25);
-      console.log(`[Carve] Brush cached: ${this.carveBrush.width}×${this.carveBrush.height} texture (${this.carveBrush.data.length} pixels)`);
+    // Safety check (should never happen after regenerateBrush)
+    if (!this.carveBrush) {
+      console.error('[Carve] Failed to generate brush!');
+      return;
     }
 
     console.log(`[Carve] Carving at (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)})`);
 
     // Stamp the pre-generated brush onto the density field
-    // Strength is pre-baked into the brush texture (25% = very subtle)
+    // Strength is pre-baked into the brush texture
     this.densityField.stampBrush(
       pos.x,
       pos.y,
@@ -986,6 +1018,18 @@ debugConsole.onToggleCaveGen = () => {
 debugConsole.onToggleSpiderDebug = () => {
   if (spiderDebugUI) {
     spiderDebugUI.toggle();
+  }
+};
+
+debugConsole.onCarveRadiusChange = (radius: number) => {
+  if (app) {
+    app.setCarveRadius(radius);
+  }
+};
+
+debugConsole.onCarveStrengthChange = (strength: number) => {
+  if (app) {
+    app.setCarveStrength(strength);
   }
 };
 
