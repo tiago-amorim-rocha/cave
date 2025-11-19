@@ -33,7 +33,7 @@ export class Box2DEngine {
   private readonly PHYSICS_DT = 1 / 60; // ~16.67ms
   private readonly FIXED_DT_MS = 1000 / 60; // 16.67ms
   private readonly VELOCITY_ITERATIONS = 8;
-  private readonly POSITION_ITERATIONS = 3;
+  private readonly POSITION_ITERATIONS = 8; // Increased for better CCD and collision resolution
 
   constructor() {}
 

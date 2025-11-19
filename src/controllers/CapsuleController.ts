@@ -213,7 +213,7 @@ export class CapsuleController implements IPlayerController {
     }
 
     // Apply forces for smooth movement with collision response
-    const forceMagnitude = 35.0; // Balanced force for smooth control
+    const forceMagnitude = 30.0; // Reduced for better control and less tunneling risk
     const force = new b2Vec2(
       moveX * forceMagnitude,
       moveY * forceMagnitude
@@ -221,10 +221,21 @@ export class CapsuleController implements IPlayerController {
 
     this.body.ApplyForceToCenter(force, true);
 
-    // Smoothly limit maximum speed (avoid hard clamping for less jerkiness)
+    // Get current velocity
     const currentVel = this.body.GetLinearVelocity();
     const currentSpeed = Math.sqrt(currentVel.x * currentVel.x + currentVel.y * currentVel.y);
-    if (currentSpeed > this.config.speed) {
+
+    // Hard safety cap to prevent tunneling (1.5x max speed)
+    const absoluteMaxSpeed = this.config.speed * 1.5;
+    if (currentSpeed > absoluteMaxSpeed) {
+      const scale = absoluteMaxSpeed / currentSpeed;
+      this.body.SetLinearVelocity(new b2Vec2(
+        currentVel.x * scale,
+        currentVel.y * scale
+      ));
+    }
+    // Smooth limit at normal max speed
+    else if (currentSpeed > this.config.speed) {
       // Gentle speed reduction instead of hard clamp
       const scale = this.config.speed / currentSpeed;
       const targetVelX = currentVel.x * scale;
