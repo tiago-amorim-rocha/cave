@@ -81,7 +81,7 @@ export class CapsuleController implements IPlayerController {
       type: b2BodyType.b2_dynamicBody,
       position: { x, y },
       angle: 0,
-      linearDamping: 2.0,    // Reduced from 4.0 for less dampening
+      linearDamping: 1.0,    // Low dampening for responsive movement
       angularDamping: 0.0,   // No angular damping
       fixedRotation: true,   // Lock rotation completely
       gravityScale: 0.0,     // No gravity (free flight)
@@ -187,8 +187,8 @@ export class CapsuleController implements IPlayerController {
       this.direction = Math.atan2(moveY, moveX);
     }
 
-    // Apply forces - reduced magnitude from 30.0 to 15.0
-    const forceMagnitude = 15.0;
+    // Apply forces for responsive movement
+    const forceMagnitude = 25.0;
     const force = new b2Vec2(
       moveX * forceMagnitude,
       moveY * forceMagnitude

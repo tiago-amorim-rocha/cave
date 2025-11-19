@@ -189,7 +189,9 @@ export class RemeshManager {
     ny /= len;
 
     // Flip normal based on winding direction so it points inward
-    if (area >= 0) {
+    // CCW (area >= 0): left normal already points inward, no flip needed
+    // CW (area < 0): left normal points outward, need to flip
+    if (area < 0) {
       nx = -nx;
       ny = -ny;
     }
