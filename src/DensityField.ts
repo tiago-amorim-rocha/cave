@@ -378,14 +378,14 @@ export class DensityField {
   /**
    * Stamp a brush texture onto the density field (like Photoshop)
    * Much more efficient than multiple circular passes
+   * Strength is pre-baked into the brush texture at generation time
    *
    * @param worldX - Center X position in world coordinates
    * @param worldY - Center Y position in world coordinates
-   * @param brush - Pre-generated brush texture
+   * @param brush - Pre-generated brush texture (with strength pre-baked)
    * @param add - true = add density (build), false = subtract density (carve)
-   * @param strength - Strength multiplier (0-1), controls how much effect the brush has
    */
-  stampBrush(worldX: number, worldY: number, brush: Brush, add: boolean, strength: number = 1.0): void {
+  stampBrush(worldX: number, worldY: number, brush: Brush, add: boolean): void {
     // Convert world position to grid coordinates
     const { gridX: centerGridX, gridY: centerGridY } = this.worldToGrid(worldX, worldY);
 
@@ -416,7 +416,7 @@ export class DensityField {
           continue;
         }
 
-        // Get brush strength at this position (0-255)
+        // Get brush strength at this position (0-255, pre-baked with strength multiplier)
         const brushStrength = brush.data[brushY * brush.width + brushX];
 
         // Skip if brush has no effect here
@@ -424,21 +424,17 @@ export class DensityField {
           continue;
         }
 
-        // Normalize brush strength to 0-1 and apply strength multiplier
-        // This treats the brush as an "opacity mask"
-        const normalizedStrength = (brushStrength / 255) * strength;
-        const effectiveStrength = normalizedStrength * 255; // Back to 0-255 range
-
         // Apply brush to density field (image compositing)
+        // Strength is already pre-baked into the brush texture
         const currentDensity = this.get(gx, gy);
         const newDensity = add
-          ? Math.min(255, currentDensity + effectiveStrength)  // Add (build up material)
-          : Math.max(0, currentDensity - effectiveStrength);   // Subtract (carve away)
+          ? Math.min(255, currentDensity + brushStrength)  // Add (build up material)
+          : Math.max(0, currentDensity - brushStrength);   // Subtract (carve away)
 
         this.set(gx, gy, newDensity);
 
         pixelsModified++;
-        totalStrengthApplied += effectiveStrength;
+        totalStrengthApplied += brushStrength;
       }
     }
 
