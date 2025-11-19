@@ -81,10 +81,11 @@ export class CapsuleController implements IPlayerController {
       type: b2BodyType.b2_dynamicBody,
       position: { x, y },
       angle: 0,
-      linearDamping: 10.0,   // High damping for instant stop when no input
+      linearDamping: 8.0,    // Damping for smooth stop when no input
       angularDamping: 10.0,  // Prevent rotation
       fixedRotation: true,   // Lock rotation completely
       gravityScale: 0.0,     // No gravity (free flight)
+      bullet: true,          // Enable CCD to prevent tunneling through walls
     };
 
     this.body = world.CreateBody(bodyDef);
@@ -212,8 +213,7 @@ export class CapsuleController implements IPlayerController {
     }
 
     // Apply forces for smooth movement with collision response
-    // Using a strong force to overcome the high damping
-    const forceMagnitude = 50.0; // Strong force to overcome damping
+    const forceMagnitude = 35.0; // Balanced force for smooth control
     const force = new b2Vec2(
       moveX * forceMagnitude,
       moveY * forceMagnitude
@@ -221,12 +221,21 @@ export class CapsuleController implements IPlayerController {
 
     this.body.ApplyForceToCenter(force, true);
 
-    // Optional: Limit maximum speed
+    // Smoothly limit maximum speed (avoid hard clamping for less jerkiness)
     const currentVel = this.body.GetLinearVelocity();
     const currentSpeed = Math.sqrt(currentVel.x * currentVel.x + currentVel.y * currentVel.y);
     if (currentSpeed > this.config.speed) {
+      // Gentle speed reduction instead of hard clamp
       const scale = this.config.speed / currentSpeed;
-      this.body.SetLinearVelocity(new b2Vec2(currentVel.x * scale, currentVel.y * scale));
+      const targetVelX = currentVel.x * scale;
+      const targetVelY = currentVel.y * scale;
+
+      // Smooth transition to target velocity
+      const smoothFactor = 0.5;
+      this.body.SetLinearVelocity(new b2Vec2(
+        currentVel.x + (targetVelX - currentVel.x) * smoothFactor,
+        currentVel.y + (targetVelY - currentVel.y) * smoothFactor
+      ));
     }
   }
 
