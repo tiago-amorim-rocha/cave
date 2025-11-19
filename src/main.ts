@@ -18,6 +18,7 @@ import { SpiderController } from './controllers/spider/SpiderController';
 import { DEFAULT_SPIDER_CONFIG } from './controllers/spider/SpiderTypes';
 import { CapsuleController } from './controllers/CapsuleController';
 import type { IPlayerController } from './controllers/IPlayerController';
+import { BrushGenerator, type Brush } from './BrushGenerator';
 
 /**
  * Test spider math functions (Phase 1 verification)

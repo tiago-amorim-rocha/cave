@@ -1,6 +1,7 @@
 import type { AABB, WorldConfig } from './types';
 import { PerlinNoise } from './PerlinNoise';
 import { generateBubbleCaves, type CaveGenParams } from './BubbleGenerator';
+import type { Brush } from './BrushGenerator';
 
 /**
  * Density field backed by Uint8Array
@@ -367,6 +368,63 @@ export class DensityField {
           const newValue = add ? currentValue + strength : currentValue - strength;
           this.set(gx, gy, newValue);
         }
+      }
+    }
+
+    // Mark dirty region
+    this.expandDirtyAABB(minGridX, minGridY, maxGridX, maxGridY);
+  }
+
+  /**
+   * Stamp a brush texture onto the density field (like Photoshop)
+   * Much more efficient than multiple circular passes
+   *
+   * @param worldX - Center X position in world coordinates
+   * @param worldY - Center Y position in world coordinates
+   * @param brush - Pre-generated brush texture
+   * @param add - true = add density (build), false = subtract density (carve)
+   */
+  stampBrush(worldX: number, worldY: number, brush: Brush, add: boolean): void {
+    // Convert world position to grid coordinates
+    const { gridX: centerGridX, gridY: centerGridY } = this.worldToGrid(worldX, worldY);
+
+    // Brush texture center
+    const brushCenterX = Math.floor(brush.width / 2);
+    const brushCenterY = Math.floor(brush.height / 2);
+
+    // Calculate field region to stamp (clipped to field bounds)
+    const minGridX = Math.max(0, centerGridX - brushCenterX);
+    const maxGridX = Math.min(this.gridWidth - 1, centerGridX + brushCenterX);
+    const minGridY = Math.max(0, centerGridY - brushCenterY);
+    const maxGridY = Math.min(this.gridHeight - 1, centerGridY + brushCenterY);
+
+    // Stamp brush onto density field
+    for (let gy = minGridY; gy <= maxGridY; gy++) {
+      for (let gx = minGridX; gx <= maxGridX; gx++) {
+        // Calculate position in brush texture
+        const brushX = gx - (centerGridX - brushCenterX);
+        const brushY = gy - (centerGridY - brushCenterY);
+
+        // Skip if outside brush bounds
+        if (brushX < 0 || brushX >= brush.width || brushY < 0 || brushY >= brush.height) {
+          continue;
+        }
+
+        // Get brush strength at this position (0-255)
+        const brushStrength = brush.data[brushY * brush.width + brushX];
+
+        // Skip if brush has no effect here
+        if (brushStrength === 0) {
+          continue;
+        }
+
+        // Apply brush to density field (image compositing)
+        const currentDensity = this.get(gx, gy);
+        const newDensity = add
+          ? Math.min(255, currentDensity + brushStrength)  // Add (build up material)
+          : Math.max(0, currentDensity - brushStrength);   // Subtract (carve away)
+
+        this.set(gx, gy, newDensity);
       }
     }
 
