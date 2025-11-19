@@ -329,6 +329,15 @@ class CarvableCaves {
     this.remesh();
     this.needsRemesh = false; // Prevent double-remesh on first frame
 
+    // Run warm-up physics steps to initialize Box2D collision structures
+    // This prevents wall tunneling when player moves immediately after spawn
+    console.log('[Physics] Running warm-up steps to initialize collision detection...');
+    const warmUpSteps = 10; // Run 10 physics steps (~167ms at 60Hz)
+    for (let i = 0; i < warmUpSteps; i++) {
+      this.physics.getEngine().step(16.67); // 60Hz timestep
+    }
+    console.log('[Physics] Warm-up complete');
+
     // Find valid spawn position for spider
     // console.log(`[Spider] Finding valid spawn position near (${this.preferredSpawnX.toFixed(1)}, ${this.preferredSpawnY.toFixed(1)})...`);
     const spawnPos = this.findValidSpawnPosition(
