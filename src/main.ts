@@ -189,11 +189,11 @@ class CarvableCaves {
         throw new Error('Canvas not found');
       }
 
-      // Initialize camera (centered on world, closer view for character following)
+      // Initialize camera (centered on world, zoomed out view for character following)
       this.camera = new Camera(
         worldConfig.width / 2,
         worldConfig.height / 2,
-        150, // initial PPM (pixels per metre) - closer view for better character camera
+        100, // initial PPM (pixels per metre) - 50% zoomed out for wider view
         worldConfig.width,
         worldConfig.height
       );
