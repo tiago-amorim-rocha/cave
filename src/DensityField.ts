@@ -383,8 +383,9 @@ export class DensityField {
    * @param worldY - Center Y position in world coordinates
    * @param brush - Pre-generated brush texture
    * @param add - true = add density (build), false = subtract density (carve)
+   * @param strength - Strength multiplier (0-1), controls how much effect the brush has
    */
-  stampBrush(worldX: number, worldY: number, brush: Brush, add: boolean): void {
+  stampBrush(worldX: number, worldY: number, brush: Brush, add: boolean, strength: number = 1.0): void {
     // Convert world position to grid coordinates
     const { gridX: centerGridX, gridY: centerGridY } = this.worldToGrid(worldX, worldY);
 
@@ -423,16 +424,21 @@ export class DensityField {
           continue;
         }
 
+        // Normalize brush strength to 0-1 and apply strength multiplier
+        // This treats the brush as an "opacity mask"
+        const normalizedStrength = (brushStrength / 255) * strength;
+        const effectiveStrength = normalizedStrength * 255; // Back to 0-255 range
+
         // Apply brush to density field (image compositing)
         const currentDensity = this.get(gx, gy);
         const newDensity = add
-          ? Math.min(255, currentDensity + brushStrength)  // Add (build up material)
-          : Math.max(0, currentDensity - brushStrength);   // Subtract (carve away)
+          ? Math.min(255, currentDensity + effectiveStrength)  // Add (build up material)
+          : Math.max(0, currentDensity - effectiveStrength);   // Subtract (carve away)
 
         this.set(gx, gy, newDensity);
 
         pixelsModified++;
-        totalStrengthApplied += brushStrength;
+        totalStrengthApplied += effectiveStrength;
       }
     }
 
