@@ -22,8 +22,8 @@ export class Camera {
   private zoomSmoothSpeed = 0.08; // Zoom transition speed (higher = faster)
 
   // Look-ahead parameters (directional overshoot)
-  private lookAheadDistance = 2.5; // Maximum look-ahead distance in metres
-  private lookAheadSpeed = 2.0; // Speed threshold for max look-ahead (m/s)
+  private lookAheadDistance = 1.2; // Maximum look-ahead distance in metres
+  private lookAheadSpeed = 3.5; // Speed threshold for max look-ahead (m/s)
 
   // Smoothing parameters (frame-rate independent)
   private smoothSpeed = 0.12; // Camera follow smoothing (higher = snappier)
