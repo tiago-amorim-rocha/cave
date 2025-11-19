@@ -68,19 +68,16 @@ export class RemeshManager {
     try {
       const now = performance.now();
 
-      // Check if we need a full heal (periodic or requested)
-      const timeSinceLastHeal = now - this.lastFullHealTime;
-      const needsPeriodicHeal = timeSinceLastHeal > 5000; // Every 5 seconds
-
-      if (this.needsFullHeal || needsPeriodicHeal || this.loopCache.count() === 0) {
+      // Check if we need a full heal (on-demand only, no periodic heal since carving is disabled)
+      if (this.needsFullHeal || this.loopCache.count() === 0) {
         // Full world remesh
         const stats = this.fullHeal();
         this.needsFullHeal = false;
         this.lastFullHealTime = now;
         return stats;
       } else {
-        // Incremental update (future optimization)
-        return this.incrementalUpdate();
+        // No remesh needed
+        return null;
       }
     } catch (error) {
       // console.error('Error during remesh:', error);
