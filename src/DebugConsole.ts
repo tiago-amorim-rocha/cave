@@ -38,6 +38,8 @@ export class DebugConsole {
   public onSimplificationPostChange?: (epsilon: number) => void;
   public onToggleChaikin?: (enabled: boolean) => void;
   public onChaikinIterationsChange?: (iterations: number) => void;
+  public onCarveRadiusChange?: (radius: number) => void;
+  public onCarveStrengthChange?: (strength: number) => void;
 
   constructor() {
     // Create visual debug panel
@@ -835,6 +837,138 @@ export class DebugConsole {
     chaikinSection.appendChild(iterationsRow);
 
     controlsContainer.appendChild(chaikinSection);
+
+    // Add carving controls
+    const carvingSection = document.createElement('div');
+    carvingSection.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255, 152, 0, 0.2);
+    `;
+
+    const carvingSectionTitle = document.createElement('div');
+    carvingSectionTitle.textContent = 'Carving Settings';
+    carvingSectionTitle.style.cssText = `
+      color: #FF9800;
+      font-weight: bold;
+      font-size: 10px;
+      margin-bottom: 4px;
+    `;
+    carvingSection.appendChild(carvingSectionTitle);
+
+    // Carve radius slider
+    const radiusRow = document.createElement('div');
+    radiusRow.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    `;
+
+    const radiusLabel = document.createElement('div');
+    radiusLabel.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #FF9800;
+    `;
+    radiusLabel.innerHTML = '<span>Radius</span><span id="carve-radius-value">2.0m</span>';
+
+    const radiusSlider = document.createElement('input');
+    radiusSlider.type = 'range';
+    radiusSlider.id = 'carve-radius-slider';
+    radiusSlider.min = '0.5';
+    radiusSlider.max = '5.0';
+    radiusSlider.value = '2.0';
+    radiusSlider.step = '0.1';
+    radiusSlider.style.cssText = `
+      width: 100%;
+      cursor: pointer;
+    `;
+
+    radiusSlider.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement;
+      const radius = parseFloat(target.value);
+      const radiusValueEl = document.getElementById('carve-radius-value');
+      if (radiusValueEl) {
+        radiusValueEl.textContent = `${radius.toFixed(1)}m`;
+      }
+      if (this.onCarveRadiusChange) {
+        this.onCarveRadiusChange(radius);
+      }
+    });
+
+    const radiusDesc = document.createElement('div');
+    radiusDesc.style.cssText = `
+      color: rgba(255, 152, 0, 0.5);
+      font-size: 8px;
+      margin-top: 1px;
+    `;
+    radiusDesc.textContent = 'Brush size';
+
+    radiusRow.appendChild(radiusLabel);
+    radiusRow.appendChild(radiusSlider);
+    radiusRow.appendChild(radiusDesc);
+    carvingSection.appendChild(radiusRow);
+
+    // Carve strength slider
+    const strengthRow = document.createElement('div');
+    strengthRow.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    `;
+
+    const strengthLabel = document.createElement('div');
+    strengthLabel.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #FF9800;
+    `;
+    strengthLabel.innerHTML = '<span>Strength</span><span id="carve-strength-value">25%</span>';
+
+    const strengthSlider = document.createElement('input');
+    strengthSlider.type = 'range';
+    strengthSlider.id = 'carve-strength-slider';
+    strengthSlider.min = '1';
+    strengthSlider.max = '100';
+    strengthSlider.value = '25';
+    strengthSlider.step = '1';
+    strengthSlider.style.cssText = `
+      width: 100%;
+      cursor: pointer;
+    `;
+
+    strengthSlider.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement;
+      const strengthPercent = parseInt(target.value);
+      const strength = strengthPercent / 100; // Convert to 0-1 range
+      const strengthValueEl = document.getElementById('carve-strength-value');
+      if (strengthValueEl) {
+        strengthValueEl.textContent = `${strengthPercent}%`;
+      }
+      if (this.onCarveStrengthChange) {
+        this.onCarveStrengthChange(strength);
+      }
+    });
+
+    const strengthDesc = document.createElement('div');
+    strengthDesc.style.cssText = `
+      color: rgba(255, 152, 0, 0.5);
+      font-size: 8px;
+      margin-top: 1px;
+    `;
+    strengthDesc.textContent = 'Lower = more subtle';
+
+    strengthRow.appendChild(strengthLabel);
+    strengthRow.appendChild(strengthSlider);
+    strengthRow.appendChild(strengthDesc);
+    carvingSection.appendChild(strengthRow);
+
+    controlsContainer.appendChild(carvingSection);
 
     return controlsContainer;
   }
