@@ -17,8 +17,8 @@ export class Camera {
 
   // Dynamic camera parameters (reduced for smoother, more zoomed out view)
   private baseZoom = 40; // PPM when stationary (slightly zoomed in from initial)
-  private minDynamicZoom = 25; // PPM when moving fast (matches initial zoom)
-  private speedThreshold = 2.0; // Speed at which max zoom-out occurs (m/s)
+  private minDynamicZoom = 30; // PPM when moving fast (matches initial zoom)
+  private speedThreshold = 4.0; // Speed at which max zoom-out occurs (m/s)
   private zoomSmoothSpeed = 0.03; // Zoom transition speed (slower for smoothness)
 
   // Look-ahead parameters (reduced to minimize jarring movement)
