@@ -272,14 +272,18 @@ export class RemeshManager {
     const t9 = performance.now();
     console.log(`[FullHeal] ⏱️ Box2D colliders: ${(t9 - t8).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
 
+    console.log(`[FullHeal] 🎯 TOTAL (physics only): ${(t9 - t0).toFixed(2)}ms`);
+
     // Update renderer with final loops
+    const t10 = performance.now();
     const finalForRender = optimizationResult.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
     this.renderer.updatePolylines(finalForRender);
+    const t11 = performance.now();
+    console.log(`[FullHeal] ⏱️ Re-render walls: ${(t11 - t10).toFixed(2)}ms`);
+
+    console.log(`[FullHeal] 🎯 TOTAL (including rendering): ${(t11 - t0).toFixed(2)}ms`);
 
     this.densityField.clearDirty();
-
-    const elapsed = performance.now() - t0;
-    console.log(`[FullHeal] 🎯 TOTAL: ${elapsed.toFixed(2)}ms`);
 
     return optimizationResult.statistics;
   }
@@ -375,14 +379,15 @@ export class RemeshManager {
     const t11 = performance.now();
     console.log(`[LocalUpdate] ⏱️ Box2D colliders: ${(t11 - t10).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
 
-    console.log(`[LocalUpdate] 🎯 TOTAL: ${(t11 - t0).toFixed(2)}ms`);
+    console.log(`[LocalUpdate] 🎯 TOTAL (physics only): ${(t11 - t0).toFixed(2)}ms`);
 
-    // Step 7: Set debug info for visualization
+    // Step 8: Set debug info for visualization
     this.renderer.setDirtyAABB(paddedAABB);
     this.renderer.setRebuiltChains(optimizationResult.finalLoops);
 
-    // Step 8: For rendering, regenerate full visual mesh (but don't touch physics)
+    // Step 9: For rendering, regenerate full visual mesh (but don't touch physics)
     // This is acceptable because rendering is fast, and it keeps the visual mesh consistent
+    const t12 = performance.now();
 
     // Generate full contours for rendering only
     const fullField = {
@@ -413,6 +418,11 @@ export class RemeshManager {
     this.renderer.updateOriginalPolylines(renderOptimization.trueOriginalLoops);
     const finalForRender = renderOptimization.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
     this.renderer.updatePolylines(finalForRender);
+
+    const t13 = performance.now();
+    console.log(`[LocalUpdate] ⏱️ Re-render walls: ${(t13 - t12).toFixed(2)}ms (full world remesh for visuals)`);
+
+    console.log(`[LocalUpdate] 🎯 TOTAL (including rendering): ${(t13 - t0).toFixed(2)}ms`);
 
     // Clear dirty region
     this.densityField.clearDirty();
