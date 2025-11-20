@@ -242,11 +242,11 @@ export class RemeshManager {
     this.renderer.updateOriginalPolylines(optimizationResult.trueOriginalLoops);
 
     // Use stored classifications from before optimization (more reliable than reclassifying)
-    // Rock boundaries (rock inside) need reversing, rock islands (cave inside) don't
+    // Based on testing: reverse if cave inside (rock island), keep if rock inside (cave boundary)
     const shouldReverse = loopClassifications.map((isRock, index) => {
-      // Reverse if rock inside (cave boundary), keep if cave inside (rock island)
-      console.log(`[Physics] Loop ${index}: isRock=${isRock}, shouldReverse=${isRock}`);
-      return isRock;
+      // CORRECT LOGIC (verified working): Reverse if NOT rock (cave inside = rock island)
+      console.log(`[Physics] Loop ${index}: isRock=${isRock}, shouldReverse=${!isRock}`);
+      return !isRock;
     });
 
     console.log(`[Physics] Total loops: ${shouldReverse.length}, reversing: ${shouldReverse.filter(r => r).length}, keeping: ${shouldReverse.filter(r => !r).length}`);
