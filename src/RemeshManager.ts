@@ -403,30 +403,34 @@ export class RemeshManager {
         problems.push(`Final sample (${sampleDensity}) differs significantly from avg inside (${avgInsideDensity.toFixed(1)})`);
       }
 
-      // Only log if problems detected
-      if (problems.length > 0) {
-        const extendedDebugInfo = {
-          ...debugInfo,
-          finalSample: {
-            x: sampleX,
-            y: sampleY,
-            density: sampleDensity,
-          },
-          isRock,
-          vertexCount: loop.length,
-          statistics: {
-            avgInsideDensity: avgInsideDensity.toFixed(1),
-            avgOutsideDensity: avgOutsideDensity.toFixed(1),
-            insideLow: insideLowCount,
-            insideHigh: insideHighCount,
-            outsideLow: outsideLowCount,
-            outsideHigh: outsideHighCount,
-          },
-          problems,
-        };
+      // Log all loops (removed filtering to debug disappearing cave islands)
+      const extendedDebugInfo = {
+        ...debugInfo,
+        finalSample: {
+          x: sampleX,
+          y: sampleY,
+          density: sampleDensity,
+        },
+        isRock,
+        vertexCount: loop.length,
+        statistics: {
+          avgInsideDensity: avgInsideDensity.toFixed(1),
+          avgOutsideDensity: avgOutsideDensity.toFixed(1),
+          insideLow: insideLowCount,
+          insideHigh: insideHighCount,
+          outsideLow: outsideLowCount,
+          outsideHigh: outsideHighCount,
+        },
+        problems: problems.length > 0 ? problems : undefined,
+      };
 
+      // Use warn for problematic loops, log for normal ones
+      if (problems.length > 0) {
         // eslint-disable-next-line no-console
-        console.warn("⚠️ PROBLEMATIC LOOP CLASSIFICATION:", extendedDebugInfo);
+        console.warn("⚠️ PROBLEMATIC LOOP:", extendedDebugInfo);
+      } else {
+        // eslint-disable-next-line no-console
+        console.log("Loop classification:", extendedDebugInfo);
       }
     }
 
