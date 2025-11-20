@@ -298,12 +298,22 @@ export class RemeshManager {
     // Step 3: Process local contours (clean, classify, optimize)
     const gridPitch = this.densityField.config.gridPitch;
     const validLoops: Point[][] = [];
+    const loopClassifications: boolean[] = [];
 
     for (const result of results) {
       if (result && result.loop && result.loop.length > 2) {
         const cleanedLoop = cleanLoop(result.loop, gridPitch);
         if (cleanedLoop.length >= 3) {
+          // Classify loop BEFORE optimization
+          const classificationResult = this.isRockLoop(cleanedLoop, validLoops.length);
+
+          // Skip loops marked for deletion
+          if (classificationResult.shouldDelete) {
+            continue;
+          }
+
           validLoops.push(cleanedLoop);
+          loopClassifications.push(classificationResult.isRock);
         }
       }
     }
@@ -311,10 +321,19 @@ export class RemeshManager {
     // Step 4: Optimize local loops
     const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
 
-    // Step 5: Add new physics bodies for local region
-    engine.addTerrainLoops(optimizationResult.finalLoops);
+    // Step 5: Build shouldReverse array based on classifications
+    // CRITICAL: Same logic as fullHeal - reverse if NOT rock (cave inside = rock island)
+    const shouldReverse = loopClassifications.map((isRock, index) => {
+      console.log(`[LocalUpdate Physics] Loop ${index}: isRock=${isRock}, shouldReverse=${!isRock}`);
+      return !isRock;
+    });
 
-    // Step 6: For rendering, regenerate full visual mesh (but don't touch physics)
+    console.log(`[LocalUpdate Physics] Total loops: ${shouldReverse.length}, reversing: ${shouldReverse.filter(r => r).length}, keeping: ${shouldReverse.filter(r => !r).length}`);
+
+    // Step 6: Add new physics bodies for local region WITH proper winding order
+    engine.addTerrainLoops(optimizationResult.finalLoops, shouldReverse);
+
+    // Step 7: For rendering, regenerate full visual mesh (but don't touch physics)
     // This is acceptable because rendering is fast, and it keeps the visual mesh consistent
 
     // Generate full contours for rendering only
