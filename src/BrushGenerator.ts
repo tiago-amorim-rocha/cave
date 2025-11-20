@@ -76,8 +76,6 @@ export class BrushGenerator {
       }
     }
 
-    console.log(`[BrushGenerator] Created ${width}×${height} radial brush (${radiusMetres.toFixed(2)}m radius, hardness=${hardness})`);
-
     return {
       data,
       width,
@@ -129,8 +127,6 @@ export class BrushGenerator {
         data[y * width + x] = Math.floor(gaussianValue * strength * 255);
       }
     }
-
-    console.log(`[BrushGenerator] Created ${width}×${height} Gaussian brush (${radiusMetres.toFixed(2)}m radius, σ=${sigma}, strength=${strength})`);
 
     return {
       data,

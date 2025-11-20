@@ -84,10 +84,6 @@ export class MarchingSquares {
     let maxGridX = Math.min(this.field.gridWidth - 2, Math.ceil(dirtyAABB.maxX / h) + expandCells);
     let maxGridY = Math.min(this.field.gridHeight - 2, Math.ceil(dirtyAABB.maxY / h) + expandCells);
 
-    if (this.debug) {
-      console.log(`[MarchingSquares] Scanning grid (${minGridX},${minGridY}) to (${maxGridX},${maxGridY})`);
-    }
-
     // Step 1: Build cell info for all cells in region
     this.cellInfo.clear();
     this.visited.clear();
@@ -101,10 +97,6 @@ export class MarchingSquares {
           totalCrossings += info.edgePairs.length;
         }
       }
-    }
-
-    if (this.debug) {
-      console.log(`[MarchingSquares] Found ${this.cellInfo.size} cells with crossings (${totalCrossings} edge pairs)`);
     }
 
     // Step 2: Walk topology to trace closed loops
@@ -135,9 +127,6 @@ export class MarchingSquares {
       }
     }
 
-    console.log(`[MarchingSquares] Traced ${results.length} contours (${tracedEdges} vertices total):`);
-    console.log(`  Closed loops: ${closedCount}`);
-    console.log(`  Open loops: ${openCount}`);
     if (openCount > 0) {
       console.warn(`  ⚠️  WARNING: ${openCount} OPEN CONTOURS DETECTED!`);
       console.warn(`  This usually means loops hit boundaries or density gradients are too sharp`);
@@ -207,16 +196,10 @@ export class MarchingSquares {
     if (caseIndex === 5) {
       const center = (v00 + v10 + v11 + v01) / 4;
       const isConnected = center >= this.isoValue;
-      if (this.debug) {
-        console.log(`Case 5 at (${gx},${gy}): center=${center.toFixed(1)} iso=${this.isoValue} → ${isConnected ? 'CONNECTED' : 'SADDLE'}`);
-      }
       edgePairs = isConnected ? [[3, 1]] : [[3, 0], [1, 2]];
     } else if (caseIndex === 10) {
       const center = (v00 + v10 + v11 + v01) / 4;
       const isConnected = center >= this.isoValue;
-      if (this.debug) {
-        console.log(`Case 10 at (${gx},${gy}): center=${center.toFixed(1)} iso=${this.isoValue} → ${isConnected ? 'CONNECTED' : 'SADDLE'}`);
-      }
       edgePairs = isConnected ? [[0, 2]] : [[0, 1], [2, 3]];
     } else {
       edgePairs = MARCHING_SQUARES_CASES[caseIndex];
