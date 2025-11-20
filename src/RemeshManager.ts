@@ -204,6 +204,7 @@ export class RemeshManager {
     }> = [];
 
     const validLoops: Point[][] = [];
+    const loopClassifications: boolean[] = []; // Store classifications for later use
     let deletedCount = 0;
 
     cleanedLoops.forEach((loop, index) => {
@@ -228,6 +229,7 @@ export class RemeshManager {
       });
 
       validLoops.push(loop);
+      loopClassifications.push(isRock); // Store whether this loop has rock inside
     });
 
     // Pass loop metadata to renderer for debug visualization
@@ -239,14 +241,15 @@ export class RemeshManager {
     // Store original for debug visualization
     this.renderer.updateOriginalPolylines(optimizationResult.trueOriginalLoops);
 
-    // Reclassify optimized loops for physics winding order
-    // Rock boundaries (rock inside) should be reversed, rock islands (cave inside) should not
-    const shouldReverse = optimizationResult.finalLoops.map((loop, index) => {
-      const classification = this.isRockLoop(loop, index);
-      // Reverse if it's a rock loop (rock inside, cave outside) - these are cave boundaries
-      // Don't reverse if it's a cave loop (cave inside, rock outside) - these are rock islands
-      return classification.isRock && !classification.shouldDelete;
+    // Use stored classifications from before optimization (more reliable than reclassifying)
+    // TESTING: Try inverted logic to see if winding order was backwards
+    const shouldReverse = loopClassifications.map((isRock, index) => {
+      // TRY INVERTING: Reverse if cave inside (rock island), keep if rock inside (cave boundary)
+      console.log(`[Physics] Loop ${index}: isRock=${isRock}, shouldReverse=${!isRock}`);
+      return !isRock;
     });
+
+    console.log(`[Physics] Total loops: ${shouldReverse.length}, reversing: ${shouldReverse.filter(r => r).length}, keeping: ${shouldReverse.filter(r => !r).length}`);
 
     // Use final loops for both physics and rendering
     this.physics.setCaveContours(optimizationResult.finalLoops, shouldReverse);
