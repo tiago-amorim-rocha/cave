@@ -155,7 +155,7 @@ class CarvableCaves {
 
   // Chaikin smoothing control (enabled by default for organic cave shapes)
   private chaikinEnabled = true;
-  private chaikinIterations = 1; // Reduced from 2 to 1 for better performance
+  private chaikinIterations = 2; // Reduced from 2 to 1 for better performance
 
   // Post-smoothing simplification control (removes redundant vertices from Chaikin)
   private simplificationEpsilonPost = 0.05; // metres - optimal balance of smoothness and vertex count
