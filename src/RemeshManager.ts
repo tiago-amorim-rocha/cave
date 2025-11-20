@@ -203,9 +203,20 @@ export class RemeshManager {
       samples?: DebugSamplePoint[];
     }> = [];
 
+    const validLoops: Point[][] = [];
+    let deletedCount = 0;
+
     cleanedLoops.forEach((loop, index) => {
       if (loop.length < 3) return;
+
       const classificationResult = this.isRockLoop(loop, index);
+
+      // Skip loops marked for deletion
+      if (classificationResult.shouldDelete) {
+        deletedCount++;
+        return;
+      }
+
       const isRock = classificationResult.isRock;
       const centroid = computePolygonCentroid(loop);
 
@@ -215,19 +226,21 @@ export class RemeshManager {
         isRock,
         samples: classificationResult.samples
       });
+
+      validLoops.push(loop);
     });
 
-    // Keep ALL cleaned loops for evenodd fill rule rendering
-    // The renderer fills with light cream using evenodd, creating cave pattern
-    const allValidLoops = cleanedLoops.filter(loop => loop.length >= 3);
+    if (deletedCount > 0) {
+      console.log(`[FullHeal] Deleted ${deletedCount} ambiguous loops (tie votes or no valid samples)`);
+    }
 
     // Pass loop metadata to renderer for debug visualization
     this.renderer.setLoopDebugInfo(loopMetadata);
 
-    console.log(`[FullHeal] Processing ${allValidLoops.length} loops (no filtering - using evenodd fill rule)`);
+    console.log(`[FullHeal] Processing ${validLoops.length} loops (using evenodd fill rule)`);
 
     // Run vertex optimization pipeline
-    const optimizationResult = this.optimizationPipeline.optimize(allValidLoops, this.optimizationOptions);
+    const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
 
     // Store original for debug visualization
     this.renderer.updateOriginalPolylines(optimizationResult.trueOriginalLoops);
@@ -261,15 +274,20 @@ export class RemeshManager {
    * Determine if a loop represents solid rock or a cave hole
    * Uses signed area and density sampling to classify
    *
-   * With DEBUG_LOOP_CLASSIFICATION enabled, samples multiple segments
-   * on both inside and outside to help diagnose misclassifications
+   * Samples multiple edges and uses majority voting for robust classification.
+   * Edges with ambiguous samples (same sign inside/outside) are ignored.
+   * If classification is ambiguous after sampling, the loop is marked for deletion.
    *
    * @param loop - The polygon loop to classify
    * @param loopIndex - Optional index for debug output correlation
-   * @returns Object containing isRock boolean and optional sample points for visualization
+   * @returns Object with isRock boolean, shouldDelete flag, and optional sample points
    */
-  private isRockLoop(loop: Point[], loopIndex?: number): { isRock: boolean; samples?: DebugSamplePoint[] } {
-    if (loop.length < 3) return { isRock: false };
+  private isRockLoop(loop: Point[], loopIndex?: number): {
+    isRock: boolean;
+    shouldDelete: boolean;
+    samples?: DebugSamplePoint[]
+  } {
+    if (loop.length < 3) return { isRock: false, shouldDelete: true };
 
     // Compute polygon properties using helper functions
     const area = computePolygonArea(loop);
@@ -282,8 +300,6 @@ export class RemeshManager {
     const epsilonOutside = 0.501 * gridPitch;
 
     const n = loop.length;
-    const maxSamples = 8; // Number of segments to sample for debug
-    const step = Math.max(1, Math.floor(n / maxSamples));
 
     const debugInfo: DebugLoopInfo = {
       loopIndex,
@@ -292,193 +308,196 @@ export class RemeshManager {
       samples: [],
     };
 
-    // Sample multiple segments around the loop for debugging
-    // Note: Loops are pre-cleaned, so degenerate edges should be rare
-    if (DEBUG_LOOP_CLASSIFICATION) {
-      for (let i = 0, sampleIndex = 0; i < n && sampleIndex < maxSamples; i += step, sampleIndex++) {
-        const p = loop[i];
-        const q = loop[(i + 1) % n];
+    // Helper to sample an edge and determine if it votes "rock"
+    const sampleEdge = (edgeIndex: number): { isRock: boolean; isValid: boolean } => {
+      const p = loop[edgeIndex];
+      const q = loop[(edgeIndex + 1) % n];
 
-        // Segment midpoint
-        const mx = (p.x + q.x) * 0.5;
-        const my = (p.y + q.y) * 0.5;
+      // Segment midpoint
+      const mx = (p.x + q.x) * 0.5;
+      const my = (p.y + q.y) * 0.5;
 
-        // Calculate left normal to edge p->q
-        let nx = q.y - p.y;
-        let ny = -(q.x - p.x);
-        const len = Math.hypot(nx, ny);
+      // Calculate left normal to edge p->q
+      let nx = q.y - p.y;
+      let ny = -(q.x - p.x);
+      const len = Math.hypot(nx, ny);
 
-        // Skip rare degenerate edges (shouldn't happen after cleanLoop)
-        if (len < 1e-10) continue;
+      // Skip degenerate edges
+      if (len < 1e-10) return { isRock: false, isValid: false };
 
-        nx /= len;
-        ny /= len;
+      nx /= len;
+      ny /= len;
 
-        // Flip normal based on winding so it points inward
-        // CCW (area > 0): left normal points outward, flip it to point inward
-        // CW (area < 0): left normal points inward, keep it
-        if (area > 0) {
-          nx = -nx;
-          ny = -ny;
-        }
-
-        // Adjust epsilon based on normal direction to ensure we cross cell boundary
-        // At 45°, we need sqrt(2) times the distance to cross diagonally
-        const maxComponent = Math.max(Math.abs(nx), Math.abs(ny));
-        const angleAdjustment = 1.0 / maxComponent;
-        const adjustedEpsilonInside = epsilonInside * angleAdjustment;
-        const adjustedEpsilonOutside = epsilonOutside * angleAdjustment;
-
-        // Sample inside the loop
-        const insideX = mx + nx * adjustedEpsilonInside;
-        const insideY = my + ny * adjustedEpsilonInside;
-
-        // Sample outside the loop
-        const outsideX = mx - nx * adjustedEpsilonOutside;
-        const outsideY = my - ny * adjustedEpsilonOutside;
-
-        // Convert to grid coordinates and query density
-        const insideGrid = this.densityField.worldToGrid(insideX, insideY);
-        const outsideGrid = this.densityField.worldToGrid(outsideX, outsideY);
-
-        const insideDensity = this.densityField.get(insideGrid.gridX, insideGrid.gridY);
-        const outsideDensity = this.densityField.get(outsideGrid.gridX, outsideGrid.gridY);
-
-        // Record inside sample
-        debugInfo.samples.push({
-          x: insideX,
-          y: insideY,
-          density: insideDensity,
-          side: "inside",
-          segmentIndex: i,
-        });
-
-        // Record outside sample
-        debugInfo.samples.push({
-          x: outsideX,
-          y: outsideY,
-          density: outsideDensity,
-          side: "outside",
-          segmentIndex: i,
-        });
-      }
-    }
-
-    // Existing classification logic - sample first edge
-    const p0 = loop[0];
-    const p1 = loop[1];
-
-    // Calculate left normal to first edge
-    let nx0 = p1.y - p0.y;
-    let ny0 = -(p1.x - p0.x);
-    const len0 = Math.hypot(nx0, ny0) || 1;
-    nx0 /= len0;
-    ny0 /= len0;
-
-    // Flip normal based on winding direction so it points inward
-    // CCW (area > 0): left normal points outward, flip it to point inward
-    // CW (area < 0): left normal points inward, keep it
-    if (area > 0) {
-      nx0 = -nx0;
-      ny0 = -ny0;
-    }
-
-    // Adjust epsilon based on normal direction to ensure we cross cell boundary
-    // At 45°, we need sqrt(2) times the distance to cross diagonally
-    const angleAdjustment0 = 1.0 / Math.max(Math.abs(nx0), Math.abs(ny0));
-    const adjustedEpsilon0 = epsilonInside * angleAdjustment0;
-
-    // Sample point inside the loop at first edge (0.501 * cell size, angle-adjusted)
-    const sampleX = p0.x + nx0 * adjustedEpsilon0;
-    const sampleY = p0.y + ny0 * adjustedEpsilon0;
-
-    // Check density at sample point
-    const { gridX, gridY } = this.densityField.worldToGrid(sampleX, sampleY);
-    const sampleDensity = this.densityField.get(gridX, gridY);
-
-    // Rock if density >= isoValue (128)
-    const isRock = sampleDensity >= 128;
-
-    // Debug logging - only for problematic loops
-    if (DEBUG_LOOP_CLASSIFICATION && debugInfo.samples.length > 0) {
-      // Analyze samples to detect suspicious patterns
-      const insideSamples = debugInfo.samples.filter(s => s.side === "inside");
-      const outsideSamples = debugInfo.samples.filter(s => s.side === "outside");
-
-      const insideDensities = insideSamples.map(s => s.density);
-      const outsideDensities = outsideSamples.map(s => s.density);
-
-      const avgInsideDensity = insideDensities.reduce((a, b) => a + b, 0) / insideDensities.length;
-      const avgOutsideDensity = outsideDensities.reduce((a, b) => a + b, 0) / outsideDensities.length;
-
-      const insideLowCount = insideSamples.filter(s => s.density < 128).length;
-      const insideHighCount = insideSamples.filter(s => s.density >= 128).length;
-      const outsideLowCount = outsideSamples.filter(s => s.density < 128).length;
-      const outsideHighCount = outsideSamples.filter(s => s.density >= 128).length;
-
-      // Detect problematic patterns
-      const problems: string[] = [];
-
-      // Pattern 1: Classified as rock but inside samples are mostly low density
-      if (isRock && insideLowCount > insideHighCount) {
-        problems.push(`ROCK but ${insideLowCount}/${insideSamples.length} inside samples < 128`);
+      // Flip normal based on winding so it points inward
+      // CCW (area > 0): left normal points outward, flip it to point inward
+      // CW (area < 0): left normal points inward, keep it
+      if (area > 0) {
+        nx = -nx;
+        ny = -ny;
       }
 
-      // Pattern 2: Classified as cave but inside samples are mostly high density
-      if (!isRock && insideHighCount > insideLowCount) {
-        problems.push(`CAVE but ${insideHighCount}/${insideSamples.length} inside samples >= 128`);
+      // Adjust epsilon based on normal direction
+      const maxComponent = Math.max(Math.abs(nx), Math.abs(ny));
+      const angleAdjustment = 1.0 / maxComponent;
+      const adjustedEpsilonInside = epsilonInside * angleAdjustment;
+      const adjustedEpsilonOutside = epsilonOutside * angleAdjustment;
+
+      // Sample inside and outside
+      const insideX = mx + nx * adjustedEpsilonInside;
+      const insideY = my + ny * adjustedEpsilonInside;
+      const outsideX = mx - nx * adjustedEpsilonOutside;
+      const outsideY = my - ny * adjustedEpsilonOutside;
+
+      const insideGrid = this.densityField.worldToGrid(insideX, insideY);
+      const outsideGrid = this.densityField.worldToGrid(outsideX, outsideY);
+
+      const insideDensity = this.densityField.get(insideGrid.gridX, insideGrid.gridY);
+      const outsideDensity = this.densityField.get(outsideGrid.gridX, outsideGrid.gridY);
+
+      // Record samples for debug visualization
+      if (DEBUG_LOOP_CLASSIFICATION) {
+        debugInfo.samples.push(
+          { x: insideX, y: insideY, density: insideDensity, side: "inside", segmentIndex: edgeIndex },
+          { x: outsideX, y: outsideY, density: outsideDensity, side: "outside", segmentIndex: edgeIndex }
+        );
       }
 
-      // Pattern 3: Outside samples contradict inside samples
-      if (isRock && outsideLowCount < outsideHighCount) {
-        problems.push(`ROCK but outside samples mostly HIGH (${outsideHighCount}/${outsideSamples.length} >= 128)`);
+      // Check if signs differ (valid sample)
+      const insideIsRock = insideDensity >= 128;
+      const outsideIsRock = outsideDensity >= 128;
+
+      if (insideIsRock === outsideIsRock) {
+        // Same sign on both sides - ambiguous, ignore this edge
+        return { isRock: false, isValid: false };
       }
 
-      if (!isRock && outsideHighCount < outsideLowCount) {
-        problems.push(`CAVE but outside samples mostly LOW (${outsideLowCount}/${outsideSamples.length} < 128)`);
-      }
-
-      // Pattern 4: Final sample disagrees with average of debug samples
-      const avgDifference = Math.abs(sampleDensity - avgInsideDensity);
-      if (avgDifference > 30) {
-        problems.push(`Final sample (${sampleDensity}) differs significantly from avg inside (${avgInsideDensity.toFixed(1)})`);
-      }
-
-      // Log all loops (removed filtering to debug disappearing cave islands)
-      const extendedDebugInfo = {
-        ...debugInfo,
-        finalSample: {
-          x: sampleX,
-          y: sampleY,
-          density: sampleDensity,
-        },
-        isRock,
-        vertexCount: loop.length,
-        statistics: {
-          avgInsideDensity: avgInsideDensity.toFixed(1),
-          avgOutsideDensity: avgOutsideDensity.toFixed(1),
-          insideLow: insideLowCount,
-          insideHigh: insideHighCount,
-          outsideLow: outsideLowCount,
-          outsideHigh: outsideHighCount,
-        },
-        problems: problems.length > 0 ? problems : undefined,
-      };
-
-      // Use warn for problematic loops, log for normal ones
-      const loopLabel = loopIndex !== undefined ? `LOOP #${loopIndex}` : "LOOP";
-      if (problems.length > 0) {
-        // eslint-disable-next-line no-console
-        console.warn(`⚠️ ${loopLabel} (PROBLEMATIC):`, extendedDebugInfo);
-      } else {
-        // eslint-disable-next-line no-console
-        console.log(`${loopLabel}:`, extendedDebugInfo);
-      }
-    }
-
-    return {
-      isRock,
-      samples: DEBUG_LOOP_CLASSIFICATION ? debugInfo.samples : undefined
+      // Valid sample: inside tells us if this is rock or cave
+      return { isRock: insideIsRock, isValid: true };
     };
+
+    // Sample edges and collect votes
+    let rockVotes = 0;
+    let caveVotes = 0;
+    let sampledEdges = 0;
+
+    // First round: sample first 3 edges
+    const firstRoundIndices = [0, 1, 2].filter(i => i < n);
+    for (const edgeIndex of firstRoundIndices) {
+      const result = sampleEdge(edgeIndex);
+      if (result.isValid) {
+        sampledEdges++;
+        if (result.isRock) {
+          rockVotes++;
+        } else {
+          caveVotes++;
+        }
+      }
+    }
+
+    // Check if we need a second round (tie or not enough valid samples)
+    if (sampledEdges > 0 && rockVotes !== caveVotes) {
+      // We have a clear majority, use it
+      const isRock = rockVotes > caveVotes;
+
+      if (DEBUG_LOOP_CLASSIFICATION) {
+        this.logClassification(loopIndex, debugInfo, isRock, {
+          rockVotes,
+          caveVotes,
+          sampledEdges,
+          round: 1
+        });
+      }
+
+      return { isRock, shouldDelete: false, samples: DEBUG_LOOP_CLASSIFICATION ? debugInfo.samples : undefined };
+    }
+
+    // Second round: sample next 3 edges (indices 3, 4, 5)
+    const secondRoundIndices = [3, 4, 5].filter(i => i < n);
+    for (const edgeIndex of secondRoundIndices) {
+      const result = sampleEdge(edgeIndex);
+      if (result.isValid) {
+        sampledEdges++;
+        if (result.isRock) {
+          rockVotes++;
+        } else {
+          caveVotes++;
+        }
+      }
+    }
+
+    // Final decision
+    if (sampledEdges === 0 || rockVotes === caveVotes) {
+      // No valid samples or still tied - delete this loop
+      if (DEBUG_LOOP_CLASSIFICATION) {
+        console.warn(`⚠️ LOOP #${loopIndex}: AMBIGUOUS - deleting`, {
+          rockVotes,
+          caveVotes,
+          sampledEdges,
+          area,
+          centroid,
+          vertexCount: loop.length
+        });
+      }
+      return { isRock: false, shouldDelete: true, samples: DEBUG_LOOP_CLASSIFICATION ? debugInfo.samples : undefined };
+    }
+
+    const isRock = rockVotes > caveVotes;
+
+    if (DEBUG_LOOP_CLASSIFICATION) {
+      this.logClassification(loopIndex, debugInfo, isRock, {
+        rockVotes,
+        caveVotes,
+        sampledEdges,
+        round: 2
+      });
+    }
+
+    return { isRock, shouldDelete: false, samples: DEBUG_LOOP_CLASSIFICATION ? debugInfo.samples : undefined };
+  }
+
+  /**
+   * Log classification results with statistics
+   */
+  private logClassification(
+    loopIndex: number | undefined,
+    debugInfo: DebugLoopInfo,
+    isRock: boolean,
+    votingStats: { rockVotes: number; caveVotes: number; sampledEdges: number; round: number }
+  ): void {
+    const insideSamples = debugInfo.samples.filter(s => s.side === "inside");
+    const outsideSamples = debugInfo.samples.filter(s => s.side === "outside");
+
+    const insideDensities = insideSamples.map(s => s.density);
+    const outsideDensities = outsideSamples.map(s => s.density);
+
+    const avgInsideDensity = insideDensities.length > 0
+      ? insideDensities.reduce((a, b) => a + b, 0) / insideDensities.length
+      : 0;
+    const avgOutsideDensity = outsideDensities.length > 0
+      ? outsideDensities.reduce((a, b) => a + b, 0) / outsideDensities.length
+      : 0;
+
+    const insideLowCount = insideSamples.filter(s => s.density < 128).length;
+    const insideHighCount = insideSamples.filter(s => s.density >= 128).length;
+    const outsideLowCount = outsideSamples.filter(s => s.density < 128).length;
+    const outsideHighCount = outsideSamples.filter(s => s.density >= 128).length;
+
+    const extendedDebugInfo = {
+      ...debugInfo,
+      isRock,
+      classification: isRock ? "ROCK" : "CAVE",
+      voting: votingStats,
+      statistics: {
+        avgInsideDensity: avgInsideDensity.toFixed(1),
+        avgOutsideDensity: avgOutsideDensity.toFixed(1),
+        insideLow: insideLowCount,
+        insideHigh: insideHighCount,
+        outsideLow: outsideLowCount,
+        outsideHigh: outsideHighCount,
+      },
+    };
+
+    const loopLabel = loopIndex !== undefined ? `LOOP #${loopIndex}` : "LOOP";
+    console.log(`${loopLabel}:`, extendedDebugInfo);
   }
 }
