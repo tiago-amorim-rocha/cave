@@ -293,6 +293,14 @@ export class RemeshManager {
         const p = loop[i];
         const q = loop[(i + 1) % n];
 
+        // Validate vertex coordinates
+        if (!p || !q || typeof p.x !== 'number' || typeof p.y !== 'number' ||
+            typeof q.x !== 'number' || typeof q.y !== 'number' ||
+            !isFinite(p.x) || !isFinite(p.y) || !isFinite(q.x) || !isFinite(q.y)) {
+          console.warn(`⚠️ LOOP #${loopIndex} segment ${i}: Invalid vertices`, { p, q });
+          continue;
+        }
+
         // Segment midpoint
         const mx = (p.x + q.x) * 0.5;
         const my = (p.y + q.y) * 0.5;
@@ -300,7 +308,14 @@ export class RemeshManager {
         // Calculate left normal to edge p->q
         let nx = q.y - p.y;
         let ny = -(q.x - p.x);
-        const len = Math.hypot(nx, ny) || 1;
+        const len = Math.hypot(nx, ny);
+
+        // Skip degenerate edges (zero length)
+        if (len < 1e-10) {
+          console.warn(`⚠️ LOOP #${loopIndex} segment ${i}: Degenerate edge (length=${len})`, { p, q });
+          continue;
+        }
+
         nx /= len;
         ny /= len;
 
@@ -314,7 +329,13 @@ export class RemeshManager {
 
         // Adjust epsilon based on normal direction to ensure we cross cell boundary
         // At 45°, we need sqrt(2) times the distance to cross diagonally
-        const angleAdjustment = 1.0 / Math.max(Math.abs(nx), Math.abs(ny));
+        const maxComponent = Math.max(Math.abs(nx), Math.abs(ny));
+        if (maxComponent < 1e-10) {
+          console.warn(`⚠️ LOOP #${loopIndex} segment ${i}: Invalid normal`, { nx, ny });
+          continue;
+        }
+
+        const angleAdjustment = 1.0 / maxComponent;
         const adjustedEpsilonInside = epsilonInside * angleAdjustment;
         const adjustedEpsilonOutside = epsilonOutside * angleAdjustment;
 
@@ -325,6 +346,16 @@ export class RemeshManager {
         // Sample outside the loop
         const outsideX = mx - nx * adjustedEpsilonOutside;
         const outsideY = my - ny * adjustedEpsilonOutside;
+
+        // Validate sample coordinates
+        if (!isFinite(insideX) || !isFinite(insideY) || !isFinite(outsideX) || !isFinite(outsideY)) {
+          console.warn(`⚠️ LOOP #${loopIndex} segment ${i}: Invalid sample coordinates`, {
+            inside: { x: insideX, y: insideY },
+            outside: { x: outsideX, y: outsideY },
+            mx, my, nx, ny, adjustedEpsilonInside, adjustedEpsilonOutside
+          });
+          continue;
+        }
 
         // Convert to grid coordinates and query density
         const insideGrid = this.densityField.worldToGrid(insideX, insideY);
