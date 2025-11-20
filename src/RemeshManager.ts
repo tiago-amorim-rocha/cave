@@ -261,6 +261,108 @@ export class RemeshManager {
   }
 
   /**
+   * Local update - only update affected region
+   * Uses the dirty AABB from density field to do a local rebuild
+   */
+  localUpdate(expandCells: number = 2): RemeshStats | null {
+    const startTime = performance.now();
+
+    // Get dirty region from density field
+    const dirtyAABB = this.densityField.getDirtyWorldAABB();
+    if (!dirtyAABB) {
+      console.log('[LocalUpdate] No dirty region, skipping');
+      return null;
+    }
+
+    console.log(`[LocalUpdate] Dirty region: [${dirtyAABB.minX.toFixed(1)}, ${dirtyAABB.minY.toFixed(1)}] to [${dirtyAABB.maxX.toFixed(1)}, ${dirtyAABB.maxY.toFixed(1)}]`);
+
+    // Pad the AABB by expandCells to ensure correct marching squares behavior at boundaries
+    const h = this.densityField.config.gridPitch;
+    const paddedAABB = {
+      minX: dirtyAABB.minX - expandCells * h,
+      minY: dirtyAABB.minY - expandCells * h,
+      maxX: dirtyAABB.maxX + expandCells * h,
+      maxY: dirtyAABB.maxY + expandCells * h
+    };
+
+    console.log(`[LocalUpdate] Padded region (expand=${expandCells} cells): [${paddedAABB.minX.toFixed(1)}, ${paddedAABB.minY.toFixed(1)}] to [${paddedAABB.maxX.toFixed(1)}, ${paddedAABB.maxY.toFixed(1)}]`);
+
+    // Step 1: Remove physics bodies in padded region
+    const engine = this.physics.getEngine();
+    const removedCount = engine.removeTerrainInRegion(paddedAABB);
+    console.log(`[LocalUpdate] Removed ${removedCount} physics bodies in padded region`);
+
+    // Step 2: Run marching squares only in padded region
+    const results = this.marchingSquares.generateContours(paddedAABB, expandCells);
+    console.log(`[LocalUpdate] Generated ${results.length} contours in local region`);
+
+    // Step 3: Process local contours (clean, classify, optimize)
+    const gridPitch = this.densityField.config.gridPitch;
+    const validLoops: Point[][] = [];
+
+    for (const result of results) {
+      if (result && result.loop && result.loop.length > 2) {
+        const cleanedLoop = cleanLoop(result.loop, gridPitch);
+        if (cleanedLoop.length >= 3) {
+          validLoops.push(cleanedLoop);
+        }
+      }
+    }
+
+    console.log(`[LocalUpdate] Cleaned to ${validLoops.length} valid loops`);
+
+    // Step 4: Optimize local loops
+    const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
+    console.log(`[LocalUpdate] Optimized ${validLoops.length} loops → ${optimizationResult.finalLoops.length} loops`);
+
+    // Step 5: Add new physics bodies for local region
+    const addedCount = engine.addTerrainLoops(optimizationResult.finalLoops);
+    console.log(`[LocalUpdate] Added ${addedCount} new physics bodies`);
+
+    // Step 6: For rendering, regenerate full visual mesh (but don't touch physics)
+    // This is acceptable because rendering is fast, and it keeps the visual mesh consistent
+    console.log(`[LocalUpdate] Regenerating full visual mesh for rendering...`);
+
+    // Generate full contours for rendering only
+    const fullField = {
+      minX: 0,
+      minY: 0,
+      maxX: this.densityField.config.width,
+      maxY: this.densityField.config.height
+    };
+
+    const fullResults = this.marchingSquares.generateContours(fullField, 0);
+
+    // Clean and optimize for rendering (reuse gridPitch from above)
+    const renderLoops: Point[][] = [];
+
+    for (const result of fullResults) {
+      if (result && result.loop && result.loop.length > 2) {
+        const cleanedLoop = cleanLoop(result.loop, gridPitch);
+        if (cleanedLoop.length >= 3) {
+          renderLoops.push(cleanedLoop);
+        }
+      }
+    }
+
+    // Optimize for rendering
+    const renderOptimization = this.optimizationPipeline.optimize(renderLoops, this.optimizationOptions);
+
+    // Update renderer with final loops (but don't touch physics!)
+    this.renderer.updateOriginalPolylines(renderOptimization.trueOriginalLoops);
+    const finalForRender = renderOptimization.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+    this.renderer.updatePolylines(finalForRender);
+
+    const elapsed = performance.now() - startTime;
+    console.log(`[LocalUpdate] Complete in ${elapsed.toFixed(1)}ms (physics was local, rendering was full rebuild)`);
+
+    // Clear dirty region
+    this.densityField.clearDirty();
+
+    return renderOptimization.statistics;
+  }
+
+  /**
    * Incremental update - only update affected loops
    * For physics-enabled mode, we do a full heal to ensure physics bodies are correct
    */

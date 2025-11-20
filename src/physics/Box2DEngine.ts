@@ -18,12 +18,24 @@ export interface Point {
   y: number;
 }
 
+export interface AABB {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+interface TerrainBodyInfo {
+  body: b2Body;
+  aabb: AABB;
+}
+
 /**
  * Box2D Physics Engine
  */
 export class Box2DEngine {
   private world: b2World | null = null;
-  private terrainBodies: b2Body[] = [];
+  private terrainBodies: TerrainBodyInfo[] = [];
   private accumulator = 0;
   private debugDrawEnabled = false;
   private fixedUpdateCallbacks: ((dt: number) => void)[] = [];
@@ -79,8 +91,8 @@ export class Box2DEngine {
     }
 
     // Remove old terrain bodies
-    for (const body of this.terrainBodies) {
-      this.world.DestroyBody(body);
+    for (const bodyInfo of this.terrainBodies) {
+      this.world.DestroyBody(bodyInfo.body);
     }
     this.terrainBodies = [];
 
@@ -138,7 +150,10 @@ export class Box2DEngine {
         restitution: 0.1,
         density: 0, // Static body
       });
-      this.terrainBodies.push(body);
+
+      // Compute AABB for this loop
+      const aabb = this.computeLoopAABB(loop);
+      this.terrainBodies.push({ body, aabb });
 
       totalSegments += loop.length - 1;
     }
@@ -200,7 +215,8 @@ export class Box2DEngine {
     ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
     ctx.lineWidth = 2;
 
-    for (const body of this.terrainBodies) {
+    for (const bodyInfo of this.terrainBodies) {
+      const body = bodyInfo.body;
       const fixtures = [];
       let fixture = body.GetFixtureList();
       while (fixture) {
@@ -301,6 +317,141 @@ export class Box2DEngine {
     }
 
     ctx.restore();
+  }
+
+  /**
+   * Compute AABB for a loop of points
+   */
+  private computeLoopAABB(loop: Point[]): AABB {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const p of loop) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
+
+    return { minX, minY, maxX, maxY };
+  }
+
+  /**
+   * Check if two AABBs intersect
+   */
+  private aabbsIntersect(a: AABB, b: AABB): boolean {
+    return !(a.maxX < b.minX || a.minX > b.maxX || a.maxY < b.minY || a.minY > b.maxY);
+  }
+
+  /**
+   * Remove terrain bodies whose AABBs intersect the given region
+   * Returns the number of bodies removed
+   */
+  removeTerrainInRegion(region: AABB): number {
+    if (!this.world) {
+      console.error('[Box2DEngine] World not initialized!');
+      return 0;
+    }
+
+    const bodiesToRemove: TerrainBodyInfo[] = [];
+    const bodiesToKeep: TerrainBodyInfo[] = [];
+
+    // Partition bodies into remove/keep based on AABB intersection
+    for (const bodyInfo of this.terrainBodies) {
+      if (this.aabbsIntersect(bodyInfo.aabb, region)) {
+        bodiesToRemove.push(bodyInfo);
+      } else {
+        bodiesToKeep.push(bodyInfo);
+      }
+    }
+
+    // Destroy bodies that intersect the region
+    for (const bodyInfo of bodiesToRemove) {
+      this.world.DestroyBody(bodyInfo.body);
+    }
+
+    // Update terrain bodies list
+    this.terrainBodies = bodiesToKeep;
+
+    console.log(`[Box2DEngine] Removed ${bodiesToRemove.length} terrain bodies in region [${region.minX.toFixed(1)}, ${region.minY.toFixed(1)}] to [${region.maxX.toFixed(1)}, ${region.maxY.toFixed(1)}]`);
+    return bodiesToRemove.length;
+  }
+
+  /**
+   * Add terrain loops without removing existing ones (for incremental updates)
+   * Similar to setTerrainLoops but appends instead of replacing
+   */
+  addTerrainLoops(loops: Point[][]): number {
+    if (!this.world) {
+      console.error('[Box2DEngine] World not initialized!');
+      return 0;
+    }
+
+    let totalSegments = 0;
+    let closedLoops = 0;
+    let openChains = 0;
+    let addedBodies = 0;
+
+    for (const loop of loops) {
+      if (loop.length < 2) continue;
+
+      // Create static body for this terrain loop
+      const body = this.world.CreateBody({
+        type: b2BodyType.b2_staticBody,
+      });
+
+      // Convert loop to b2Vec2 array
+      const vertices = loop.map(p => new b2Vec2(p.x, p.y));
+
+      // Check if loop is properly closed (first ≈ last)
+      const firstPoint = vertices[0];
+      const lastPoint = vertices[vertices.length - 1];
+      const dx = lastPoint.x - firstPoint.x;
+      const dy = lastPoint.y - firstPoint.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const isClosed = distance < 0.01; // Within 1cm tolerance
+
+      // Reverse winding order for correct Box2D collision surface direction
+      const reversedVertices = [...vertices].reverse();
+
+      // Create chain shape
+      const chainShape = new b2ChainShape();
+
+      if (isClosed) {
+        // Remove duplicate last vertex and create closed loop
+        const loopVertices = reversedVertices.slice(0, -1);
+        chainShape.CreateLoop(loopVertices, loopVertices.length);
+        closedLoops++;
+      } else {
+        // Create open chain with ghost vertices
+        const prevVertex = reversedVertices[0];
+        const nextVertex = reversedVertices[reversedVertices.length - 1];
+        chainShape.CreateChain(reversedVertices, reversedVertices.length, prevVertex, nextVertex);
+        openChains++;
+      }
+
+      // Create fixture with physics properties
+      body.CreateFixture({
+        shape: chainShape,
+        friction: 0.3,
+        restitution: 0.1,
+        density: 0, // Static body
+      });
+
+      // Compute AABB for this loop
+      const aabb = this.computeLoopAABB(loop);
+      this.terrainBodies.push({ body, aabb });
+
+      totalSegments += loop.length - 1;
+      addedBodies++;
+    }
+
+    console.log(`[Box2DEngine] Added ${addedBodies} terrain bodies (${totalSegments} segments)`);
+    console.log(`[Box2DEngine] Total terrain bodies: ${this.terrainBodies.length}`);
+
+    return addedBodies;
   }
 
   /**
