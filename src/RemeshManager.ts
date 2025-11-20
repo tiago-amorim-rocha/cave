@@ -250,11 +250,19 @@ export class RemeshManager {
     this.renderer.setLoopDebugInfo(loopMetadata);
 
     // Run vertex optimization pipeline
-    const t6 = performance.now();
     const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
-    const t7 = performance.now();
     const finalVertexCount = optimizationResult.finalLoops.reduce((sum, loop) => sum + loop.length, 0);
-    console.log(`[FullHeal] ⏱️ Optimization: ${(t7 - t6).toFixed(2)}ms (${cleanedVertexCount} → ${finalVertexCount} vertices)`);
+    console.log(`[FullHeal] ⏱️ Optimization: ${optimizationResult.timing.totalMs.toFixed(2)}ms (${cleanedVertexCount} → ${finalVertexCount} vertices)`);
+    console.log(`[FullHeal]    ↳ cleanLoop: ${optimizationResult.timing.cleanLoopMs.toFixed(2)}ms`);
+    if (optimizationResult.timing.simplificationMs > 0) {
+      console.log(`[FullHeal]    ↳ Visvalingam-Whyatt (reduce): ${optimizationResult.timing.simplificationMs.toFixed(2)}ms`);
+    }
+    if (optimizationResult.timing.chaikinMs > 0) {
+      console.log(`[FullHeal]    ↳ Chaikin smoothing (expand): ${optimizationResult.timing.chaikinMs.toFixed(2)}ms`);
+    }
+    if (optimizationResult.timing.postSimplificationMs > 0) {
+      console.log(`[FullHeal]    ↳ Post-simplification (reduce): ${optimizationResult.timing.postSimplificationMs.toFixed(2)}ms`);
+    }
 
     // Store original for debug visualization
     this.renderer.updateOriginalPolylines(optimizationResult.trueOriginalLoops);
@@ -267,21 +275,21 @@ export class RemeshManager {
     });
 
     // Use final loops for both physics and rendering
-    const t8 = performance.now();
+    const t6 = performance.now();
     this.physics.setCaveContours(optimizationResult.finalLoops, shouldReverse);
-    const t9 = performance.now();
-    console.log(`[FullHeal] ⏱️ Box2D colliders: ${(t9 - t8).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
+    const t7 = performance.now();
+    console.log(`[FullHeal] ⏱️ Box2D colliders: ${(t7 - t6).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
 
-    console.log(`[FullHeal] 🎯 TOTAL (physics only): ${(t9 - t0).toFixed(2)}ms`);
+    console.log(`[FullHeal] 🎯 TOTAL (physics only): ${(t7 - t0).toFixed(2)}ms`);
 
     // Update renderer with final loops
-    const t10 = performance.now();
+    const t8 = performance.now();
     const finalForRender = optimizationResult.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
     this.renderer.updatePolylines(finalForRender);
-    const t11 = performance.now();
-    console.log(`[FullHeal] ⏱️ Re-render walls: ${(t11 - t10).toFixed(2)}ms`);
+    const t9 = performance.now();
+    console.log(`[FullHeal] ⏱️ Re-render walls: ${(t9 - t8).toFixed(2)}ms`);
 
-    console.log(`[FullHeal] 🎯 TOTAL (including rendering): ${(t11 - t0).toFixed(2)}ms`);
+    console.log(`[FullHeal] 🎯 TOTAL (including rendering): ${(t9 - t0).toFixed(2)}ms`);
 
     this.densityField.clearDirty();
 
@@ -364,22 +372,30 @@ export class RemeshManager {
     console.log(`[LocalUpdate] ⏱️ Classification: ${(t7 - t6).toFixed(2)}ms (${validLoops.length} valid loops after filtering)`);
 
     // Step 5: Optimize loops
-    const t8 = performance.now();
     const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
-    const t9 = performance.now();
     const finalVertexCount = optimizationResult.finalLoops.reduce((sum, loop) => sum + loop.length, 0);
-    console.log(`[LocalUpdate] ⏱️ Optimization: ${(t9 - t8).toFixed(2)}ms (${cleanedVertexCount} → ${finalVertexCount} vertices)`);
+    console.log(`[LocalUpdate] ⏱️ Optimization: ${optimizationResult.timing.totalMs.toFixed(2)}ms (${cleanedVertexCount} → ${finalVertexCount} vertices)`);
+    console.log(`[LocalUpdate]    ↳ cleanLoop: ${optimizationResult.timing.cleanLoopMs.toFixed(2)}ms`);
+    if (optimizationResult.timing.simplificationMs > 0) {
+      console.log(`[LocalUpdate]    ↳ Visvalingam-Whyatt (reduce): ${optimizationResult.timing.simplificationMs.toFixed(2)}ms`);
+    }
+    if (optimizationResult.timing.chaikinMs > 0) {
+      console.log(`[LocalUpdate]    ↳ Chaikin smoothing (expand): ${optimizationResult.timing.chaikinMs.toFixed(2)}ms`);
+    }
+    if (optimizationResult.timing.postSimplificationMs > 0) {
+      console.log(`[LocalUpdate]    ↳ Post-simplification (reduce): ${optimizationResult.timing.postSimplificationMs.toFixed(2)}ms`);
+    }
 
     // Step 6: Build shouldReverse array
     const shouldReverse = loopClassifications.map((isRock) => !isRock);
 
     // Step 7: Add new physics bodies (Box2D collider creation)
-    const t10 = performance.now();
+    const t8 = performance.now();
     engine.addTerrainLoops(optimizationResult.finalLoops, shouldReverse);
-    const t11 = performance.now();
-    console.log(`[LocalUpdate] ⏱️ Box2D colliders: ${(t11 - t10).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
+    const t9 = performance.now();
+    console.log(`[LocalUpdate] ⏱️ Box2D colliders: ${(t9 - t8).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
 
-    console.log(`[LocalUpdate] 🎯 TOTAL (physics only): ${(t11 - t0).toFixed(2)}ms`);
+    console.log(`[LocalUpdate] 🎯 TOTAL (physics only): ${(t9 - t0).toFixed(2)}ms`);
 
     // Step 8: Set debug info for visualization
     this.renderer.setDirtyAABB(paddedAABB);
@@ -387,7 +403,7 @@ export class RemeshManager {
 
     // Step 9: For rendering, regenerate full visual mesh (but don't touch physics)
     // This is acceptable because rendering is fast, and it keeps the visual mesh consistent
-    const t12 = performance.now();
+    const t10 = performance.now();
 
     // Generate full contours for rendering only
     const fullField = {
@@ -419,10 +435,10 @@ export class RemeshManager {
     const finalForRender = renderOptimization.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
     this.renderer.updatePolylines(finalForRender);
 
-    const t13 = performance.now();
-    console.log(`[LocalUpdate] ⏱️ Re-render walls: ${(t13 - t12).toFixed(2)}ms (full world remesh for visuals)`);
+    const t11 = performance.now();
+    console.log(`[LocalUpdate] ⏱️ Re-render walls: ${(t11 - t10).toFixed(2)}ms (full world remesh for visuals)`);
 
-    console.log(`[LocalUpdate] 🎯 TOTAL (including rendering): ${(t13 - t0).toFixed(2)}ms`);
+    console.log(`[LocalUpdate] 🎯 TOTAL (including rendering): ${(t11 - t0).toFixed(2)}ms`);
 
     // Clear dirty region
     this.densityField.clearDirty();
