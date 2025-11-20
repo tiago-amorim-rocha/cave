@@ -192,14 +192,25 @@ export class RemeshManager {
 
     // Classify loops with indices for debugging
     const rockLoops: Point[][] = [];
-    const loopMetadata: Array<{ index: number; centroid: { x: number; y: number }; isRock: boolean }> = [];
+    const loopMetadata: Array<{
+      index: number;
+      centroid: { x: number; y: number };
+      isRock: boolean;
+      samples?: DebugSamplePoint[];
+    }> = [];
 
     allPolylines.forEach((loop, index) => {
       if (loop.length < 3) return;
-      const isRock = this.isRockLoop(loop, index);
+      const classificationResult = this.isRockLoop(loop, index);
+      const isRock = classificationResult.isRock;
       const centroid = computePolygonCentroid(loop);
 
-      loopMetadata.push({ index, centroid, isRock });
+      loopMetadata.push({
+        index,
+        centroid,
+        isRock,
+        samples: classificationResult.samples
+      });
 
       if (isRock) {
         rockLoops.push(loop);
@@ -251,9 +262,10 @@ export class RemeshManager {
    *
    * @param loop - The polygon loop to classify
    * @param loopIndex - Optional index for debug output correlation
+   * @returns Object containing isRock boolean and optional sample points for visualization
    */
-  private isRockLoop(loop: Point[], loopIndex?: number): boolean {
-    if (loop.length < 3) return false;
+  private isRockLoop(loop: Point[], loopIndex?: number): { isRock: boolean; samples?: DebugSamplePoint[] } {
+    if (loop.length < 3) return { isRock: false };
 
     // Compute polygon properties using helper functions
     const area = computePolygonArea(loop);
@@ -452,6 +464,9 @@ export class RemeshManager {
       }
     }
 
-    return isRock;
+    return {
+      isRock,
+      samples: DEBUG_LOOP_CLASSIFICATION ? debugInfo.samples : undefined
+    };
   }
 }
