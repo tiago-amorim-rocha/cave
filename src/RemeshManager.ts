@@ -244,8 +244,10 @@ export class RemeshManager {
     const centroid = computePolygonCentroid(loop);
 
     // Epsilon distances for sampling (in world units / metres)
-    const epsilonInside = 0.05;  // 5cm inside
-    const epsilonOutside = 0.05; // 5cm outside
+    // Sample just over half a cell away to check the neighboring cell
+    const gridPitch = this.densityField.config.gridPitch;
+    const epsilonInside = 0.501 * gridPitch;
+    const epsilonOutside = 0.501 * gridPitch;
 
     const n = loop.length;
     const maxSamples = 8; // Number of segments to sample for debug
@@ -334,7 +336,7 @@ export class RemeshManager {
       ny0 = -ny0;
     }
 
-    // Sample point 5cm inside the loop at first edge
+    // Sample point inside the loop at first edge (0.501 * cell size)
     const sampleX = p0.x + nx0 * epsilonInside;
     const sampleY = p0.y + ny0 * epsilonInside;
 
