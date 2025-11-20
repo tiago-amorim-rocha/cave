@@ -12,6 +12,7 @@ import {
   b2Color,
 } from '@box2d/core';
 import type { Camera } from '../Camera';
+import { cutLoopAtAABB } from './LoopCutter';
 
 export interface Point {
   x: number;
@@ -28,6 +29,7 @@ export interface AABB {
 interface TerrainBodyInfo {
   body: b2Body;
   aabb: AABB;
+  originalLoop: Point[]; // Store original vertices for loop cutting
 }
 
 /**
@@ -150,7 +152,7 @@ export class Box2DEngine {
 
       // Compute AABB for this loop
       const aabb = this.computeLoopAABB(loop);
-      this.terrainBodies.push({ body, aabb });
+      this.terrainBodies.push({ body, aabb, originalLoop: loop });
 
       totalSegments += loop.length - 1;
     }
@@ -339,6 +341,30 @@ export class Box2DEngine {
   }
 
   /**
+   * Extract and cut loops that intersect the dirty region
+   * Returns preserved segments (outside the dirty region) for later stitching
+   */
+  extractAndCutLoops(region: AABB): Point[][] {
+    const preservedSegments: Point[][] = [];
+
+    for (const bodyInfo of this.terrainBodies) {
+      if (this.aabbsIntersect(bodyInfo.aabb, region)) {
+        // This loop intersects the dirty region - cut it
+        const cutResult = cutLoopAtAABB(bodyInfo.originalLoop, region);
+
+        // Collect all preserved segments (outside the dirty region)
+        for (const segment of cutResult.preservedSegments) {
+          if (segment.vertices.length >= 2) {
+            preservedSegments.push(segment.vertices);
+          }
+        }
+      }
+    }
+
+    return preservedSegments;
+  }
+
+  /**
    * Remove terrain bodies whose AABBs intersect the given region
    * Returns the number of bodies removed
    */
@@ -438,7 +464,7 @@ export class Box2DEngine {
 
       // Compute AABB for this loop
       const aabb = this.computeLoopAABB(loop);
-      this.terrainBodies.push({ body, aabb });
+      this.terrainBodies.push({ body, aabb, originalLoop: loop });
 
       totalSegments += loop.length - 1;
       addedBodies++;

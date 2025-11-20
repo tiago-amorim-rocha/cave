@@ -288,14 +288,19 @@ export class RemeshManager {
       maxY: dirtyAABB.maxY + expandCells * h
     };
 
-    // Step 1: Remove physics bodies in padded region
+    // Step 1: Extract and cut loops that intersect the dirty region (BEFORE removing)
     const engine = this.physics.getEngine();
-    engine.removeTerrainInRegion(paddedAABB);
+    const preservedSegments = engine.extractAndCutLoops(paddedAABB);
+    console.log(`[LocalUpdate] Extracted ${preservedSegments.length} preserved segments from loops outside dirty region`);
 
-    // Step 2: Run marching squares only in padded region
+    // Step 2: Remove physics bodies in padded region
+    const removedCount = engine.removeTerrainInRegion(paddedAABB);
+    console.log(`[LocalUpdate] Removed ${removedCount} terrain bodies intersecting dirty region`);
+
+    // Step 3: Run marching squares only in padded region
     const results = this.marchingSquares.generateContours(paddedAABB, expandCells);
 
-    // Step 3: Process local contours (clean, classify, optimize)
+    // Step 4: Process local contours (clean, classify, optimize)
     const gridPitch = this.densityField.config.gridPitch;
     const validLoops: Point[][] = [];
     const loopClassifications: boolean[] = [];
@@ -318,23 +323,46 @@ export class RemeshManager {
       }
     }
 
-    // Step 4: Optimize local loops
+    console.log(`[LocalUpdate] Generated ${validLoops.length} new loops from marching squares in dirty region`);
+
+    // Step 5: Add preserved segments to validLoops
+    // For now, treat preserved segments as cave boundaries (classify them)
+    const preservedCount = validLoops.length;
+    for (const segment of preservedSegments) {
+      if (segment.length >= 3) {
+        const cleanedSegment = cleanLoop(segment, gridPitch);
+        if (cleanedSegment.length >= 3) {
+          const classificationResult = this.isRockLoop(cleanedSegment, validLoops.length);
+
+          // Skip loops marked for deletion
+          if (classificationResult.shouldDelete) {
+            continue;
+          }
+
+          validLoops.push(cleanedSegment);
+          loopClassifications.push(classificationResult.isRock);
+        }
+      }
+    }
+    console.log(`[LocalUpdate] Added ${validLoops.length - preservedCount} preserved segments (${validLoops.length} total loops)`);
+
+    // Step 6: Optimize all loops (new + preserved)
     const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
 
-    // Step 5: Build shouldReverse array based on classifications
+    // Step 7: Build shouldReverse array based on classifications
     // CRITICAL: Same logic as fullHeal - reverse if NOT rock (cave inside = rock island)
     const shouldReverse = loopClassifications.map((isRock, index) => {
       return !isRock;
     });
 
-    // Step 6: Add new physics bodies for local region WITH proper winding order
+    // Step 8: Add new physics bodies for local region WITH proper winding order
     engine.addTerrainLoops(optimizationResult.finalLoops, shouldReverse);
 
-    // Step 6.5: Set debug info for visualization
+    // Step 9: Set debug info for visualization
     this.renderer.setDirtyAABB(paddedAABB);
     this.renderer.setRebuiltChains(optimizationResult.finalLoops);
 
-    // Step 7: For rendering, regenerate full visual mesh (but don't touch physics)
+    // Step 10: For rendering, regenerate full visual mesh (but don't touch physics)
     // This is acceptable because rendering is fast, and it keeps the visual mesh consistent
 
     // Generate full contours for rendering only
