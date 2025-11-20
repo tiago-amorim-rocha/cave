@@ -340,28 +340,10 @@ export class Box2DEngine {
   }
 
   /**
-   * Count how many vertices of a loop are inside the given region
-   * Returns the count and total vertex count
-   */
-  private countVerticesInRegion(loop: Point[], region: AABB): { inside: number; total: number } {
-    let insideCount = 0;
-    for (const vertex of loop) {
-      if (vertex.x >= region.minX && vertex.x <= region.maxX &&
-          vertex.y >= region.minY && vertex.y <= region.maxY) {
-        insideCount++;
-      }
-    }
-    return { inside: insideCount, total: loop.length };
-  }
-
-  /**
-   * Remove terrain bodies whose vertices significantly intersect the given region
-   * Uses vertex-based testing with a threshold to avoid removing barely-touched loops
-   * @param region - The dirty region AABB
-   * @param vertexThreshold - Minimum fraction of vertices that must be inside (default: 0.05 = 5%)
+   * Remove terrain bodies whose AABBs intersect the given region
    * Returns the number of bodies removed
    */
-  removeTerrainInRegion(region: AABB, vertexThreshold: number = 0.05): number {
+  removeTerrainInRegion(region: AABB): number {
     if (!this.world) {
       console.error('[Box2DEngine] World not initialized!');
       return 0;
@@ -369,35 +351,17 @@ export class Box2DEngine {
 
     const bodiesToRemove: TerrainBodyInfo[] = [];
     const bodiesToKeep: TerrainBodyInfo[] = [];
-    let skippedCount = 0;
 
-    // Partition bodies into remove/keep based on vertex intersection
+    // Partition bodies into remove/keep based on AABB intersection
     for (const bodyInfo of this.terrainBodies) {
-      // First check: does AABB intersect at all?
-      if (!this.aabbsIntersect(bodyInfo.aabb, region)) {
-        bodiesToKeep.push(bodyInfo);
-        continue;
-      }
-
-      // AABB intersects - now check vertex-level intersection
-      const vertexCount = this.countVerticesInRegion(bodyInfo.originalLoop, region);
-      const fraction = vertexCount.inside / vertexCount.total;
-
-      if (fraction >= vertexThreshold) {
-        // Significant portion of loop is affected - remove it
+      if (this.aabbsIntersect(bodyInfo.aabb, region)) {
         bodiesToRemove.push(bodyInfo);
       } else {
-        // Only barely touched - keep it to avoid unnecessary regeneration
         bodiesToKeep.push(bodyInfo);
-        skippedCount++;
       }
     }
 
-    if (skippedCount > 0) {
-      console.log(`[Box2DEngine] Skipped ${skippedCount} loops (vertex overlap < ${(vertexThreshold * 100).toFixed(1)}%)`);
-    }
-
-    // Destroy bodies that significantly intersect the region
+    // Destroy bodies that intersect the region
     for (const bodyInfo of bodiesToRemove) {
       this.world.DestroyBody(bodyInfo.body);
     }
