@@ -57,13 +57,19 @@ export class Renderer {
   private polylines: Vec2[][] = [];
   private originalPolylines: Vec2[][] = []; // Store original vertices before optimization
   private densityField: DensityField | null = null;
-  private loopDebugInfo: Array<{ index: number; centroid: { x: number; y: number }; isRock: boolean }> = [];
+  private loopDebugInfo: Array<{
+    index: number;
+    centroid: { x: number; y: number };
+    isRock: boolean;
+    samples?: Array<{ x: number; y: number; density: number; side: "inside" | "outside"; segmentIndex: number }>;
+  }> = [];
   public showGrid: boolean = false;
   public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
   public showPhysicsBodies: boolean = true; // Default ON for physics debugging
   public showLoopNumbers: boolean = true; // Show loop numbers at centroids for debugging
+  public showSamplePoints: boolean = true; // Show density sample points (green=inside, red=outside)
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -135,9 +141,14 @@ export class Renderer {
   }
 
   /**
-   * Set loop debug info for rendering loop numbers
+   * Set loop debug info for rendering loop numbers and sample points
    */
-  setLoopDebugInfo(info: Array<{ index: number; centroid: { x: number; y: number }; isRock: boolean }>): void {
+  setLoopDebugInfo(info: Array<{
+    index: number;
+    centroid: { x: number; y: number };
+    isRock: boolean;
+    samples?: Array<{ x: number; y: number; density: number; side: "inside" | "outside"; segmentIndex: number }>;
+  }>): void {
     this.loopDebugInfo = info;
   }
 
@@ -217,6 +228,11 @@ export class Renderer {
       // Draw loop numbers at centroids (debugging)
       if (this.showLoopNumbers) {
         this.drawLoopNumbers(width, height);
+      }
+
+      // Draw sample points (debugging)
+      if (this.showSamplePoints) {
+        this.drawSamplePoints(width, height);
       }
 
       // Draw player debug info (velocity, grounded state, etc.)
@@ -588,6 +604,41 @@ export class Renderer {
       // Draw number
       this.ctx.fillStyle = '#ffffff';
       this.ctx.fillText(info.index.toString(), screen.x, screen.y);
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw sample points for density classification debugging
+   * Green dots = inside samples, Red dots = outside samples
+   */
+  private drawSamplePoints(canvasWidth: number, canvasHeight: number): void {
+    if (this.loopDebugInfo.length === 0) return;
+
+    this.ctx.save();
+
+    for (const info of this.loopDebugInfo) {
+      if (!info.samples) continue;
+
+      for (const sample of info.samples) {
+        const screen = this.camera.worldToScreen(sample.x, sample.y, canvasWidth, canvasHeight);
+
+        // Set color based on side: green for inside, red for outside
+        this.ctx.fillStyle = sample.side === "inside" ? '#00ff00' : '#ff0000';
+
+        // Draw dot
+        this.ctx.beginPath();
+        this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Optional: draw small border for visibility
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
+        this.ctx.stroke();
+      }
     }
 
     this.ctx.restore();
