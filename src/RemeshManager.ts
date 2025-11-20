@@ -186,12 +186,11 @@ export class RemeshManager {
       }
     }
 
-    // Get all loops and classify them
+    // Get all loops and classify them for debugging
     const allLoops = this.loopCache.getAllLoops();
     const allPolylines = allLoops.map(l => l.vertices);
 
-    // Classify loops with indices for debugging
-    const rockLoops: Point[][] = [];
+    // Classify loops with indices for debugging (but keep ALL loops for rendering)
     const loopMetadata: Array<{
       index: number;
       centroid: { x: number; y: number };
@@ -211,19 +210,19 @@ export class RemeshManager {
         isRock,
         samples: classificationResult.samples
       });
-
-      if (isRock) {
-        rockLoops.push(loop);
-      }
     });
+
+    // Keep ALL loops for evenodd fill rule rendering
+    // The renderer fills with light cream using evenodd, creating cave pattern
+    const allValidLoops = allPolylines.filter(loop => loop.length >= 3);
 
     // Pass loop metadata to renderer for debug visualization
     this.renderer.setLoopDebugInfo(loopMetadata);
 
-    // console.log(`[FullHeal] Classified ${allPolylines.length} loops: ${rockLoops.length} rock, ${allPolylines.length - rockLoops.length} cave`);
+    console.log(`[FullHeal] Processing ${allValidLoops.length} loops (no filtering - using evenodd fill rule)`);
 
     // Run vertex optimization pipeline
-    const optimizationResult = this.optimizationPipeline.optimize(rockLoops, this.optimizationOptions);
+    const optimizationResult = this.optimizationPipeline.optimize(allValidLoops, this.optimizationOptions);
 
     // Store original for debug visualization
     this.renderer.updateOriginalPolylines(optimizationResult.trueOriginalLoops);
