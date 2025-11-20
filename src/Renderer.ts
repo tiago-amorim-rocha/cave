@@ -63,6 +63,11 @@ export class Renderer {
     isRock: boolean;
     samples?: Array<{ x: number; y: number; density: number; side: "inside" | "outside"; segmentIndex: number }>;
   }> = [];
+
+  // Local update debug info
+  private dirtyAABB: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+  private rebuiltChains: Vec2[][] = []; // Chains added during last local update
+
   public showGrid: boolean = false;
   public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
@@ -70,6 +75,8 @@ export class Renderer {
   public showPhysicsBodies: boolean = true; // Default ON for physics debugging
   public showLoopNumbers: boolean = true; // Show loop numbers at centroids for debugging
   public showSamplePoints: boolean = true; // Show density sample points (green=inside, red=outside)
+  public showDirtyAABB: boolean = true; // Show the dirty region AABB during local updates
+  public showRebuiltChains: boolean = true; // Show chains rebuilt during local updates
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -153,6 +160,28 @@ export class Renderer {
   }
 
   /**
+   * Set dirty AABB for local update visualization
+   */
+  setDirtyAABB(aabb: { minX: number; minY: number; maxX: number; maxY: number } | null): void {
+    this.dirtyAABB = aabb;
+  }
+
+  /**
+   * Set rebuilt chains for local update visualization
+   */
+  setRebuiltChains(chains: Vec2[][]): void {
+    this.rebuiltChains = chains;
+  }
+
+  /**
+   * Clear local update debug info (call after full heal)
+   */
+  clearLocalUpdateDebug(): void {
+    this.dirtyAABB = null;
+    this.rebuiltChains = [];
+  }
+
+  /**
    * Render the scene
    * @param playerPosition - Optional player position to render
    * @param playerRadius - Optional player radius
@@ -233,6 +262,16 @@ export class Renderer {
       // Draw sample points (debugging)
       if (this.showSamplePoints) {
         this.drawSamplePoints(width, height);
+      }
+
+      // Draw dirty AABB (local update debugging)
+      if (this.showDirtyAABB && this.dirtyAABB) {
+        this.drawDirtyAABB(width, height);
+      }
+
+      // Draw rebuilt chains (local update debugging)
+      if (this.showRebuiltChains && this.rebuiltChains.length > 0) {
+        this.drawRebuiltChains(width, height);
       }
 
       // Draw player debug info (velocity, grounded state, etc.)
@@ -638,6 +677,81 @@ export class Renderer {
         this.ctx.beginPath();
         this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
         this.ctx.stroke();
+      }
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw dirty AABB box (local update region)
+   */
+  private drawDirtyAABB(canvasWidth: number, canvasHeight: number): void {
+    if (!this.dirtyAABB) return;
+
+    this.ctx.save();
+
+    const topLeft = this.camera.worldToScreen(this.dirtyAABB.minX, this.dirtyAABB.minY, canvasWidth, canvasHeight);
+    const bottomRight = this.camera.worldToScreen(this.dirtyAABB.maxX, this.dirtyAABB.maxY, canvasWidth, canvasHeight);
+
+    const rectWidth = bottomRight.x - topLeft.x;
+    const rectHeight = bottomRight.y - topLeft.y;
+
+    // Draw filled semi-transparent background
+    this.ctx.fillStyle = 'rgba(255, 255, 0, 0.1)'; // Yellow with 10% opacity
+    this.ctx.fillRect(topLeft.x, topLeft.y, rectWidth, rectHeight);
+
+    // Draw bright yellow border
+    this.ctx.strokeStyle = '#ffff00'; // Bright yellow
+    this.ctx.lineWidth = 3;
+    this.ctx.setLineDash([10, 5]); // Dashed line
+    this.ctx.strokeRect(topLeft.x, topLeft.y, rectWidth, rectHeight);
+
+    // Reset dash
+    this.ctx.setLineDash([]);
+
+    // Draw label
+    this.ctx.fillStyle = '#ffff00';
+    this.ctx.font = 'bold 14px monospace';
+    this.ctx.fillText('DIRTY AABB', topLeft.x + 5, topLeft.y + 20);
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw rebuilt chains (newly added collision segments)
+   */
+  private drawRebuiltChains(canvasWidth: number, canvasHeight: number): void {
+    if (this.rebuiltChains.length === 0) return;
+
+    this.ctx.save();
+
+    // Draw each rebuilt chain with bright cyan color
+    this.ctx.strokeStyle = '#00ffff'; // Bright cyan
+    this.ctx.lineWidth = 4; // Thicker than normal
+    this.ctx.globalAlpha = 0.8;
+
+    for (const chain of this.rebuiltChains) {
+      if (chain.length < 2) continue;
+
+      this.ctx.beginPath();
+      const first = this.camera.worldToScreen(chain[0].x, chain[0].y, canvasWidth, canvasHeight);
+      this.ctx.moveTo(first.x, first.y);
+
+      for (let i = 1; i < chain.length; i++) {
+        const screen = this.camera.worldToScreen(chain[i].x, chain[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(screen.x, screen.y);
+      }
+
+      this.ctx.stroke();
+
+      // Draw vertices as small circles
+      for (const vertex of chain) {
+        const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
+        this.ctx.fillStyle = '#00ffff';
+        this.ctx.beginPath();
+        this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
+        this.ctx.fill();
       }
     }
 

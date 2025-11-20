@@ -934,6 +934,18 @@ debugConsole.onToggleDensityField = (enabled: boolean) => {
   }
 };
 
+debugConsole.onToggleDirtyAABB = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showDirtyAABB = enabled;
+  }
+};
+
+debugConsole.onToggleRebuiltChains = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showRebuiltChains = enabled;
+  }
+};
+
 debugConsole.onSimplificationChange = (epsilon: number) => {
   if (app) {
     app.setSimplificationEpsilon(epsilon);
