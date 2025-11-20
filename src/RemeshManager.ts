@@ -164,7 +164,6 @@ export class RemeshManager {
    * Full world remesh - rebuild all loops
    */
   private fullHeal(): RemeshStats {
-    // console.log('[FullHeal] Rebuilding all loops...');
     const startTime = performance.now();
 
     // Clear local update debug info (full heal replaces everything)
@@ -181,7 +180,11 @@ export class RemeshManager {
       maxY: this.densityField.config.height
     };
 
+    const t0 = performance.now();
     const results = this.marchingSquares.generateContours(fullField, 0);
+    const t1 = performance.now();
+    const rawLoopCount = results.filter(r => r && r.loop && r.loop.length > 2).length;
+    console.log(`[FullHeal] ⏱️ Marching Squares: ${(t1 - t0).toFixed(2)}ms (generated ${rawLoopCount} raw loops)`);
 
     // Add all loops to cache
     for (const result of results) {
@@ -195,10 +198,16 @@ export class RemeshManager {
     const allPolylines = allLoops.map(l => l.vertices);
 
     // Clean all loops BEFORE classification to remove duplicates, tiny edges, etc.
+    const t2 = performance.now();
     const gridPitch = this.densityField.config.gridPitch;
     const cleanedLoops = allPolylines.map(loop => cleanLoop(loop, gridPitch));
+    const t3 = performance.now();
+    const rawVertexCount = allPolylines.reduce((sum, loop) => sum + loop.length, 0);
+    const cleanedVertexCount = cleanedLoops.reduce((sum, loop) => sum + loop.length, 0);
+    console.log(`[FullHeal] ⏱️ Clean loops: ${(t3 - t2).toFixed(2)}ms (${rawVertexCount} → ${cleanedVertexCount} vertices)`);
 
     // Classify loops with indices for debugging (but keep ALL loops for rendering)
+    const t4 = performance.now();
     const loopMetadata: Array<{
       index: number;
       centroid: { x: number; y: number };
@@ -234,12 +243,18 @@ export class RemeshManager {
       validLoops.push(loop);
       loopClassifications.push(isRock); // Store whether this loop has rock inside
     });
+    const t5 = performance.now();
+    console.log(`[FullHeal] ⏱️ Classification: ${(t5 - t4).toFixed(2)}ms (${validLoops.length} valid loops, ${deletedCount} deleted)`);
 
     // Pass loop metadata to renderer for debug visualization
     this.renderer.setLoopDebugInfo(loopMetadata);
 
     // Run vertex optimization pipeline
+    const t6 = performance.now();
     const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
+    const t7 = performance.now();
+    const finalVertexCount = optimizationResult.finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+    console.log(`[FullHeal] ⏱️ Optimization: ${(t7 - t6).toFixed(2)}ms (${cleanedVertexCount} → ${finalVertexCount} vertices)`);
 
     // Store original for debug visualization
     this.renderer.updateOriginalPolylines(optimizationResult.trueOriginalLoops);
@@ -252,7 +267,10 @@ export class RemeshManager {
     });
 
     // Use final loops for both physics and rendering
+    const t8 = performance.now();
     this.physics.setCaveContours(optimizationResult.finalLoops, shouldReverse);
+    const t9 = performance.now();
+    console.log(`[FullHeal] ⏱️ Box2D colliders: ${(t9 - t8).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
 
     // Update renderer with final loops
     const finalForRender = optimizationResult.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
@@ -260,8 +278,8 @@ export class RemeshManager {
 
     this.densityField.clearDirty();
 
-    const elapsed = performance.now() - startTime;
-    // console.log(`[FullHeal] Complete. ${allLoops.length} loops in ${elapsed.toFixed(1)}ms`);
+    const elapsed = performance.now() - t0;
+    console.log(`[FullHeal] 🎯 TOTAL: ${elapsed.toFixed(2)}ms`);
 
     return optimizationResult.statistics;
   }
@@ -288,51 +306,76 @@ export class RemeshManager {
       maxY: dirtyAABB.maxY + expandCells * h
     };
 
-    // Step 1: Remove physics bodies in padded region (with vertex-based threshold)
-    // Only removes loops where >= 5% of vertices are inside the dirty region
+    // Step 1: Remove physics bodies in padded region
     const engine = this.physics.getEngine();
-    const removedCount = engine.removeTerrainInRegion(paddedAABB, 0.05);
-    console.log(`[LocalUpdate] Removed ${removedCount} terrain bodies (>5% vertex overlap with dirty region)`);
+    const t0 = performance.now();
+    const removedCount = engine.removeTerrainInRegion(paddedAABB);
+    const t1 = performance.now();
+    console.log(`[LocalUpdate] ⏱️ Remove bodies: ${(t1 - t0).toFixed(2)}ms (removed ${removedCount} bodies)`);
 
     // Step 2: Run marching squares only in padded region
+    const t2 = performance.now();
     const results = this.marchingSquares.generateContours(paddedAABB, expandCells);
+    const t3 = performance.now();
+    const rawLoopCount = results.filter(r => r && r.loop && r.loop.length > 2).length;
+    console.log(`[LocalUpdate] ⏱️ Marching Squares: ${(t3 - t2).toFixed(2)}ms (generated ${rawLoopCount} raw loops)`);
 
-    // Step 3: Process local contours (clean, classify, optimize)
+    // Step 3: Clean loops
+    const t4 = performance.now();
     const gridPitch = this.densityField.config.gridPitch;
-    const validLoops: Point[][] = [];
-    const loopClassifications: boolean[] = [];
+    const cleanedLoops: Point[][] = [];
+    let rawVertexCount = 0;
+    let cleanedVertexCount = 0;
 
     for (const result of results) {
       if (result && result.loop && result.loop.length > 2) {
+        rawVertexCount += result.loop.length;
         const cleanedLoop = cleanLoop(result.loop, gridPitch);
         if (cleanedLoop.length >= 3) {
-          // Classify loop BEFORE optimization
-          const classificationResult = this.isRockLoop(cleanedLoop, validLoops.length);
-
-          // Skip loops marked for deletion
-          if (classificationResult.shouldDelete) {
-            continue;
-          }
-
-          validLoops.push(cleanedLoop);
-          loopClassifications.push(classificationResult.isRock);
+          cleanedLoops.push(cleanedLoop);
+          cleanedVertexCount += cleanedLoop.length;
         }
       }
     }
+    const t5 = performance.now();
+    console.log(`[LocalUpdate] ⏱️ Clean loops: ${(t5 - t4).toFixed(2)}ms (${rawVertexCount} → ${cleanedVertexCount} vertices, ${cleanedLoops.length} loops)`);
 
-    console.log(`[LocalUpdate] Generated ${validLoops.length} new loops from marching squares in dirty region`);
+    // Step 4: Classify loops
+    const t6 = performance.now();
+    const validLoops: Point[][] = [];
+    const loopClassifications: boolean[] = [];
 
-    // Step 4: Optimize local loops
+    for (const cleanedLoop of cleanedLoops) {
+      const classificationResult = this.isRockLoop(cleanedLoop, validLoops.length);
+
+      // Skip loops marked for deletion
+      if (classificationResult.shouldDelete) {
+        continue;
+      }
+
+      validLoops.push(cleanedLoop);
+      loopClassifications.push(classificationResult.isRock);
+    }
+    const t7 = performance.now();
+    console.log(`[LocalUpdate] ⏱️ Classification: ${(t7 - t6).toFixed(2)}ms (${validLoops.length} valid loops after filtering)`);
+
+    // Step 5: Optimize loops
+    const t8 = performance.now();
     const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
+    const t9 = performance.now();
+    const finalVertexCount = optimizationResult.finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+    console.log(`[LocalUpdate] ⏱️ Optimization: ${(t9 - t8).toFixed(2)}ms (${cleanedVertexCount} → ${finalVertexCount} vertices)`);
 
-    // Step 5: Build shouldReverse array based on classifications
-    // CRITICAL: Same logic as fullHeal - reverse if NOT rock (cave inside = rock island)
-    const shouldReverse = loopClassifications.map((isRock, index) => {
-      return !isRock;
-    });
+    // Step 6: Build shouldReverse array
+    const shouldReverse = loopClassifications.map((isRock) => !isRock);
 
-    // Step 6: Add new physics bodies for local region WITH proper winding order
+    // Step 7: Add new physics bodies (Box2D collider creation)
+    const t10 = performance.now();
     engine.addTerrainLoops(optimizationResult.finalLoops, shouldReverse);
+    const t11 = performance.now();
+    console.log(`[LocalUpdate] ⏱️ Box2D colliders: ${(t11 - t10).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
+
+    console.log(`[LocalUpdate] 🎯 TOTAL: ${(t11 - t0).toFixed(2)}ms`);
 
     // Step 7: Set debug info for visualization
     this.renderer.setDirtyAABB(paddedAABB);
