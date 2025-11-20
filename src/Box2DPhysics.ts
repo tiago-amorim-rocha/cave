@@ -37,9 +37,11 @@ export class Box2DPhysics {
 
   /**
    * Set cave terrain from marching squares contours
+   * @param contours - Array of vertex loops
+   * @param shouldReverse - Optional array indicating which loops to reverse (for winding order fix)
    */
-  setCaveContours(contours: Point[][]): void {
-    this.engine.setTerrainLoops(contours);
+  setCaveContours(contours: Point[][], shouldReverse?: boolean[]): void {
+    this.engine.setTerrainLoops(contours, shouldReverse);
   }
 
   /**

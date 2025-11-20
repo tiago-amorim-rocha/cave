@@ -196,11 +196,11 @@ class CarvableCaves {
         throw new Error('Canvas not found');
       }
 
-      // Initialize camera (centered on world, zoomed out view for character following)
+      // Initialize camera (centered on world, zoomed in for better view)
       this.camera = new Camera(
         worldConfig.width / 2,
         worldConfig.height / 2,
-        25, // initial PPM (pixels per metre) - 4x zoomed out for wider view
+        50, // initial PPM (pixels per metre) - 2x zoom for closer view
         worldConfig.width,
         worldConfig.height
       );
@@ -343,8 +343,6 @@ class CarvableCaves {
     const maxRetries = 10;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      console.log(`[SPAWN] Attempt ${attempt + 1}/${maxRetries}: Searching for valid spawn near (${this.preferredSpawnX.toFixed(2)}, ${this.preferredSpawnY.toFixed(2)})`);
-
       spawnPos = this.findValidSpawnPosition(
         this.preferredSpawnX,
         this.preferredSpawnY,
@@ -354,25 +352,12 @@ class CarvableCaves {
       if (spawnPos) {
         actualSpawnX = spawnPos.x;
         actualSpawnY = spawnPos.y;
-        console.log(`[SPAWN] ✓ Found valid spawn at (${actualSpawnX.toFixed(2)}, ${actualSpawnY.toFixed(2)})`);
-
-        // Check density at spawn point to verify
-        const { gridX, gridY } = this.densityField.worldToGrid(actualSpawnX, actualSpawnY);
-        const density = this.densityField.get(gridX, gridY);
-        console.log(`[SPAWN] Density at spawn: ${density} (isoValue=${this.densityField.config.isoValue}, ${density < 128 ? 'CAVE' : 'ROCK'})`);
         break; // Found valid spawn!
       } else {
-        console.warn(`[SPAWN] ✗ Attempt ${attempt + 1} failed - no valid spawn found, regenerating world...`);
-
         // Regenerate world with new random seed
         this.densityField.generateCaves(undefined, 0.05, 4, -0.2);
         this.remesh();
       }
-    }
-
-    // Last resort: use preferred position (should rarely happen)
-    if (!spawnPos) {
-      console.error('[SPAWN] CRITICAL: Failed to find valid spawn after 10 attempts! Spawning at center anyway.');
     }
 
     // Create capsule controller
@@ -736,12 +721,9 @@ class CarvableCaves {
    * Regenerate caves using Perlin noise
    */
   regenerateCaves(params: PerlinCaveParams): void {
-    // console.log('[Main] Regenerating caves with Perlin noise...');
-
     // Check if world size has changed
     if (params.worldWidth !== this.densityField.config.width ||
         params.worldHeight !== this.densityField.config.height) {
-      // console.log(`[Main] Resizing world from ${this.densityField.config.width}×${this.densityField.config.height} to ${params.worldWidth}×${params.worldHeight}`);
       this.densityField.resize(params.worldWidth, params.worldHeight);
 
       // Update camera bounds
@@ -769,9 +751,6 @@ class CarvableCaves {
     if (spawnPos) {
       actualSpawnX = spawnPos.x;
       actualSpawnY = spawnPos.y;
-      // console.log(`[Regenerate] Spider respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
-    } else {
-      // console.warn('[Regenerate] No valid spawn position found, using preferred position (may be inside rock)');
     }
 
     if (this.player) {
@@ -810,9 +789,6 @@ class CarvableCaves {
       if (spawnPos) {
         actualSpawnX = spawnPos.x;
         actualSpawnY = spawnPos.y;
-        // console.log(`[Respawn] Player respawned at validated position (${actualSpawnX.toFixed(1)}, ${actualSpawnY.toFixed(1)})`);
-      } else {
-        // console.warn(`[Respawn] No valid spawn position found near camera, using camera center (may be inside rock)`);
       }
 
       this.player.respawn(actualSpawnX, actualSpawnY);
@@ -825,12 +801,10 @@ class CarvableCaves {
   private regenerateBrush(): void {
     const gridPitch = this.densityField.config.gridPitch;
 
-    console.log(`[Carve] Generating Gaussian brush (radius=${this.carveRadius.toFixed(1)}m, strength=${(this.carveStrength * 100).toFixed(0)}%)...`);
     // Use Gaussian brush for natural, smooth falloff
     // sigma = 0.5 gives nice soft edges
     // strength is pre-baked into texture
     this.carveBrush = BrushGenerator.createGaussianBrush(this.carveRadius, gridPitch, 0.5, this.carveStrength);
-    console.log(`[Carve] Brush cached: ${this.carveBrush.width}×${this.carveBrush.height} texture (${this.carveBrush.data.length} pixels)`);
   }
 
   /**
@@ -839,7 +813,6 @@ class CarvableCaves {
   setCarveRadius(radius: number): void {
     this.carveRadius = radius;
     this.carveBrush = null; // Invalidate cache
-    console.log(`[Carve] Radius changed to ${radius.toFixed(1)}m (brush will regenerate on next carve)`);
   }
 
   /**
@@ -848,7 +821,6 @@ class CarvableCaves {
   setCarveStrength(strength: number): void {
     this.carveStrength = strength;
     this.carveBrush = null; // Invalidate cache
-    console.log(`[Carve] Strength changed to ${(strength * 100).toFixed(0)}% (brush will regenerate on next carve)`);
   }
 
   /**
@@ -856,7 +828,6 @@ class CarvableCaves {
    */
   setCarveOffset(offset: number): void {
     this.carveOffset = offset;
-    console.log(`[Carve] Offset changed to ${offset.toFixed(1)}m ahead of player`);
   }
 
   /**
@@ -864,7 +835,6 @@ class CarvableCaves {
    */
   carveAroundPlayer(): void {
     if (!this.player) {
-      console.warn('[Carve] No player to carve around');
       return;
     }
 
@@ -884,11 +854,8 @@ class CarvableCaves {
 
     // Safety check (should never happen after regenerateBrush)
     if (!this.carveBrush) {
-      console.error('[Carve] Failed to generate brush!');
       return;
     }
-
-    console.log(`[Carve] Carving at (${carveX.toFixed(2)}, ${carveY.toFixed(2)}) [offset=${this.carveOffset.toFixed(1)}m ahead of player]`);
 
     // Stamp the pre-generated brush onto the density field
     // Strength is pre-baked into the brush texture
@@ -898,8 +865,6 @@ class CarvableCaves {
       this.carveBrush,
       false // false = carve (subtract density)
     );
-
-    console.log('[Carve] Brush stamped, triggering local remesh...');
 
     // Trigger local remesh to update physics (much faster than full heal!)
     const stats = this.remeshManager.localUpdate(2); // Pad by 2 cells for boundary continuity
