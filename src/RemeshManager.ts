@@ -167,6 +167,9 @@ export class RemeshManager {
     // console.log('[FullHeal] Rebuilding all loops...');
     const startTime = performance.now();
 
+    // Clear local update debug info (full heal replaces everything)
+    this.renderer.clearLocalUpdateDebug();
+
     // Clear cache
     this.loopCache.clear();
 
@@ -332,6 +335,10 @@ export class RemeshManager {
 
     // Step 6: Add new physics bodies for local region WITH proper winding order
     engine.addTerrainLoops(optimizationResult.finalLoops, shouldReverse);
+
+    // Step 6.5: Set debug info for visualization
+    this.renderer.setDirtyAABB(paddedAABB);
+    this.renderer.setRebuiltChains(optimizationResult.finalLoops);
 
     // Step 7: For rendering, regenerate full visual mesh (but don't touch physics)
     // This is acceptable because rendering is fast, and it keeps the visual mesh consistent
