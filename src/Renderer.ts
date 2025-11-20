@@ -57,11 +57,13 @@ export class Renderer {
   private polylines: Vec2[][] = [];
   private originalPolylines: Vec2[][] = []; // Store original vertices before optimization
   private densityField: DensityField | null = null;
+  private loopDebugInfo: Array<{ index: number; centroid: { x: number; y: number }; isRock: boolean }> = [];
   public showGrid: boolean = false;
   public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
   public showPhysicsBodies: boolean = true; // Default ON for physics debugging
+  public showLoopNumbers: boolean = true; // Show loop numbers at centroids for debugging
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -130,6 +132,13 @@ export class Renderer {
    */
   setDensityField(field: DensityField): void {
     this.densityField = field;
+  }
+
+  /**
+   * Set loop debug info for rendering loop numbers
+   */
+  setLoopDebugInfo(info: Array<{ index: number; centroid: { x: number; y: number }; isRock: boolean }>): void {
+    this.loopDebugInfo = info;
   }
 
   /**
@@ -203,6 +212,11 @@ export class Renderer {
       // Draw original vertices (debugging)
       if (this.showOriginalVertices) {
         this.drawOriginalVertices(width, height);
+      }
+
+      // Draw loop numbers at centroids (debugging)
+      if (this.showLoopNumbers) {
+        this.drawLoopNumbers(width, height);
       }
 
       // Draw player debug info (velocity, grounded state, etc.)
@@ -539,6 +553,41 @@ export class Renderer {
         this.ctx.arc(screen.x, screen.y, 1, 0, Math.PI * 2);
         this.ctx.fill();
       }
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw loop numbers at centroids for debugging
+   */
+  private drawLoopNumbers(canvasWidth: number, canvasHeight: number): void {
+    if (this.loopDebugInfo.length === 0) return;
+
+    this.ctx.save();
+    this.ctx.font = 'bold 16px monospace';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+
+    for (const info of this.loopDebugInfo) {
+      const screen = this.camera.worldToScreen(info.centroid.x, info.centroid.y, canvasWidth, canvasHeight);
+
+      // Draw background circle
+      this.ctx.fillStyle = info.isRock ? 'rgba(0, 128, 255, 0.7)' : 'rgba(255, 128, 0, 0.7)';
+      this.ctx.beginPath();
+      this.ctx.arc(screen.x, screen.y, 14, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // Draw border
+      this.ctx.strokeStyle = info.isRock ? '#ffffff' : '#000000';
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      this.ctx.arc(screen.x, screen.y, 14, 0, Math.PI * 2);
+      this.ctx.stroke();
+
+      // Draw number
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.fillText(info.index.toString(), screen.x, screen.y);
     }
 
     this.ctx.restore();

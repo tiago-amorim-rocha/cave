@@ -190,11 +190,24 @@ export class RemeshManager {
     const allLoops = this.loopCache.getAllLoops();
     const allPolylines = allLoops.map(l => l.vertices);
 
-    // Filter to only rock loops (not cave holes)
-    const rockLoops = allPolylines.filter(loop => {
-      if (loop.length < 3) return false;
-      return this.isRockLoop(loop);
+    // Classify loops with indices for debugging
+    const rockLoops: Point[][] = [];
+    const loopMetadata: Array<{ index: number; centroid: { x: number; y: number }; isRock: boolean }> = [];
+
+    allPolylines.forEach((loop, index) => {
+      if (loop.length < 3) return;
+      const isRock = this.isRockLoop(loop, index);
+      const centroid = computePolygonCentroid(loop);
+
+      loopMetadata.push({ index, centroid, isRock });
+
+      if (isRock) {
+        rockLoops.push(loop);
+      }
     });
+
+    // Pass loop metadata to renderer for debug visualization
+    this.renderer.setLoopDebugInfo(loopMetadata);
 
     // console.log(`[FullHeal] Classified ${allPolylines.length} loops: ${rockLoops.length} rock, ${allPolylines.length - rockLoops.length} cave`);
 
@@ -235,8 +248,11 @@ export class RemeshManager {
    *
    * With DEBUG_LOOP_CLASSIFICATION enabled, samples multiple segments
    * on both inside and outside to help diagnose misclassifications
+   *
+   * @param loop - The polygon loop to classify
+   * @param loopIndex - Optional index for debug output correlation
    */
-  private isRockLoop(loop: Point[]): boolean {
+  private isRockLoop(loop: Point[], loopIndex?: number): boolean {
     if (loop.length < 3) return false;
 
     // Compute polygon properties using helper functions
@@ -254,6 +270,7 @@ export class RemeshManager {
     const step = Math.max(1, Math.floor(n / maxSamples));
 
     const debugInfo: DebugLoopInfo = {
+      loopIndex,
       area,
       centroid,
       samples: [],
@@ -425,12 +442,13 @@ export class RemeshManager {
       };
 
       // Use warn for problematic loops, log for normal ones
+      const loopLabel = loopIndex !== undefined ? `LOOP #${loopIndex}` : "LOOP";
       if (problems.length > 0) {
         // eslint-disable-next-line no-console
-        console.warn("⚠️ PROBLEMATIC LOOP:", extendedDebugInfo);
+        console.warn(`⚠️ ${loopLabel} (PROBLEMATIC):`, extendedDebugInfo);
       } else {
         // eslint-disable-next-line no-console
-        console.log("Loop classification:", extendedDebugInfo);
+        console.log(`${loopLabel}:`, extendedDebugInfo);
       }
     }
 
