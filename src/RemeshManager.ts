@@ -306,9 +306,9 @@ export class RemeshManager {
         ny /= len;
 
         // Flip normal based on winding so it points inward
-        // CW (area < 0): left normal points outward, flip it
-        // CCW (area >= 0): left normal points inward, keep it
-        if (area < 0) {
+        // CCW (area > 0): left normal points outward, flip it to point inward
+        // CW (area < 0): left normal points inward, keep it
+        if (area > 0) {
           nx = -nx;
           ny = -ny;
         }
@@ -366,7 +366,9 @@ export class RemeshManager {
     ny0 /= len0;
 
     // Flip normal based on winding direction so it points inward
-    if (area < 0) {
+    // CCW (area > 0): left normal points outward, flip it to point inward
+    // CW (area < 0): left normal points inward, keep it
+    if (area > 0) {
       nx0 = -nx0;
       ny0 = -ny0;
     }
