@@ -72,11 +72,11 @@ export class Renderer {
   public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
-  public showPhysicsBodies: boolean = true; // Default ON for physics debugging
-  public showLoopNumbers: boolean = true; // Show loop numbers at centroids for debugging
-  public showSamplePoints: boolean = true; // Show density sample points (green=inside, red=outside)
-  public showDirtyAABB: boolean = true; // Show the dirty region AABB during local updates
-  public showRebuiltChains: boolean = true; // Show chains rebuilt during local updates
+  public showPhysicsBodies: boolean = false; // Disabled for performance testing
+  public showLoopNumbers: boolean = false; // Disabled for performance testing
+  public showSamplePoints: boolean = false; // Disabled for performance testing
+  public showDirtyAABB: boolean = false; // Disabled for performance testing
+  public showRebuiltChains: boolean = false; // Disabled for performance testing
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
