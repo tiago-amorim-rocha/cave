@@ -284,13 +284,19 @@ export class RemeshManager {
           ny = -ny;
         }
 
+        // Adjust epsilon based on normal direction to ensure we cross cell boundary
+        // At 45°, we need sqrt(2) times the distance to cross diagonally
+        const angleAdjustment = 1.0 / Math.max(Math.abs(nx), Math.abs(ny));
+        const adjustedEpsilonInside = epsilonInside * angleAdjustment;
+        const adjustedEpsilonOutside = epsilonOutside * angleAdjustment;
+
         // Sample inside the loop
-        const insideX = mx + nx * epsilonInside;
-        const insideY = my + ny * epsilonInside;
+        const insideX = mx + nx * adjustedEpsilonInside;
+        const insideY = my + ny * adjustedEpsilonInside;
 
         // Sample outside the loop
-        const outsideX = mx - nx * epsilonOutside;
-        const outsideY = my - ny * epsilonOutside;
+        const outsideX = mx - nx * adjustedEpsilonOutside;
+        const outsideY = my - ny * adjustedEpsilonOutside;
 
         // Convert to grid coordinates and query density
         const insideGrid = this.densityField.worldToGrid(insideX, insideY);
@@ -336,9 +342,14 @@ export class RemeshManager {
       ny0 = -ny0;
     }
 
-    // Sample point inside the loop at first edge (0.501 * cell size)
-    const sampleX = p0.x + nx0 * epsilonInside;
-    const sampleY = p0.y + ny0 * epsilonInside;
+    // Adjust epsilon based on normal direction to ensure we cross cell boundary
+    // At 45°, we need sqrt(2) times the distance to cross diagonally
+    const angleAdjustment0 = 1.0 / Math.max(Math.abs(nx0), Math.abs(ny0));
+    const adjustedEpsilon0 = epsilonInside * angleAdjustment0;
+
+    // Sample point inside the loop at first edge (0.501 * cell size, angle-adjusted)
+    const sampleX = p0.x + nx0 * adjustedEpsilon0;
+    const sampleY = p0.y + ny0 * adjustedEpsilon0;
 
     // Check density at sample point
     const { gridX, gridY } = this.densityField.worldToGrid(sampleX, sampleY);
