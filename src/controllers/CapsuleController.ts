@@ -82,10 +82,10 @@ export class CapsuleController implements IPlayerController {
       position: { x, y },
       angle: 0,
       linearDamping: 1.0,    // Low dampening for responsive movement
-      angularDamping: 0.0,   // No angular damping
-      fixedRotation: true,   // Lock rotation completely
+      angularDamping: 0.1,   // No angular damping
+      fixedRotation: false,   // Lock rotation completely
       gravityScale: 0.0,     // No gravity (free flight)
-      bullet: true,          // Enable CCD to prevent tunneling through walls
+      bullet: false,          // Enable CCD to prevent tunneling through walls
     };
 
     this.body = world.CreateBody(bodyDef);
@@ -98,7 +98,7 @@ export class CapsuleController implements IPlayerController {
       shape: circleShape,
       density: 1.0,
       friction: 0.3,
-      restitution: 0.0,
+      restitution: 0.2,
     });
 
     // Listen for keyboard input
@@ -186,7 +186,7 @@ export class CapsuleController implements IPlayerController {
     }
 
     // Apply forces for responsive movement
-    const forceMagnitude = 25.0;
+    const forceMagnitude = 10;
     const force = new b2Vec2(
       moveX * forceMagnitude,
       moveY * forceMagnitude
