@@ -345,20 +345,76 @@ export class RemeshManager {
     // Rock if density >= isoValue (128)
     const isRock = sampleDensity >= 128;
 
-    // Debug logging
-    if (DEBUG_LOOP_CLASSIFICATION) {
-      // Attach final classification decision to debug info
-      (debugInfo as any).finalSample = {
-        x: sampleX,
-        y: sampleY,
-        density: sampleDensity,
-      };
-      (debugInfo as any).isRock = isRock;
-      (debugInfo as any).vertexCount = loop.length;
+    // Debug logging - only for problematic loops
+    if (DEBUG_LOOP_CLASSIFICATION && debugInfo.samples.length > 0) {
+      // Analyze samples to detect suspicious patterns
+      const insideSamples = debugInfo.samples.filter(s => s.side === "inside");
+      const outsideSamples = debugInfo.samples.filter(s => s.side === "outside");
 
-      // Log the complete debug information
-      // eslint-disable-next-line no-console
-      console.log("Loop classification debug:", debugInfo);
+      const insideDensities = insideSamples.map(s => s.density);
+      const outsideDensities = outsideSamples.map(s => s.density);
+
+      const avgInsideDensity = insideDensities.reduce((a, b) => a + b, 0) / insideDensities.length;
+      const avgOutsideDensity = outsideDensities.reduce((a, b) => a + b, 0) / outsideDensities.length;
+
+      const insideLowCount = insideSamples.filter(s => s.density < 128).length;
+      const insideHighCount = insideSamples.filter(s => s.density >= 128).length;
+      const outsideLowCount = outsideSamples.filter(s => s.density < 128).length;
+      const outsideHighCount = outsideSamples.filter(s => s.density >= 128).length;
+
+      // Detect problematic patterns
+      const problems: string[] = [];
+
+      // Pattern 1: Classified as rock but inside samples are mostly low density
+      if (isRock && insideLowCount > insideHighCount) {
+        problems.push(`ROCK but ${insideLowCount}/${insideSamples.length} inside samples < 128`);
+      }
+
+      // Pattern 2: Classified as cave but inside samples are mostly high density
+      if (!isRock && insideHighCount > insideLowCount) {
+        problems.push(`CAVE but ${insideHighCount}/${insideSamples.length} inside samples >= 128`);
+      }
+
+      // Pattern 3: Outside samples contradict inside samples
+      if (isRock && outsideLowCount < outsideHighCount) {
+        problems.push(`ROCK but outside samples mostly HIGH (${outsideHighCount}/${outsideSamples.length} >= 128)`);
+      }
+
+      if (!isRock && outsideHighCount < outsideLowCount) {
+        problems.push(`CAVE but outside samples mostly LOW (${outsideLowCount}/${outsideSamples.length} < 128)`);
+      }
+
+      // Pattern 4: Final sample disagrees with average of debug samples
+      const avgDifference = Math.abs(sampleDensity - avgInsideDensity);
+      if (avgDifference > 30) {
+        problems.push(`Final sample (${sampleDensity}) differs significantly from avg inside (${avgInsideDensity.toFixed(1)})`);
+      }
+
+      // Only log if problems detected
+      if (problems.length > 0) {
+        const extendedDebugInfo = {
+          ...debugInfo,
+          finalSample: {
+            x: sampleX,
+            y: sampleY,
+            density: sampleDensity,
+          },
+          isRock,
+          vertexCount: loop.length,
+          statistics: {
+            avgInsideDensity: avgInsideDensity.toFixed(1),
+            avgOutsideDensity: avgOutsideDensity.toFixed(1),
+            insideLow: insideLowCount,
+            insideHigh: insideHighCount,
+            outsideLow: outsideLowCount,
+            outsideHigh: outsideHighCount,
+          },
+          problems,
+        };
+
+        // eslint-disable-next-line no-console
+        console.warn("⚠️ PROBLEMATIC LOOP CLASSIFICATION:", extendedDebugInfo);
+      }
     }
 
     return isRock;
