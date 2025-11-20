@@ -12,7 +12,6 @@ import {
   b2Color,
 } from '@box2d/core';
 import type { Camera } from '../Camera';
-import { cutLoopAtAABB } from './LoopCutter';
 
 export interface Point {
   x: number;
@@ -341,34 +340,28 @@ export class Box2DEngine {
   }
 
   /**
-   * Extract and cut loops that intersect the dirty region
-   * Returns preserved segments (outside the dirty region) for later stitching
+   * Count how many vertices of a loop are inside the given region
+   * Returns the count and total vertex count
    */
-  extractAndCutLoops(region: AABB): Point[][] {
-    const preservedSegments: Point[][] = [];
-
-    for (const bodyInfo of this.terrainBodies) {
-      if (this.aabbsIntersect(bodyInfo.aabb, region)) {
-        // This loop intersects the dirty region - cut it
-        const cutResult = cutLoopAtAABB(bodyInfo.originalLoop, region);
-
-        // Collect all preserved segments (outside the dirty region)
-        for (const segment of cutResult.preservedSegments) {
-          if (segment.vertices.length >= 2) {
-            preservedSegments.push(segment.vertices);
-          }
-        }
+  private countVerticesInRegion(loop: Point[], region: AABB): { inside: number; total: number } {
+    let insideCount = 0;
+    for (const vertex of loop) {
+      if (vertex.x >= region.minX && vertex.x <= region.maxX &&
+          vertex.y >= region.minY && vertex.y <= region.maxY) {
+        insideCount++;
       }
     }
-
-    return preservedSegments;
+    return { inside: insideCount, total: loop.length };
   }
 
   /**
-   * Remove terrain bodies whose AABBs intersect the given region
+   * Remove terrain bodies whose vertices significantly intersect the given region
+   * Uses vertex-based testing with a threshold to avoid removing barely-touched loops
+   * @param region - The dirty region AABB
+   * @param vertexThreshold - Minimum fraction of vertices that must be inside (default: 0.05 = 5%)
    * Returns the number of bodies removed
    */
-  removeTerrainInRegion(region: AABB): number {
+  removeTerrainInRegion(region: AABB, vertexThreshold: number = 0.05): number {
     if (!this.world) {
       console.error('[Box2DEngine] World not initialized!');
       return 0;
@@ -376,17 +369,35 @@ export class Box2DEngine {
 
     const bodiesToRemove: TerrainBodyInfo[] = [];
     const bodiesToKeep: TerrainBodyInfo[] = [];
+    let skippedCount = 0;
 
-    // Partition bodies into remove/keep based on AABB intersection
+    // Partition bodies into remove/keep based on vertex intersection
     for (const bodyInfo of this.terrainBodies) {
-      if (this.aabbsIntersect(bodyInfo.aabb, region)) {
+      // First check: does AABB intersect at all?
+      if (!this.aabbsIntersect(bodyInfo.aabb, region)) {
+        bodiesToKeep.push(bodyInfo);
+        continue;
+      }
+
+      // AABB intersects - now check vertex-level intersection
+      const vertexCount = this.countVerticesInRegion(bodyInfo.originalLoop, region);
+      const fraction = vertexCount.inside / vertexCount.total;
+
+      if (fraction >= vertexThreshold) {
+        // Significant portion of loop is affected - remove it
         bodiesToRemove.push(bodyInfo);
       } else {
+        // Only barely touched - keep it to avoid unnecessary regeneration
         bodiesToKeep.push(bodyInfo);
+        skippedCount++;
       }
     }
 
-    // Destroy bodies that intersect the region
+    if (skippedCount > 0) {
+      console.log(`[Box2DEngine] Skipped ${skippedCount} loops (vertex overlap < ${(vertexThreshold * 100).toFixed(1)}%)`);
+    }
+
+    // Destroy bodies that significantly intersect the region
     for (const bodyInfo of bodiesToRemove) {
       this.world.DestroyBody(bodyInfo.body);
     }
