@@ -15,6 +15,7 @@ import type { Box2DPhysics } from './Box2DPhysics';
 import type { Renderer } from './Renderer';
 import { VertexOptimizationPipeline, type OptimizationOptions } from './VertexOptimizationPipeline';
 import type { Point } from './types';
+import { cleanLoop } from './physics/shapeUtils';
 
 // Debug flag for loop classification - set to false to silence logs
 const DEBUG_LOOP_CLASSIFICATION = true;
@@ -190,6 +191,10 @@ export class RemeshManager {
     const allLoops = this.loopCache.getAllLoops();
     const allPolylines = allLoops.map(l => l.vertices);
 
+    // Clean all loops BEFORE classification to remove duplicates, tiny edges, etc.
+    const gridPitch = this.densityField.config.gridPitch;
+    const cleanedLoops = allPolylines.map(loop => cleanLoop(loop, gridPitch));
+
     // Classify loops with indices for debugging (but keep ALL loops for rendering)
     const loopMetadata: Array<{
       index: number;
@@ -198,7 +203,7 @@ export class RemeshManager {
       samples?: DebugSamplePoint[];
     }> = [];
 
-    allPolylines.forEach((loop, index) => {
+    cleanedLoops.forEach((loop, index) => {
       if (loop.length < 3) return;
       const classificationResult = this.isRockLoop(loop, index);
       const isRock = classificationResult.isRock;
@@ -212,9 +217,9 @@ export class RemeshManager {
       });
     });
 
-    // Keep ALL loops for evenodd fill rule rendering
+    // Keep ALL cleaned loops for evenodd fill rule rendering
     // The renderer fills with light cream using evenodd, creating cave pattern
-    const allValidLoops = allPolylines.filter(loop => loop.length >= 3);
+    const allValidLoops = cleanedLoops.filter(loop => loop.length >= 3);
 
     // Pass loop metadata to renderer for debug visualization
     this.renderer.setLoopDebugInfo(loopMetadata);
@@ -288,18 +293,11 @@ export class RemeshManager {
     };
 
     // Sample multiple segments around the loop for debugging
+    // Note: Loops are pre-cleaned, so degenerate edges should be rare
     if (DEBUG_LOOP_CLASSIFICATION) {
       for (let i = 0, sampleIndex = 0; i < n && sampleIndex < maxSamples; i += step, sampleIndex++) {
         const p = loop[i];
         const q = loop[(i + 1) % n];
-
-        // Validate vertex coordinates
-        if (!p || !q || typeof p.x !== 'number' || typeof p.y !== 'number' ||
-            typeof q.x !== 'number' || typeof q.y !== 'number' ||
-            !isFinite(p.x) || !isFinite(p.y) || !isFinite(q.x) || !isFinite(q.y)) {
-          console.warn(`⚠️ LOOP #${loopIndex} segment ${i}: Invalid vertices`, { p, q });
-          continue;
-        }
 
         // Segment midpoint
         const mx = (p.x + q.x) * 0.5;
@@ -310,11 +308,8 @@ export class RemeshManager {
         let ny = -(q.x - p.x);
         const len = Math.hypot(nx, ny);
 
-        // Skip degenerate edges (zero length)
-        if (len < 1e-10) {
-          console.warn(`⚠️ LOOP #${loopIndex} segment ${i}: Degenerate edge (length=${len})`, { p, q });
-          continue;
-        }
+        // Skip rare degenerate edges (shouldn't happen after cleanLoop)
+        if (len < 1e-10) continue;
 
         nx /= len;
         ny /= len;
@@ -330,11 +325,6 @@ export class RemeshManager {
         // Adjust epsilon based on normal direction to ensure we cross cell boundary
         // At 45°, we need sqrt(2) times the distance to cross diagonally
         const maxComponent = Math.max(Math.abs(nx), Math.abs(ny));
-        if (maxComponent < 1e-10) {
-          console.warn(`⚠️ LOOP #${loopIndex} segment ${i}: Invalid normal`, { nx, ny });
-          continue;
-        }
-
         const angleAdjustment = 1.0 / maxComponent;
         const adjustedEpsilonInside = epsilonInside * angleAdjustment;
         const adjustedEpsilonOutside = epsilonOutside * angleAdjustment;
@@ -346,16 +336,6 @@ export class RemeshManager {
         // Sample outside the loop
         const outsideX = mx - nx * adjustedEpsilonOutside;
         const outsideY = my - ny * adjustedEpsilonOutside;
-
-        // Validate sample coordinates
-        if (!isFinite(insideX) || !isFinite(insideY) || !isFinite(outsideX) || !isFinite(outsideY)) {
-          console.warn(`⚠️ LOOP #${loopIndex} segment ${i}: Invalid sample coordinates`, {
-            inside: { x: insideX, y: insideY },
-            outside: { x: outsideX, y: outsideY },
-            mx, my, nx, ny, adjustedEpsilonInside, adjustedEpsilonOutside
-          });
-          continue;
-        }
 
         // Convert to grid coordinates and query density
         const insideGrid = this.densityField.worldToGrid(insideX, insideY);
