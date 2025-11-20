@@ -380,8 +380,14 @@ export class RemeshManager {
     let caveVotes = 0;
     let sampledEdges = 0;
 
-    // First round: sample first 3 edges
-    const firstRoundIndices = [0, 1, 2].filter(i => i < n);
+    // First round: sample 3 edges distributed evenly around the loop
+    // At 0°, 120°, 240° positions
+    const firstRoundIndices = [
+      0,
+      Math.floor(n / 3),
+      Math.floor(2 * n / 3)
+    ].filter(i => i < n);
+
     for (const edgeIndex of firstRoundIndices) {
       const result = sampleEdge(edgeIndex);
       if (result.isValid) {
@@ -411,8 +417,13 @@ export class RemeshManager {
       return { isRock, shouldDelete: false, samples: DEBUG_LOOP_CLASSIFICATION ? debugInfo.samples : undefined };
     }
 
-    // Second round: sample next 3 edges (indices 3, 4, 5)
-    const secondRoundIndices = [3, 4, 5].filter(i => i < n);
+    // Second round: sample 3 more edges between the first ones
+    // At 60°, 180°, 300° positions
+    const secondRoundIndices = [
+      Math.floor(n / 6),
+      Math.floor(n / 2),
+      Math.floor(5 * n / 6)
+    ].filter(i => i < n);
     for (const edgeIndex of secondRoundIndices) {
       const result = sampleEdge(edgeIndex);
       if (result.isValid) {
