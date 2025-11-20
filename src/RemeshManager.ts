@@ -230,14 +230,8 @@ export class RemeshManager {
       validLoops.push(loop);
     });
 
-    if (deletedCount > 0) {
-      console.log(`[FullHeal] Deleted ${deletedCount} ambiguous loops (tie votes or no valid samples)`);
-    }
-
     // Pass loop metadata to renderer for debug visualization
     this.renderer.setLoopDebugInfo(loopMetadata);
-
-    console.log(`[FullHeal] Processing ${validLoops.length} loops (using evenodd fill rule)`);
 
     // Run vertex optimization pipeline
     const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
@@ -245,8 +239,17 @@ export class RemeshManager {
     // Store original for debug visualization
     this.renderer.updateOriginalPolylines(optimizationResult.trueOriginalLoops);
 
+    // Reclassify optimized loops for physics winding order
+    // Rock boundaries (rock inside) should be reversed, rock islands (cave inside) should not
+    const shouldReverse = optimizationResult.finalLoops.map((loop, index) => {
+      const classification = this.isRockLoop(loop, index);
+      // Reverse if it's a rock loop (rock inside, cave outside) - these are cave boundaries
+      // Don't reverse if it's a cave loop (cave inside, rock outside) - these are rock islands
+      return classification.isRock && !classification.shouldDelete;
+    });
+
     // Use final loops for both physics and rendering
-    this.physics.setCaveContours(optimizationResult.finalLoops);
+    this.physics.setCaveContours(optimizationResult.finalLoops, shouldReverse);
 
     // Update renderer with final loops
     const finalForRender = optimizationResult.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
@@ -270,11 +273,8 @@ export class RemeshManager {
     // Get dirty region from density field
     const dirtyAABB = this.densityField.getDirtyWorldAABB();
     if (!dirtyAABB) {
-      console.log('[LocalUpdate] No dirty region, skipping');
       return null;
     }
-
-    console.log(`[LocalUpdate] Dirty region: [${dirtyAABB.minX.toFixed(1)}, ${dirtyAABB.minY.toFixed(1)}] to [${dirtyAABB.maxX.toFixed(1)}, ${dirtyAABB.maxY.toFixed(1)}]`);
 
     // Pad the AABB by expandCells to ensure correct marching squares behavior at boundaries
     const h = this.densityField.config.gridPitch;
@@ -285,16 +285,12 @@ export class RemeshManager {
       maxY: dirtyAABB.maxY + expandCells * h
     };
 
-    console.log(`[LocalUpdate] Padded region (expand=${expandCells} cells): [${paddedAABB.minX.toFixed(1)}, ${paddedAABB.minY.toFixed(1)}] to [${paddedAABB.maxX.toFixed(1)}, ${paddedAABB.maxY.toFixed(1)}]`);
-
     // Step 1: Remove physics bodies in padded region
     const engine = this.physics.getEngine();
-    const removedCount = engine.removeTerrainInRegion(paddedAABB);
-    console.log(`[LocalUpdate] Removed ${removedCount} physics bodies in padded region`);
+    engine.removeTerrainInRegion(paddedAABB);
 
     // Step 2: Run marching squares only in padded region
     const results = this.marchingSquares.generateContours(paddedAABB, expandCells);
-    console.log(`[LocalUpdate] Generated ${results.length} contours in local region`);
 
     // Step 3: Process local contours (clean, classify, optimize)
     const gridPitch = this.densityField.config.gridPitch;
@@ -309,19 +305,14 @@ export class RemeshManager {
       }
     }
 
-    console.log(`[LocalUpdate] Cleaned to ${validLoops.length} valid loops`);
-
     // Step 4: Optimize local loops
     const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
-    console.log(`[LocalUpdate] Optimized ${validLoops.length} loops → ${optimizationResult.finalLoops.length} loops`);
 
     // Step 5: Add new physics bodies for local region
-    const addedCount = engine.addTerrainLoops(optimizationResult.finalLoops);
-    console.log(`[LocalUpdate] Added ${addedCount} new physics bodies`);
+    engine.addTerrainLoops(optimizationResult.finalLoops);
 
     // Step 6: For rendering, regenerate full visual mesh (but don't touch physics)
     // This is acceptable because rendering is fast, and it keeps the visual mesh consistent
-    console.log(`[LocalUpdate] Regenerating full visual mesh for rendering...`);
 
     // Generate full contours for rendering only
     const fullField = {
@@ -352,9 +343,6 @@ export class RemeshManager {
     this.renderer.updateOriginalPolylines(renderOptimization.trueOriginalLoops);
     const finalForRender = renderOptimization.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
     this.renderer.updatePolylines(finalForRender);
-
-    const elapsed = performance.now() - startTime;
-    console.log(`[LocalUpdate] Complete in ${elapsed.toFixed(1)}ms (physics was local, rendering was full rebuild)`);
 
     // Clear dirty region
     this.densityField.clearDirty();

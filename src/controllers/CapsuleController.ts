@@ -39,7 +39,7 @@ export interface CapsuleConfig {
  * Default configuration
  */
 const DEFAULT_CONFIG: Required<CapsuleConfig> = {
-  radius: 1.0,     // 1.0m radius circle
+  radius: 0.5,     // 0.5m radius circle (half size)
   speed: 5.0,      // 5 m/s movement speed
   rotationSpeed: 180.0, // 180 deg/s rotation speed
 };
@@ -100,8 +100,6 @@ export class CapsuleController implements IPlayerController {
       friction: 0.3,
       restitution: 0.0,
     });
-
-    console.log(`[CapsuleController] Created at (${x.toFixed(2)}, ${y.toFixed(2)}) - radius: ${this.config.radius}m`);
 
     // Listen for keyboard input
     this.setupKeyboardInput();
@@ -250,8 +248,6 @@ export class CapsuleController implements IPlayerController {
     // Reset velocities
     this.body.SetLinearVelocity(new b2Vec2(0, 0));
     this.body.SetAngularVelocity(0);
-
-    console.log(`[CapsuleController] Respawned at (${x.toFixed(2)}, ${y.toFixed(2)})`);
   }
 
   /**
@@ -279,8 +275,6 @@ export class CapsuleController implements IPlayerController {
    * Cleanup controller
    */
   destroy(): void {
-    console.log('[CapsuleController] Destroying controller');
-
     // Remove keyboard listeners
     window.removeEventListener('keydown', (e) => this.onKeyDown(e));
     window.removeEventListener('keyup', (e) => this.onKeyUp(e));

@@ -53,13 +53,9 @@ export class Box2DEngine {
    * Initialize the Box2D world
    */
   async init(): Promise<void> {
-    // console.log('[Box2DEngine] Initializing Box2D world...');
-
     // Create world with gravity (0, 10) m/s² (Y-down)
     const gravity = new b2Vec2(0, 10);
     this.world = b2World.Create(gravity);
-
-    // console.log('[Box2DEngine] Box2D world initialized');
   }
 
   /**
@@ -83,10 +79,11 @@ export class Box2DEngine {
   /**
    * Update terrain colliders from marching squares loops
    * Uses b2ChainShape for exact boundary representation
+   * @param loops - Array of vertex loops
+   * @param shouldReverse - Optional array indicating which loops to reverse (for cave boundaries vs rock islands)
    */
-  setTerrainLoops(loops: Point[][]): void {
+  setTerrainLoops(loops: Point[][], shouldReverse?: boolean[]): void {
     if (!this.world) {
-      // console.error('[Box2DEngine] World not initialized!');
       return;
     }
 
@@ -100,7 +97,8 @@ export class Box2DEngine {
     let closedLoops = 0;
     let openChains = 0;
 
-    for (const loop of loops) {
+    for (let loopIndex = 0; loopIndex < loops.length; loopIndex++) {
+      const loop = loops[loopIndex];
       if (loop.length < 2) continue;
 
       // Create static body for this terrain loop
@@ -119,10 +117,12 @@ export class Box2DEngine {
       const distance = Math.sqrt(dx * dx + dy * dy);
       const isClosed = distance < 0.01; // Within 1cm tolerance
 
-      // CRITICAL FIX: Reverse winding order for correct Box2D collision surface direction
-      // Our loops are CCW with rock INSIDE, but Box2D CreateLoop needs collision surface
-      // facing OUTWARD toward the cave. Reversing to CW accomplishes this.
-      const reversedVertices = [...vertices].reverse();
+      // CRITICAL FIX: Conditionally reverse winding order based on loop type
+      // Cave boundaries (rock inside, cave outside): Reverse CCW→CW so collision faces outward (toward cave)
+      // Rock islands (cave inside, rock outside): Keep CCW so collision faces outward (toward cave)
+      // Default to reversing if no classification provided (backwards compatibility)
+      const shouldReverseLoop = shouldReverse ? shouldReverse[loopIndex] : true;
+      const reversedVertices = shouldReverseLoop ? [...vertices].reverse() : vertices;
 
       // Create chain shape
       const chainShape = new b2ChainShape();
@@ -130,17 +130,14 @@ export class Box2DEngine {
       if (isClosed) {
         // Remove duplicate last vertex and create closed loop
         const loopVertices = reversedVertices.slice(0, -1);
-        console.log(`[Box2D] Created closed loop with ${loopVertices.length} vertices (REVERSED winding for collision surface)`);
         chainShape.CreateLoop(loopVertices, loopVertices.length);
         closedLoops++;
       } else {
-        // Create open chain with ghost vertices (also reversed)
+        // Create open chain with ghost vertices
         const prevVertex = reversedVertices[0];
         const nextVertex = reversedVertices[reversedVertices.length - 1];
-        console.log(`[Box2D] Created open chain with ${reversedVertices.length} vertices (REVERSED winding)`);
         chainShape.CreateChain(reversedVertices, reversedVertices.length, prevVertex, nextVertex);
         openChains++;
-        console.warn(`[Box2DEngine] Non-closed loop detected! Distance: ${distance.toFixed(4)}m`);
       }
 
       // Create fixture with physics properties
@@ -157,9 +154,6 @@ export class Box2DEngine {
 
       totalSegments += loop.length - 1;
     }
-
-    // console.log(`[Box2DEngine] Created ${this.terrainBodies.length} terrain bodies (${totalSegments} segments)`);
-    // console.log(`[Box2DEngine] Loop closure: ${closedLoops} closed, ${openChains} open`);
   }
 
   /**
@@ -167,7 +161,6 @@ export class Box2DEngine {
    */
   step(dt: number): void {
     if (!this.world) {
-      // console.error('[Box2DEngine] World not initialized!');
       return;
     }
 
@@ -375,15 +368,16 @@ export class Box2DEngine {
     // Update terrain bodies list
     this.terrainBodies = bodiesToKeep;
 
-    console.log(`[Box2DEngine] Removed ${bodiesToRemove.length} terrain bodies in region [${region.minX.toFixed(1)}, ${region.minY.toFixed(1)}] to [${region.maxX.toFixed(1)}, ${region.maxY.toFixed(1)}]`);
     return bodiesToRemove.length;
   }
 
   /**
    * Add terrain loops without removing existing ones (for incremental updates)
    * Similar to setTerrainLoops but appends instead of replacing
+   * @param loops - Array of vertex loops
+   * @param shouldReverse - Optional array indicating which loops to reverse
    */
-  addTerrainLoops(loops: Point[][]): number {
+  addTerrainLoops(loops: Point[][], shouldReverse?: boolean[]): number {
     if (!this.world) {
       console.error('[Box2DEngine] World not initialized!');
       return 0;
@@ -394,7 +388,8 @@ export class Box2DEngine {
     let openChains = 0;
     let addedBodies = 0;
 
-    for (const loop of loops) {
+    for (let loopIndex = 0; loopIndex < loops.length; loopIndex++) {
+      const loop = loops[loopIndex];
       if (loop.length < 2) continue;
 
       // Create static body for this terrain loop
@@ -413,8 +408,9 @@ export class Box2DEngine {
       const distance = Math.sqrt(dx * dx + dy * dy);
       const isClosed = distance < 0.01; // Within 1cm tolerance
 
-      // Reverse winding order for correct Box2D collision surface direction
-      const reversedVertices = [...vertices].reverse();
+      // Conditionally reverse winding order based on loop type
+      const shouldReverseLoop = shouldReverse ? shouldReverse[loopIndex] : true;
+      const reversedVertices = shouldReverseLoop ? [...vertices].reverse() : vertices;
 
       // Create chain shape
       const chainShape = new b2ChainShape();
@@ -447,9 +443,6 @@ export class Box2DEngine {
       totalSegments += loop.length - 1;
       addedBodies++;
     }
-
-    console.log(`[Box2DEngine] Added ${addedBodies} terrain bodies (${totalSegments} segments)`);
-    console.log(`[Box2DEngine] Total terrain bodies: ${this.terrainBodies.length}`);
 
     return addedBodies;
   }
