@@ -899,11 +899,17 @@ class CarvableCaves {
       false // false = carve (subtract density)
     );
 
-    console.log('[Carve] Brush stamped, triggering remesh...');
+    console.log('[Carve] Brush stamped, triggering local remesh...');
 
-    // Trigger remesh to update physics
-    this.remeshManager.requestFullHeal(); // Request full remesh
-    this.needsRemesh = true; // Trigger remesh on next frame
+    // Trigger local remesh to update physics (much faster than full heal!)
+    const stats = this.remeshManager.localUpdate(2); // Pad by 2 cells for boundary continuity
+    if (stats) {
+      // Update UI stats if needed
+      this.originalVertexCount = stats.originalVertexCount;
+      this.finalVertexCount = stats.finalVertexCount;
+      this.simplificationReduction = stats.simplificationReduction;
+      this.postSimplificationReduction = stats.postSimplificationReduction;
+    }
   }
 }
 
