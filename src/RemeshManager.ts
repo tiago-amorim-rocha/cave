@@ -248,11 +248,8 @@ export class RemeshManager {
     // Based on testing: reverse if cave inside (rock island), keep if rock inside (cave boundary)
     const shouldReverse = loopClassifications.map((isRock, index) => {
       // CORRECT LOGIC (verified working): Reverse if NOT rock (cave inside = rock island)
-      console.log(`[Physics] Loop ${index}: isRock=${isRock}, shouldReverse=${!isRock}`);
       return !isRock;
     });
-
-    console.log(`[Physics] Total loops: ${shouldReverse.length}, reversing: ${shouldReverse.filter(r => r).length}, keeping: ${shouldReverse.filter(r => !r).length}`);
 
     // Use final loops for both physics and rendering
     this.physics.setCaveContours(optimizationResult.finalLoops, shouldReverse);
@@ -327,11 +324,8 @@ export class RemeshManager {
     // Step 5: Build shouldReverse array based on classifications
     // CRITICAL: Same logic as fullHeal - reverse if NOT rock (cave inside = rock island)
     const shouldReverse = loopClassifications.map((isRock, index) => {
-      console.log(`[LocalUpdate Physics] Loop ${index}: isRock=${isRock}, shouldReverse=${!isRock}`);
       return !isRock;
     });
-
-    console.log(`[LocalUpdate Physics] Total loops: ${shouldReverse.length}, reversing: ${shouldReverse.filter(r => r).length}, keeping: ${shouldReverse.filter(r => !r).length}`);
 
     // Step 6: Add new physics bodies for local region WITH proper winding order
     engine.addTerrainLoops(optimizationResult.finalLoops, shouldReverse);
@@ -628,6 +622,6 @@ export class RemeshManager {
     };
 
     const loopLabel = loopIndex !== undefined ? `LOOP #${loopIndex}` : "LOOP";
-    console.log(`${loopLabel}:`, extendedDebugInfo);
+    // Logging disabled to reduce console noise
   }
 }

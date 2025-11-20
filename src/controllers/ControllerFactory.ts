@@ -128,12 +128,10 @@ export class ControllerManager {
 
     // Destroy old controller if it exists
     if (this.currentController) {
-      console.log(`[ControllerManager] Destroying ${this.currentController.getTypeName()}`);
       this.currentController.destroy();
     }
 
     // Create new controller
-    console.log(`[ControllerManager] Creating ${this.factory.getTypeName(type)} at (${spawnX.toFixed(2)}, ${spawnY.toFixed(2)})`);
     this.currentController = this.factory.createController(type, { x: spawnX, y: spawnY });
     this.currentType = type;
 
@@ -144,7 +142,6 @@ export class ControllerManager {
       }
     };
     this.engine.registerFixedUpdate(this.currentUpdateCallback);
-    console.log(`[ControllerManager] Registered ${this.factory.getTypeName(type)} for fixed timestep updates (60Hz)`);
 
     return this.currentController;
   }
@@ -163,7 +160,6 @@ export class ControllerManager {
       }
     };
     this.engine.registerFixedUpdate(this.currentUpdateCallback);
-    console.log(`[ControllerManager] Registered ${this.factory.getTypeName(type)} for fixed timestep updates (60Hz)`);
 
     return this.currentController;
   }

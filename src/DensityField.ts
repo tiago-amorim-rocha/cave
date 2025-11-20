@@ -53,13 +53,6 @@ export class DensityField {
    * @param threshold - Cave threshold (0 = balanced, higher = more caves, lower = more rock, range: -1 to 1)
    */
   generateCaves(seed?: number, scale: number = 0.05, octaves: number = 4, threshold: number = 0): void {
-    console.log('[CaveGen] Starting cave generation with parameters:');
-    console.log(`  seed: ${seed ?? 'random'}`);
-    console.log(`  scale: ${scale}`);
-    console.log(`  octaves: ${octaves}`);
-    console.log(`  threshold: ${threshold}`);
-    console.log(`  grid size: ${this.gridWidth} x ${this.gridHeight}`);
-
     const noise = new PerlinNoise(seed);
 
     // Statistics tracking
@@ -136,44 +129,9 @@ export class DensityField {
       }
     }
 
-    const totalCells = this.gridWidth * this.gridHeight;
-    const cavePercent = (caveCells / totalCells * 100).toFixed(1);
-    const rockPercent = (rockCells / totalCells * 100).toFixed(1);
-
-    // Count density distribution
-    const densityBuckets = new Map<number, number>();
-    for (let i = 0; i < this.data.length; i++) {
-      const d = this.data[i];
-      densityBuckets.set(d, (densityBuckets.get(d) || 0) + 1);
-    }
-    const uniqueDensities = Array.from(densityBuckets.keys()).sort((a, b) => a - b);
-
-    console.log('[CaveGen] Generation complete!');
-    console.log(`  Total cells: ${totalCells}`);
-    console.log(`  Cave cells (density=0): ${caveCells} (${cavePercent}%)`);
-    console.log(`  Rock cells (density>0): ${rockCells} (${rockPercent}%)`);
-    console.log(`  Noise type: GRAYSCALE (continuous values from -1 to 1)`);
-    console.log(`  Noise range: [${minNoise.toFixed(3)}, ${maxNoise.toFixed(3)}]`);
-    console.log(`  Density type: GRAYSCALE (0=cave, 128-255=rock gradient)`);
-    console.log(`  Density range: [${minDensity}, ${maxDensity}]`);
-    console.log(`  Unique density values: ${uniqueDensities.length}`);
-    console.log(`  ISO value for marching squares: ${this.config.isoValue}`);
-    if (uniqueDensities.length <= 20) {
-      console.log(`  All density values: [${uniqueDensities.join(', ')}]`);
-    } else {
-      console.log(`  First 10 densities: [${uniqueDensities.slice(0, 10).join(', ')}]`);
-      console.log(`  Last 10 densities: [${uniqueDensities.slice(-10).join(', ')}]`);
-    }
-    console.log('[CaveGen] Sample positions:');
-    samples.forEach(s => {
-      const aboveISO = s.density >= this.config.isoValue ? 'ROCK' : 'CAVE';
-      console.log(`  (${s.x.toFixed(1)}, ${s.y.toFixed(1)}): noise=${s.noise.toFixed(3)}, density=${s.density} [${aboveISO}]`);
-    });
-
     // Add solid rock border to ensure all caves are enclosed
     // This prevents open loops at boundaries
     const borderWidth = 5; // cells
-    console.log(`[CaveGen] Adding ${borderWidth}-cell solid rock border...`);
 
     let borderCellsSet = 0;
 
@@ -211,8 +169,6 @@ export class DensityField {
       }
     }
 
-    console.log(`[CaveGen] Border complete! Set ${borderCellsSet} cells to solid rock (255)`);
-
     this.markAllDirty();
   }
 
@@ -220,15 +176,6 @@ export class DensityField {
    * Generate caves using noise-based bubble algorithm
    */
   generateBubbleCaves(params: CaveGenParams): void {
-    console.log('[BubbleGen] Starting bubble cave generation...');
-    console.log('  Parameters:', JSON.stringify({
-      bubbleCount: params.bubbleCount,
-      clusteriness: params.clusteriness,
-      sizeRange: [params.sizeMin, params.sizeMax],
-      shapeComplexity: params.shapeComplexity,
-      shapeIrregularity: params.shapeIrregularity
-    }, null, 2));
-
     // Generate bubbles
     const bubbleData = generateBubbleCaves(params);
 
@@ -242,7 +189,6 @@ export class DensityField {
 
     // Add solid rock border (same as Perlin generation)
     const borderWidth = 5;
-    console.log(`[BubbleGen] Adding ${borderWidth}-cell solid rock border...`);
 
     let borderCellsSet = 0;
 
@@ -279,28 +225,6 @@ export class DensityField {
         }
       }
     }
-
-    console.log(`[BubbleGen] Border complete! Set ${borderCellsSet} cells to solid rock`);
-
-    // Count statistics
-    let caveCells = 0;
-    let rockCells = 0;
-    for (let i = 0; i < this.data.length; i++) {
-      if (this.data[i] < this.config.isoValue) {
-        caveCells++;
-      } else {
-        rockCells++;
-      }
-    }
-
-    const totalCells = this.data.length;
-    const cavePercent = (caveCells / totalCells * 100).toFixed(1);
-    const rockPercent = (rockCells / totalCells * 100).toFixed(1);
-
-    console.log(`[BubbleGen] Generation complete!`);
-    console.log(`  Total cells: ${totalCells}`);
-    console.log(`  Cave cells: ${caveCells} (${cavePercent}%)`);
-    console.log(`  Rock cells: ${rockCells} (${rockPercent}%)`);
 
     this.markAllDirty();
   }
@@ -399,11 +323,6 @@ export class DensityField {
     const minGridY = Math.max(0, centerGridY - brushCenterY);
     const maxGridY = Math.min(this.gridHeight - 1, centerGridY + brushCenterY);
 
-    console.log(`[stampBrush] Center: grid(${centerGridX}, ${centerGridY}), bounds: [${minGridX}-${maxGridX}, ${minGridY}-${maxGridY}]`);
-
-    let pixelsModified = 0;
-    let totalStrengthApplied = 0;
-
     // Stamp brush onto density field
     for (let gy = minGridY; gy <= maxGridY; gy++) {
       for (let gx = minGridX; gx <= maxGridX; gx++) {
@@ -432,17 +351,11 @@ export class DensityField {
           : Math.max(0, currentDensity - brushStrength);   // Subtract (carve away)
 
         this.set(gx, gy, newDensity);
-
-        pixelsModified++;
-        totalStrengthApplied += brushStrength;
       }
     }
 
-    console.log(`[stampBrush] Modified ${pixelsModified} pixels, avg strength: ${(totalStrengthApplied / pixelsModified).toFixed(1)}`);
-
     // Mark dirty region
     this.expandDirtyAABB(minGridX, minGridY, maxGridX, maxGridY);
-    console.log(`[stampBrush] Dirty AABB: [${minGridX}-${maxGridX}, ${minGridY}-${maxGridY}]`);
   }
 
   /**
@@ -534,7 +447,6 @@ export class DensityField {
 
     // Mark dirty region (include both chamber and floor)
     this.expandDirtyAABB(minGridX, chamberMinY, maxGridX, floorMaxY);
-    console.log(`[DensityField] Created spawn chamber at (${worldX.toFixed(1)}, ${worldY.toFixed(1)}) - ${width}m × ${height}m cave with ${floorThickness}m floor below`);
   }
 
   /**
