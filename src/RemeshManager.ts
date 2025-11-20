@@ -16,6 +16,73 @@ import type { Renderer } from './Renderer';
 import { VertexOptimizationPipeline, type OptimizationOptions } from './VertexOptimizationPipeline';
 import type { Point } from './types';
 
+// Debug flag for loop classification - set to false to silence logs
+const DEBUG_LOOP_CLASSIFICATION = true;
+
+// Debug interfaces for loop classification analysis
+interface DebugSamplePoint {
+  x: number;
+  y: number;
+  density: number;
+  side: "inside" | "outside";
+  segmentIndex: number;
+}
+
+interface DebugLoopInfo {
+  loopIndex?: number;
+  area: number;
+  centroid: { x: number; y: number };
+  samples: DebugSamplePoint[];
+}
+
+/**
+ * Compute signed area of a polygon
+ * Positive area = CCW winding, Negative area = CW winding
+ */
+function computePolygonArea(loop: Point[]): number {
+  let area = 0;
+  const n = loop.length;
+  for (let i = 0; i < n; i++) {
+    const p = loop[i];
+    const q = loop[(i + 1) % n];
+    area += (p.x * q.y - q.x * p.y);
+  }
+  return area * 0.5;
+}
+
+/**
+ * Compute centroid of a polygon using the shoelace formula
+ */
+function computePolygonCentroid(loop: Point[]): { x: number; y: number } {
+  let areaAcc = 0;
+  let cxAcc = 0;
+  let cyAcc = 0;
+  const n = loop.length;
+  for (let i = 0; i < n; i++) {
+    const p = loop[i];
+    const q = loop[(i + 1) % n];
+    const cross = p.x * q.y - q.x * p.y;
+    areaAcc += cross;
+    cxAcc += (p.x + q.x) * cross;
+    cyAcc += (p.y + q.y) * cross;
+  }
+  const area = areaAcc * 0.5;
+  if (Math.abs(area) < 1e-8) {
+    // Fallback: simple average of vertices for degenerate cases
+    let sx = 0, sy = 0;
+    for (let i = 0; i < n; i++) {
+      sx += loop[i].x;
+      sy += loop[i].y;
+    }
+    return { x: sx / n, y: sy / n };
+  }
+  const f = 1 / (6 * area);
+  return {
+    x: cxAcc * f,
+    y: cyAcc * f,
+  };
+}
+
 export interface RemeshConfig {
   densityField: DensityField;
   marchingSquares: MarchingSquares;
@@ -165,46 +232,135 @@ export class RemeshManager {
   /**
    * Determine if a loop represents solid rock or a cave hole
    * Uses signed area and density sampling to classify
+   *
+   * With DEBUG_LOOP_CLASSIFICATION enabled, samples multiple segments
+   * on both inside and outside to help diagnose misclassifications
    */
   private isRockLoop(loop: Point[]): boolean {
     if (loop.length < 3) return false;
 
-    // Calculate signed area to determine winding direction
-    let area = 0;
-    for (let i = 0; i < loop.length; i++) {
-      const p = loop[i];
-      const q = loop[(i + 1) % loop.length];
-      area += (p.x * q.y - q.x * p.y);
+    // Compute polygon properties using helper functions
+    const area = computePolygonArea(loop);
+    const centroid = computePolygonCentroid(loop);
+
+    // Epsilon distances for sampling (in world units / metres)
+    const epsilonInside = 0.05;  // 5cm inside
+    const epsilonOutside = 0.05; // 5cm outside
+
+    const n = loop.length;
+    const maxSamples = 8; // Number of segments to sample for debug
+    const step = Math.max(1, Math.floor(n / maxSamples));
+
+    const debugInfo: DebugLoopInfo = {
+      area,
+      centroid,
+      samples: [],
+    };
+
+    // Sample multiple segments around the loop for debugging
+    if (DEBUG_LOOP_CLASSIFICATION) {
+      for (let i = 0, sampleIndex = 0; i < n && sampleIndex < maxSamples; i += step, sampleIndex++) {
+        const p = loop[i];
+        const q = loop[(i + 1) % n];
+
+        // Segment midpoint
+        const mx = (p.x + q.x) * 0.5;
+        const my = (p.y + q.y) * 0.5;
+
+        // Calculate left normal to edge p->q
+        let nx = q.y - p.y;
+        let ny = -(q.x - p.x);
+        const len = Math.hypot(nx, ny) || 1;
+        nx /= len;
+        ny /= len;
+
+        // Flip normal based on winding so it points inward
+        // CW (area < 0): left normal points outward, flip it
+        // CCW (area >= 0): left normal points inward, keep it
+        if (area < 0) {
+          nx = -nx;
+          ny = -ny;
+        }
+
+        // Sample inside the loop
+        const insideX = mx + nx * epsilonInside;
+        const insideY = my + ny * epsilonInside;
+
+        // Sample outside the loop
+        const outsideX = mx - nx * epsilonOutside;
+        const outsideY = my - ny * epsilonOutside;
+
+        // Convert to grid coordinates and query density
+        const insideGrid = this.densityField.worldToGrid(insideX, insideY);
+        const outsideGrid = this.densityField.worldToGrid(outsideX, outsideY);
+
+        const insideDensity = this.densityField.get(insideGrid.gridX, insideGrid.gridY);
+        const outsideDensity = this.densityField.get(outsideGrid.gridX, outsideGrid.gridY);
+
+        // Record inside sample
+        debugInfo.samples.push({
+          x: insideX,
+          y: insideY,
+          density: insideDensity,
+          side: "inside",
+          segmentIndex: i,
+        });
+
+        // Record outside sample
+        debugInfo.samples.push({
+          x: outsideX,
+          y: outsideY,
+          density: outsideDensity,
+          side: "outside",
+          segmentIndex: i,
+        });
+      }
     }
 
-    // Sample a point slightly inside the loop
+    // Existing classification logic - sample first edge
     const p0 = loop[0];
     const p1 = loop[1];
 
     // Calculate left normal to first edge
-    let nx = p1.y - p0.y;
-    let ny = -(p1.x - p0.x);
-    const len = Math.hypot(nx, ny) || 1;
-    nx /= len;
-    ny /= len;
+    let nx0 = p1.y - p0.y;
+    let ny0 = -(p1.x - p0.x);
+    const len0 = Math.hypot(nx0, ny0) || 1;
+    nx0 /= len0;
+    ny0 /= len0;
 
     // Flip normal based on winding direction so it points inward
-    // CCW (area >= 0): left normal already points inward, no flip needed
-    // CW (area < 0): left normal points outward, need to flip
     if (area < 0) {
-      nx = -nx;
-      ny = -ny;
+      nx0 = -nx0;
+      ny0 = -ny0;
     }
 
-    // Sample point 5cm inside the loop
-    const sampleX = p0.x + nx * 0.05;
-    const sampleY = p0.y + ny * 0.05;
+    // Sample point 5cm inside the loop at first edge
+    const sampleX = p0.x + nx0 * epsilonInside;
+    const sampleY = p0.y + ny0 * epsilonInside;
 
     // Check density at sample point
     const { gridX, gridY } = this.densityField.worldToGrid(sampleX, sampleY);
-    const density = this.densityField.get(gridX, gridY);
+    const sampleDensity = this.densityField.get(gridX, gridY);
 
     // Rock if density >= isoValue (128)
-    return density >= 128;
+    const isRock = sampleDensity >= 128;
+
+    // Debug logging
+    if (DEBUG_LOOP_CLASSIFICATION) {
+      // Attach final classification decision to debug info
+      (debugInfo as any).finalSample = {
+        x: sampleX,
+        y: sampleY,
+        density: sampleDensity,
+      };
+      (debugInfo as any).isRock = isRock;
+      (debugInfo as any).vertexCount = loop.length;
+
+      // Log the complete debug information
+      // eslint-disable-next-line no-console
+      console.log("Loop classification debug:", debugInfo);
+    }
+
+    return isRock;
   }
 }
