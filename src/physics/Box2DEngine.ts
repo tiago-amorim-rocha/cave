@@ -342,20 +342,8 @@ export class Box2DEngine {
   }
 
   /**
-   * Check if `outer` fully contains `inner`
-   */
-  private aabbContains(outer: AABB, inner: AABB): boolean {
-    return (
-      inner.minX >= outer.minX &&
-      inner.maxX <= outer.maxX &&
-      inner.minY >= outer.minY &&
-      inner.maxY <= outer.maxY
-    );
-  }
-
-  /**
-   * Remove terrain bodies whose AABBs are fully contained in the given region.
-   * Returns the number of bodies removed.
+   * Remove terrain bodies whose AABBs intersect the given region
+   * Returns the number of bodies removed
    */
   removeTerrainInRegion(region: AABB): number {
     if (!this.world) {
@@ -368,7 +356,7 @@ export class Box2DEngine {
 
     // Partition bodies into remove/keep based on AABB intersection
     for (const bodyInfo of this.terrainBodies) {
-      if (this.aabbContains(region, bodyInfo.aabb)) {
+      if (this.aabbsIntersect(bodyInfo.aabb, region)) {
         bodiesToRemove.push(bodyInfo);
       } else {
         bodiesToKeep.push(bodyInfo);
