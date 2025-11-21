@@ -373,6 +373,24 @@ export class Box2DEngine {
   }
 
   /**
+   * Get terrain bodies that intersect with a given region
+   * Used for loop patching - returns bodies without destroying them
+   * @param region - AABB region to check for intersection
+   * @returns Array of terrain body infos that intersect the region
+   */
+  getTerrainBodiesInRegion(region: AABB): TerrainBodyInfo[] {
+    const affectedBodies: TerrainBodyInfo[] = [];
+
+    for (const bodyInfo of this.terrainBodies) {
+      if (this.aabbsIntersect(bodyInfo.aabb, region)) {
+        affectedBodies.push(bodyInfo);
+      }
+    }
+
+    return affectedBodies;
+  }
+
+  /**
    * Add terrain loops without removing existing ones (for incremental updates)
    * Similar to setTerrainLoops but appends instead of replacing
    * @param loops - Array of vertex loops

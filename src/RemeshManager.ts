@@ -16,6 +16,7 @@ import type { Renderer } from './Renderer';
 import { VertexOptimizationPipeline, type OptimizationOptions } from './VertexOptimizationPipeline';
 import type { Point } from './types';
 import { cleanLoop } from './physics/shapeUtils';
+import { LoopPatcher } from './LoopPatcher';
 
 // Debug flag for loop classification - set to false to silence logs
 const DEBUG_LOOP_CLASSIFICATION = true;
@@ -108,6 +109,7 @@ export class RemeshManager {
   private renderer: Renderer;
   private optimizationPipeline: VertexOptimizationPipeline;
   private optimizationOptions: OptimizationOptions;
+  private loopPatcher: LoopPatcher;
 
   private lastFullHealTime = 0;
   private needsFullHeal = false;
@@ -120,6 +122,11 @@ export class RemeshManager {
     this.renderer = config.renderer;
     this.optimizationOptions = config.optimizationOptions;
     this.optimizationPipeline = new VertexOptimizationPipeline();
+    this.loopPatcher = new LoopPatcher({
+      dirtyRegionPadding: 2,
+      minArcLength: 3,
+      affectedDistance: 0.5,
+    });
   }
 
   /**
@@ -439,6 +446,163 @@ export class RemeshManager {
     console.log(`[LocalUpdate] ⏱️ Re-render walls: ${(t11 - t10).toFixed(2)}ms (full world remesh for visuals)`);
 
     console.log(`[LocalUpdate] 🎯 TOTAL (including rendering): ${(t11 - t0).toFixed(2)}ms`);
+
+    // Clear dirty region
+    this.densityField.clearDirty();
+
+    return renderOptimization.statistics;
+  }
+
+  /**
+   * Local patch update - only patch affected arcs in loops
+   * This is the most efficient update mode, replacing only the changed arcs
+   * instead of rebuilding entire loops or regions
+   */
+  localPatchUpdate(expandCells: number = 2): RemeshStats | null {
+    const startTime = performance.now();
+
+    // Get dirty region from density field
+    const dirtyAABB = this.densityField.getDirtyWorldAABB();
+    if (!dirtyAABB) {
+      return null;
+    }
+
+    console.log(`[LocalPatch] 🔍 Dirty AABB: (${dirtyAABB.minX.toFixed(2)}, ${dirtyAABB.minY.toFixed(2)}) to (${dirtyAABB.maxX.toFixed(2)}, ${dirtyAABB.maxY.toFixed(2)})`);
+
+    // Pad the AABB by expandCells to ensure correct marching squares behavior at boundaries
+    const h = this.densityField.config.gridPitch;
+    const paddedAABB = {
+      minX: dirtyAABB.minX - expandCells * h,
+      minY: dirtyAABB.minY - expandCells * h,
+      maxX: dirtyAABB.maxX + expandCells * h,
+      maxY: dirtyAABB.maxY + expandCells * h
+    };
+
+    // Step 1: Run marching squares only in padded region to get new contour fragments
+    const t0 = performance.now();
+    const results = this.marchingSquares.generateContours(paddedAABB, expandCells);
+    const t1 = performance.now();
+    const rawLoopCount = results.filter(r => r && r.loop && r.loop.length > 2).length;
+    console.log(`[LocalPatch] ⏱️ Marching Squares: ${(t1 - t0).toFixed(2)}ms (generated ${rawLoopCount} raw loops)`);
+
+    // Step 2: Clean new fragments
+    const t2 = performance.now();
+    const gridPitch = this.densityField.config.gridPitch;
+    const newFragments: Point[][] = [];
+
+    for (const result of results) {
+      if (result && result.loop && result.loop.length > 2) {
+        const cleanedLoop = cleanLoop(result.loop, gridPitch);
+        if (cleanedLoop.length >= 3) {
+          newFragments.push(cleanedLoop);
+        }
+      }
+    }
+    const t3 = performance.now();
+    console.log(`[LocalPatch] ⏱️ Clean fragments: ${(t3 - t2).toFixed(2)}ms (${newFragments.length} fragments)`);
+
+    // Step 3: Find affected terrain bodies and patch them
+    const engine = this.physics.getEngine();
+    const affectedBodies = engine.getTerrainBodiesInRegion(paddedAABB);
+    console.log(`[LocalPatch] 🔍 Found ${affectedBodies.length} affected terrain bodies`);
+
+    const patchDebugInfo: Array<{
+      originalLoop: Point[];
+      oldArc: Point[];
+      newArc: Point[];
+      patchedLoop: Point[];
+      dirtyAABB: typeof paddedAABB;
+    }> = [];
+
+    const patchedLoops: Point[][] = [];
+    const patchedShouldReverse: boolean[] = [];
+    let totalPatchedCount = 0;
+
+    for (const bodyInfo of affectedBodies) {
+      const originalLoop = bodyInfo.originalLoop;
+
+      // Try to patch this loop
+      const t4 = performance.now();
+      const patchResult = this.loopPatcher.patchLoop(originalLoop, paddedAABB, newFragments);
+      const t5 = performance.now();
+
+      if (patchResult) {
+        console.log(`[LocalPatch] ⏱️ Patch loop #${totalPatchedCount}: ${(t5 - t4).toFixed(2)}ms (${patchResult.oldArc.length} → ${patchResult.newArc.length} vertices in arc)`);
+
+        // Optimize the patched loop
+        const optimizationResult = this.optimizationPipeline.optimize([patchResult.patchedLoop], this.optimizationOptions);
+        const optimizedPatchedLoop = optimizationResult.finalLoops[0];
+
+        // Classify the patched loop
+        const classification = this.isRockLoop(optimizedPatchedLoop, totalPatchedCount);
+        if (!classification.shouldDelete) {
+          patchedLoops.push(optimizedPatchedLoop);
+          patchedShouldReverse.push(!classification.isRock);
+
+          // Store debug info
+          patchDebugInfo.push({
+            originalLoop: patchResult.originalLoop,
+            oldArc: patchResult.oldArc,
+            newArc: patchResult.newArc,
+            patchedLoop: optimizedPatchedLoop,
+            dirtyAABB: patchResult.dirtyAABB,
+          });
+
+          totalPatchedCount++;
+        }
+      }
+    }
+
+    const t6 = performance.now();
+    console.log(`[LocalPatch] ⏱️ Total patching: ${(t6 - t0).toFixed(2)}ms (patched ${totalPatchedCount} loops)`);
+
+    // Step 4: Remove old physics bodies and add new patched ones
+    const t7 = performance.now();
+    const removedCount = engine.removeTerrainInRegion(paddedAABB);
+    const t8 = performance.now();
+    console.log(`[LocalPatch] ⏱️ Remove old bodies: ${(t8 - t7).toFixed(2)}ms (removed ${removedCount} bodies)`);
+
+    const t9 = performance.now();
+    engine.addTerrainLoops(patchedLoops, patchedShouldReverse);
+    const t10 = performance.now();
+    console.log(`[LocalPatch] ⏱️ Add patched bodies: ${(t10 - t9).toFixed(2)}ms (created ${patchedLoops.length} bodies)`);
+
+    console.log(`[LocalPatch] 🎯 TOTAL (physics only): ${(t10 - t0).toFixed(2)}ms`);
+
+    // Step 5: Set debug info for visualization
+    this.renderer.setLoopPatchDebugInfo(patchDebugInfo);
+
+    // Step 6: For rendering, regenerate full visual mesh (but don't touch physics)
+    const t11 = performance.now();
+
+    const fullField = {
+      minX: 0,
+      minY: 0,
+      maxX: this.densityField.config.width,
+      maxY: this.densityField.config.height
+    };
+
+    const fullResults = this.marchingSquares.generateContours(fullField, 0);
+
+    const renderLoops: Point[][] = [];
+    for (const result of fullResults) {
+      if (result && result.loop && result.loop.length > 2) {
+        const cleanedLoop = cleanLoop(result.loop, gridPitch);
+        if (cleanedLoop.length >= 3) {
+          renderLoops.push(cleanedLoop);
+        }
+      }
+    }
+
+    const renderOptimization = this.optimizationPipeline.optimize(renderLoops, this.optimizationOptions);
+    this.renderer.updateOriginalPolylines(renderOptimization.trueOriginalLoops);
+    const finalForRender = renderOptimization.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+    this.renderer.updatePolylines(finalForRender);
+
+    const t12 = performance.now();
+    console.log(`[LocalPatch] ⏱️ Re-render walls: ${(t12 - t11).toFixed(2)}ms (full world remesh for visuals)`);
+
+    console.log(`[LocalPatch] 🎯 TOTAL (including rendering): ${(t12 - t0).toFixed(2)}ms`);
 
     // Clear dirty region
     this.densityField.clearDirty();

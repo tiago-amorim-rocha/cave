@@ -68,6 +68,15 @@ export class Renderer {
   private dirtyAABB: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
   private rebuiltChains: Vec2[][] = []; // Chains added during last local update
 
+  // Loop patching debug info
+  private loopPatchDebugInfo: Array<{
+    originalLoop: Vec2[];
+    oldArc: Vec2[];
+    newArc: Vec2[];
+    patchedLoop: Vec2[];
+    dirtyAABB: { minX: number; minY: number; maxX: number; maxY: number };
+  }> = [];
+
   public showGrid: boolean = false;
   public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
@@ -77,6 +86,7 @@ export class Renderer {
   public showSamplePoints: boolean = false; // Disabled for performance testing
   public showDirtyAABB: boolean = false; // Disabled for performance testing
   public showRebuiltChains: boolean = false; // Disabled for performance testing
+  public showLoopPatching: boolean = false; // Show loop patching debug visualization
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -179,6 +189,20 @@ export class Renderer {
   clearLocalUpdateDebug(): void {
     this.dirtyAABB = null;
     this.rebuiltChains = [];
+    this.loopPatchDebugInfo = [];
+  }
+
+  /**
+   * Set loop patch debug info for visualization
+   */
+  setLoopPatchDebugInfo(info: Array<{
+    originalLoop: Vec2[];
+    oldArc: Vec2[];
+    newArc: Vec2[];
+    patchedLoop: Vec2[];
+    dirtyAABB: { minX: number; minY: number; maxX: number; maxY: number };
+  }>): void {
+    this.loopPatchDebugInfo = info;
   }
 
   /**
@@ -272,6 +296,11 @@ export class Renderer {
       // Draw rebuilt chains (local update debugging)
       if (this.showRebuiltChains && this.rebuiltChains.length > 0) {
         this.drawRebuiltChains(width, height);
+      }
+
+      // Draw loop patching debug visualization
+      if (this.showLoopPatching && this.loopPatchDebugInfo.length > 0) {
+        this.drawLoopPatching(width, height);
       }
 
       // Draw player debug info (velocity, grounded state, etc.)
@@ -752,6 +781,152 @@ export class Renderer {
         this.ctx.beginPath();
         this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
         this.ctx.fill();
+      }
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw loop patching debug visualization
+   * Shows:
+   * - Original loop (gray)
+   * - Old arc being replaced (red)
+   * - New arc from marching squares (green)
+   * - Patched loop (cyan)
+   * - Dirty AABB (yellow box)
+   */
+  private drawLoopPatching(canvasWidth: number, canvasHeight: number): void {
+    if (this.loopPatchDebugInfo.length === 0) return;
+
+    this.ctx.save();
+
+    for (const patchInfo of this.loopPatchDebugInfo) {
+      // 1. Draw dirty AABB (yellow dashed box)
+      const topLeft = this.camera.worldToScreen(patchInfo.dirtyAABB.minX, patchInfo.dirtyAABB.minY, canvasWidth, canvasHeight);
+      const bottomRight = this.camera.worldToScreen(patchInfo.dirtyAABB.maxX, patchInfo.dirtyAABB.maxY, canvasWidth, canvasHeight);
+      const rectWidth = bottomRight.x - topLeft.x;
+      const rectHeight = bottomRight.y - topLeft.y;
+
+      this.ctx.strokeStyle = '#ffff00'; // Yellow
+      this.ctx.lineWidth = 2;
+      this.ctx.setLineDash([8, 4]);
+      this.ctx.strokeRect(topLeft.x, topLeft.y, rectWidth, rectHeight);
+      this.ctx.setLineDash([]);
+
+      // 2. Draw original loop (gray, thin, semi-transparent)
+      if (patchInfo.originalLoop.length > 2) {
+        this.ctx.strokeStyle = 'rgba(128, 128, 128, 0.4)'; // Gray
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        const first = this.camera.worldToScreen(patchInfo.originalLoop[0].x, patchInfo.originalLoop[0].y, canvasWidth, canvasHeight);
+        this.ctx.moveTo(first.x, first.y);
+        for (let i = 1; i < patchInfo.originalLoop.length; i++) {
+          const screen = this.camera.worldToScreen(patchInfo.originalLoop[i].x, patchInfo.originalLoop[i].y, canvasWidth, canvasHeight);
+          this.ctx.lineTo(screen.x, screen.y);
+        }
+        this.ctx.closePath();
+        this.ctx.stroke();
+      }
+
+      // 3. Draw old arc being replaced (red, thick)
+      if (patchInfo.oldArc.length > 1) {
+        this.ctx.strokeStyle = '#ff0000'; // Red
+        this.ctx.lineWidth = 5;
+        this.ctx.globalAlpha = 0.8;
+        this.ctx.beginPath();
+        const first = this.camera.worldToScreen(patchInfo.oldArc[0].x, patchInfo.oldArc[0].y, canvasWidth, canvasHeight);
+        this.ctx.moveTo(first.x, first.y);
+        for (let i = 1; i < patchInfo.oldArc.length; i++) {
+          const screen = this.camera.worldToScreen(patchInfo.oldArc[i].x, patchInfo.oldArc[i].y, canvasWidth, canvasHeight);
+          this.ctx.lineTo(screen.x, screen.y);
+        }
+        this.ctx.stroke();
+        this.ctx.globalAlpha = 1.0;
+
+        // Draw vertices as red dots
+        for (const vertex of patchInfo.oldArc) {
+          const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
+          this.ctx.fillStyle = '#ff0000';
+          this.ctx.beginPath();
+          this.ctx.arc(screen.x, screen.y, 4, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+      }
+
+      // 4. Draw new arc from marching squares (green, thick)
+      if (patchInfo.newArc.length > 1) {
+        this.ctx.strokeStyle = '#00ff00'; // Green
+        this.ctx.lineWidth = 5;
+        this.ctx.globalAlpha = 0.8;
+        this.ctx.beginPath();
+        const first = this.camera.worldToScreen(patchInfo.newArc[0].x, patchInfo.newArc[0].y, canvasWidth, canvasHeight);
+        this.ctx.moveTo(first.x, first.y);
+        for (let i = 1; i < patchInfo.newArc.length; i++) {
+          const screen = this.camera.worldToScreen(patchInfo.newArc[i].x, patchInfo.newArc[i].y, canvasWidth, canvasHeight);
+          this.ctx.lineTo(screen.x, screen.y);
+        }
+        this.ctx.stroke();
+        this.ctx.globalAlpha = 1.0;
+
+        // Draw vertices as green dots
+        for (const vertex of patchInfo.newArc) {
+          const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
+          this.ctx.fillStyle = '#00ff00';
+          this.ctx.beginPath();
+          this.ctx.arc(screen.x, screen.y, 4, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+      }
+
+      // 5. Draw patched loop (cyan, medium thickness)
+      if (patchInfo.patchedLoop.length > 2) {
+        this.ctx.strokeStyle = '#00ffff'; // Cyan
+        this.ctx.lineWidth = 3;
+        this.ctx.globalAlpha = 0.6;
+        this.ctx.beginPath();
+        const first = this.camera.worldToScreen(patchInfo.patchedLoop[0].x, patchInfo.patchedLoop[0].y, canvasWidth, canvasHeight);
+        this.ctx.moveTo(first.x, first.y);
+        for (let i = 1; i < patchInfo.patchedLoop.length; i++) {
+          const screen = this.camera.worldToScreen(patchInfo.patchedLoop[i].x, patchInfo.patchedLoop[i].y, canvasWidth, canvasHeight);
+          this.ctx.lineTo(screen.x, screen.y);
+        }
+        this.ctx.closePath();
+        this.ctx.stroke();
+        this.ctx.globalAlpha = 1.0;
+      }
+
+      // 6. Draw legend in top-left of dirty AABB
+      const legendX = topLeft.x + 10;
+      const legendY = topLeft.y + 10;
+      this.ctx.font = 'bold 12px monospace';
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.strokeStyle = '#000000';
+      this.ctx.lineWidth = 3;
+
+      const legendItems = [
+        { color: 'rgba(128, 128, 128, 0.8)', text: 'Original Loop' },
+        { color: '#ff0000', text: 'Old Arc (replaced)' },
+        { color: '#00ff00', text: 'New Arc (from MS)' },
+        { color: '#00ffff', text: 'Patched Loop' },
+      ];
+
+      let yOffset = 0;
+      for (const item of legendItems) {
+        // Background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(legendX - 5, legendY + yOffset - 12, 180, 18);
+
+        // Color swatch
+        this.ctx.fillStyle = item.color;
+        this.ctx.fillRect(legendX, legendY + yOffset - 8, 20, 10);
+
+        // Text
+        this.ctx.strokeText(item.text, legendX + 25, legendY + yOffset);
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillText(item.text, legendX + 25, legendY + yOffset);
+
+        yOffset += 20;
       }
     }
 

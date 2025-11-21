@@ -866,8 +866,8 @@ class CarvableCaves {
       false // false = carve (subtract density)
     );
 
-    // Trigger local remesh to update physics (much faster than full heal!)
-    const stats = this.remeshManager.localUpdate(2); // Pad by 2 cells for boundary continuity
+    // Trigger local patch update to update physics (fastest method - only patches affected arcs!)
+    const stats = this.remeshManager.localPatchUpdate(2); // Pad by 2 cells for boundary continuity
     if (stats) {
       // Update UI stats if needed
       this.originalVertexCount = stats.originalVertexCount;
@@ -943,6 +943,12 @@ debugConsole.onToggleDirtyAABB = (enabled: boolean) => {
 debugConsole.onToggleRebuiltChains = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showRebuiltChains = enabled;
+  }
+};
+
+debugConsole.onToggleLoopPatching = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showLoopPatching = enabled;
   }
 };
 
