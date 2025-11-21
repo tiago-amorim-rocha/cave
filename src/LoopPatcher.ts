@@ -207,6 +207,9 @@ export class LoopPatcher {
       return null;
     }
 
+    const affectedCount = affectedIndices.filter(x => x).length;
+    console.log(`[LoopPatcher] findAffectedArc: ${affectedCount}/${n} vertices affected, arc=[${startIdx}, ${endIdx}], arcLength=${arcLength}`);
+
     return { startIdx, endIdx };
   }
 
@@ -394,11 +397,14 @@ export class LoopPatcher {
       // No wraparound
       beforePart = originalLoop.slice(0, startIdx);
       afterPart = originalLoop.slice(endIdx + 1);
+      console.log(`[LoopPatcher] No wraparound: beforePart=${beforePart.length}, oldArc=${endIdx - startIdx + 1}, afterPart=${afterPart.length}, total=${n}`);
     } else {
       // Wraparound: arc goes from startIdx to end, then from 0 to endIdx
       // Keep: endIdx+1 to startIdx-1
       beforePart = originalLoop.slice(endIdx + 1, startIdx);
       afterPart = [];
+      const arcLen = (n - startIdx) + (endIdx + 1);
+      console.log(`[LoopPatcher] Wraparound: beforePart=${beforePart.length}, oldArc=${arcLen}, afterPart=${afterPart.length}, total=${n}`);
     }
 
     return {
