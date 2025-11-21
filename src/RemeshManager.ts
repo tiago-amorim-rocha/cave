@@ -277,72 +277,112 @@ export class RemeshManager {
     // Clear cache
     this.loopCache.clear();
 
-    // If chunk manager exists, rebuild all chunks individually using proven code path
+    // If chunk manager exists, rebuild all chunks with batch optimization
     if (this.chunkManager) {
-      console.log('[FullHeal] Using chunk-based full rebuild (4×4 independent mini-worlds, proven code path)');
+      console.log('[FullHeal] Using chunk-based full rebuild with BATCH optimization');
 
       const engine = this.physics.getEngine();
       const allChunks = this.chunkManager.getAllChunks();
+      const gridPitch = this.densityField.config.gridPitch;
 
+      // Phase 1: Run marching squares on all chunks and collect loops
+      const t0 = performance.now();
+      const chunkLoops: Array<{
+        chunk: Chunk;
+        cleanedLoops: Point[][];
+        classifications: boolean[];
+      }> = [];
+      const allLoopsForOptimization: Point[][] = [];
+
+      for (const chunk of allChunks) {
+        // Remove old physics bodies
+        engine.removeTerrainInRegion(chunk.bounds);
+
+        // Run marching squares
+        const results = this.marchingSquares.generateContours(chunk.bounds, 0);
+
+        // Clean loops
+        const cleanedLoops: Point[][] = [];
+        const classifications: boolean[] = [];
+
+        for (const result of results) {
+          if (result && result.loop && result.loop.length > 2) {
+            const cleanedLoop = cleanLoop(result.loop, gridPitch);
+            if (cleanedLoop.length >= 3) {
+              // Classify
+              const classificationResult = this.isRockLoop(cleanedLoop);
+              if (!classificationResult.shouldDelete) {
+                cleanedLoops.push(cleanedLoop);
+                classifications.push(classificationResult.isRock);
+                allLoopsForOptimization.push(cleanedLoop);
+              }
+            }
+          }
+        }
+
+        chunkLoops.push({ chunk, cleanedLoops, classifications });
+      }
+      const t1 = performance.now();
+      console.log(`[FullHeal] ⏱️ Phase 1 (Marching + Clean + Classify): ${(t1 - t0).toFixed(2)}ms for ${allChunks.length} chunks`);
+
+      // Phase 2: ONE optimization pass on all loops together
+      const t2 = performance.now();
+      const optimizationResult = this.optimizationPipeline.optimize(allLoopsForOptimization, this.optimizationOptions);
+      const t3 = performance.now();
+      console.log(`[FullHeal] ⏱️ Phase 2 (Batch Optimization): ${(t3 - t2).toFixed(2)}ms for ${allLoopsForOptimization.length} loops`);
+
+      // Phase 3: Distribute optimized loops back to chunks and create physics
+      const t4 = performance.now();
+      let loopIndex = 0;
       let totalOriginalVertices = 0;
       let totalFinalVertices = 0;
       const allFinalLoops: Point[][] = [];
       const allOriginalLoops: Point[][] = [];
 
-      // Rebuild each chunk using proven legacy code path
-      for (const chunk of allChunks) {
-        const chunkInfo = this.chunkManager.getChunkInfo(chunk);
-        console.log(`[FullHeal] 📦 ${chunkInfo}`);
+      for (const { chunk, cleanedLoops, classifications } of chunkLoops) {
+        const chunkFinalLoops: Point[][] = [];
+        const chunkOriginalLoops: Point[][] = [];
+        const shouldReverse: boolean[] = [];
 
-        // Remove old physics bodies in this chunk
-        const t1 = performance.now();
-        const removedCount = engine.removeTerrainInRegion(chunk.bounds);
-        const t2 = performance.now();
-        console.log(`[FullHeal]   ⏱️ Remove old bodies: ${(t2 - t1).toFixed(2)}ms (removed ${removedCount})`);
+        // Extract this chunk's optimized loops
+        for (let i = 0; i < cleanedLoops.length; i++) {
+          const finalLoop = optimizationResult.finalLoops[loopIndex];
+          const originalLoop = optimizationResult.trueOriginalLoops[loopIndex];
+          chunkFinalLoops.push(finalLoop);
+          chunkOriginalLoops.push(originalLoop);
+          shouldReverse.push(!classifications[i]);
+          loopIndex++;
+        }
 
-        // Rebuild region using proven code path
-        const result = this.rebuildRegion(chunk.bounds, '[FullHeal]');
+        // Add physics bodies for this chunk
+        engine.addTerrainLoops(chunkFinalLoops, shouldReverse);
 
-        // Add new physics bodies
-        const t3 = performance.now();
-        engine.addTerrainLoops(result.finalLoops, result.shouldReverse);
-        const t4 = performance.now();
-        console.log(`[FullHeal]   ⏱️ Add new bodies: ${(t4 - t3).toFixed(2)}ms (created ${result.finalLoops.length} bodies)`);
+        // Store in chunk
+        chunk.loops = chunkFinalLoops;
+        chunk.originalLoops = chunkOriginalLoops;
 
-        // Store for chunk and aggregate stats
-        chunk.loops = result.finalLoops;
-        chunk.originalLoops = result.originalLoops;
-        totalOriginalVertices += result.stats.originalVertexCount;
-        totalFinalVertices += result.stats.finalVertexCount;
-
-        allFinalLoops.push(...result.finalLoops);
-        allOriginalLoops.push(...result.originalLoops);
+        // Aggregate for rendering
+        allFinalLoops.push(...chunkFinalLoops);
+        allOriginalLoops.push(...chunkOriginalLoops);
       }
-
-      // Update renderer with all loops from all chunks
       const t5 = performance.now();
+      console.log(`[FullHeal] ⏱️ Phase 3 (Distribute + Physics): ${(t5 - t4).toFixed(2)}ms`);
+
+      // Update renderer with all loops
+      const t6 = performance.now();
       this.renderer.updateOriginalPolylines(allOriginalLoops);
       const finalForRender = allFinalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
       this.renderer.updatePolylines(finalForRender);
-      const t6 = performance.now();
-      console.log(`[FullHeal] ⏱️ Re-render walls: ${(t6 - t5).toFixed(2)}ms`);
+      const t7 = performance.now();
+      console.log(`[FullHeal] ⏱️ Re-render walls: ${(t7 - t6).toFixed(2)}ms`);
 
       this.densityField.clearDirty();
 
-      const t7 = performance.now();
-      console.log(`[FullHeal] 🎯 TOTAL: ${(t7 - startTime).toFixed(2)}ms for ${allChunks.length} chunks`);
+      const totalTime = t7 - startTime;
+      console.log(`[FullHeal] 🎯 TOTAL: ${totalTime.toFixed(2)}ms for ${allChunks.length} chunks`);
 
       // Return aggregate stats
-      const simplificationReduction = totalOriginalVertices > 0
-        ? ((totalOriginalVertices - totalFinalVertices) / totalOriginalVertices) * 100
-        : 0;
-
-      return {
-        originalVertexCount: totalOriginalVertices,
-        finalVertexCount: totalFinalVertices,
-        simplificationReduction,
-        postSimplificationReduction: simplificationReduction,
-      };
+      return optimizationResult.statistics;
     }
 
     // Fallback: Legacy full-world rebuild (if no chunk manager)
