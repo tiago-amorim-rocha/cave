@@ -34,6 +34,7 @@ export class DebugConsole {
   public onToggleDensityField?: (enabled: boolean) => void;
   public onToggleDirtyAABB?: (enabled: boolean) => void;
   public onToggleRebuiltChains?: (enabled: boolean) => void;
+  public onToggleLoopPatching?: (enabled: boolean) => void;
   public onSimplificationChange?: (epsilon: number) => void;
   public onSimplificationPostChange?: (epsilon: number) => void;
   public onToggleChaikin?: (enabled: boolean) => void;
@@ -470,7 +471,8 @@ export class DebugConsole {
       { label: 'Grid', key: 'grid', callback: 'onToggleGrid', checked: false },
       { label: 'Density Field', key: 'density', callback: 'onToggleDensityField', checked: false },
       { label: 'Dirty AABB', key: 'dirtyaabb', callback: 'onToggleDirtyAABB', checked: true },
-      { label: 'Rebuilt Chains', key: 'rebuiltchains', callback: 'onToggleRebuiltChains', checked: true }
+      { label: 'Rebuilt Chains', key: 'rebuiltchains', callback: 'onToggleRebuiltChains', checked: true },
+      { label: 'Loop Patching', key: 'looppatching', callback: 'onToggleLoopPatching', checked: true }
     ];
 
     toggles.forEach(({ label, key, callback, checked }) => {
