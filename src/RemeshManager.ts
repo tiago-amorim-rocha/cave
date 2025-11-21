@@ -424,11 +424,8 @@ export class RemeshManager {
     const loopClassifications: boolean[] = [];
 
     for (const cleanedLoop of cleanedLoops) {
-      // Compute centroid
-      const centroid = computePolygonCentroid(cleanedLoop);
-
-      // Check if this chunk owns this loop
-      if (!this.chunkManager.chunkOwnsPoint(chunk, centroid)) {
+      // Check if this chunk owns this loop (first-vertex ownership)
+      if (!this.chunkManager.chunkOwnsLoop(chunk, cleanedLoop)) {
         // This loop belongs to a neighbor chunk, skip it
         continue;
       }
