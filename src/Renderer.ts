@@ -74,6 +74,8 @@ export class Renderer {
     oldArc: Vec2[];
     newArc: Vec2[];
     patchedLoop: Vec2[];
+    beforePart: Vec2[];
+    afterPart: Vec2[];
     dirtyAABB: { minX: number; minY: number; maxX: number; maxY: number };
   }> = [];
 
@@ -200,6 +202,8 @@ export class Renderer {
     oldArc: Vec2[];
     newArc: Vec2[];
     patchedLoop: Vec2[];
+    beforePart: Vec2[];
+    afterPart: Vec2[];
     dirtyAABB: { minX: number; minY: number; maxX: number; maxY: number };
   }>): void {
     this.loopPatchDebugInfo = info;
@@ -814,10 +818,10 @@ export class Renderer {
       this.ctx.strokeRect(topLeft.x, topLeft.y, rectWidth, rectHeight);
       this.ctx.setLineDash([]);
 
-      // 2. Draw original loop (gray, thin, semi-transparent)
+      // 2. Draw original loop (gray, thin, semi-transparent) - FULL original for reference
       if (patchInfo.originalLoop.length > 2) {
-        this.ctx.strokeStyle = 'rgba(128, 128, 128, 0.4)'; // Gray
-        this.ctx.lineWidth = 2;
+        this.ctx.strokeStyle = 'rgba(128, 128, 128, 0.3)'; // Gray, very subtle
+        this.ctx.lineWidth = 1;
         this.ctx.beginPath();
         const first = this.camera.worldToScreen(patchInfo.originalLoop[0].x, patchInfo.originalLoop[0].y, canvasWidth, canvasHeight);
         this.ctx.moveTo(first.x, first.y);
@@ -827,6 +831,56 @@ export class Renderer {
         }
         this.ctx.closePath();
         this.ctx.stroke();
+      }
+
+      // 2b. Draw KEPT parts of the loop (before and after) in BLUE - these are unchanged
+      // This clearly shows which vertices are being preserved
+      if (patchInfo.beforePart.length > 1) {
+        this.ctx.strokeStyle = '#4488ff'; // Bright blue
+        this.ctx.lineWidth = 4;
+        this.ctx.globalAlpha = 0.9;
+        this.ctx.beginPath();
+        const first = this.camera.worldToScreen(patchInfo.beforePart[0].x, patchInfo.beforePart[0].y, canvasWidth, canvasHeight);
+        this.ctx.moveTo(first.x, first.y);
+        for (let i = 1; i < patchInfo.beforePart.length; i++) {
+          const screen = this.camera.worldToScreen(patchInfo.beforePart[i].x, patchInfo.beforePart[i].y, canvasWidth, canvasHeight);
+          this.ctx.lineTo(screen.x, screen.y);
+        }
+        this.ctx.stroke();
+        this.ctx.globalAlpha = 1.0;
+
+        // Draw vertices as blue dots
+        for (const vertex of patchInfo.beforePart) {
+          const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
+          this.ctx.fillStyle = '#4488ff';
+          this.ctx.beginPath();
+          this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+      }
+
+      if (patchInfo.afterPart.length > 1) {
+        this.ctx.strokeStyle = '#4488ff'; // Bright blue
+        this.ctx.lineWidth = 4;
+        this.ctx.globalAlpha = 0.9;
+        this.ctx.beginPath();
+        const first = this.camera.worldToScreen(patchInfo.afterPart[0].x, patchInfo.afterPart[0].y, canvasWidth, canvasHeight);
+        this.ctx.moveTo(first.x, first.y);
+        for (let i = 1; i < patchInfo.afterPart.length; i++) {
+          const screen = this.camera.worldToScreen(patchInfo.afterPart[i].x, patchInfo.afterPart[i].y, canvasWidth, canvasHeight);
+          this.ctx.lineTo(screen.x, screen.y);
+        }
+        this.ctx.stroke();
+        this.ctx.globalAlpha = 1.0;
+
+        // Draw vertices as blue dots
+        for (const vertex of patchInfo.afterPart) {
+          const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
+          this.ctx.fillStyle = '#4488ff';
+          this.ctx.beginPath();
+          this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
       }
 
       // 3. Draw old arc being replaced (red, thick)
@@ -896,7 +950,45 @@ export class Renderer {
         this.ctx.globalAlpha = 1.0;
       }
 
-      // 6. Draw legend in top-left of dirty AABB
+      // 6. Highlight connection points (where new arc joins unchanged loop)
+      // These are critical for understanding the stitching process
+      if (patchInfo.newArc.length > 0) {
+        // Connection point 1: Start of new arc (connects to "before" part)
+        const startPoint = patchInfo.newArc[0];
+        const startScreen = this.camera.worldToScreen(startPoint.x, startPoint.y, canvasWidth, canvasHeight);
+
+        // Draw outer ring (white)
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 3;
+        this.ctx.beginPath();
+        this.ctx.arc(startScreen.x, startScreen.y, 10, 0, Math.PI * 2);
+        this.ctx.stroke();
+
+        // Draw inner circle (magenta)
+        this.ctx.fillStyle = '#ff00ff';
+        this.ctx.beginPath();
+        this.ctx.arc(startScreen.x, startScreen.y, 7, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Connection point 2: End of new arc (connects to "after" part)
+        const endPoint = patchInfo.newArc[patchInfo.newArc.length - 1];
+        const endScreen = this.camera.worldToScreen(endPoint.x, endPoint.y, canvasWidth, canvasHeight);
+
+        // Draw outer ring (white)
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 3;
+        this.ctx.beginPath();
+        this.ctx.arc(endScreen.x, endScreen.y, 10, 0, Math.PI * 2);
+        this.ctx.stroke();
+
+        // Draw inner circle (orange)
+        this.ctx.fillStyle = '#ff8800';
+        this.ctx.beginPath();
+        this.ctx.arc(endScreen.x, endScreen.y, 7, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+
+      // 7. Draw legend in top-left of dirty AABB
       const legendX = topLeft.x + 10;
       const legendY = topLeft.y + 10;
       this.ctx.font = 'bold 12px monospace';
@@ -905,10 +997,11 @@ export class Renderer {
       this.ctx.lineWidth = 3;
 
       const legendItems = [
-        { color: 'rgba(128, 128, 128, 0.8)', text: 'Original Loop' },
-        { color: '#ff0000', text: 'Old Arc (replaced)' },
-        { color: '#00ff00', text: 'New Arc (from MS)' },
-        { color: '#00ffff', text: 'Patched Loop' },
+        { color: '#4488ff', text: 'KEPT (unchanged)' },
+        { color: '#ff0000', text: 'OLD Arc (replaced)' },
+        { color: '#00ff00', text: 'NEW Arc (from MS)' },
+        { color: '#ff00ff', text: 'Start Stitch' },
+        { color: '#ff8800', text: 'End Stitch' },
       ];
 
       let yOffset = 0;
