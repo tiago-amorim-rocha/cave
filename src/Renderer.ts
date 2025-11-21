@@ -1,6 +1,7 @@
 import type { Camera } from './Camera';
 import type { Vec2 } from './types';
 import type { DensityField } from './DensityField';
+import type { ChunkManager } from './ChunkManager';
 
 /**
  * Ball rendering data
@@ -59,6 +60,7 @@ export class Renderer {
   private originalPolylines: Vec2[][] = []; // Store original vertices before optimization
   private originalPolylineAABBs: Array<{ minX: number; minY: number; maxX: number; maxY: number }> = []; // AABB for each original polyline
   private densityField: DensityField | null = null;
+  private chunkManager: ChunkManager | null = null;
   private loopDebugInfo: Array<{
     index: number;
     centroid: { x: number; y: number };
@@ -83,6 +85,7 @@ export class Renderer {
   private lastPatchLogTime: number = 0;
 
   public showGrid: boolean = false;
+  public showChunkGrid: boolean = false; // Show chunk boundaries
   public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
@@ -246,6 +249,13 @@ export class Renderer {
   }
 
   /**
+   * Set chunk manager for chunk grid visualization
+   */
+  setChunkManager(chunkManager: ChunkManager): void {
+    this.chunkManager = chunkManager;
+  }
+
+  /**
    * Set loop debug info for rendering loop numbers and sample points
    */
   setLoopDebugInfo(info: Array<{
@@ -333,6 +343,11 @@ export class Renderer {
       // Draw grid (optional, for debugging)
       if (this.showGrid) {
         this.drawGrid(width, height);
+      }
+
+      // Draw chunk grid (optional, for debugging)
+      if (this.showChunkGrid) {
+        this.drawChunkGrid(width, height);
       }
 
       // Draw polylines
@@ -1221,6 +1236,71 @@ export class Renderer {
       this.ctx.moveTo(left.x, left.y);
       this.ctx.lineTo(right.x, right.y);
       this.ctx.stroke();
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw chunk grid (8m × 8m chunks)
+   */
+  private drawChunkGrid(canvasWidth: number, canvasHeight: number): void {
+    if (!this.chunkManager) return;
+
+    this.ctx.save();
+    this.ctx.strokeStyle = '#ff6600'; // Orange for chunk boundaries
+    this.ctx.lineWidth = 2;
+
+    const { chunksX, chunksY, chunkSize } = this.chunkManager.getChunkGridDimensions();
+
+    // Calculate visible world bounds
+    const topLeft = this.camera.screenToWorld(0, 0, canvasWidth, canvasHeight);
+    const bottomRight = this.camera.screenToWorld(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
+
+    // Draw vertical chunk boundaries
+    for (let i = 0; i <= chunksX; i++) {
+      const worldX = i * chunkSize;
+      if (worldX >= topLeft.x && worldX <= bottomRight.x) {
+        const top = this.camera.worldToScreen(worldX, topLeft.y, canvasWidth, canvasHeight);
+        const bottom = this.camera.worldToScreen(worldX, bottomRight.y, canvasWidth, canvasHeight);
+        this.ctx.beginPath();
+        this.ctx.moveTo(top.x, top.y);
+        this.ctx.lineTo(bottom.x, bottom.y);
+        this.ctx.stroke();
+      }
+    }
+
+    // Draw horizontal chunk boundaries
+    for (let j = 0; j <= chunksY; j++) {
+      const worldY = j * chunkSize;
+      if (worldY >= topLeft.y && worldY <= bottomRight.y) {
+        const left = this.camera.worldToScreen(topLeft.x, worldY, canvasWidth, canvasHeight);
+        const right = this.camera.worldToScreen(bottomRight.x, worldY, canvasWidth, canvasHeight);
+        this.ctx.beginPath();
+        this.ctx.moveTo(left.x, left.y);
+        this.ctx.lineTo(right.x, right.y);
+        this.ctx.stroke();
+      }
+    }
+
+    // Draw chunk labels at centers
+    this.ctx.fillStyle = '#ff6600';
+    this.ctx.font = '14px monospace';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+
+    for (let gy = 0; gy < chunksY; gy++) {
+      for (let gx = 0; gx < chunksX; gx++) {
+        const centerWorldX = (gx + 0.5) * chunkSize;
+        const centerWorldY = (gy + 0.5) * chunkSize;
+
+        // Only draw labels for visible chunks
+        if (centerWorldX >= topLeft.x && centerWorldX <= bottomRight.x &&
+            centerWorldY >= topLeft.y && centerWorldY <= bottomRight.y) {
+          const screenPos = this.camera.worldToScreen(centerWorldX, centerWorldY, canvasWidth, canvasHeight);
+          this.ctx.fillText(`(${gx},${gy})`, screenPos.x, screenPos.y);
+        }
+      }
     }
 
     this.ctx.restore();
