@@ -246,8 +246,8 @@ export class ChunkManager {
   }
 
   /**
-   * Check if a point (centroid) is owned by this chunk
-   * Used to filter loops and prevent duplication at boundaries
+   * Check if a point is owned by this chunk
+   * Uses half-open interval [min, max) for deterministic boundary handling
    */
   chunkOwnsPoint(chunk: Chunk, point: Point): boolean {
     return (
@@ -256,6 +256,16 @@ export class ChunkManager {
       point.y >= chunk.bounds.minY &&
       point.y < chunk.bounds.maxY
     );
+  }
+
+  /**
+   * Check if a loop is owned by this chunk
+   * Uses first-vertex ownership to avoid edge cases with centroid-based ownership
+   * (centroid can fall outside all chunks for horseshoe shapes or on boundaries)
+   */
+  chunkOwnsLoop(chunk: Chunk, loop: Point[]): boolean {
+    if (loop.length === 0) return false;
+    return this.chunkOwnsPoint(chunk, loop[0]);
   }
 
   /**
