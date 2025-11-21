@@ -391,7 +391,7 @@ export class RemeshManager {
     const t2 = performance.now();
     console.log(`[RebuildChunk]   ⏱️ Remove old bodies: ${(t2 - t1).toFixed(2)}ms (removed ${removedCount})`);
 
-    // Step 2: Run marching squares on chunk's marching region (includes ghost cells)
+    // Step 2: Run marching squares on chunk bounds (no ghost cells - fully independent)
     const marchingAABB = this.chunkManager.getChunkMarchingAABB(chunk);
     const t3 = performance.now();
     const results = this.marchingSquares.generateContours(marchingAABB, 0);
@@ -418,18 +418,12 @@ export class RemeshManager {
 
     console.log(`[RebuildChunk]   ⏱️ Clean loops: ${cleanedLoops.length} loops, ${rawVertexCount} → ${cleanedVertexCount} vertices`);
 
-    // Step 4: Filter loops by centroid ownership (prevents duplication at boundaries)
+    // Step 4: Classify loops (no ownership filtering - all loops belong to this chunk)
     const t5 = performance.now();
-    const ownedLoops: Point[][] = [];
+    const validLoops: Point[][] = [];
     const loopClassifications: boolean[] = [];
 
     for (const cleanedLoop of cleanedLoops) {
-      // Check if this chunk owns this loop (first-vertex ownership)
-      if (!this.chunkManager.chunkOwnsLoop(chunk, cleanedLoop)) {
-        // This loop belongs to a neighbor chunk, skip it
-        continue;
-      }
-
       // Classify the loop
       const classificationResult = this.isRockLoop(cleanedLoop);
 
@@ -438,15 +432,15 @@ export class RemeshManager {
         continue;
       }
 
-      ownedLoops.push(cleanedLoop);
+      validLoops.push(cleanedLoop);
       loopClassifications.push(classificationResult.isRock);
     }
 
     const t6 = performance.now();
-    console.log(`[RebuildChunk]   ⏱️ Filter + classify: ${(t6 - t5).toFixed(2)}ms (${ownedLoops.length} owned loops after filtering)`);
+    console.log(`[RebuildChunk]   ⏱️ Classify: ${(t6 - t5).toFixed(2)}ms (${validLoops.length} valid loops)`);
 
     // Step 5: Optimize loops
-    const optimizationResult = this.optimizationPipeline.optimize(ownedLoops, this.optimizationOptions);
+    const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
     const finalVertexCount = optimizationResult.finalLoops.reduce((sum, loop) => sum + loop.length, 0);
     console.log(`[RebuildChunk]   ⏱️ Optimization: ${optimizationResult.timing.totalMs.toFixed(2)}ms (${cleanedVertexCount} → ${finalVertexCount} vertices)`);
 

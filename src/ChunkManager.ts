@@ -2,18 +2,22 @@
  * ChunkManager - Fixed-size chunk-based world subdivision
  *
  * Divides the world into fixed-size chunks (e.g., 8m × 8m).
- * Each chunk:
- * - Owns a specific region of density field cells
- * - Reads neighbor cells ("ghost cells") for marching squares
+ * Each chunk is a fully independent mini-world:
+ * - Processes ONLY its own region (no ghost cells)
+ * - Generates its own loops via marching squares
  * - Manages its own physics colliders
  * - Tracks whether it's dirty
  *
- * Benefits over dynamic AABB:
+ * Benefits:
+ * - True independence (no ownership filtering needed)
  * - Predictable boundaries (no dynamic expansion)
- * - Complete loops within chunks (with ghost cells)
  * - Atomic updates (delete all old colliders, create all new ones)
- * - Clear ownership (centroid-based)
- * - Easier to debug and visualize
+ * - Parallelizable (chunks don't depend on neighbors)
+ * - Simple and robust (no edge cases)
+ *
+ * Trade-offs:
+ * - Small visual/physics seams at chunk boundaries (acceptable)
+ * - Slightly more total vertices (boundary edges duplicated)
  */
 
 import type { AABB, Point } from './types';
@@ -21,23 +25,16 @@ import type { DensityField } from './DensityField';
 
 /**
  * A single chunk in the world grid
+ * Each chunk is a fully independent mini-world that processes only its own region
  */
 export interface Chunk {
   // Grid coordinates (chunk indices, not world/cell coordinates)
   gridX: number;
   gridY: number;
 
-  // Core bounds (owned region) in world coordinates
+  // Chunk bounds in world coordinates
+  // Marching squares runs ONLY within these bounds (no ghost cells)
   bounds: AABB;
-
-  // Marching squares region (includes ghost cells) in GRID coordinates
-  // This is the region we READ from when running marching squares
-  marchingRegion: {
-    minGridX: number;
-    minGridY: number;
-    maxGridX: number; // inclusive
-    maxGridY: number; // inclusive
-  };
 
   // Physics collider handles for this chunk
   colliderHandles: Set<number>;
@@ -73,7 +70,7 @@ export class ChunkManager {
     this.chunksX = Math.ceil(this.worldWidth / chunkSize);
     this.chunksY = Math.ceil(this.worldHeight / chunkSize);
 
-    console.log(`[ChunkManager] Initializing ${this.chunksX}×${this.chunksY} = ${this.chunksX * this.chunksY} chunks (${chunkSize}m × ${chunkSize}m)`);
+    console.log(`[ChunkManager] Initializing ${this.chunksX}×${this.chunksY} = ${this.chunksX * this.chunksY} fully independent chunks (${chunkSize}m × ${chunkSize}m, no ghost cells)`);
 
     // Initialize all chunks
     this.initializeChunks();
@@ -93,32 +90,19 @@ export class ChunkManager {
 
   /**
    * Create a single chunk
+   * Each chunk is fully independent with no ghost cells
    */
   private createChunk(gridX: number, gridY: number): Chunk {
-    // Core bounds in world coordinates
+    // Chunk bounds in world coordinates
     const minX = gridX * this.chunkSize;
     const minY = gridY * this.chunkSize;
     const maxX = Math.min(minX + this.chunkSize, this.worldWidth);
     const maxY = Math.min(minY + this.chunkSize, this.worldHeight);
 
-    // Marching squares region (includes 1 ghost cell on each side) in GRID coordinates
-    // Ghost cells allow complete loops without stitching
-    const minGridX = Math.max(0, Math.floor(minX / this.gridPitch) - 1);
-    const minGridY = Math.max(0, Math.floor(minY / this.gridPitch) - 1);
-    const maxGridX = Math.min(
-      this.densityField.gridWidth - 1,
-      Math.ceil(maxX / this.gridPitch) + 1
-    );
-    const maxGridY = Math.min(
-      this.densityField.gridHeight - 1,
-      Math.ceil(maxY / this.gridPitch) + 1
-    );
-
     return {
       gridX,
       gridY,
       bounds: { minX, minY, maxX, maxY },
-      marchingRegion: { minGridX, minGridY, maxGridX, maxGridY },
       colliderHandles: new Set(),
       isDirty: false,
       loops: [],
@@ -233,39 +217,12 @@ export class ChunkManager {
   }
 
   /**
-   * Convert chunk marching region to world AABB
-   * This is the region we pass to marching squares
+   * Get chunk marching squares AABB
+   * Returns the chunk bounds directly (no ghost cells)
+   * Each chunk processes ONLY its own region
    */
   getChunkMarchingAABB(chunk: Chunk): AABB {
-    return {
-      minX: chunk.marchingRegion.minGridX * this.gridPitch,
-      minY: chunk.marchingRegion.minGridY * this.gridPitch,
-      maxX: (chunk.marchingRegion.maxGridX + 1) * this.gridPitch,
-      maxY: (chunk.marchingRegion.maxGridY + 1) * this.gridPitch,
-    };
-  }
-
-  /**
-   * Check if a point is owned by this chunk
-   * Uses half-open interval [min, max) for deterministic boundary handling
-   */
-  chunkOwnsPoint(chunk: Chunk, point: Point): boolean {
-    return (
-      point.x >= chunk.bounds.minX &&
-      point.x < chunk.bounds.maxX &&
-      point.y >= chunk.bounds.minY &&
-      point.y < chunk.bounds.maxY
-    );
-  }
-
-  /**
-   * Check if a loop is owned by this chunk
-   * Uses first-vertex ownership to avoid edge cases with centroid-based ownership
-   * (centroid can fall outside all chunks for horseshoe shapes or on boundaries)
-   */
-  chunkOwnsLoop(chunk: Chunk, loop: Point[]): boolean {
-    if (loop.length === 0) return false;
-    return this.chunkOwnsPoint(chunk, loop[0]);
+    return chunk.bounds;
   }
 
   /**
