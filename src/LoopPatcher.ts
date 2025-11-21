@@ -27,6 +27,12 @@ export interface LoopPatchResult {
   /** The new arc that was stitched in (for debug visualization) */
   newArc: Point[];
 
+  /** The "before" part of the loop that was kept (for debug visualization) */
+  beforePart: Point[];
+
+  /** The "after" part of the loop that was kept (for debug visualization) */
+  afterPart: Point[];
+
   /** Start index of the replaced arc in original loop */
   arcStartIdx: number;
 
@@ -379,11 +385,29 @@ export class LoopPatcher {
     // Stitch the new arc in
     const patchedLoop = this.stitchArc(originalLoop, startIdx, endIdx, newArc);
 
+    // Extract the "before" and "after" parts for debug visualization
+    let beforePart: Point[];
+    let afterPart: Point[];
+
+    const n = originalLoop.length;
+    if (startIdx <= endIdx) {
+      // No wraparound
+      beforePart = originalLoop.slice(0, startIdx);
+      afterPart = originalLoop.slice(endIdx + 1);
+    } else {
+      // Wraparound: arc goes from startIdx to end, then from 0 to endIdx
+      // Keep: endIdx+1 to startIdx-1
+      beforePart = originalLoop.slice(endIdx + 1, startIdx);
+      afterPart = [];
+    }
+
     return {
       patchedLoop,
       originalLoop,
       oldArc,
       newArc,
+      beforePart,
+      afterPart,
       arcStartIdx: startIdx,
       arcEndIdx: endIdx,
       dirtyAABB,

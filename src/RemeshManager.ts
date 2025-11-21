@@ -511,6 +511,8 @@ export class RemeshManager {
       oldArc: Point[];
       newArc: Point[];
       patchedLoop: Point[];
+      beforePart: Point[];
+      afterPart: Point[];
       dirtyAABB: typeof paddedAABB;
     }> = [];
 
@@ -545,6 +547,8 @@ export class RemeshManager {
             oldArc: patchResult.oldArc,
             newArc: patchResult.newArc,
             patchedLoop: optimizedPatchedLoop,
+            beforePart: patchResult.beforePart,
+            afterPart: patchResult.afterPart,
             dirtyAABB: patchResult.dirtyAABB,
           });
 
