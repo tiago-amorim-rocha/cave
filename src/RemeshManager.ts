@@ -587,32 +587,49 @@ export class RemeshManager {
     console.log(`[LocalPatch] 🎨 Setting ${patchDebugInfo.length} patch debug infos for visualization`);
     this.renderer.setLoopPatchDebugInfo(patchDebugInfo);
 
-    // Step 6: Update rendering with patched loops (NO full world remesh!)
-    // We can reuse the existing rendered loops and just update the patched ones
+    // Step 6: Update visuals - LOCAL update only (remove old, add new)
     const t11 = performance.now();
 
-    // For now, we still do a quick visual update, but in the future we could:
-    // - Keep track of which rendered loops correspond to which physics bodies
-    // - Only update the visual representation of the patched loops
-    // - This would make rendering O(1) instead of O(n)
+    // Remove old polylines in the affected region
+    const removedPolylineCount = this.renderer.removePolylinesInRegion(paddedAABB);
+    const t11a = performance.now();
+    console.log(`[LocalPatch] ⏱️ Remove old polylines: ${(t11a - t11).toFixed(2)}ms (removed ${removedPolylineCount})`);
 
-    // Quick hack: just don't update visuals at all - physics is already correct!
-    // The slight visual desync is acceptable and will be fixed on next full heal
-    console.log(`[LocalPatch] ⏱️ Skipping visual update (physics already correct)`);
+    // Use the already-computed patched loops for visual update
+    // We need to run marching squares on the dirty region to get the visual representation
+    const visualResults = this.marchingSquares.generateContours(paddedAABB, expandCells);
+    const visualLoops: Point[][] = [];
+
+    for (const result of visualResults) {
+      if (result && result.loop && result.loop.length > 2) {
+        const cleanedLoop = cleanLoop(result.loop, gridPitch);
+        if (cleanedLoop.length >= 3) {
+          visualLoops.push(cleanedLoop);
+        }
+      }
+    }
+
+    const t11b = performance.now();
+    console.log(`[LocalPatch] ⏱️ Local marching squares for visuals: ${(t11b - t11a).toFixed(2)}ms (${visualLoops.length} loops)`);
+
+    // Optimize the local visual loops
+    const visualOptimization = this.optimizationPipeline.optimize(visualLoops, this.optimizationOptions);
+    const t11c = performance.now();
+    console.log(`[LocalPatch] ⏱️ Optimize local visual loops: ${(t11c - t11b).toFixed(2)}ms`);
+
+    // Add the new optimized polylines
+    const finalForRender = visualOptimization.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+    this.renderer.addPolylines(finalForRender, visualOptimization.trueOriginalLoops);
 
     const t12 = performance.now();
+    console.log(`[LocalPatch] ⏱️ Local visual update (remove + add): ${(t12 - t11).toFixed(2)}ms`);
+
     console.log(`[LocalPatch] 🎯 TOTAL (including rendering): ${(t12 - t0).toFixed(2)}ms`);
 
     // Clear dirty region
     this.densityField.clearDirty();
 
-    // Return dummy stats since we're not re-optimizing everything
-    return {
-      originalVertexCount: 0,
-      finalVertexCount: 0,
-      simplificationReduction: 0,
-      postSimplificationReduction: 0,
-    };
+    return visualOptimization.statistics;
   }
 
   /**

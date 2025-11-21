@@ -55,7 +55,9 @@ export class Renderer {
   private camera: Camera;
 
   private polylines: Vec2[][] = [];
+  private polylineAABBs: Array<{ minX: number; minY: number; maxX: number; maxY: number }> = []; // AABB for each polyline
   private originalPolylines: Vec2[][] = []; // Store original vertices before optimization
+  private originalPolylineAABBs: Array<{ minX: number; minY: number; maxX: number; maxY: number }> = []; // AABB for each original polyline
   private densityField: DensityField | null = null;
   private loopDebugInfo: Array<{
     index: number;
@@ -140,17 +142,100 @@ export class Renderer {
   }
 
   /**
-   * Update polylines to render
+   * Update polylines to render (replaces all polylines)
    */
   updatePolylines(polylines: Vec2[][]): void {
     this.polylines = polylines;
+    this.polylineAABBs = polylines.map(p => this.computePolylineAABB(p));
   }
 
   /**
-   * Update original (unoptimized) polylines for debug visualization
+   * Update original (unoptimized) polylines for debug visualization (replaces all)
    */
   updateOriginalPolylines(polylines: Vec2[][]): void {
     this.originalPolylines = polylines;
+    this.originalPolylineAABBs = polylines.map(p => this.computePolylineAABB(p));
+  }
+
+  /**
+   * Compute AABB for a polyline
+   */
+  private computePolylineAABB(polyline: Vec2[]): { minX: number; minY: number; maxX: number; maxY: number } {
+    if (polyline.length === 0) {
+      return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    }
+
+    let minX = polyline[0].x;
+    let minY = polyline[0].y;
+    let maxX = polyline[0].x;
+    let maxY = polyline[0].y;
+
+    for (const v of polyline) {
+      minX = Math.min(minX, v.x);
+      minY = Math.min(minY, v.y);
+      maxX = Math.max(maxX, v.x);
+      maxY = Math.max(maxY, v.y);
+    }
+
+    return { minX, minY, maxX, maxY };
+  }
+
+  /**
+   * Check if two AABBs intersect
+   */
+  private aabbsIntersect(a: { minX: number; minY: number; maxX: number; maxY: number }, b: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+    return !(
+      a.maxX < b.minX ||
+      a.minX > b.maxX ||
+      a.maxY < b.minY ||
+      a.minY > b.maxY
+    );
+  }
+
+  /**
+   * Remove polylines that intersect with the given region
+   * Returns the number of polylines removed
+   */
+  removePolylinesInRegion(region: { minX: number; minY: number; maxX: number; maxY: number }): number {
+    const indicesToKeep: number[] = [];
+
+    for (let i = 0; i < this.polylines.length; i++) {
+      if (!this.aabbsIntersect(this.polylineAABBs[i], region)) {
+        indicesToKeep.push(i);
+      }
+    }
+
+    const removedCount = this.polylines.length - indicesToKeep.length;
+
+    // Keep only non-intersecting polylines
+    this.polylines = indicesToKeep.map(i => this.polylines[i]);
+    this.polylineAABBs = indicesToKeep.map(i => this.polylineAABBs[i]);
+    this.originalPolylines = indicesToKeep.map(i => this.originalPolylines[i]);
+    this.originalPolylineAABBs = indicesToKeep.map(i => this.originalPolylineAABBs[i]);
+
+    console.log(`[Renderer] removePolylinesInRegion: removed ${removedCount}, kept ${indicesToKeep.length}`);
+    return removedCount;
+  }
+
+  /**
+   * Add new polylines (and their original versions)
+   */
+  addPolylines(optimized: Vec2[][], original: Vec2[][]): void {
+    if (optimized.length !== original.length) {
+      console.warn(`[Renderer] addPolylines: optimized (${optimized.length}) and original (${original.length}) counts mismatch`);
+    }
+
+    for (let i = 0; i < optimized.length; i++) {
+      this.polylines.push(optimized[i]);
+      this.polylineAABBs.push(this.computePolylineAABB(optimized[i]));
+
+      if (i < original.length) {
+        this.originalPolylines.push(original[i]);
+        this.originalPolylineAABBs.push(this.computePolylineAABB(original[i]));
+      }
+    }
+
+    console.log(`[Renderer] addPolylines: added ${optimized.length} polylines (total now: ${this.polylines.length})`);
   }
 
   /**
