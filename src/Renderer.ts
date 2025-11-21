@@ -86,9 +86,9 @@ export class Renderer {
   public showPhysicsBodies: boolean = false; // Disabled for performance testing
   public showLoopNumbers: boolean = false; // Disabled for performance testing
   public showSamplePoints: boolean = false; // Disabled for performance testing
-  public showDirtyAABB: boolean = false; // Disabled for performance testing
-  public showRebuiltChains: boolean = false; // Disabled for performance testing
-  public showLoopPatching: boolean = false; // Show loop patching debug visualization
+  public showDirtyAABB: boolean = true; // Enabled by default for local update debugging
+  public showRebuiltChains: boolean = true; // Enabled by default for local update debugging
+  public showLoopPatching: boolean = true; // Show loop patching debug visualization (enabled by default)
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -801,8 +801,12 @@ export class Renderer {
    * - Dirty AABB (yellow box)
    */
   private drawLoopPatching(canvasWidth: number, canvasHeight: number): void {
-    if (this.loopPatchDebugInfo.length === 0) return;
+    if (this.loopPatchDebugInfo.length === 0) {
+      // console.log('[Renderer] No loop patch debug info to draw');
+      return;
+    }
 
+    console.log(`[Renderer] Drawing ${this.loopPatchDebugInfo.length} loop patch debug infos`);
     this.ctx.save();
 
     for (const patchInfo of this.loopPatchDebugInfo) {
