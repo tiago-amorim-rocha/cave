@@ -480,6 +480,7 @@ export class RemeshManager {
 
     // Step 1: Run marching squares only in padded region to get new contour fragments
     const t0 = performance.now();
+    console.log(`[LocalPatch] 📐 Padded AABB size: ${(paddedAABB.maxX - paddedAABB.minX).toFixed(2)}m x ${(paddedAABB.maxY - paddedAABB.minY).toFixed(2)}m`);
     const results = this.marchingSquares.generateContours(paddedAABB, expandCells);
     const t1 = performance.now();
     const rawLoopCount = results.filter(r => r && r.loop && r.loop.length > 2).length;
@@ -494,6 +495,7 @@ export class RemeshManager {
       if (result && result.loop && result.loop.length > 2) {
         const cleanedLoop = cleanLoop(result.loop, gridPitch);
         if (cleanedLoop.length >= 3) {
+          console.log(`[LocalPatch]    Fragment: ${result.loop.length} vertices (raw) → ${cleanedLoop.length} vertices (cleaned)`);
           newFragments.push(cleanedLoop);
         }
       }
