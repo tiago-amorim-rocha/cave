@@ -185,7 +185,8 @@ export class RemeshManager {
   }
 
   /**
-   * Full world remesh - rebuild all loops
+   * Full world remesh - rebuild all chunks
+   * Uses chunk system from the start to ensure consistency
    */
   private fullHeal(): RemeshStats {
     const startTime = performance.now();
@@ -195,6 +196,51 @@ export class RemeshManager {
 
     // Clear cache
     this.loopCache.clear();
+
+    // If chunk manager exists, rebuild all chunks individually
+    if (this.chunkManager) {
+      console.log('[FullHeal] Using chunk-based full rebuild (4×4 independent mini-worlds)');
+
+      // Mark all chunks as dirty
+      this.chunkManager.markAllDirty();
+
+      // Get all chunks
+      const allChunks = this.chunkManager.getAllChunks();
+
+      let totalOriginalVertices = 0;
+      let totalFinalVertices = 0;
+
+      // Rebuild each chunk
+      for (const chunk of allChunks) {
+        const stats = this.rebuildSingleChunk(chunk);
+        if (stats) {
+          totalOriginalVertices += stats.originalVertexCount;
+          totalFinalVertices += stats.finalVertexCount;
+        }
+      }
+
+      // Clear dirty flags
+      this.chunkManager.clearAllDirty();
+      this.densityField.clearDirty();
+
+      const t1 = performance.now();
+      console.log(`[FullHeal] 🎯 TOTAL: ${(t1 - startTime).toFixed(2)}ms for ${allChunks.length} chunks`);
+
+      // Return aggregate stats
+      const simplificationReduction = totalOriginalVertices > 0
+        ? ((totalOriginalVertices - totalFinalVertices) / totalOriginalVertices) * 100
+        : 0;
+
+      return {
+        originalVertexCount: totalOriginalVertices,
+        finalVertexCount: totalFinalVertices,
+        simplificationReduction,
+        postSimplificationReduction: simplificationReduction,
+      };
+    }
+
+    // Fallback: Legacy full-world rebuild (if no chunk manager)
+    console.warn('[FullHeal] No chunk manager - using legacy full-world rebuild');
 
     // Generate all contours for entire field
     const fullField = {
