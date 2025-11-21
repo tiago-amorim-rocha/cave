@@ -1,0 +1,208 @@
+[00:21:19] LOG: [LocalUpdate] ⏱️ Optimization: 9.60ms (363 → 251 vertices)
+[00:21:19] LOG: [LocalUpdate]    ↳ cleanLoop: 0.80ms
+[00:21:19] LOG: [LocalUpdate]    ↳ Chaikin smoothing (expand): 0.20ms
+[00:21:19] LOG: [LocalUpdate]    ↳ Post-simplification (reduce): 8.60ms
+[00:21:19] LOG: [LocalUpdate] Built 1 canonical loops (251 verts total)
+[00:21:19] LOG: [Box2DEngine] Loop 16: built 5 segments (verts=251)
+[00:21:19] LOG: [Box2DEngine]  Segment 0 {
+  "id": 51,
+  "startIndex": 0,
+  "endIndex": 46
+}
+[00:21:19] LOG: [Box2DEngine]  Segment 1 {
+  "id": 52,
+  "startIndex": 46,
+  "endIndex": 98
+}
+[00:21:19] LOG: [Box2DEngine]  Segment 2 {
+  "id": 53,
+  "startIndex": 98,
+  "endIndex": 161
+}
+[00:21:19] LOG: [Box2DEngine]  Segment 3 {
+  "id": 54,
+  "startIndex": 161,
+  "endIndex": 222
+}
+[00:21:19] LOG: [Box2DEngine]  Segment 4 {
+  "id": 55,
+  "startIndex": 222,
+  "endIndex": 250
+}
+[00:21:19] LOG: [LocalUpdate] ⏱️ Box2D colliders: 1.60ms (created 1 bodies)
+[00:21:19] LOG: [LocalUpdate] Canonical registry now has 6 loops
+[00:21:19] LOG: [LocalUpdate] 🎯 TOTAL (physics only): 15.50ms
+[00:21:19] LOG: [Renderer] removePolylinesInRegion: removed 1, kept 5
+[00:21:19] LOG: [LocalUpdate] ⏱️ Remove old polylines: 1
+[00:21:19] LOG: [LocalUpdate] Re-adding 1 canonical loops to renderer
+[00:21:19] LOG: [Renderer] addPolylines: added 1 polylines (total now: 6)
+[00:21:19] LOG: [LocalUpdate] ⏱️ Local visual update: 0.30ms (added 1 polylines)
+[00:21:19] LOG: [LocalUpdate] 🎯 TOTAL (including rendering): 15.90ms
+[00:21:21] LOG: [LocalUpdate] ⏱️ Remove bodies: 0.30ms (removed 2 bodies)
+[00:21:21] LOG: [LocalUpdate] ⏱️ Marching Squares: 1.10ms (generated 1 raw loops)
+[00:21:21] LOG: [LocalUpdate] ⏱️ Clean loops: 0.00ms (451 → 371 vertices, 1 loops)
+[00:21:21] LOG: [LocalUpdate] ⏱️ Classification: 0.10ms (1 valid loops after filtering)
+[00:21:21] LOG: [LocalUpdate] ⏱️ Optimization: 12.60ms (371 → 252 vertices)
+[00:21:21] LOG: [LocalUpdate]    ↳ cleanLoop: 0.00ms
+[00:21:21] LOG: [LocalUpdate]    ↳ Chaikin smoothing (expand): 2.20ms
+[00:21:21] LOG: [LocalUpdate]    ↳ Post-simplification (reduce): 10.30ms
+[00:21:21] LOG: [LocalUpdate] Built 1 canonical loops (252 verts total)
+[00:21:21] LOG: [Box2DEngine] Loop 17: built 5 segments (verts=252)
+[00:21:21] LOG: [Box2DEngine]  Segment 0 {
+  "id": 56,
+  "startIndex": 0,
+  "endIndex": 41
+}
+[00:21:21] LOG: [Box2DEngine]  Segment 1 {
+  "id": 57,
+  "startIndex": 41,
+  "endIndex": 90
+}
+[00:21:21] LOG: [Box2DEngine]  Segment 2 {
+  "id": 58,
+  "startIndex": 90,
+  "endIndex": 152
+}
+[00:21:21] LOG: [Box2DEngine]  Segment 3 {
+  "id": 59,
+  "startIndex": 152,
+  "endIndex": 213
+}
+[00:21:21] LOG: [Box2DEngine]  Segment 4 {
+  "id": 60,
+  "startIndex": 213,
+  "endIndex": 251
+}
+[00:21:21] LOG: [LocalUpdate] ⏱️ Box2D colliders: 3.40ms (created 1 bodies)
+[00:21:21] LOG: [LocalUpdate] Canonical registry now has 5 loops
+[00:21:21] LOG: [LocalUpdate] 🎯 TOTAL (physics only): 18.40ms
+[00:21:21] LOG: [Renderer] removePolylinesInRegion: removed 2, kept 4
+[00:21:21] LOG: [LocalUpdate] ⏱️ Remove old polylines: 2
+[00:21:21] LOG: [LocalUpdate] Re-adding 1 canonical loops to renderer
+[00:21:21] LOG: [Renderer] addPolylines: added 1 polylines (total now: 5)
+[00:21:21] LOG: [LocalUpdate] ⏱️ Local visual update: 0.30ms (added 1 polylines)
+[00:21:21] LOG: [LocalUpdate] 🎯 TOTAL (including rendering): 18.90ms
+[00:21:27] LOG: [LocalUpdate] ⏱️ Remove bodies: 0.50ms (removed 2 bodies)
+[00:21:27] LOG: [LocalUpdate] ⏱️ Marching Squares: 1.10ms (generated 1 raw loops)
+[00:21:27] LOG: [LocalUpdate] ⏱️ Clean loops: 0.10ms (451 → 378 vertices, 1 loops)
+[00:21:27] LOG: [LocalUpdate] ⏱️ Classification: 0.00ms (1 valid loops after filtering)
+[00:21:27] LOG: [LocalUpdate] ⏱️ Optimization: 13.30ms (378 → 248 vertices)
+[00:21:27] LOG: [LocalUpdate]    ↳ cleanLoop: 0.00ms
+[00:21:27] LOG: [LocalUpdate]    ↳ Chaikin smoothing (expand): 0.20ms
+[00:21:27] LOG: [LocalUpdate]    ↳ Post-simplification (reduce): 13.00ms
+[00:21:27] LOG: [LocalUpdate] Built 1 canonical loops (248 verts total)
+[00:21:27] LOG: [Box2DEngine] Loop 18: built 5 segments (verts=248)
+[00:21:27] LOG: [Box2DEngine]  Segment 0 {
+  "id": 61,
+  "startIndex": 0,
+  "endIndex": 43
+}
+[00:21:27] LOG: [Box2DEngine]  Segment 1 {
+  "id": 62,
+  "startIndex": 43,
+  "endIndex": 99
+}
+[00:21:27] LOG: [Box2DEngine]  Segment 2 {
+  "id": 63,
+  "startIndex": 99,
+  "endIndex": 155
+}
+[00:21:27] LOG: [Box2DEngine]  Segment 3 {
+  "id": 64,
+  "startIndex": 155,
+  "endIndex": 218
+}
+[00:21:27] LOG: [Box2DEngine]  Segment 4 {
+  "id": 65,
+  "startIndex": 218,
+  "endIndex": 247
+}
+[00:21:27] LOG: [LocalUpdate] ⏱️ Box2D colliders: 0.90ms (created 1 bodies)
+[00:21:27] LOG: [LocalUpdate] Canonical registry now has 4 loops
+[00:21:27] LOG: [LocalUpdate] 🎯 TOTAL (physics only): 17.30ms
+[00:21:27] LOG: [Renderer] removePolylinesInRegion: removed 2, kept 3
+[00:21:27] LOG: [LocalUpdate] ⏱️ Remove old polylines: 2
+[00:21:27] LOG: [LocalUpdate] Re-adding 1 canonical loops to renderer
+[00:21:27] LOG: [Renderer] addPolylines: added 1 polylines (total now: 4)
+[00:21:27] LOG: [LocalUpdate] ⏱️ Local visual update: 0.20ms (added 1 polylines)
+[00:21:27] LOG: [LocalUpdate] 🎯 TOTAL (including rendering): 17.70ms
+[00:21:47] LOG: [LocalUpdate] ⏱️ Remove bodies: 0.30ms (removed 1 bodies)
+[00:21:47] LOG: [LocalUpdate] ⏱️ Marching Squares: 4.70ms (generated 2 raw loops)
+[00:21:47] LOG: [LocalUpdate] ⏱️ Clean loops: 0.10ms (1126 → 921 vertices, 2 loops)
+[00:21:47] LOG: [LocalUpdate] ⏱️ Classification: 0.00ms (2 valid loops after filtering)
+[00:21:47] LOG: [LocalUpdate] ⏱️ Optimization: 37.00ms (921 → 587 vertices)
+[00:21:47] LOG: [LocalUpdate]    ↳ cleanLoop: 0.10ms
+[00:21:47] LOG: [LocalUpdate]    ↳ Chaikin smoothing (expand): 1.50ms
+[00:21:47] LOG: [LocalUpdate]    ↳ Post-simplification (reduce): 35.30ms
+[00:21:47] LOG: [LocalUpdate] Built 2 canonical loops (587 verts total)
+[00:21:47] LOG: [Box2DEngine] Loop 19: built 7 segments (verts=307)
+[00:21:47] LOG: [Box2DEngine]  Segment 0 {
+  "id": 66,
+  "startIndex": 0,
+  "endIndex": 63
+}
+[00:21:47] LOG: [Box2DEngine]  Segment 1 {
+  "id": 67,
+  "startIndex": 63,
+  "endIndex": 126
+}
+[00:21:47] LOG: [Box2DEngine]  Segment 2 {
+  "id": 68,
+  "startIndex": 126,
+  "endIndex": 168
+}
+[00:21:47] LOG: [Box2DEngine]  Segment 3 {
+  "id": 69,
+  "startIndex": 168,
+  "endIndex": 208
+}
+[00:21:47] LOG: [Box2DEngine]  Segment 4 {
+  "id": 70,
+  "startIndex": 208,
+  "endIndex": 266
+}
+[00:21:47] LOG: [Box2DEngine]  Segment 5 {
+  "id": 71,
+  "startIndex": 266,
+  "endIndex": 277
+}
+[00:21:47] LOG: [Box2DEngine]  Segment 6 {
+  "id": 72,
+  "startIndex": 277,
+  "endIndex": 306
+}
+[00:21:47] LOG: [Box2DEngine] Loop 20: built 5 segments (verts=280)
+[00:21:47] LOG: [Box2DEngine]  Segment 0 {
+  "id": 73,
+  "startIndex": 0,
+  "endIndex": 55
+}
+[00:21:47] LOG: [Box2DEngine]  Segment 1 {
+  "id": 74,
+  "startIndex": 55,
+  "endIndex": 107
+}
+[00:21:47] LOG: [Box2DEngine]  Segment 2 {
+  "id": 75,
+  "startIndex": 107,
+  "endIndex": 156
+}
+[00:21:47] LOG: [Box2DEngine]  Segment 3 {
+  "id": 76,
+  "startIndex": 156,
+  "endIndex": 218
+}
+[00:21:47] LOG: [Box2DEngine]  Segment 4 {
+  "id": 77,
+  "startIndex": 218,
+  "endIndex": 279
+}
+[00:21:47] LOG: [LocalUpdate] ⏱️ Box2D colliders: 3.50ms (created 2 bodies)
+[00:21:47] LOG: [LocalUpdate] Canonical registry now has 5 loops
+[00:21:47] LOG: [LocalUpdate] 🎯 TOTAL (physics only): 47.20ms
+[00:21:47] LOG: [Renderer] removePolylinesInRegion: removed 1, kept 3
+[00:21:47] LOG: [LocalUpdate] ⏱️ Remove old polylines: 1
+[00:21:47] LOG: [LocalUpdate] Re-adding 2 canonical loops to renderer
+[00:21:47] LOG: [Renderer] addPolylines: added 2 polylines (total now: 5)
+[00:21:47] LOG: [LocalUpdate] ⏱️ Local visual update: 0.40ms (added 2 polylines)
+[00:21:47] LOG: [LocalUpdate] 🎯 TOTAL (including rendering): 47.80ms
