@@ -522,6 +522,7 @@ export class RemeshManager {
 
     for (const bodyInfo of affectedBodies) {
       const originalLoop = bodyInfo.originalLoop;
+      console.log(`[LocalPatch] 🔧 Attempting to patch loop with ${originalLoop.length} vertices`);
 
       // Try to patch this loop
       const t4 = performance.now();
@@ -529,7 +530,12 @@ export class RemeshManager {
       const t5 = performance.now();
 
       if (patchResult) {
-        console.log(`[LocalPatch] ⏱️ Patch loop #${totalPatchedCount}: ${(t5 - t4).toFixed(2)}ms (${patchResult.oldArc.length} → ${patchResult.newArc.length} vertices in arc)`);
+        console.log(`[LocalPatch] ✅ Successfully patched loop #${totalPatchedCount}: ${(t5 - t4).toFixed(2)}ms`);
+        console.log(`[LocalPatch]    oldArc: ${patchResult.oldArc.length} vertices`);
+        console.log(`[LocalPatch]    newArc: ${patchResult.newArc.length} vertices`);
+        console.log(`[LocalPatch]    beforePart: ${patchResult.beforePart.length} vertices (KEPT)`);
+        console.log(`[LocalPatch]    afterPart: ${patchResult.afterPart.length} vertices (KEPT)`);
+        console.log(`[LocalPatch]    patchedLoop: ${patchResult.patchedLoop.length} vertices total`);
 
         // Optimize the patched loop
         const optimizationResult = this.optimizationPipeline.optimize([patchResult.patchedLoop], this.optimizationOptions);
@@ -554,6 +560,8 @@ export class RemeshManager {
 
           totalPatchedCount++;
         }
+      } else {
+        console.log(`[LocalPatch] ❌ Failed to patch loop (no suitable arc found)`);
       }
     }
 
