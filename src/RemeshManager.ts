@@ -185,6 +185,86 @@ export class RemeshManager {
   }
 
   /**
+   * Rebuild a region using the proven legacy code path
+   * Works for any AABB - full world or individual chunk
+   *
+   * This is the PROVEN code path that was working well - extracted from legacy fullHeal()
+   * Returns loops and metadata without modifying physics or renderer (caller handles that)
+   */
+  private rebuildRegion(aabb: AABB, logPrefix: string): {
+    finalLoops: Point[][];
+    originalLoops: Point[][];
+    shouldReverse: boolean[];
+    stats: RemeshStats;
+  } {
+    const t0 = performance.now();
+
+    // Step 1: Run marching squares
+    const results = this.marchingSquares.generateContours(aabb, 0);
+    const t1 = performance.now();
+    const rawLoopCount = results.filter(r => r && r.loop && r.loop.length > 2).length;
+    console.log(`${logPrefix}   ⏱️ Marching Squares: ${(t1 - t0).toFixed(2)}ms (generated ${rawLoopCount} raw loops)`);
+
+    // Step 2: Clean loops
+    const t2 = performance.now();
+    const gridPitch = this.densityField.config.gridPitch;
+    const cleanedLoops: Point[][] = [];
+    let rawVertexCount = 0;
+    let cleanedVertexCount = 0;
+
+    for (const result of results) {
+      if (result && result.loop && result.loop.length > 2) {
+        rawVertexCount += result.loop.length;
+        const cleanedLoop = cleanLoop(result.loop, gridPitch);
+        if (cleanedLoop.length >= 3) {
+          cleanedLoops.push(cleanedLoop);
+          cleanedVertexCount += cleanedLoop.length;
+        }
+      }
+    }
+    const t3 = performance.now();
+    console.log(`${logPrefix}   ⏱️ Clean loops: ${(t3 - t2).toFixed(2)}ms (${rawVertexCount} → ${cleanedVertexCount} vertices)`);
+
+    // Step 3: Classify loops
+    const t4 = performance.now();
+    const validLoops: Point[][] = [];
+    const loopClassifications: boolean[] = [];
+    let deletedCount = 0;
+
+    cleanedLoops.forEach((loop, index) => {
+      if (loop.length < 3) return;
+
+      const classificationResult = this.isRockLoop(loop, index);
+
+      // Skip loops marked for deletion
+      if (classificationResult.shouldDelete) {
+        deletedCount++;
+        return;
+      }
+
+      validLoops.push(loop);
+      loopClassifications.push(classificationResult.isRock);
+    });
+    const t5 = performance.now();
+    console.log(`${logPrefix}   ⏱️ Classification: ${(t5 - t4).toFixed(2)}ms (${validLoops.length} valid loops, ${deletedCount} deleted)`);
+
+    // Step 4: Optimize loops
+    const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
+    const finalVertexCount = optimizationResult.finalLoops.reduce((sum, loop) => sum + loop.length, 0);
+    console.log(`${logPrefix}   ⏱️ Optimization: ${optimizationResult.timing.totalMs.toFixed(2)}ms (${cleanedVertexCount} → ${finalVertexCount} vertices)`);
+
+    // Step 5: Build shouldReverse array
+    const shouldReverse = loopClassifications.map((isRock) => !isRock);
+
+    return {
+      finalLoops: optimizationResult.finalLoops,
+      originalLoops: optimizationResult.trueOriginalLoops,
+      shouldReverse,
+      stats: optimizationResult.statistics,
+    };
+  }
+
+  /**
    * Full world remesh - rebuild all chunks
    * Uses chunk system from the start to ensure consistency
    */
@@ -197,34 +277,60 @@ export class RemeshManager {
     // Clear cache
     this.loopCache.clear();
 
-    // If chunk manager exists, rebuild all chunks individually
+    // If chunk manager exists, rebuild all chunks individually using proven code path
     if (this.chunkManager) {
-      console.log('[FullHeal] Using chunk-based full rebuild (4×4 independent mini-worlds)');
+      console.log('[FullHeal] Using chunk-based full rebuild (4×4 independent mini-worlds, proven code path)');
 
-      // Mark all chunks as dirty
-      this.chunkManager.markAllDirty();
-
-      // Get all chunks
+      const engine = this.physics.getEngine();
       const allChunks = this.chunkManager.getAllChunks();
 
       let totalOriginalVertices = 0;
       let totalFinalVertices = 0;
+      const allFinalLoops: Point[][] = [];
+      const allOriginalLoops: Point[][] = [];
 
-      // Rebuild each chunk
+      // Rebuild each chunk using proven legacy code path
       for (const chunk of allChunks) {
-        const stats = this.rebuildSingleChunk(chunk);
-        if (stats) {
-          totalOriginalVertices += stats.originalVertexCount;
-          totalFinalVertices += stats.finalVertexCount;
-        }
+        const chunkInfo = this.chunkManager.getChunkInfo(chunk);
+        console.log(`[FullHeal] 📦 ${chunkInfo}`);
+
+        // Remove old physics bodies in this chunk
+        const t1 = performance.now();
+        const removedCount = engine.removeTerrainInRegion(chunk.bounds);
+        const t2 = performance.now();
+        console.log(`[FullHeal]   ⏱️ Remove old bodies: ${(t2 - t1).toFixed(2)}ms (removed ${removedCount})`);
+
+        // Rebuild region using proven code path
+        const result = this.rebuildRegion(chunk.bounds, '[FullHeal]');
+
+        // Add new physics bodies
+        const t3 = performance.now();
+        engine.addTerrainLoops(result.finalLoops, result.shouldReverse);
+        const t4 = performance.now();
+        console.log(`[FullHeal]   ⏱️ Add new bodies: ${(t4 - t3).toFixed(2)}ms (created ${result.finalLoops.length} bodies)`);
+
+        // Store for chunk and aggregate stats
+        chunk.loops = result.finalLoops;
+        chunk.originalLoops = result.originalLoops;
+        totalOriginalVertices += result.stats.originalVertexCount;
+        totalFinalVertices += result.stats.finalVertexCount;
+
+        allFinalLoops.push(...result.finalLoops);
+        allOriginalLoops.push(...result.originalLoops);
       }
 
-      // Clear dirty flags
-      this.chunkManager.clearAllDirty();
+      // Update renderer with all loops from all chunks
+      const t5 = performance.now();
+      this.renderer.updateOriginalPolylines(allOriginalLoops);
+      const finalForRender = allFinalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+      this.renderer.updatePolylines(finalForRender);
+      const t6 = performance.now();
+      console.log(`[FullHeal] ⏱️ Re-render walls: ${(t6 - t5).toFixed(2)}ms`);
+
       this.densityField.clearDirty();
 
-      const t1 = performance.now();
-      console.log(`[FullHeal] 🎯 TOTAL: ${(t1 - startTime).toFixed(2)}ms for ${allChunks.length} chunks`);
+      const t7 = performance.now();
+      console.log(`[FullHeal] 🎯 TOTAL: ${(t7 - startTime).toFixed(2)}ms for ${allChunks.length} chunks`);
 
       // Return aggregate stats
       const simplificationReduction = totalOriginalVertices > 0
@@ -421,7 +527,7 @@ export class RemeshManager {
   }
 
   /**
-   * Rebuild a single chunk
+   * Rebuild a single chunk using proven legacy code path
    */
   private rebuildSingleChunk(chunk: Chunk): RemeshStats | null {
     if (!this.chunkManager) return null;
@@ -437,84 +543,30 @@ export class RemeshManager {
     const t2 = performance.now();
     console.log(`[RebuildChunk]   ⏱️ Remove old bodies: ${(t2 - t1).toFixed(2)}ms (removed ${removedCount})`);
 
-    // Step 2: Run marching squares on chunk bounds (no ghost cells - fully independent)
-    const marchingAABB = this.chunkManager.getChunkMarchingAABB(chunk);
+    // Step 2: Rebuild region using proven code path
+    const result = this.rebuildRegion(chunk.bounds, '[RebuildChunk]');
+
+    // Step 3: Add new physics bodies
     const t3 = performance.now();
-    const results = this.marchingSquares.generateContours(marchingAABB, 0);
+    engine.addTerrainLoops(result.finalLoops, result.shouldReverse);
     const t4 = performance.now();
-    const rawLoopCount = results.filter(r => r && r.loop && r.loop.length > 2).length;
-    console.log(`[RebuildChunk]   ⏱️ Marching Squares: ${(t4 - t3).toFixed(2)}ms (${rawLoopCount} raw loops)`);
+    console.log(`[RebuildChunk]   ⏱️ Add new bodies: ${(t4 - t3).toFixed(2)}ms (created ${result.finalLoops.length} bodies)`);
 
-    // Step 3: Clean loops
-    const gridPitch = this.densityField.config.gridPitch;
-    const cleanedLoops: Point[][] = [];
-    let rawVertexCount = 0;
-    let cleanedVertexCount = 0;
-
-    for (const result of results) {
-      if (result && result.loop && result.loop.length > 2) {
-        rawVertexCount += result.loop.length;
-        const cleanedLoop = cleanLoop(result.loop, gridPitch);
-        if (cleanedLoop.length >= 3) {
-          cleanedLoops.push(cleanedLoop);
-          cleanedVertexCount += cleanedLoop.length;
-        }
-      }
-    }
-
-    console.log(`[RebuildChunk]   ⏱️ Clean loops: ${cleanedLoops.length} loops, ${rawVertexCount} → ${cleanedVertexCount} vertices`);
-
-    // Step 4: Classify loops (no ownership filtering - all loops belong to this chunk)
-    const t5 = performance.now();
-    const validLoops: Point[][] = [];
-    const loopClassifications: boolean[] = [];
-
-    for (const cleanedLoop of cleanedLoops) {
-      // Classify the loop
-      const classificationResult = this.isRockLoop(cleanedLoop);
-
-      // Skip loops marked for deletion
-      if (classificationResult.shouldDelete) {
-        continue;
-      }
-
-      validLoops.push(cleanedLoop);
-      loopClassifications.push(classificationResult.isRock);
-    }
-
-    const t6 = performance.now();
-    console.log(`[RebuildChunk]   ⏱️ Classify: ${(t6 - t5).toFixed(2)}ms (${validLoops.length} valid loops)`);
-
-    // Step 5: Optimize loops
-    const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
-    const finalVertexCount = optimizationResult.finalLoops.reduce((sum, loop) => sum + loop.length, 0);
-    console.log(`[RebuildChunk]   ⏱️ Optimization: ${optimizationResult.timing.totalMs.toFixed(2)}ms (${cleanedVertexCount} → ${finalVertexCount} vertices)`);
-
-    // Step 6: Build shouldReverse array
-    const shouldReverse = loopClassifications.map((isRock) => !isRock);
-
-    // Step 7: Add new physics bodies
-    const t7 = performance.now();
-    engine.addTerrainLoops(optimizationResult.finalLoops, shouldReverse);
-    const t8 = performance.now();
-    console.log(`[RebuildChunk]   ⏱️ Add new bodies: ${(t8 - t7).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
-
-    // Step 8: Update chunk data
-    chunk.loops = optimizationResult.finalLoops;
-    chunk.originalLoops = optimizationResult.trueOriginalLoops;
+    // Step 4: Update chunk data
+    chunk.loops = result.finalLoops;
+    chunk.originalLoops = result.originalLoops;
     chunk.isDirty = false;
 
-    // Step 9: Update renderer - for now, do full remesh for visuals (simple approach)
-    // TODO: Optimize this to only update affected polylines
-    const t9 = performance.now();
+    // Step 5: Update renderer - full remesh for visuals (simple and safe)
+    const t5 = performance.now();
     this.updateRendererFromAllChunks();
-    const t10 = performance.now();
-    console.log(`[RebuildChunk]   ⏱️ Update renderer: ${(t10 - t9).toFixed(2)}ms`);
+    const t6 = performance.now();
+    console.log(`[RebuildChunk]   ⏱️ Update renderer: ${(t6 - t5).toFixed(2)}ms`);
 
-    const totalTime = t10 - t0;
+    const totalTime = t6 - t0;
     console.log(`[RebuildChunk]   🎯 Chunk total: ${totalTime.toFixed(2)}ms`);
 
-    return optimizationResult.statistics;
+    return result.stats;
   }
 
   /**
