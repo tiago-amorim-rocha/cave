@@ -873,8 +873,8 @@ class CarvableCaves {
       false // false = carve (subtract density)
     );
 
-    // Trigger local patch update to update physics (fastest method - only patches affected arcs!)
-    const stats = this.remeshManager.localPatchUpdate(1); // Pad by 1 cell for boundary continuity
+    // Trigger chunk-based rebuild to update physics (only rebuilds dirty chunks)
+    const stats = this.remeshManager.remesh();
     if (stats) {
       // Update UI stats if needed
       this.originalVertexCount = stats.originalVertexCount;
