@@ -458,7 +458,7 @@ export class RemeshManager {
    * This is the most efficient update mode, replacing only the changed arcs
    * instead of rebuilding entire loops or regions
    */
-  localPatchUpdate(expandCells: number = 2): RemeshStats | null {
+  localPatchUpdate(expandCells: number = 1): RemeshStats | null {
     const startTime = performance.now();
 
     // Get dirty region from density field
@@ -519,6 +519,7 @@ export class RemeshManager {
     }> = [];
 
     const patchedLoops: Point[][] = [];
+    const patchedOriginalLoops: Point[][] = [];
     const patchedShouldReverse: boolean[] = [];
     let totalPatchedCount = 0;
 
@@ -539,14 +540,25 @@ export class RemeshManager {
         console.log(`[LocalPatch]    afterPart: ${patchResult.afterPart.length} vertices (KEPT)`);
         console.log(`[LocalPatch]    patchedLoop: ${patchResult.patchedLoop.length} vertices total`);
 
-        // Optimize the patched loop
+        // Optimize the patched loop (used for both physics and visuals)
         const optimizationResult = this.optimizationPipeline.optimize([patchResult.patchedLoop], this.optimizationOptions);
         const optimizedPatchedLoop = optimizationResult.finalLoops[0];
+        const originalPatchedLoop = optimizationResult.trueOriginalLoops[0];
 
         // Classify the patched loop
-        const classification = this.isRockLoop(optimizedPatchedLoop, totalPatchedCount);
+        let classification = this.isRockLoop(optimizedPatchedLoop, totalPatchedCount);
+        if (classification.shouldDelete) {
+          // Fallback to previous body classification to avoid deleting ambiguous loops
+          classification = {
+            isRock: Boolean((bodyInfo as any).isRock),
+            shouldDelete: false
+          };
+          console.warn(`[LocalPatch] Classification ambiguous; falling back to previous body classification (${classification.isRock ? 'ROCK' : 'CAVE'})`);
+        }
+
         if (!classification.shouldDelete) {
           patchedLoops.push(optimizedPatchedLoop);
+          patchedOriginalLoops.push(originalPatchedLoop);
           patchedShouldReverse.push(!classification.isRock);
 
           // Store debug info
@@ -565,6 +577,15 @@ export class RemeshManager {
       } else {
         console.log(`[LocalPatch] ❌ Failed to patch loop (no suitable arc found)`);
       }
+    }
+
+    // If we failed to produce any valid patched loops, bail out without removing existing bodies/polylines
+    if (patchedLoops.length === 0) {
+      console.warn(`[LocalPatch] No valid patched loops; keeping existing bodies and scheduling full heal`);
+      this.needsFullHeal = true; // ensure next remesh heals state
+      this.renderer.setLoopPatchDebugInfo([]);
+      this.densityField.clearDirty();
+      return null;
     }
 
     const t6 = performance.now();
@@ -595,41 +616,34 @@ export class RemeshManager {
     const t11a = performance.now();
     console.log(`[LocalPatch] ⏱️ Remove old polylines: ${(t11a - t11).toFixed(2)}ms (removed ${removedPolylineCount})`);
 
-    // Use the already-computed patched loops for visual update
-    // We need to run marching squares on the dirty region to get the visual representation
-    const visualResults = this.marchingSquares.generateContours(paddedAABB, expandCells);
-    const visualLoops: Point[][] = [];
-
-    for (const result of visualResults) {
-      if (result && result.loop && result.loop.length > 2) {
-        const cleanedLoop = cleanLoop(result.loop, gridPitch);
-        if (cleanedLoop.length >= 3) {
-          visualLoops.push(cleanedLoop);
-        }
-      }
-    }
-
-    const t11b = performance.now();
-    console.log(`[LocalPatch] ⏱️ Local marching squares for visuals: ${(t11b - t11a).toFixed(2)}ms (${visualLoops.length} loops)`);
-
-    // Optimize the local visual loops
-    const visualOptimization = this.optimizationPipeline.optimize(visualLoops, this.optimizationOptions);
-    const t11c = performance.now();
-    console.log(`[LocalPatch] ⏱️ Optimize local visual loops: ${(t11c - t11b).toFixed(2)}ms`);
-
-    // Add the new optimized polylines
-    const finalForRender = visualOptimization.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
-    this.renderer.addPolylines(finalForRender, visualOptimization.trueOriginalLoops);
+    // Reuse patched physics loops for visuals (no second marching-squares/opt pass)
+    const finalForRender = patchedLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+    const originalsForRender = patchedOriginalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+    this.renderer.addPolylines(finalForRender, originalsForRender);
 
     const t12 = performance.now();
-    console.log(`[LocalPatch] ⏱️ Local visual update (remove + add): ${(t12 - t11).toFixed(2)}ms`);
+    console.log(`[LocalPatch] ⏱️ Local visual update (remove + add): ${(t12 - t11).toFixed(2)}ms (reused patched loops)`);
 
     console.log(`[LocalPatch] 🎯 TOTAL (including rendering): ${(t12 - t0).toFixed(2)}ms`);
 
     // Clear dirty region
     this.densityField.clearDirty();
 
-    return visualOptimization.statistics;
+    // Compute simple remesh stats from patched loops (used for UI)
+    const originalVertexCount = patchedOriginalLoops.reduce((sum, loop) => sum + loop.length, 0);
+    const finalVertexCount = patchedLoops.reduce((sum, loop) => sum + loop.length, 0);
+    const simplificationReduction = originalVertexCount > 0
+      ? ((originalVertexCount - finalVertexCount) / originalVertexCount) * 100
+      : 0;
+
+    const stats: RemeshStats = {
+      originalVertexCount,
+      finalVertexCount,
+      simplificationReduction,
+      postSimplificationReduction: simplificationReduction, // approximate when reusing physics-optimized loops
+    };
+
+    return stats;
   }
 
   /**

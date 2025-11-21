@@ -90,8 +90,8 @@ export class Renderer {
   public showLoopNumbers: boolean = false; // Disabled for performance testing
   public showSamplePoints: boolean = false; // Disabled for performance testing
   public showDirtyAABB: boolean = true; // Enabled by default for local update debugging
-  public showRebuiltChains: boolean = true; // Enabled by default for local update debugging
-  public showLoopPatching: boolean = true; // Show loop patching debug visualization (enabled by default)
+  public showRebuiltChains: boolean = false; // Debug overlay off by default (toggle via console)
+  public showLoopPatching: boolean = false; // Debug overlay off by default (toggle via console)
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;

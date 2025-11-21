@@ -29,6 +29,7 @@ interface TerrainBodyInfo {
   body: b2Body;
   aabb: AABB;
   originalLoop: Point[]; // Store original vertices for loop cutting
+  isRock: boolean; // Classification used when created (rock boundary vs cave boundary)
 }
 
 /**
@@ -123,6 +124,7 @@ export class Box2DEngine {
       // Rock islands (cave inside, rock outside): Keep CCW so collision faces outward (toward cave)
       // Default to reversing if no classification provided (backwards compatibility)
       const shouldReverseLoop = shouldReverse ? shouldReverse[loopIndex] : true;
+      const isRock = !shouldReverseLoop; // reverseLoop=true means cave boundary (rock outside)
       const reversedVertices = shouldReverseLoop ? [...vertices].reverse() : vertices;
 
       // Create chain shape
@@ -151,7 +153,7 @@ export class Box2DEngine {
 
       // Compute AABB for this loop
       const aabb = this.computeLoopAABB(loop);
-      this.terrainBodies.push({ body, aabb, originalLoop: loop });
+      this.terrainBodies.push({ body, aabb, originalLoop: loop, isRock });
 
       totalSegments += loop.length - 1;
     }
@@ -429,6 +431,7 @@ export class Box2DEngine {
 
       // Conditionally reverse winding order based on loop type
       const shouldReverseLoop = shouldReverse ? shouldReverse[loopIndex] : true;
+      const isRock = !shouldReverseLoop;
       const reversedVertices = shouldReverseLoop ? [...vertices].reverse() : vertices;
 
       // Create chain shape
@@ -457,7 +460,7 @@ export class Box2DEngine {
 
       // Compute AABB for this loop
       const aabb = this.computeLoopAABB(loop);
-      this.terrainBodies.push({ body, aabb, originalLoop: loop });
+      this.terrainBodies.push({ body, aabb, originalLoop: loop, isRock });
 
       totalSegments += loop.length - 1;
       addedBodies++;
