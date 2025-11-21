@@ -78,6 +78,7 @@ export class Renderer {
     afterPart: Vec2[];
     dirtyAABB: { minX: number; minY: number; maxX: number; maxY: number };
   }> = [];
+  private lastPatchLogTime: number = 0;
 
   public showGrid: boolean = false;
   public showDensityField: boolean = false;
@@ -802,11 +803,16 @@ export class Renderer {
    */
   private drawLoopPatching(canvasWidth: number, canvasHeight: number): void {
     if (this.loopPatchDebugInfo.length === 0) {
-      // console.log('[Renderer] No loop patch debug info to draw');
       return;
     }
 
-    console.log(`[Renderer] Drawing ${this.loopPatchDebugInfo.length} loop patch debug infos`);
+    // Only log once per second to avoid spam
+    const now = Date.now();
+    if (!this.lastPatchLogTime || now - this.lastPatchLogTime > 1000) {
+      console.log(`[Renderer] Drawing ${this.loopPatchDebugInfo.length} loop patch debug infos`);
+      this.lastPatchLogTime = now;
+    }
+
     this.ctx.save();
 
     for (const patchInfo of this.loopPatchDebugInfo) {
