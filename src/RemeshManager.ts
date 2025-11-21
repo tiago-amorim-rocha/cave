@@ -574,6 +574,7 @@ export class RemeshManager {
     console.log(`[LocalPatch] 🎯 TOTAL (physics only): ${(t10 - t0).toFixed(2)}ms`);
 
     // Step 5: Set debug info for visualization
+    console.log(`[LocalPatch] 🎨 Setting ${patchDebugInfo.length} patch debug infos for visualization`);
     this.renderer.setLoopPatchDebugInfo(patchDebugInfo);
 
     // Step 6: For rendering, regenerate full visual mesh (but don't touch physics)
