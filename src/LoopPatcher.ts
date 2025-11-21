@@ -240,7 +240,7 @@ export class LoopPatcher {
 
   /**
    * Find the best matching new arc from local marching squares result
-   * Chooses the fragment whose endpoints are closest to the connection points
+   * Finds the fragment and extracts only the portion between connection points
    */
   findBestMatchingArc(
     beforeLast: Point,
@@ -250,27 +250,54 @@ export class LoopPatcher {
     if (newFragments.length === 0) return null;
 
     let bestFragment: Point[] | null = null;
+    let bestStartIdx = -1;
+    let bestEndIdx = -1;
     let bestDistance = Infinity;
 
     for (const fragment of newFragments) {
       if (fragment.length < 2) continue;
 
-      const fragStart = fragment[0];
-      const fragEnd = fragment[fragment.length - 1];
+      // Find the two vertices on this fragment that are closest to our connection points
+      let closestToBeforeLast = 0;
+      let closestToAfterFirst = 0;
+      let minDistToBeforeLast = Infinity;
+      let minDistToAfterFirst = Infinity;
 
-      // Calculate total distance (sum of distances to both connection points)
-      const dist1 = this.distance(beforeLast, fragStart) + this.distance(fragEnd, afterFirst);
-      const dist2 = this.distance(beforeLast, fragEnd) + this.distance(fragStart, afterFirst);
+      for (let i = 0; i < fragment.length; i++) {
+        const distToBeforeLast = this.distance(fragment[i], beforeLast);
+        const distToAfterFirst = this.distance(fragment[i], afterFirst);
 
-      const dist = Math.min(dist1, dist2);
+        if (distToBeforeLast < minDistToBeforeLast) {
+          minDistToBeforeLast = distToBeforeLast;
+          closestToBeforeLast = i;
+        }
 
-      if (dist < bestDistance) {
-        bestDistance = dist;
-        bestFragment = dist1 < dist2 ? fragment : [...fragment].reverse();
+        if (distToAfterFirst < minDistToAfterFirst) {
+          minDistToAfterFirst = distToAfterFirst;
+          closestToAfterFirst = i;
+        }
+      }
+
+      const totalDist = minDistToBeforeLast + minDistToAfterFirst;
+
+      if (totalDist < bestDistance) {
+        bestDistance = totalDist;
+        bestFragment = fragment;
+        bestStartIdx = closestToBeforeLast;
+        bestEndIdx = closestToAfterFirst;
       }
     }
 
-    return bestFragment;
+    if (!bestFragment || bestStartIdx === -1 || bestEndIdx === -1) {
+      return null;
+    }
+
+    // Extract only the arc between the two connection points
+    const extractedArc = this.extractArc(bestFragment, bestStartIdx, bestEndIdx);
+
+    console.log(`[LoopPatcher] findBestMatchingArc: extracted ${extractedArc.length} vertices from fragment of ${bestFragment.length} (indices ${bestStartIdx} to ${bestEndIdx})`);
+
+    return extractedArc;
   }
 
   /**
