@@ -342,9 +342,9 @@ export class Box2DEngine {
   }
 
   /**
-   * Geometry helper: check whether a loop touches an AABB (vertex inside or edge crosses).
+   * Geometry helper: check whether a canonical loop touches an AABB (vertex inside or edge crosses).
    */
-  private loopTouchesRegion(loop: Point[], region: AABB): boolean {
+  private loopTouchesRegion(loop: CanonicalLoop, region: AABB): boolean {
     const pointInside = (p: Point) =>
       p.x >= region.minX && p.x <= region.maxX && p.y >= region.minY && p.y <= region.maxY;
 
@@ -394,14 +394,14 @@ export class Box2DEngine {
     };
 
     // Any vertex inside?
-    for (const v of loop) {
+    for (const v of loop.vertices) {
       if (pointInside(v)) return true;
     }
 
     // Any edge intersections?
-    for (let i = 0; i < loop.length - 1; i++) {
-      const p1 = loop[i];
-      const p2 = loop[i + 1];
+    for (let i = 0; i < loop.vertices.length - 1; i++) {
+      const p1 = loop.vertices[i];
+      const p2 = loop.vertices[i + 1];
       if (segmentIntersectsAABB(p1, p2)) return true;
     }
 
@@ -423,7 +423,7 @@ export class Box2DEngine {
 
     // Partition bodies into remove/keep based on AABB intersection
     for (const bodyInfo of this.terrainBodies) {
-      if (this.loopTouchesRegion(bodyInfo.originalLoop, region)) {
+      if (this.loopTouchesRegion(bodyInfo.canonicalLoop, region)) {
         bodiesToRemove.push(bodyInfo);
       } else {
         bodiesToKeep.push(bodyInfo);
