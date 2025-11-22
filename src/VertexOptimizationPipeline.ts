@@ -12,6 +12,7 @@ import { simplifyPolylines } from './PolylineSimplifier';
 import { chaikinSmoothMultiple } from './ChaikinSmoothing';
 import { cleanLoop } from './physics/shapeUtils';
 import type { Point } from './types';
+import type { OptVertex } from './terrain/CanonicalGeometry';
 
 export interface OptimizationOptions {
   gridPitch: number;
@@ -24,6 +25,8 @@ export interface OptimizationOptions {
 export interface OptimizationResult {
   finalLoops: Point[][];
   trueOriginalLoops: Point[][];
+  chaikinOptLoops: OptVertex[][] | null;
+  finalOptLoops: OptVertex[][];
   statistics: {
     originalVertexCount: number;
     finalVertexCount: number;
@@ -49,6 +52,8 @@ export class VertexOptimizationPipeline {
     // Store TRUE ORIGINAL vertices before ANY optimization (for debug visualization)
     const trueOriginalLoops = rockLoops.map(loop => loop.map(v => ({ x: v.x, y: v.y })));
     const trueOriginalCount = trueOriginalLoops.reduce((sum, loop) => sum + loop.length, 0);
+    let chaikinOptLoops: OptVertex[][] | null = null;
+    let finalOptLoops: OptVertex[][] = [];
 
     // Apply shape hygiene: dedupe, cull tiny edges, ensure CCW
     const t1 = performance.now();
@@ -71,12 +76,12 @@ export class VertexOptimizationPipeline {
     let finalLoops = cleanedLoops;
     let simplificationReduction = 0;
     let simplificationMs = 0;
+    let workingOptLoops: OptVertex[][] | null = null;
 
     if (options.simplificationEpsilon > 0) {
       const t3 = performance.now();
       const areaThreshold = options.simplificationEpsilon * options.simplificationEpsilon;
-      const asPoints = cleanedLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
-      const simplified = simplifyPolylines(asPoints, areaThreshold, true);
+      const simplified = simplifyPolylines(cleanedLoops, areaThreshold, true);
       finalLoops = simplified.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
       const t4 = performance.now();
       simplificationMs = t4 - t3;
@@ -95,9 +100,9 @@ export class VertexOptimizationPipeline {
     if (options.chaikinEnabled) {
       const t5 = performance.now();
       const beforeChaikin = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
-      const asPoints = finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
-      const smoothed = asPoints.map(loop => chaikinSmoothMultiple(loop, options.chaikinIterations, 0.25, true));
-      finalLoops = smoothed.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+      chaikinOptLoops = finalLoops.map(loop => chaikinSmoothMultiple(loop, options.chaikinIterations, 0.25, true));
+      workingOptLoops = chaikinOptLoops;
+      finalLoops = workingOptLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
       const t6 = performance.now();
       chaikinMs = t6 - t5;
 
@@ -117,9 +122,22 @@ export class VertexOptimizationPipeline {
       const beforePostSimplify = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
       const areaThresholdPost = options.simplificationEpsilonPost * options.simplificationEpsilonPost;
 
-      const asPoints = finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
-      const simplifiedPost = simplifyPolylines(asPoints, areaThresholdPost, true);
-      finalLoops = simplifiedPost.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+      if (workingOptLoops) {
+        const simplifiedOpt = simplifyPolylines(workingOptLoops, areaThresholdPost, true);
+        const before = workingOptLoops.reduce((sum, loop) => sum + loop.length, 0);
+        const after = simplifiedOpt.reduce((sum, loop) => sum + loop.length, 0);
+        console.log('[Visvalingam] Simplification', {
+          before,
+          after,
+          reduction: ((before - after) / before * 100).toFixed(1) + '%',
+          ancestryPreserved: simplifiedOpt.every(loop => loop.every(v => v.canonStart !== undefined))
+        });
+        workingOptLoops = simplifiedOpt;
+        finalLoops = workingOptLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
+      } else {
+        const simplifiedPost = simplifyPolylines(finalLoops, areaThresholdPost, true);
+        finalLoops = simplifiedPost.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+      }
       const t8 = performance.now();
       postSimplificationMs = t8 - t7;
 
@@ -131,6 +149,10 @@ export class VertexOptimizationPipeline {
       // console.log(`     → post-smoothing reduction: ${postSimplificationReduction.toFixed(1)}% (${beforePostSimplify - afterPostSimplify} vertices removed)`);
     }
 
+    finalOptLoops = workingOptLoops
+      ? workingOptLoops
+      : finalLoops.map(loop => loop.map((p, i) => ({ x: p.x, y: p.y, canonStart: i, canonEnd: i })));
+
     const finalVertexCount = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
     const tEnd = performance.now();
     const totalMs = tEnd - t0;
@@ -138,6 +160,8 @@ export class VertexOptimizationPipeline {
     return {
       finalLoops,
       trueOriginalLoops,
+      chaikinOptLoops,
+      finalOptLoops,
       statistics: {
         originalVertexCount: trueOriginalCount,
         finalVertexCount,

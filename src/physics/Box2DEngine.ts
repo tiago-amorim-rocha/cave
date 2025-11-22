@@ -18,6 +18,7 @@ import {
   type PhysicsSegment,
   computeLoopAabbFromVertices,
   validateSegments,
+  type OptVertex,
 } from '../terrain/CanonicalGeometry';
 
 export interface Point {
@@ -35,6 +36,7 @@ export interface AABB {
 export interface TerrainBodyInfo {
   body: b2Body;
   canonicalLoop: CanonicalLoop;
+  optimizedLoop: OptVertex[];
   segments: PhysicsSegment[];
   aabb: AABB;
   shouldReverse: boolean;
@@ -42,7 +44,9 @@ export interface TerrainBodyInfo {
 }
 
 const MAX_SEGMENT_VERTS = 64;
-const MAX_SEGMENT_LENGTH = 20; // metres
+const MAX_SEGMENT_LENGTH = 20; // metres (absolute safety cap)
+const TARGET_SEGMENT_LENGTH = 10; // metres (preferred, keeps well below 64 verts at 0.2m pitch)
+const SEGMENT_LENGTH_TOLERANCE = 0.35; // ±35% around target
 const TERRAIN_FRICTION = 0.3;
 const TERRAIN_RESTITUTION = 0.1;
 
@@ -104,7 +108,10 @@ export class Box2DEngine {
     }
 
     const canonicalLoops = loops.map(createCanonicalLoop);
-    this.setCanonicalTerrainLoops(canonicalLoops, shouldReverse);
+    const optLoops: OptVertex[][] = loops.map(loop =>
+      loop.map((p, i) => ({ x: p.x, y: p.y, canonStart: i, canonEnd: i }))
+    );
+    this.setCanonicalTerrainLoops(canonicalLoops, optLoops, shouldReverse);
   }
 
   /**
@@ -193,11 +200,11 @@ export class Box2DEngine {
       }
 
       // 2) Canonical segments overlay: each PhysicsSegment range highlighted
-      const loop = bodyInfo.canonicalLoop;
+      const loop = bodyInfo.optimizedLoop;
       const segments = bodyInfo.segments;
       if (loop && segments && segments.length > 0) {
         segments.forEach((seg, idx) => {
-          if (seg.startIndex < 0 || seg.endIndex >= loop.vertices.length) return;
+          if (seg.optStart < 0 || seg.optEnd >= loop.length) return;
 
           // Vary hue per segment to see stitching
           const hue = (idx * 47) % 360;
@@ -205,20 +212,20 @@ export class Box2DEngine {
           ctx.lineWidth = 3;
 
           ctx.beginPath();
-          const first = loop.vertices[seg.startIndex];
+          const first = loop[seg.optStart];
           const firstScreen = camera.worldToScreen(first.x, first.y, canvasWidth, canvasHeight);
           ctx.moveTo(firstScreen.x, firstScreen.y);
 
-          for (let i = seg.startIndex + 1; i <= seg.endIndex; i++) {
-            const v = loop.vertices[i];
+          for (let i = seg.optStart + 1; i <= seg.optEnd; i++) {
+            const v = loop[i];
             const s = camera.worldToScreen(v.x, v.y, canvasWidth, canvasHeight);
             ctx.lineTo(s.x, s.y);
           }
           ctx.stroke();
 
           // Mark segment endpoints
-          const start = loop.vertices[seg.startIndex];
-          const end = loop.vertices[seg.endIndex];
+          const start = loop[seg.optStart];
+          const end = loop[seg.optEnd];
           const startScreen = camera.worldToScreen(start.x, start.y, canvasWidth, canvasHeight);
           const endScreen = camera.worldToScreen(end.x, end.y, canvasWidth, canvasHeight);
 
@@ -447,13 +454,13 @@ export class Box2DEngine {
     }
 
     const canonicalLoops = loops.map(createCanonicalLoop);
-    return this.addCanonicalTerrainLoops(canonicalLoops, shouldReverse);
+    return this.addCanonicalTerrainLoops(canonicalLoops, undefined, shouldReverse);
   }
 
   /**
    * Set terrain using canonical loops (single source of truth)
    */
-  setCanonicalTerrainLoops(canonicalLoops: CanonicalLoop[], shouldReverse?: boolean[]): void {
+  setCanonicalTerrainLoops(canonicalLoops: CanonicalLoop[], optimizedLoops?: OptVertex[][], shouldReverse?: boolean[]): void {
     if (!this.world) {
       console.error('[Box2DEngine] setCanonicalTerrainLoops called before world init');
       return;
@@ -469,13 +476,19 @@ export class Box2DEngine {
 
     for (let i = 0; i < canonicalLoops.length; i++) {
       const loop = canonicalLoops[i];
+      const optLoop = optimizedLoops ? optimizedLoops[i] : loop.vertices.map((v, idx) => ({
+        x: v.x,
+        y: v.y,
+        canonStart: idx,
+        canonEnd: idx,
+      }));
       if (loop.vertices.length < 2) {
         console.warn('[Box2DEngine] Skipping canonical loop with <2 verts', loop);
         continue;
       }
       const reverse = shouldReverse ? shouldReverse[i] : true;
       console.log(`[Box2DEngine] Building terrain body for loop #${i}, verts=${loop.vertices.length}, reverse=${reverse}`);
-      const bodyInfo = this.buildTerrainBodyFromCanonical(loop, reverse);
+      const bodyInfo = this.buildTerrainBodyFromCanonical(loop, optLoop, reverse);
       this.terrainBodies.push(bodyInfo);
     }
     console.log(`[Box2DEngine] setCanonicalTerrainLoops finished; terrainBodies=${this.terrainBodies.length}`);
@@ -484,7 +497,7 @@ export class Box2DEngine {
   /**
    * Append terrain using canonical loops.
    */
-  addCanonicalTerrainLoops(canonicalLoops: CanonicalLoop[], shouldReverse?: boolean[]): number {
+  addCanonicalTerrainLoops(canonicalLoops: CanonicalLoop[], optimizedLoops?: OptVertex[][], shouldReverse?: boolean[]): number {
     if (!this.world) {
       console.error('[Box2DEngine] World not initialized!');
       return 0;
@@ -495,7 +508,13 @@ export class Box2DEngine {
       const loop = canonicalLoops[i];
       if (loop.vertices.length < 2) continue;
       const reverse = shouldReverse ? shouldReverse[i] : true;
-      const bodyInfo = this.buildTerrainBodyFromCanonical(loop, reverse);
+      const optLoop = optimizedLoops ? optimizedLoops[i] : loop.vertices.map((v, idx) => ({
+        x: v.x,
+        y: v.y,
+        canonStart: idx,
+        canonEnd: idx,
+      }));
+      const bodyInfo = this.buildTerrainBodyFromCanonical(loop, optLoop, reverse);
       this.terrainBodies.push(bodyInfo);
       added++;
     }
@@ -503,9 +522,33 @@ export class Box2DEngine {
   }
 
   /**
+   * Expose physics segments for a given loop ID (debug)
+   */
+  getSegmentsForLoop(loopId: number): PhysicsSegment[] {
+    const segments: PhysicsSegment[] = [];
+    for (const bodyInfo of this.terrainBodies) {
+      if (bodyInfo.canonicalLoop.id === loopId) {
+        segments.push(...bodyInfo.segments);
+      }
+    }
+    return segments;
+  }
+
+  /**
+   * Snapshot of all segments + optimized vertices for debug rendering
+   */
+  getSegmentDebugSnapshot(): Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }> {
+    return this.terrainBodies.map(bodyInfo => ({
+      loopId: bodyInfo.canonicalLoop.id,
+      vertices: bodyInfo.optimizedLoop,
+      segments: bodyInfo.segments,
+    }));
+  }
+
+  /**
    * Build a physics body + fixtures from a canonical loop (keeps canonical ordering intact).
    */
-  private buildTerrainBodyFromCanonical(loop: CanonicalLoop, shouldReverse: boolean): TerrainBodyInfo {
+  private buildTerrainBodyFromCanonical(loop: CanonicalLoop, optimizedLoop: OptVertex[], shouldReverse: boolean): TerrainBodyInfo {
     if (!this.world) {
       throw new Error('[Box2DEngine] buildTerrainBodyFromCanonical called without world');
     }
@@ -515,9 +558,16 @@ export class Box2DEngine {
     });
 
     // Build fresh segments each time (resets vertex back-links)
-    const segments = buildSegmentsForLoop(loop, MAX_SEGMENT_VERTS, MAX_SEGMENT_LENGTH);
-    validateSegments(loop, segments);
-    console.log(`[Box2DEngine] Loop ${loop.id}: built ${segments.length} segments (verts=${loop.vertices.length})`);
+    const segments = buildSegmentsForLoop(
+      loop.id,
+      optimizedLoop,
+      MAX_SEGMENT_VERTS,
+      MAX_SEGMENT_LENGTH,
+      TARGET_SEGMENT_LENGTH,
+      SEGMENT_LENGTH_TOLERANCE
+    );
+    validateSegments(optimizedLoop, segments);
+    console.log(`[Box2DEngine] Loop ${loop.id}: built ${segments.length} segments (verts=${optimizedLoop.length})`);
     if (segments.length === 0) {
       console.warn('[Box2DEngine] No segments built for loop', { loopId: loop.id, vertices: loop.vertices.length });
     }
@@ -525,13 +575,23 @@ export class Box2DEngine {
     segments.forEach((seg, idx) => {
       console.log('[Box2DEngine]  Segment', idx, {
         id: seg.id,
-        startIndex: seg.startIndex,
-        endIndex: seg.endIndex,
+        optStart: seg.optStart,
+        optEnd: seg.optEnd,
+        canonRange: [seg.canonicalStart, seg.canonicalEnd],
       });
-      const fixture = createFixtureForSegment(body, loop, seg, TERRAIN_FRICTION, TERRAIN_RESTITUTION, shouldReverse);
+      const fixture = createFixtureForSegment(body, optimizedLoop, seg, TERRAIN_FRICTION, TERRAIN_RESTITUTION, shouldReverse);
       if (!fixture) {
         console.warn('[Box2DEngine]  Segment produced no fixture (skipped)');
       }
+    });
+    console.log('[Box2D] Created segments', {
+      loopId: loop.id,
+      segmentCount: segments.length,
+      segments: segments.map(s => ({
+        id: s.id,
+        optRange: [s.optStart, s.optEnd],
+        canonRange: [s.canonicalStart, s.canonicalEnd],
+      }))
     });
 
     const aabb = loop.aabb ?? computeLoopAabbFromVertices(loop.vertices);
@@ -539,6 +599,7 @@ export class Box2DEngine {
     return {
       body,
       canonicalLoop: loop,
+      optimizedLoop,
       segments,
       aabb,
       shouldReverse,

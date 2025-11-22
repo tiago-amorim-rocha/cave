@@ -6,8 +6,11 @@
 
 import type { Point } from './types';
 import type { DensityField } from './DensityField';
+import type { OptVertex } from './terrain/CanonicalGeometry';
 
 export type { Point };
+
+type MaybeOptVertex = Point & Partial<OptVertex>;
 
 /**
  * Calculate signed area of triangle formed by three points
@@ -26,18 +29,18 @@ function triangleArea(p1: Point, p2: Point, p3: Point): number {
 /**
  * Node in the linked list for efficient vertex removal
  */
-interface VWNode {
-  point: Point;
+interface VWNode<T extends MaybeOptVertex> {
+  point: T;
   effectiveArea: number;
-  prev: VWNode | null;
-  next: VWNode | null;
+  prev: VWNode<T> | null;
+  next: VWNode<T> | null;
   removed: boolean;
 }
 
 /**
  * Calculate effective area for a vertex (triangle with neighbors)
  */
-function calculateEffectiveArea(node: VWNode): number {
+function calculateEffectiveArea<T extends MaybeOptVertex>(node: VWNode<T>): number {
   if (!node.prev || !node.next) {
     return Infinity; // Can't remove endpoints
   }
@@ -51,14 +54,14 @@ function calculateEffectiveArea(node: VWNode): number {
  * @param closed - Whether the polyline is closed (first point = last point)
  * @returns Simplified polyline
  */
-export function simplifyPolyline(points: Point[], areaThreshold: number, closed: boolean = false): Point[] {
+export function simplifyPolyline<T extends MaybeOptVertex>(points: T[], areaThreshold: number, closed: boolean = false): T[] {
   if (points.length <= 2) {
     return points.slice();
   }
 
   // Build linked list of nodes
-  const nodes: VWNode[] = points.map(point => ({
-    point: { x: point.x, y: point.y },
+  const nodes: VWNode<T>[] = points.map(point => ({
+    point: { ...(point as T) },
     effectiveArea: 0,
     prev: null,
     next: null,
@@ -85,7 +88,7 @@ export function simplifyPolyline(points: Point[], areaThreshold: number, closed:
   // Remove vertices with smallest areas until threshold met
   while (true) {
     // Find node with smallest effective area
-    let minNode: VWNode | null = null;
+    let minNode: VWNode<T> | null = null;
     let minArea = Infinity;
 
     for (const node of nodes) {
@@ -117,7 +120,7 @@ export function simplifyPolyline(points: Point[], areaThreshold: number, closed:
   }
 
   // Build result from non-removed nodes
-  const result: Point[] = [];
+  const result: T[] = [];
   for (const node of nodes) {
     if (!node.removed) {
       result.push(node.point);
@@ -129,7 +132,7 @@ export function simplifyPolyline(points: Point[], areaThreshold: number, closed:
     const first = result[0];
     const last = result[result.length - 1];
     if (Math.abs(first.x - last.x) > 1e-10 || Math.abs(first.y - last.y) > 1e-10) {
-      result.push({ x: first.x, y: first.y });
+      result.push({ ...(first as T) });
     }
   }
 
@@ -143,7 +146,7 @@ export function simplifyPolyline(points: Point[], areaThreshold: number, closed:
  * @param closed - Whether polylines are closed
  * @returns Simplified polylines
  */
-export function simplifyPolylines(polylines: Point[][], areaThreshold: number, closed: boolean = false): Point[][] {
+export function simplifyPolylines<T extends MaybeOptVertex>(polylines: T[][], areaThreshold: number, closed: boolean = false): T[][] {
   return polylines.map(polyline => simplifyPolyline(polyline, areaThreshold, closed));
 }
 

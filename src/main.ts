@@ -922,6 +922,24 @@ debugConsole.onToggleOriginalVertices = (enabled: boolean) => {
   }
 };
 
+debugConsole.onToggleCanonicalVertices = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showCanonicalVertices = enabled;
+  }
+};
+
+debugConsole.onToggleCanonicalAABBs = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showCanonicalAABBs = enabled;
+  }
+};
+
+debugConsole.onToggleSegments = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showSegmentDebug = enabled;
+  }
+};
+
 debugConsole.onToggleGrid = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showGrid = enabled;

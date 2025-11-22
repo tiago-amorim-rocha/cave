@@ -30,6 +30,9 @@ export class DebugConsole {
   public onTogglePhysicsMesh?: (enabled: boolean) => void;
   public onToggleOptimizedVertices?: (enabled: boolean) => void;
   public onToggleOriginalVertices?: (enabled: boolean) => void;
+  public onToggleCanonicalVertices?: (enabled: boolean) => void;
+  public onToggleCanonicalAABBs?: (enabled: boolean) => void;
+  public onToggleSegments?: (enabled: boolean) => void;
   public onToggleGrid?: (enabled: boolean) => void;
   public onToggleDensityField?: (enabled: boolean) => void;
   public onToggleDirtyAABB?: (enabled: boolean) => void;
@@ -468,6 +471,9 @@ export class DebugConsole {
       { label: 'Physics Mesh', key: 'physics', callback: 'onTogglePhysicsMesh', checked: false },
       { label: 'Optimized Vertices', key: 'optimized', callback: 'onToggleOptimizedVertices', checked: false },
       { label: 'Original Vertices', key: 'original', callback: 'onToggleOriginalVertices', checked: false },
+      { label: 'Canonical Vertices', key: 'canonicalverts', callback: 'onToggleCanonicalVertices', checked: false },
+      { label: 'Canonical AABBs', key: 'canonicalaabb', callback: 'onToggleCanonicalAABBs', checked: false },
+      { label: 'Segments', key: 'segments', callback: 'onToggleSegments', checked: false },
       { label: 'Grid', key: 'grid', callback: 'onToggleGrid', checked: false },
       { label: 'Density Field', key: 'density', callback: 'onToggleDensityField', checked: false },
       { label: 'Dirty AABB', key: 'dirtyaabb', callback: 'onToggleDirtyAABB', checked: true },

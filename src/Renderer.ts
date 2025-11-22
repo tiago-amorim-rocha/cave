@@ -1,6 +1,7 @@
 import type { Camera } from './Camera';
 import type { Vec2 } from './types';
 import type { DensityField } from './DensityField';
+import type { CanonicalLoop, OptVertex, PhysicsSegment } from './terrain/CanonicalGeometry';
 
 /**
  * Ball rendering data
@@ -59,6 +60,9 @@ export class Renderer {
   private originalPolylines: Vec2[][] = []; // Store original vertices before optimization
   private originalPolylineAABBs: Array<{ minX: number; minY: number; maxX: number; maxY: number }> = []; // AABB for each original polyline
   private densityField: DensityField | null = null;
+  private optimizedOptLoops: OptVertex[][] = []; // Ancestry-carrying optimized vertices (debug)
+  private canonicalLoops: CanonicalLoop[] = []; // Cleaned marching squares output (debug-only)
+  private segmentDebugData: Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }> = [];
   private loopDebugInfo: Array<{
     index: number;
     centroid: { x: number; y: number };
@@ -86,12 +90,16 @@ export class Renderer {
   public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
+  public showCanonicalVertices: boolean = false; // Show canonical vertices (cleaned marching squares)
+  public showCanonicalAABBs: boolean = false; // Show canonical loop AABBs
+  public showSegmentDebug: boolean = false; // Show physics segment boundaries/ranges
   public showPhysicsBodies: boolean = false; // Disabled for performance testing
   public showLoopNumbers: boolean = false; // Disabled for performance testing
   public showSamplePoints: boolean = false; // Disabled for performance testing
   public showDirtyAABB: boolean = true; // Enabled by default for local update debugging
   public showRebuiltChains: boolean = true; // Enabled by default for local update debugging
   public showLoopPatching: boolean = false; // Legacy loop patching debug visualization (disabled by default)
+  private debugHoverWorld: { x: number; y: number } | null = null; // For hover labels
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -161,6 +169,34 @@ export class Renderer {
   updateOriginalPolylines(polylines: Vec2[][]): void {
     this.originalPolylines = polylines;
     this.originalPolylineAABBs = polylines.map(p => this.computePolylineAABB(p));
+  }
+
+  /**
+   * Set canonical loops for debug visualization
+   */
+  setCanonicalLoops(canonicalLoops: CanonicalLoop[]): void {
+    this.canonicalLoops = canonicalLoops;
+  }
+
+  /**
+   * Set optimized vertices with ancestry (Chaikin output) for debug visualization
+   */
+  setOptimizedOptLoops(loops: OptVertex[][]): void {
+    this.optimizedOptLoops = loops;
+  }
+
+  /**
+   * Set segment debug data (physics segments with ancestry ranges)
+   */
+  setSegmentDebugData(data: Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }>): void {
+    this.segmentDebugData = data;
+  }
+
+  /**
+   * Set a world-space hover position to show ancestry labels near cursor.
+   */
+  setDebugHoverWorldPosition(pos: { x: number; y: number } | null): void {
+    this.debugHoverWorld = pos;
   }
 
   /**
@@ -440,6 +476,16 @@ export class Renderer {
         this.drawOriginalVertices(width, height);
       }
 
+      // Draw canonical vertices (cleaned marching squares)
+      if (this.showCanonicalVertices) {
+        this.drawCanonicalVertices(width, height);
+      }
+
+      // Draw canonical loop AABBs
+      if (this.showCanonicalAABBs) {
+        this.drawCanonicalAABBs(width, height);
+      }
+
       // Draw loop numbers at centroids (debugging)
       if (this.showLoopNumbers) {
         this.drawLoopNumbers(width, height);
@@ -463,6 +509,11 @@ export class Renderer {
       // Draw loop patching debug visualization
       if (this.showLoopPatching && this.loopPatchDebugInfo.length > 0) {
         this.drawLoopPatching(width, height);
+      }
+
+      // Draw physics segment debug
+      if (this.showSegmentDebug && this.segmentDebugData.length > 0) {
+        this.drawSegmentDebug(width, height);
       }
 
       // Draw player debug info (velocity, grounded state, etc.)
@@ -745,38 +796,75 @@ export class Renderer {
    */
   private drawVertices(canvasWidth: number, canvasHeight: number): void {
     this.ctx.save();
+    const useAncestry = this.optimizedOptLoops.length > 0;
+    if (useAncestry) {
+      const hover = this.debugHoverWorld
+        ? this.camera.worldToScreen(this.debugHoverWorld.x, this.debugHoverWorld.y, canvasWidth, canvasHeight)
+        : null;
+      const labelRadiusPx = 12;
+      this.ctx.font = '10px monospace';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.textAlign = 'left';
+      for (const loop of this.optimizedOptLoops) {
+        if (loop.length === 0) continue;
 
-    for (const polyline of this.polylines) {
-      if (polyline.length === 0) continue;
+        // Use a slow-changing gradient based on overall canonical span for this loop
+        const maxCanon = loop.reduce((m, v) => Math.max(m, v.canonEnd), 1);
+        for (let i = 0; i < loop.length; i++) {
+          const v = loop[i];
+          const screen = this.camera.worldToScreen(v.x, v.y, canvasWidth, canvasHeight);
+          const mid = (v.canonStart + v.canonEnd) * 0.5;
+          const t = maxCanon > 0 ? mid / maxCanon : 0;
+          const hue = (t * 300 + 20) % 360; // smooth sweep across loop
+          this.ctx.fillStyle = `hsl(${hue}, 80%, 60%)`;
+          this.ctx.beginPath();
+          this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
+          this.ctx.fill();
 
-      // Draw start point (green)
-      const start = this.camera.worldToScreen(polyline[0].x, polyline[0].y, canvasWidth, canvasHeight);
-      this.ctx.fillStyle = '#00ff00';
-      this.ctx.beginPath();
-      this.ctx.arc(start.x, start.y, 5, 0, Math.PI * 2);
-      this.ctx.fill();
-      this.ctx.fillText('START', start.x + 8, start.y);
+          // Show ancestry text only near hover to avoid clutter
+          if (hover) {
+            const dx = screen.x - hover.x;
+            const dy = screen.y - hover.y;
+            if (dx * dx + dy * dy <= labelRadiusPx * labelRadiusPx) {
+              this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+              this.ctx.fillText(`${v.canonStart}-${v.canonEnd}`, screen.x + 6, screen.y);
+            }
+          }
+        }
+      }
+    } else {
+      for (const polyline of this.polylines) {
+        if (polyline.length === 0) continue;
 
-      // Draw end point (red)
-      const end = this.camera.worldToScreen(
-        polyline[polyline.length - 1].x,
-        polyline[polyline.length - 1].y,
-        canvasWidth,
-        canvasHeight
-      );
-      this.ctx.fillStyle = '#ff0000';
-      this.ctx.beginPath();
-      this.ctx.arc(end.x, end.y, 5, 0, Math.PI * 2);
-      this.ctx.fill();
-      this.ctx.fillText('END', end.x + 8, end.y);
-
-      // Draw all vertices (yellow)
-      this.ctx.fillStyle = '#ffff00';
-      for (let i = 0; i < polyline.length; i++) {
-        const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
+        // Draw start point (green)
+        const start = this.camera.worldToScreen(polyline[0].x, polyline[0].y, canvasWidth, canvasHeight);
+        this.ctx.fillStyle = '#00ff00';
         this.ctx.beginPath();
-        this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
+        this.ctx.arc(start.x, start.y, 5, 0, Math.PI * 2);
         this.ctx.fill();
+        this.ctx.fillText('START', start.x + 8, start.y);
+
+        // Draw end point (red)
+        const end = this.camera.worldToScreen(
+          polyline[polyline.length - 1].x,
+          polyline[polyline.length - 1].y,
+          canvasWidth,
+          canvasHeight
+        );
+        this.ctx.fillStyle = '#ff0000';
+        this.ctx.beginPath();
+        this.ctx.arc(end.x, end.y, 5, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.fillText('END', end.x + 8, end.y);
+
+        // Draw all vertices (yellow)
+        this.ctx.fillStyle = '#ffff00';
+        for (let i = 0; i < polyline.length; i++) {
+          const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
+          this.ctx.beginPath();
+          this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
       }
     }
 
@@ -799,6 +887,106 @@ export class Renderer {
         this.ctx.beginPath();
         this.ctx.arc(screen.x, screen.y, 1, 0, Math.PI * 2);
         this.ctx.fill();
+      }
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw canonical vertices (cleaned marching squares output)
+   */
+  private drawCanonicalVertices(canvasWidth: number, canvasHeight: number): void {
+    if (this.canonicalLoops.length === 0) return;
+
+    this.ctx.save();
+    this.ctx.fillStyle = '#ff3333';
+
+    for (const loop of this.canonicalLoops) {
+      for (const vertex of loop.vertices) {
+        const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
+        this.ctx.beginPath();
+        this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw canonical loop AABBs
+   */
+  private drawCanonicalAABBs(canvasWidth: number, canvasHeight: number): void {
+    if (this.canonicalLoops.length === 0) return;
+
+    this.ctx.save();
+    this.ctx.strokeStyle = '#ff3333';
+    this.ctx.lineWidth = 2;
+    this.ctx.setLineDash([6, 3]);
+
+    for (const loop of this.canonicalLoops) {
+      const topLeft = this.camera.worldToScreen(loop.aabb.minX, loop.aabb.minY, canvasWidth, canvasHeight);
+      const bottomRight = this.camera.worldToScreen(loop.aabb.maxX, loop.aabb.maxY, canvasWidth, canvasHeight);
+      const rectWidth = bottomRight.x - topLeft.x;
+      const rectHeight = bottomRight.y - topLeft.y;
+      this.ctx.strokeRect(topLeft.x, topLeft.y, rectWidth, rectHeight);
+    }
+
+    this.ctx.setLineDash([]);
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw physics segments and their canonical ranges (debug)
+   */
+  private drawSegmentDebug(canvasWidth: number, canvasHeight: number): void {
+    this.ctx.save();
+    this.ctx.font = '10px monospace';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.textAlign = 'center';
+
+    for (const entry of this.segmentDebugData) {
+      const verts = entry.vertices;
+      for (const seg of entry.segments) {
+        const start = verts[seg.optStart];
+        const end = verts[seg.optEnd];
+        if (!start || !end) continue;
+
+        // Polyline along segment vertices (no diagonals)
+        this.ctx.strokeStyle = '#ffeb3b';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        for (let i = seg.optStart; i <= seg.optEnd; i++) {
+          const v = verts[i];
+          const s = this.camera.worldToScreen(v.x, v.y, canvasWidth, canvasHeight);
+          if (i === seg.optStart) {
+            this.ctx.moveTo(s.x, s.y);
+          } else {
+            this.ctx.lineTo(s.x, s.y);
+          }
+        }
+        this.ctx.stroke();
+
+        // Endpoints
+        const startScreen = this.camera.worldToScreen(start.x, start.y, canvasWidth, canvasHeight);
+        const endScreen = this.camera.worldToScreen(end.x, end.y, canvasWidth, canvasHeight);
+        this.ctx.fillStyle = '#ffeb3b';
+        this.ctx.beginPath();
+        this.ctx.arc(startScreen.x, startScreen.y, 3, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.arc(endScreen.x, endScreen.y, 3, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Label canonical range at midpoint vertex
+        const midIdx = Math.floor((seg.optStart + seg.optEnd) / 2);
+        const mid = verts[midIdx] ?? start;
+        const midScreen = this.camera.worldToScreen(mid.x, mid.y, canvasWidth, canvasHeight);
+        this.ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        this.ctx.fillRect(midScreen.x - 26, midScreen.y - 8, 52, 16);
+        this.ctx.fillStyle = '#ffeb3b';
+        this.ctx.fillText(`${seg.canonicalStart}-${seg.canonicalEnd}`, midScreen.x, midScreen.y);
       }
     }
 

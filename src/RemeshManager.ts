@@ -17,7 +17,7 @@ import { VertexOptimizationPipeline, type OptimizationOptions } from './VertexOp
 import type { Point } from './types';
 import { cleanLoop } from './physics/shapeUtils';
 import { LoopPatcher } from './LoopPatcher';
-import { createCanonicalLoop, type CanonicalLoop } from './terrain/CanonicalGeometry';
+import { createCanonicalLoop, replaceCanonicalRange, buildSegmentsForLoop, type CanonicalLoop, type OptVertex, type PhysicsSegment } from './terrain/CanonicalGeometry';
 
 // Debug flag for loop classification - set to false to silence logs
 const DEBUG_LOOP_CLASSIFICATION = true;
@@ -111,7 +111,9 @@ export class RemeshManager {
   private optimizationPipeline: VertexOptimizationPipeline;
   private optimizationOptions: OptimizationOptions;
   private loopPatcher: LoopPatcher;
-  private canonicalLoops: Array<{ loop: CanonicalLoop; shouldReverse: boolean }> = [];
+  private canonicalLoops: CanonicalLoop[] = []; // Read-only canonical layer (cleaned marching squares output)
+  private canonicalPhysicsLoops: Array<{ loop: CanonicalLoop; shouldReverse: boolean }> = [];
+  private optimizedOptLoopsDebug: OptVertex[][] = []; // For ancestry debug rendering
 
   private lastFullHealTime = 0;
   private needsFullHeal = false;
@@ -202,6 +204,152 @@ export class RemeshManager {
     }
 
     return false;
+  }
+
+  /**
+   * Dev-only assertion to ensure canonical AABBs contain their vertices
+   */
+  private assertCanonicalAABBs(canonicalLoops: CanonicalLoop[]): void {
+    for (const loop of canonicalLoops) {
+      const { aabb } = loop;
+      for (const v of loop.vertices) {
+        console.assert(
+          v.x >= aabb.minX - 1e-6 && v.x <= aabb.maxX + 1e-6 && v.y >= aabb.minY - 1e-6 && v.y <= aabb.maxY + 1e-6,
+          '[Phase1] Canonical vertex outside AABB',
+          { loopId: loop.id, vertex: { x: v.x, y: v.y }, aabb }
+        );
+      }
+    }
+  }
+
+  /**
+   * Compute AABB for optimized vertices (ancestry-carrying) - debug only
+   */
+  private computeOptAABB(loop: OptVertex[]): { minX: number; minY: number; maxX: number; maxY: number } {
+    if (loop.length === 0) {
+      return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    }
+    let minX = loop[0].x;
+    let minY = loop[0].y;
+    let maxX = loop[0].x;
+    let maxY = loop[0].y;
+    for (const v of loop) {
+      minX = Math.min(minX, v.x);
+      minY = Math.min(minY, v.y);
+      maxX = Math.max(maxX, v.x);
+      maxY = Math.max(maxY, v.y);
+    }
+    return { minX, minY, maxX, maxY };
+  }
+
+  /**
+   * Find canonical loops whose AABB intersects the dirty region
+   */
+  private findAffectedCanonicalLoops(region: { minX: number; minY: number; maxX: number; maxY: number }): CanonicalLoop[] {
+    return this.canonicalLoops.filter(loop => this.aabbsIntersect(loop.aabb, region));
+  }
+
+  /**
+   * Match new canonical loops to old ones by centroid proximity (greedy).
+   */
+  private matchNewLoopsToOld(oldLoops: CanonicalLoop[], newLoops: CanonicalLoop[]): Array<{ old: CanonicalLoop; replacement: CanonicalLoop | null }> {
+    const remaining = [...newLoops];
+    return oldLoops.map(oldLoop => {
+      const oldCentroid = computePolygonCentroid(oldLoop.vertices);
+      let bestIdx = -1;
+      let bestDist = Infinity;
+      for (let i = 0; i < remaining.length; i++) {
+        const c = computePolygonCentroid(remaining[i].vertices);
+        const dx = c.x - oldCentroid.x;
+        const dy = c.y - oldCentroid.y;
+        const d = dx * dx + dy * dy;
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+      if (bestIdx === -1) {
+        return { old: oldLoop, replacement: null };
+      }
+      const repl = remaining.splice(bestIdx, 1)[0];
+      return { old: oldLoop, replacement: repl };
+    });
+  }
+
+  /**
+   * Find optimized vertex span overlapping a canonical range
+   */
+  private findAffectedOptVertices(optLoop: OptVertex[], dirtyStart: number, dirtyEnd: number): { removeStart: number; removeEnd: number } | null {
+    let removeStart = -1;
+    let removeEnd = -1;
+    for (let i = 0; i < optLoop.length; i++) {
+      const v = optLoop[i];
+      const overlaps = v.canonStart <= dirtyEnd && v.canonEnd >= dirtyStart;
+      if (overlaps) {
+        if (removeStart === -1) removeStart = i;
+        removeEnd = i;
+      }
+    }
+    if (removeStart === -1 || removeEnd === -1) return null;
+    return { removeStart, removeEnd };
+  }
+
+  /**
+   * Rebuild optimized vertices for a canonical slice (inclusive range, clamped)
+   */
+  private rebuildOptimizedRange(canon: CanonicalLoop, dirtyStart: number, dirtyEnd: number): OptVertex[] {
+    const start = Math.max(0, dirtyStart);
+    const end = Math.min(canon.vertices.length - 1, dirtyEnd);
+    if (end - start < 1) {
+      return [];
+    }
+    const slice: Point[] = [];
+    for (let i = start; i <= end; i++) {
+      const v = canon.vertices[i];
+      slice.push({ x: v.x, y: v.y });
+    }
+    // Ensure closure
+    if (slice.length > 0) {
+      const first = slice[0];
+      const last = slice[slice.length - 1];
+      if (Math.abs(first.x - last.x) > 1e-6 || Math.abs(first.y - last.y) > 1e-6) {
+        slice.push({ x: first.x, y: first.y });
+      }
+    }
+    const opt = this.optimizationPipeline.optimize([slice], this.optimizationOptions);
+    return opt.finalOptLoops?.[0] ?? [];
+  }
+
+  /**
+   * Stitch new optimized vertices into an existing optimized loop
+   */
+  private stitchOptimizedRange(optLoop: OptVertex[], removeStart: number, removeEnd: number, newOpt: OptVertex[]): OptVertex[] {
+    return [
+      ...optLoop.slice(0, removeStart),
+      ...newOpt,
+      ...optLoop.slice(removeEnd + 1)
+    ];
+  }
+
+  /**
+   * Compute canonical index range overlapping a region (returns full loop if no overlap found)
+   */
+  private canonicalDirtyRange(loop: CanonicalLoop, region: { minX: number; minY: number; maxX: number; maxY: number }): { start: number; end: number } {
+    let start = -1;
+    let end = -1;
+    const inside = (v: Point) =>
+      v.x >= region.minX && v.x <= region.maxX && v.y >= region.minY && v.y <= region.maxY;
+    for (let i = 0; i < loop.vertices.length; i++) {
+      const v = loop.vertices[i];
+      if (inside(v)) {
+        if (start === -1) start = i;
+        end = i;
+      }
+    }
+    if (start === -1 || end === -1) {
+      return { start: 0, end: loop.vertices.length - 1 };
+    }
+    return { start, end };
   }
 
   /**
@@ -334,6 +482,17 @@ export class RemeshManager {
     const t5 = performance.now();
     console.log(`[FullHeal] ⏱️ Classification: ${(t5 - t4).toFixed(2)}ms (${validLoops.length} valid loops, ${deletedCount} deleted)`);
 
+    // Build canonical loops (read-only layer) directly from cleaned marching squares output
+    const canonicalLoops = validLoops.map(loop => createCanonicalLoop(loop));
+    this.canonicalLoops = canonicalLoops;
+    this.assertCanonicalAABBs(canonicalLoops);
+    console.log('[Phase1] Created canonical loops', {
+      count: canonicalLoops.length,
+      totalVertices: canonicalLoops.reduce((sum, l) => sum + l.vertices.length, 0),
+      aabbs: canonicalLoops.map(l => l.aabb)
+    });
+    this.renderer.setCanonicalLoops(canonicalLoops);
+
     // Pass loop metadata to renderer for debug visualization
     this.renderer.setLoopDebugInfo(loopMetadata);
 
@@ -354,6 +513,8 @@ export class RemeshManager {
 
     // Store original for debug visualization
     this.renderer.updateOriginalPolylines(optimizationResult.trueOriginalLoops);
+    this.optimizedOptLoopsDebug = optimizationResult.finalOptLoops ?? [];
+    this.renderer.setOptimizedOptLoops(this.optimizedOptLoopsDebug);
 
     // Use stored classifications from before optimization (more reliable than reclassifying)
     // Based on testing: reverse if cave inside (rock island), keep if rock inside (cave boundary)
@@ -364,19 +525,24 @@ export class RemeshManager {
 
     // Use final loops for both physics and rendering (canonical representation)
     const t6 = performance.now();
-    const canonicalLoops = optimizationResult.finalLoops.map(loop => createCanonicalLoop(loop));
-    const totalCanonicalVerts = canonicalLoops.reduce((sum, cl) => sum + cl.vertices.length, 0);
-    console.log(`[FullHeal] Canonical loops: ${canonicalLoops.length} (${totalCanonicalVerts} verts total)`);
-    this.canonicalLoops = canonicalLoops.map((loop, index) => ({ loop, shouldReverse: shouldReverse[index] ?? true }));
+    const canonicalPhysicsLoops = optimizationResult.finalLoops.map(loop => createCanonicalLoop(loop));
+    const totalCanonicalVerts = canonicalPhysicsLoops.reduce((sum, cl) => sum + cl.vertices.length, 0);
+    console.log(`[FullHeal] Canonical loops: ${canonicalPhysicsLoops.length} (${totalCanonicalVerts} verts total)`);
+    this.canonicalPhysicsLoops = canonicalPhysicsLoops.map((loop, index) => ({ loop, shouldReverse: shouldReverse[index] ?? true }));
+    // Cache optimized/segment debug on canonical loops
+    for (let i = 0; i < canonicalPhysicsLoops.length; i++) {
+      canonicalPhysicsLoops[i].optVertices = optimizationResult.finalOptLoops[i];
+    }
     const physicsEngine = this.physics.getEngine();
     console.log('[FullHeal] Calling physicsEngine.setCanonicalTerrainLoops');
     try {
-      physicsEngine.setCanonicalTerrainLoops(canonicalLoops, shouldReverse);
+      physicsEngine.setCanonicalTerrainLoops(canonicalPhysicsLoops, optimizationResult.finalOptLoops, shouldReverse);
       console.log('[FullHeal] physicsEngine.setCanonicalTerrainLoops completed');
     } catch (err) {
       console.error('[FullHeal] physicsEngine.setCanonicalTerrainLoops threw', err);
       throw err;
     }
+    this.renderer.setSegmentDebugData(physicsEngine.getSegmentDebugSnapshot());
     const t7 = performance.now();
     console.log(`[FullHeal] ⏱️ Box2D colliders: ${(t7 - t6).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
 
@@ -384,7 +550,7 @@ export class RemeshManager {
 
     // Update renderer with final loops
     const t8 = performance.now();
-    const finalForRender = canonicalLoops.map(loop => loop.vertices.map(p => ({ x: p.x, y: p.y })));
+    const finalForRender = canonicalPhysicsLoops.map(loop => loop.vertices.map(p => ({ x: p.x, y: p.y })));
     console.log(`[FullHeal] Updating renderer polylines with ${finalForRender.length} loops`);
     try {
       this.renderer.updatePolylines(finalForRender);
@@ -404,165 +570,141 @@ export class RemeshManager {
   }
 
   /**
-   * Local update - only update affected region
-   * Uses the dirty AABB from density field to do a local rebuild
+   * Local update - Phase 6: canonical surgery only, then fallback to full rebuild for optimized/physics.
    */
   localUpdate(expandCells: number = 2): RemeshStats | null {
-    const startTime = performance.now();
-
-    // Get dirty region from density field
     const dirtyAABB = this.densityField.getDirtyWorldAABB();
-    if (!dirtyAABB) {
-      return null;
-    }
+    if (!dirtyAABB) return null;
 
-    // Pad the AABB by expandCells to ensure correct marching squares behavior at boundaries
-    const h = this.densityField.config.gridPitch;
+    const gridPitch = this.densityField.config.gridPitch;
     const paddedAABB = {
-      minX: dirtyAABB.minX - expandCells * h,
-      minY: dirtyAABB.minY - expandCells * h,
-      maxX: dirtyAABB.maxX + expandCells * h,
-      maxY: dirtyAABB.maxY + expandCells * h
+      minX: dirtyAABB.minX - expandCells * gridPitch,
+      minY: dirtyAABB.minY - expandCells * gridPitch,
+      maxX: dirtyAABB.maxX + expandCells * gridPitch,
+      maxY: dirtyAABB.maxY + expandCells * gridPitch
     };
 
-    // Step 1: Remove physics bodies in padded region
-    const engine = this.physics.getEngine();
-    const t0 = performance.now();
-    const removedCount = engine.removeTerrainInRegion(paddedAABB);
-    const t1 = performance.now();
-    console.log(`[LocalUpdate] ⏱️ Remove bodies: ${(t1 - t0).toFixed(2)}ms (removed ${removedCount} bodies)`);
+    // A) Find affected canonical loops
+    const affectedCanonicals = this.findAffectedCanonicalLoops(paddedAABB);
 
-    // Step 2: Run marching squares only in padded region
-    const t2 = performance.now();
-    const results = this.marchingSquares.generateContours(paddedAABB, expandCells);
-    const t3 = performance.now();
-    const rawLoopCount = results.filter(r => r && r.loop && r.loop.length > 2).length;
-    console.log(`[LocalUpdate] ⏱️ Marching Squares: ${(t3 - t2).toFixed(2)}ms (generated ${rawLoopCount} raw loops)`);
-
-    // Step 3: Clean loops
-    const t4 = performance.now();
-    const gridPitch = this.densityField.config.gridPitch;
+    // B/C) Marching squares in dirty region, then clean
+    const msResults = this.marchingSquares.generateContours(paddedAABB, expandCells);
     const cleanedLoops: Point[][] = [];
-    let rawVertexCount = 0;
-    let cleanedVertexCount = 0;
-
-    for (const result of results) {
-      if (result && result.loop && result.loop.length > 2) {
-        rawVertexCount += result.loop.length;
-        const cleanedLoop = cleanLoop(result.loop, gridPitch);
-        if (cleanedLoop.length >= 3) {
-          cleanedLoops.push(cleanedLoop);
-          cleanedVertexCount += cleanedLoop.length;
+    for (const res of msResults) {
+      if (res && res.loop && res.loop.length > 2) {
+        const cleaned = cleanLoop(res.loop, gridPitch);
+        if (cleaned.length >= 3) {
+          cleanedLoops.push(cleaned);
         }
       }
     }
-    const t5 = performance.now();
-    console.log(`[LocalUpdate] ⏱️ Clean loops: ${(t5 - t4).toFixed(2)}ms (${rawVertexCount} → ${cleanedVertexCount} vertices, ${cleanedLoops.length} loops)`);
+    const newCanonicalLoops = cleanedLoops.map(loop => createCanonicalLoop(loop));
 
-    // Step 4: Classify loops
-    const t6 = performance.now();
-    const validLoops: Point[][] = [];
-    const loopClassifications: boolean[] = [];
-
-    for (const cleanedLoop of cleanedLoops) {
-      const classificationResult = this.isRockLoop(cleanedLoop, validLoops.length);
-
-      // Skip loops marked for deletion
-      if (classificationResult.shouldDelete) {
-        continue;
-      }
-
-      validLoops.push(cleanedLoop);
-      loopClassifications.push(classificationResult.isRock);
+    // D) Canonical surgery: replace full loop spans for affected loops with matched new loops
+    const matches = this.matchNewLoopsToOld(affectedCanonicals, newCanonicalLoops);
+    const remainingNew = new Set(newCanonicalLoops);
+    const replacements: CanonicalLoop[] = [];
+    for (const match of matches) {
+      if (!match.replacement) continue;
+      const replLoops = replaceCanonicalRange(
+        match.old,
+        0,
+        match.old.vertices.length - 1,
+        match.replacement.vertices.map(v => ({ x: v.x, y: v.y })),
+        gridPitch
+      );
+      replLoops.forEach(r => replacements.push(r));
+      remainingNew.delete(match.replacement);
     }
-    const t7 = performance.now();
-    console.log(`[LocalUpdate] ⏱️ Classification: ${(t7 - t6).toFixed(2)}ms (${validLoops.length} valid loops after filtering)`);
-
-    // Step 5: Optimize loops
-    const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
-    const finalVertexCount = optimizationResult.finalLoops.reduce((sum, loop) => sum + loop.length, 0);
-    console.log(`[LocalUpdate] ⏱️ Optimization: ${optimizationResult.timing.totalMs.toFixed(2)}ms (${cleanedVertexCount} → ${finalVertexCount} vertices)`);
-    console.log(`[LocalUpdate]    ↳ cleanLoop: ${optimizationResult.timing.cleanLoopMs.toFixed(2)}ms`);
-    if (optimizationResult.timing.simplificationMs > 0) {
-      console.log(`[LocalUpdate]    ↳ Visvalingam-Whyatt (reduce): ${optimizationResult.timing.simplificationMs.toFixed(2)}ms`);
-    }
-    if (optimizationResult.timing.chaikinMs > 0) {
-      console.log(`[LocalUpdate]    ↳ Chaikin smoothing (expand): ${optimizationResult.timing.chaikinMs.toFixed(2)}ms`);
-    }
-    if (optimizationResult.timing.postSimplificationMs > 0) {
-      console.log(`[LocalUpdate]    ↳ Post-simplification (reduce): ${optimizationResult.timing.postSimplificationMs.toFixed(2)}ms`);
+    for (const loop of remainingNew) {
+      replacements.push(loop);
     }
 
-    // Step 6: Build shouldReverse array
-    const shouldReverse = loopClassifications.map((isRock) => !isRock);
-
-    // Step 6b: Build canonical loops for physics and tracking
-    const newCanonicalLoops = optimizationResult.finalLoops.map(loop => createCanonicalLoop(loop));
-    const newCanonicalVerts = newCanonicalLoops.reduce((sum, cl) => sum + cl.vertices.length, 0);
-    console.log(`[LocalUpdate] Built ${newCanonicalLoops.length} canonical loops (${newCanonicalVerts} verts total)`);
-    // Update canonical registry: drop only loops whose geometry touches the padded region and append new ones
-    this.canonicalLoops = this.canonicalLoops.filter(entry => !this.loopTouchesRegion(entry.loop.vertices, paddedAABB));
-    for (let i = 0; i < newCanonicalLoops.length; i++) {
-      this.canonicalLoops.push({ loop: newCanonicalLoops[i], shouldReverse: shouldReverse[i] ?? true });
-    }
-
-    // Step 7: Add new physics bodies (Box2D collider creation)
-    const t8 = performance.now();
-    engine.addCanonicalTerrainLoops(newCanonicalLoops, shouldReverse);
-    const t9 = performance.now();
-    console.log(`[LocalUpdate] ⏱️ Box2D colliders: ${(t9 - t8).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
-    console.log(`[LocalUpdate] Canonical registry now has ${this.canonicalLoops.length} loops`);
-
-    console.log(`[LocalUpdate] 🎯 TOTAL (physics only): ${(t9 - t0).toFixed(2)}ms`);
-
-    // Step 8: Set debug info for visualization
+    this.canonicalLoops = this.canonicalLoops.filter(loop => !affectedCanonicals.includes(loop));
+    this.canonicalLoops.push(...replacements);
+    this.assertCanonicalAABBs(this.canonicalLoops);
+    this.renderer.setCanonicalLoops(this.canonicalLoops);
     this.renderer.setDirtyAABB(paddedAABB);
-    // Build debug chains clipped to the padded region to visualize stitched arcs
-    const debugChains: Point[][] = [];
-    for (const cl of newCanonicalLoops) {
-      let current: Point[] = [];
-      for (let i = 0; i < cl.vertices.length; i++) {
-        const v = cl.vertices[i];
-        const inside =
-          v.x >= paddedAABB.minX && v.x <= paddedAABB.maxX &&
-          v.y >= paddedAABB.minY && v.y <= paddedAABB.maxY;
 
-        if (inside) {
-          current.push({ x: v.x, y: v.y });
-        } else if (current.length > 0) {
-          if (current.length >= 2) {
-            debugChains.push(current);
-          }
-          current = [];
-        }
-      }
-      if (current.length >= 2) {
-        debugChains.push(current);
+    console.log('[LocalUpdate] Canonical surgery', {
+      dirtyAABB: paddedAABB,
+      affectedLoops: affectedCanonicals.length,
+      surgeryResults: matches.map(m => ({
+        oldLoopId: m.old.id,
+        newLoopCount: replacements.filter(r => r.version === m.old.version + 1).length
+      })),
+      fallbackToFullRebuild: false
+    });
+
+    // E) Rebuild optimized vertices locally for affected loops (ancestry-aware)
+    const newOptLoopsDebug: OptVertex[][] = [];
+    const newSegmentsDebug: PhysicsSegment[][] = [];
+    for (const repl of replacements) {
+      const dirtyRange = this.canonicalDirtyRange(repl, paddedAABB);
+      const optResult = this.optimizationPipeline.optimize([repl.vertices.map(v => ({ x: v.x, y: v.y }))], this.optimizationOptions);
+      const optLoop = optResult.finalOptLoops?.[0];
+      if (optLoop) {
+        newOptLoopsDebug.push(optLoop);
+        // Build segments for debug/physics
+        const segments = buildSegmentsForLoop(
+          repl.id,
+          optLoop,
+          64,
+          20,
+          12,
+          0.35
+        );
+        newSegmentsDebug.push(segments);
+        console.log('[LocalOptRebuild] Rebuilding range', {
+          canonRange: [dirtyRange.start, dirtyRange.end],
+          removedOptVerts: 0,
+          newOptVerts: optLoop.length,
+          ancestryCoverage: optLoop.every(v => v.canonStart !== undefined && v.canonEnd !== undefined)
+        });
+        repl.optVertices = optLoop;
+        repl.segments = segments;
       }
     }
-    this.renderer.setRebuiltChains(debugChains);
 
-    // Step 9: Local visual refresh using canonical loops (no full-world march)
-    const t10 = performance.now();
-    const removedPolylineCount = this.renderer.removePolylinesInRegion(paddedAABB);
-    console.log(`[LocalUpdate] ⏱️ Remove old polylines: ${removedPolylineCount}`);
+    // Merge optimized debug loops: drop those whose AABB intersects padded region
+    const keptOptLoops: OptVertex[][] = [];
+    for (const loop of this.optimizedOptLoopsDebug) {
+      const aabb = this.computeOptAABB(loop);
+      if (!this.aabbsIntersect(aabb, paddedAABB)) {
+        keptOptLoops.push(loop);
+      }
+    }
+    this.optimizedOptLoopsDebug = [...keptOptLoops, ...newOptLoopsDebug];
+    this.renderer.setOptimizedOptLoops(this.optimizedOptLoopsDebug);
 
-    // Re-add only loops that intersect the region from the canonical registry
-    const regionCanonicals = this.canonicalLoops.filter(entry => this.aabbsIntersect(entry.loop.aabb, paddedAABB));
-    const regionPolylines = regionCanonicals.map(entry => entry.loop.vertices.map(v => ({ x: v.x, y: v.y })));
-    console.log(`[LocalUpdate] Re-adding ${regionCanonicals.length} canonical loops to renderer`);
-    this.renderer.addPolylines(regionPolylines, regionPolylines);
+    // Update canonical physics loops with replacements for physics update
+    this.canonicalPhysicsLoops = this.canonicalPhysicsLoops.filter(entry => !affectedCanonicals.includes(entry.loop));
+    for (const repl of replacements) {
+      this.canonicalPhysicsLoops.push({ loop: repl, shouldReverse: true });
+    }
 
-    const t11 = performance.now();
-    console.log(`[LocalUpdate] ⏱️ Local visual update: ${(t11 - t10).toFixed(2)}ms (added ${regionPolylines.length} polylines)`);
+    // Physically update only affected region
+    const engine = this.physics.getEngine();
+    const removed = engine.removeTerrainInRegion(paddedAABB);
+    console.log(`[LocalUpdate] ⏱️ Remove bodies (local segments): removed ${removed}`);
+    engine.addCanonicalTerrainLoops(
+      replacements,
+      replacements.map(r => r.optVertices ?? [])
+    );
+    this.renderer.setSegmentDebugData(engine.getSegmentDebugSnapshot());
 
-    console.log(`[LocalUpdate] 🎯 TOTAL (including rendering): ${(t11 - t0).toFixed(2)}ms`);
+    // Refresh visuals using full optimized loops (safe for now)
+    const renderLoops = this.optimizedOptLoopsDebug.map(loop => loop.map(v => ({ x: v.x, y: v.y })));
+    this.renderer.updatePolylines(renderLoops);
 
-    // Clear dirty region
     this.densityField.clearDirty();
 
-    // Return stats based on physics-side optimization (local region)
-    return optimizationResult.statistics;
+    return {
+      originalVertexCount: 0,
+      finalVertexCount: 0,
+      simplificationReduction: 0,
+      postSimplificationReduction: 0,
+    };
   }
 
   /**
@@ -630,6 +772,7 @@ export class RemeshManager {
     }> = [];
 
     const patchedLoops: Point[][] = [];
+    const patchedOptLoops: OptVertex[][] = [];
     const patchedShouldReverse: boolean[] = [];
     let totalPatchedCount = 0;
 
@@ -653,11 +796,19 @@ export class RemeshManager {
         // Optimize the patched loop
         const optimizationResult = this.optimizationPipeline.optimize([patchResult.patchedLoop], this.optimizationOptions);
         const optimizedPatchedLoop = optimizationResult.finalLoops[0];
+        const optimizedPatchedOptLoop = optimizationResult.finalOptLoops?.[0];
 
         // Classify the patched loop
         const classification = this.isRockLoop(optimizedPatchedLoop, totalPatchedCount);
         if (!classification.shouldDelete) {
           patchedLoops.push(optimizedPatchedLoop);
+          const fallbackOpt = optimizedPatchedLoop.map((p, idx) => ({
+            x: p.x,
+            y: p.y,
+            canonStart: idx,
+            canonEnd: idx,
+          }));
+          patchedOptLoops.push(optimizedPatchedOptLoop ?? fallbackOpt);
           patchedShouldReverse.push(!classification.isRock);
 
           // Store debug info
@@ -689,16 +840,17 @@ export class RemeshManager {
 
     const patchedCanonicalLoops = patchedLoops.map(loop => createCanonicalLoop(loop));
     // Update canonical registry for patch region
-    this.canonicalLoops = this.canonicalLoops.filter(entry => !this.aabbsIntersect(entry.loop.aabb, paddedAABB));
+    this.canonicalPhysicsLoops = this.canonicalPhysicsLoops.filter(entry => !this.aabbsIntersect(entry.loop.aabb, paddedAABB));
     for (let i = 0; i < patchedCanonicalLoops.length; i++) {
-      this.canonicalLoops.push({ loop: patchedCanonicalLoops[i], shouldReverse: patchedShouldReverse[i] ?? true });
+      this.canonicalPhysicsLoops.push({ loop: patchedCanonicalLoops[i], shouldReverse: patchedShouldReverse[i] ?? true });
     }
-    console.log(`[LocalPatch] Canonical registry now has ${this.canonicalLoops.length} loops (added ${patchedCanonicalLoops.length})`);
+    console.log(`[LocalPatch] Canonical registry now has ${this.canonicalPhysicsLoops.length} loops (added ${patchedCanonicalLoops.length})`);
 
     const t9 = performance.now();
-    engine.addCanonicalTerrainLoops(patchedCanonicalLoops, patchedShouldReverse);
+    engine.addCanonicalTerrainLoops(patchedCanonicalLoops, patchedOptLoops, patchedShouldReverse);
     const t10 = performance.now();
     console.log(`[LocalPatch] ⏱️ Add patched bodies: ${(t10 - t9).toFixed(2)}ms (created ${patchedLoops.length} bodies)`);
+    this.renderer.setSegmentDebugData(engine.getSegmentDebugSnapshot());
 
     console.log(`[LocalPatch] 🎯 TOTAL (physics only): ${(t10 - t0).toFixed(2)}ms`);
 

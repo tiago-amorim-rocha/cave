@@ -1,5 +1,6 @@
 import { b2Body, b2ChainShape, b2Fixture, b2Vec2 } from '@box2d/core';
 import type { Point } from '../types';
+import { cleanLoop } from '../physics/shapeUtils';
 
 export type VertexId = number;
 export type SegmentId = number;
@@ -12,26 +13,42 @@ export interface AABB {
   maxY: number;
 }
 
-export interface CanonicalVertex {
-  id: VertexId;
+export interface CanonVertex {
   x: number;
   y: number;
+}
+
+export interface CanonicalVertex extends CanonVertex {
+  id: VertexId;
   segmentA: SegmentId | null;
   segmentB: SegmentId | null;
+}
+
+export interface OptVertex {
+  x: number;
+  y: number;
+  canonStart: number;
+  canonEnd: number;
 }
 
 export interface CanonicalLoop {
   id: LoopId;
   vertices: CanonicalVertex[];
   aabb: AABB;
+  version: number;
   isClosed: boolean;
+  // Cached optimized/segment ancestry (for local updates)
+  optVertices?: OptVertex[];
+  segments?: PhysicsSegment[];
 }
 
 export interface PhysicsSegment {
   id: SegmentId;
-  loopId: LoopId;
-  startIndex: number;
-  endIndex: number; // inclusive
+  loopCanonicalId: LoopId;
+  optStart: number;
+  optEnd: number; // inclusive
+  canonicalStart: number;
+  canonicalEnd: number;
   fixture: b2Fixture | null;
   aabb: AABB;
 }
@@ -70,6 +87,7 @@ export function createCanonicalLoop(points: Point[], loopId?: LoopId): Canonical
       id,
       vertices: [],
       aabb: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+      version: 1,
       isClosed: false,
     };
   }
@@ -91,12 +109,13 @@ export function createCanonicalLoop(points: Point[], loopId?: LoopId): Canonical
     });
   }
 
-  const aabb = computeLoopAabbFromVertices(verts);
+  const aabb = computeLoopAABB(verts);
 
   return {
     id,
     vertices: verts,
     aabb,
+    version: 1,
     isClosed,
   };
 }
@@ -104,7 +123,7 @@ export function createCanonicalLoop(points: Point[], loopId?: LoopId): Canonical
 /**
  * Compute AABB for a canonical loop
  */
-export function computeLoopAabbFromVertices(vertices: CanonicalVertex[]): AABB {
+export function computeLoopAABB(vertices: CanonVertex[]): AABB {
   if (vertices.length === 0) {
     return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   }
@@ -124,10 +143,15 @@ export function computeLoopAabbFromVertices(vertices: CanonicalVertex[]): AABB {
   return { minX, minY, maxX, maxY };
 }
 
+// Backwards compatibility alias (legacy naming)
+export function computeLoopAabbFromVertices(vertices: CanonicalVertex[]): AABB {
+  return computeLoopAABB(vertices);
+}
+
 /**
  * Compute AABB for a segment within a canonical loop (inclusive indices)
  */
-export function computeSegmentAabb(loop: CanonicalLoop, startIndex: number, endIndex: number): AABB {
+export function computeSegmentAabb(loop: { vertices: CanonVertex[] | OptVertex[] }, startIndex: number, endIndex: number): AABB {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -149,18 +173,15 @@ export function computeSegmentAabb(loop: CanonicalLoop, startIndex: number, endI
  * Segment boundaries align to canonical vertices only.
  */
 export function buildSegmentsForLoop(
-  loop: CanonicalLoop,
+  loopId: LoopId,
+  vertices: OptVertex[],
   maxSegmentVerts: number,
-  maxSegmentLength: number
+  maxSegmentLength: number,
+  targetSegmentLength: number,
+  lengthTolerance: number
 ): PhysicsSegment[] {
   const result: PhysicsSegment[] = [];
-  const verts = loop.vertices;
-
-  // Clear back-links before reassigning
-  for (const v of verts) {
-    v.segmentA = null;
-    v.segmentB = null;
-  }
+  const verts = vertices;
 
   const lastIndex = verts.length - 1;
   let startIndex = 0;
@@ -179,31 +200,30 @@ export function buildSegmentsForLoop(
 
       const overVerts = count >= maxSegmentVerts;
       const overLen = length >= maxSegmentLength;
-      if (overVerts || overLen) break;
+      const minLen = targetSegmentLength * (1 - lengthTolerance);
+      const maxLen = targetSegmentLength * (1 + lengthTolerance);
+      const hitTargetBand = length >= minLen && length <= maxLen;
+      if (overVerts || overLen || hitTargetBand) break;
     }
 
     const segId = allocateSegmentId();
+    let canonStart = Infinity;
+    let canonEnd = -Infinity;
+    for (let i = startIndex; i <= endIndex; i++) {
+      canonStart = Math.min(canonStart, verts[i].canonStart);
+      canonEnd = Math.max(canonEnd, verts[i].canonEnd);
+    }
+
     const seg: PhysicsSegment = {
       id: segId,
-      loopId: loop.id,
-      startIndex,
-      endIndex,
+      loopCanonicalId: loopId,
+      optStart: startIndex,
+      optEnd: endIndex,
+      canonicalStart: canonStart,
+      canonicalEnd: canonEnd,
       fixture: null,
-      aabb: computeSegmentAabb(loop, startIndex, endIndex),
+      aabb: computeSegmentAabb({ vertices: verts }, startIndex, endIndex),
     };
-
-    // Update vertex → segment back-links
-    for (let i = startIndex; i <= endIndex; i++) {
-      const cv = verts[i];
-      if (cv.segmentA === null) cv.segmentA = segId;
-      else if (cv.segmentB === null) cv.segmentB = segId;
-      else {
-        // This should never happen; keep going but surface noise in dev.
-        if (typeof process === 'undefined' || process.env?.NODE_ENV !== 'production') {
-          console.warn('[CanonicalGeometry] Vertex used by >2 segments', cv.id);
-        }
-      }
-    }
 
     result.push(seg);
     startIndex = endIndex;
@@ -213,39 +233,112 @@ export function buildSegmentsForLoop(
 }
 
 /**
+ * Replace a canonical range with new vertices. Returns new canonical loops (can split/merge).
+ * gridPitch is required for cleanLoop hygiene.
+ */
+export function replaceCanonicalRange(
+  loop: CanonicalLoop,
+  startIdx: number,
+  endIdx: number,
+  newVertices: CanonVertex[],
+  gridPitch: number
+): CanonicalLoop[] {
+  if (startIdx < 0 || endIdx >= loop.vertices.length || startIdx > endIdx) {
+    throw new Error('[CanonSurgery] Invalid range');
+  }
+
+  const before = loop.vertices.slice(0, startIdx).map(v => ({ x: v.x, y: v.y }));
+  const after = loop.vertices.slice(endIdx + 1).map(v => ({ x: v.x, y: v.y }));
+  const replacement = newVertices.map(v => ({ x: v.x, y: v.y }));
+
+  const combined: Point[] = [...before, ...replacement, ...after];
+  const cleaned = cleanLoop(combined, gridPitch);
+
+  const resultLoops: CanonicalLoop[] = [];
+  if (cleaned.length === 0) {
+    console.log('[CanonSurgery] Replacing range yielded empty loop', { loopId: loop.id });
+    return resultLoops;
+  }
+
+  // Split into sub-loops if concatenated closures appear (simple splitter)
+  const loops: Point[][] = [];
+  let current: Point[] = [];
+  for (let i = 0; i < cleaned.length; i++) {
+    const p = cleaned[i];
+    if (current.length === 0) {
+      current.push({ x: p.x, y: p.y });
+      continue;
+    }
+    current.push({ x: p.x, y: p.y });
+    const first = current[0];
+    const isClosure = Math.abs(p.x - first.x) < 1e-6 && Math.abs(p.y - first.y) < 1e-6 && current.length > 2;
+    if (isClosure) {
+      loops.push(current.slice());
+      current = [];
+    }
+  }
+  if (current.length >= 3) {
+    // Ensure closure for the last loop
+    const first = current[0];
+    const last = current[current.length - 1];
+    if (Math.abs(first.x - last.x) > 1e-6 || Math.abs(first.y - last.y) > 1e-6) {
+      current.push({ x: first.x, y: first.y });
+    }
+    loops.push(current);
+  }
+
+  const loopsToBuild = loops.length > 0 ? loops : [cleaned];
+  for (const pts of loopsToBuild) {
+    const canon = createCanonicalLoop(pts);
+    canon.version = loop.version + 1;
+    resultLoops.push(canon);
+  }
+
+  console.log('[CanonSurgery] Replacing range', {
+    loopId: loop.id,
+    oldRange: [startIdx, endIdx],
+    newVerts: newVertices.length,
+    resultLoops: resultLoops.length,
+    topologyChange: resultLoops.length !== 1
+  });
+
+  return resultLoops;
+}
+
+/**
  * Build a chain fixture for a physics segment on the provided body.
  * Returns null if the segment is degenerate or invalid.
  */
 export function createFixtureForSegment(
   worldBody: b2Body,
-  loop: CanonicalLoop,
+  vertices: OptVertex[],
   seg: PhysicsSegment,
   friction: number,
   restitution: number,
   reverseWinding: boolean = false
 ): b2Fixture | null {
   // Guard against invalid index ranges
-  if (seg.startIndex < 0 || seg.endIndex >= loop.vertices.length || seg.startIndex >= seg.endIndex) {
+  if (seg.optStart < 0 || seg.optEnd >= vertices.length || seg.optStart >= seg.optEnd) {
     console.warn('[CanonicalGeometry] Skipping invalid segment in fixture creation', {
-      loopId: loop.id,
-      startIndex: seg.startIndex,
-      endIndex: seg.endIndex,
-      vertexCount: loop.vertices.length,
+      loopId: seg.loopCanonicalId,
+      startIndex: seg.optStart,
+      endIndex: seg.optEnd,
+      vertexCount: vertices.length,
     });
     seg.fixture = null;
     return null;
   }
 
   const verts: b2Vec2[] = [];
-  for (let i = seg.startIndex; i <= seg.endIndex; i++) {
-    const v = loop.vertices[i];
+  for (let i = seg.optStart; i <= seg.optEnd; i++) {
+    const v = vertices[i];
     if (!v) {
       console.warn('[CanonicalGeometry] Skipping segment with out-of-range vertex during fixture build', {
-        loopId: loop.id,
+        loopId: seg.loopCanonicalId,
         index: i,
-        startIndex: seg.startIndex,
-        endIndex: seg.endIndex,
-        vertexCount: loop.vertices.length,
+        startIndex: seg.optStart,
+        endIndex: seg.optEnd,
+        vertexCount: vertices.length,
       });
       seg.fixture = null;
       return null;
@@ -255,9 +348,9 @@ export function createFixtureForSegment(
 
   if (verts.length < 2) {
     console.warn('[CanonicalGeometry] Skipping segment with <2 verts in fixture build', {
-      loopId: loop.id,
-      startIndex: seg.startIndex,
-      endIndex: seg.endIndex,
+      loopId: seg.loopCanonicalId,
+      startIndex: seg.optStart,
+      endIndex: seg.optEnd,
       vertsLength: verts.length,
     });
     seg.fixture = null;
@@ -287,21 +380,12 @@ export function createFixtureForSegment(
 /**
  * Dev-only sanity checks to keep invariant drift visible.
  */
-export function validateSegments(loop: CanonicalLoop, segments: PhysicsSegment[]): void {
+export function validateSegments(vertices: OptVertex[], segments: PhysicsSegment[]): void {
   if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') return;
 
   for (const seg of segments) {
-    if (seg.startIndex < 0 || seg.endIndex >= loop.vertices.length || seg.startIndex >= seg.endIndex) {
+    if (seg.optStart < 0 || seg.optEnd >= vertices.length || seg.optStart >= seg.optEnd) {
       console.warn('[CanonicalGeometry] Invalid segment indices', seg);
-    }
-    for (let i = seg.startIndex; i <= seg.endIndex; i++) {
-      const v = loop.vertices[i];
-      const owns =
-        v.segmentA === seg.id ||
-        v.segmentB === seg.id;
-      if (!owns) {
-        console.warn('[CanonicalGeometry] Vertex missing back-link', { vertex: v.id, seg: seg.id });
-      }
     }
 
     const { minX, minY, maxX, maxY } = seg.aabb;
