@@ -342,6 +342,73 @@ export class Box2DEngine {
   }
 
   /**
+   * Geometry helper: check whether a canonical loop touches an AABB (vertex inside or edge crosses).
+   */
+  private loopTouchesRegion(loop: CanonicalLoop, region: AABB): boolean {
+    const pointInside = (p: Point) =>
+      p.x >= region.minX && p.x <= region.maxX && p.y >= region.minY && p.y <= region.maxY;
+
+    const segmentsIntersect = (a: Point, b: Point, c: Point, d: Point): boolean => {
+      const cross = (p: Point, q: Point, r: Point) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+      const onSegment = (p: Point, q: Point, r: Point) =>
+        Math.min(p.x, r.x) - 1e-6 <= q.x && q.x <= Math.max(p.x, r.x) + 1e-6 &&
+        Math.min(p.y, r.y) - 1e-6 <= q.y && q.y <= Math.max(p.y, r.y) + 1e-6;
+
+      const o1 = cross(a, b, c);
+      const o2 = cross(a, b, d);
+      const o3 = cross(c, d, a);
+      const o4 = cross(c, d, b);
+
+      if (o1 === 0 && onSegment(a, c, b)) return true;
+      if (o2 === 0 && onSegment(a, d, b)) return true;
+      if (o3 === 0 && onSegment(c, a, d)) return true;
+      if (o4 === 0 && onSegment(c, b, d)) return true;
+
+      return (o1 > 0) !== (o2 > 0) && (o3 > 0) !== (o4 > 0);
+    };
+
+    const segmentIntersectsAABB = (p1: Point, p2: Point): boolean => {
+      if (pointInside(p1) || pointInside(p2)) return true;
+
+      // Quick reject by segment AABB
+      const minX = Math.min(p1.x, p2.x);
+      const maxX = Math.max(p1.x, p2.x);
+      const minY = Math.min(p1.y, p2.y);
+      const maxY = Math.max(p1.y, p2.y);
+      if (maxX < region.minX || minX > region.maxX || maxY < region.minY || minY > region.maxY) {
+        return false;
+      }
+
+      // Rectangle corners/edges
+      const topLeft = { x: region.minX, y: region.minY };
+      const topRight = { x: region.maxX, y: region.minY };
+      const bottomLeft = { x: region.minX, y: region.maxY };
+      const bottomRight = { x: region.maxX, y: region.maxY };
+
+      return (
+        segmentsIntersect(p1, p2, topLeft, topRight) ||
+        segmentsIntersect(p1, p2, topRight, bottomRight) ||
+        segmentsIntersect(p1, p2, bottomRight, bottomLeft) ||
+        segmentsIntersect(p1, p2, bottomLeft, topLeft)
+      );
+    };
+
+    // Any vertex inside?
+    for (const v of loop.vertices) {
+      if (pointInside(v)) return true;
+    }
+
+    // Any edge intersections?
+    for (let i = 0; i < loop.vertices.length - 1; i++) {
+      const p1 = loop.vertices[i];
+      const p2 = loop.vertices[i + 1];
+      if (segmentIntersectsAABB(p1, p2)) return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Remove terrain bodies whose AABBs intersect the given region
    * Returns the number of bodies removed
    */
@@ -356,7 +423,7 @@ export class Box2DEngine {
 
     // Partition bodies into remove/keep based on AABB intersection
     for (const bodyInfo of this.terrainBodies) {
-      if (this.aabbsIntersect(bodyInfo.aabb, region)) {
+      if (this.loopTouchesRegion(bodyInfo.canonicalLoop, region)) {
         bodiesToRemove.push(bodyInfo);
       } else {
         bodiesToKeep.push(bodyInfo);

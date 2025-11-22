@@ -196,6 +196,67 @@ export class Renderer {
   }
 
   /**
+   * Check if any vertex lies inside or any edge crosses a region
+   */
+  private polylineTouchesRegion(polyline: Vec2[], region: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+    const pointInside = (p: Vec2) =>
+      p.x >= region.minX && p.x <= region.maxX && p.y >= region.minY && p.y <= region.maxY;
+
+    const segmentsIntersect = (a: Vec2, b: Vec2, c: Vec2, d: Vec2): boolean => {
+      const cross = (p: Vec2, q: Vec2, r: Vec2) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+      const onSegment = (p: Vec2, q: Vec2, r: Vec2) =>
+        Math.min(p.x, r.x) - 1e-6 <= q.x && q.x <= Math.max(p.x, r.x) + 1e-6 &&
+        Math.min(p.y, r.y) - 1e-6 <= q.y && q.y <= Math.max(p.y, r.y) + 1e-6;
+
+      const o1 = cross(a, b, c);
+      const o2 = cross(a, b, d);
+      const o3 = cross(c, d, a);
+      const o4 = cross(c, d, b);
+
+      if (o1 === 0 && onSegment(a, c, b)) return true;
+      if (o2 === 0 && onSegment(a, d, b)) return true;
+      if (o3 === 0 && onSegment(c, a, d)) return true;
+      if (o4 === 0 && onSegment(c, b, d)) return true;
+
+      return (o1 > 0) !== (o2 > 0) && (o3 > 0) !== (o4 > 0);
+    };
+
+    const segmentIntersectsAABB = (p1: Vec2, p2: Vec2): boolean => {
+      if (pointInside(p1) || pointInside(p2)) return true;
+      // Quick reject by segment AABB
+      const minX = Math.min(p1.x, p2.x);
+      const maxX = Math.max(p1.x, p2.x);
+      const minY = Math.min(p1.y, p2.y);
+      const maxY = Math.max(p1.y, p2.y);
+      if (maxX < region.minX || minX > region.maxX || maxY < region.minY || minY > region.maxY) {
+        return false;
+      }
+
+      const topLeft = { x: region.minX, y: region.minY };
+      const topRight = { x: region.maxX, y: region.minY };
+      const bottomLeft = { x: region.minX, y: region.maxY };
+      const bottomRight = { x: region.maxX, y: region.maxY };
+
+      return (
+        segmentsIntersect(p1, p2, topLeft, topRight) ||
+        segmentsIntersect(p1, p2, topRight, bottomRight) ||
+        segmentsIntersect(p1, p2, bottomRight, bottomLeft) ||
+        segmentsIntersect(p1, p2, bottomLeft, topLeft)
+      );
+    };
+
+    for (const v of polyline) {
+      if (pointInside(v)) return true;
+    }
+
+    for (let i = 0; i < polyline.length - 1; i++) {
+      if (segmentIntersectsAABB(polyline[i], polyline[i + 1])) return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Remove polylines that intersect with the given region
    * Returns the number of polylines removed
    */
@@ -203,7 +264,12 @@ export class Renderer {
     const indicesToKeep: number[] = [];
 
     for (let i = 0; i < this.polylines.length; i++) {
+      // Quick reject using AABB, then fall back to geometry check
       if (!this.aabbsIntersect(this.polylineAABBs[i], region)) {
+        indicesToKeep.push(i);
+        continue;
+      }
+      if (!this.polylineTouchesRegion(this.polylines[i], region)) {
         indicesToKeep.push(i);
       }
     }
