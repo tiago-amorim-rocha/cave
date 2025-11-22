@@ -1,7 +1,6 @@
 import type { Camera } from './Camera';
 import type { Vec2 } from './types';
 import type { DensityField } from './DensityField';
-import type { ChunkManager } from './ChunkManager';
 
 /**
  * Ball rendering data
@@ -60,7 +59,6 @@ export class Renderer {
   private originalPolylines: Vec2[][] = []; // Store original vertices before optimization
   private originalPolylineAABBs: Array<{ minX: number; minY: number; maxX: number; maxY: number }> = []; // AABB for each original polyline
   private densityField: DensityField | null = null;
-  private chunkManager: ChunkManager | null = null;
   private loopDebugInfo: Array<{
     index: number;
     centroid: { x: number; y: number };
@@ -85,7 +83,6 @@ export class Renderer {
   private lastPatchLogTime: number = 0;
 
   public showGrid: boolean = false;
-  public showChunkGrid: boolean = false; // Show chunk boundaries
   public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
@@ -93,8 +90,8 @@ export class Renderer {
   public showLoopNumbers: boolean = false; // Disabled for performance testing
   public showSamplePoints: boolean = false; // Disabled for performance testing
   public showDirtyAABB: boolean = true; // Enabled by default for local update debugging
-  public showRebuiltChains: boolean = false; // Debug overlay off by default (toggle via console)
-  public showLoopPatching: boolean = false; // Debug overlay off by default (toggle via console)
+  public showRebuiltChains: boolean = true; // Enabled by default for local update debugging
+  public showLoopPatching: boolean = false; // Legacy loop patching debug visualization (disabled by default)
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -150,6 +147,12 @@ export class Renderer {
   updatePolylines(polylines: Vec2[][]): void {
     this.polylines = polylines;
     this.polylineAABBs = polylines.map(p => this.computePolylineAABB(p));
+    console.log(`[Renderer] updatePolylines: ${polylines.length} polylines`);
+    if (polylines.length === 0) {
+      console.warn('[Renderer] updatePolylines received empty array');
+    } else {
+      console.log(`[Renderer] first polyline length=${polylines[0].length}`);
+    }
   }
 
   /**
@@ -315,13 +318,6 @@ export class Renderer {
   }
 
   /**
-   * Set chunk manager for chunk grid visualization
-   */
-  setChunkManager(chunkManager: ChunkManager): void {
-    this.chunkManager = chunkManager;
-  }
-
-  /**
    * Set loop debug info for rendering loop numbers and sample points
    */
   setLoopDebugInfo(info: Array<{
@@ -409,11 +405,6 @@ export class Renderer {
       // Draw grid (optional, for debugging)
       if (this.showGrid) {
         this.drawGrid(width, height);
-      }
-
-      // Draw chunk grid (optional, for debugging)
-      if (this.showChunkGrid) {
-        this.drawChunkGrid(width, height);
       }
 
       // Draw polylines
@@ -694,6 +685,7 @@ export class Renderer {
    */
   private drawPolylines(canvasWidth: number, canvasHeight: number): void {
     if (this.polylines.length === 0) {
+      console.warn('[Renderer] No polylines to draw (polylines array empty)');
       return;
     }
 
@@ -926,13 +918,13 @@ export class Renderer {
 
     this.ctx.save();
 
-    // Draw each rebuilt chain with bright cyan color
-    this.ctx.strokeStyle = '#00ffff'; // Bright cyan
-    this.ctx.lineWidth = 4; // Thicker than normal
-    this.ctx.globalAlpha = 0.8;
-
     for (const chain of this.rebuiltChains) {
       if (chain.length < 2) continue;
+
+      // Stroke for the stitched arc
+      this.ctx.strokeStyle = '#ff00ff'; // Magenta for stitched arc
+      this.ctx.lineWidth = 4;
+      this.ctx.globalAlpha = 0.9;
 
       this.ctx.beginPath();
       const first = this.camera.worldToScreen(chain[0].x, chain[0].y, canvasWidth, canvasHeight);
@@ -945,14 +937,31 @@ export class Renderer {
 
       this.ctx.stroke();
 
-      // Draw vertices as small circles
-      for (const vertex of chain) {
-        const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
+      // Draw all intermediate vertices as small cyan dots
+      for (let i = 1; i < chain.length - 1; i++) {
+        const v = chain[i];
+        const screen = this.camera.worldToScreen(v.x, v.y, canvasWidth, canvasHeight);
         this.ctx.fillStyle = '#00ffff';
         this.ctx.beginPath();
-        this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
+        this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
         this.ctx.fill();
       }
+
+      // Highlight endpoints as reattachment vertices
+      const start = this.camera.worldToScreen(chain[0].x, chain[0].y, canvasWidth, canvasHeight);
+      const end = this.camera.worldToScreen(chain[chain.length - 1].x, chain[chain.length - 1].y, canvasWidth, canvasHeight);
+
+      // Start vertex (red)
+      this.ctx.fillStyle = '#ff0000';
+      this.ctx.beginPath();
+      this.ctx.arc(start.x, start.y, 4, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // End vertex (blue)
+      this.ctx.fillStyle = '#0000ff';
+      this.ctx.beginPath();
+      this.ctx.arc(end.x, end.y, 4, 0, Math.PI * 2);
+      this.ctx.fill();
     }
 
     this.ctx.restore();
@@ -1302,71 +1311,6 @@ export class Renderer {
       this.ctx.moveTo(left.x, left.y);
       this.ctx.lineTo(right.x, right.y);
       this.ctx.stroke();
-    }
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Draw chunk grid (8m × 8m chunks)
-   */
-  private drawChunkGrid(canvasWidth: number, canvasHeight: number): void {
-    if (!this.chunkManager) return;
-
-    this.ctx.save();
-    this.ctx.strokeStyle = '#ff6600'; // Orange for chunk boundaries
-    this.ctx.lineWidth = 2;
-
-    const { chunksX, chunksY, chunkSize } = this.chunkManager.getChunkGridDimensions();
-
-    // Calculate visible world bounds
-    const topLeft = this.camera.screenToWorld(0, 0, canvasWidth, canvasHeight);
-    const bottomRight = this.camera.screenToWorld(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
-
-    // Draw vertical chunk boundaries
-    for (let i = 0; i <= chunksX; i++) {
-      const worldX = i * chunkSize;
-      if (worldX >= topLeft.x && worldX <= bottomRight.x) {
-        const top = this.camera.worldToScreen(worldX, topLeft.y, canvasWidth, canvasHeight);
-        const bottom = this.camera.worldToScreen(worldX, bottomRight.y, canvasWidth, canvasHeight);
-        this.ctx.beginPath();
-        this.ctx.moveTo(top.x, top.y);
-        this.ctx.lineTo(bottom.x, bottom.y);
-        this.ctx.stroke();
-      }
-    }
-
-    // Draw horizontal chunk boundaries
-    for (let j = 0; j <= chunksY; j++) {
-      const worldY = j * chunkSize;
-      if (worldY >= topLeft.y && worldY <= bottomRight.y) {
-        const left = this.camera.worldToScreen(topLeft.x, worldY, canvasWidth, canvasHeight);
-        const right = this.camera.worldToScreen(bottomRight.x, worldY, canvasWidth, canvasHeight);
-        this.ctx.beginPath();
-        this.ctx.moveTo(left.x, left.y);
-        this.ctx.lineTo(right.x, right.y);
-        this.ctx.stroke();
-      }
-    }
-
-    // Draw chunk labels at centers
-    this.ctx.fillStyle = '#ff6600';
-    this.ctx.font = '14px monospace';
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-
-    for (let gy = 0; gy < chunksY; gy++) {
-      for (let gx = 0; gx < chunksX; gx++) {
-        const centerWorldX = (gx + 0.5) * chunkSize;
-        const centerWorldY = (gy + 0.5) * chunkSize;
-
-        // Only draw labels for visible chunks
-        if (centerWorldX >= topLeft.x && centerWorldX <= bottomRight.x &&
-            centerWorldY >= topLeft.y && centerWorldY <= bottomRight.y) {
-          const screenPos = this.camera.worldToScreen(centerWorldX, centerWorldY, canvasWidth, canvasHeight);
-          this.ctx.fillText(`(${gx},${gy})`, screenPos.x, screenPos.y);
-        }
-      }
     }
 
     this.ctx.restore();

@@ -8,10 +8,17 @@ import {
   b2Vec2,
   b2Body,
   b2BodyType,
-  b2ChainShape,
-  b2Color,
 } from '@box2d/core';
 import type { Camera } from '../Camera';
+import {
+  createCanonicalLoop,
+  buildSegmentsForLoop,
+  createFixtureForSegment,
+  type CanonicalLoop,
+  type PhysicsSegment,
+  computeLoopAabbFromVertices,
+  validateSegments,
+} from '../terrain/CanonicalGeometry';
 
 export interface Point {
   x: number;
@@ -25,12 +32,19 @@ export interface AABB {
   maxY: number;
 }
 
-interface TerrainBodyInfo {
+export interface TerrainBodyInfo {
   body: b2Body;
+  canonicalLoop: CanonicalLoop;
+  segments: PhysicsSegment[];
   aabb: AABB;
-  originalLoop: Point[]; // Store original vertices for loop cutting
-  isRock: boolean; // Classification used when created (rock boundary vs cave boundary)
+  shouldReverse: boolean;
+  originalLoop: Point[];
 }
+
+const MAX_SEGMENT_VERTS = 64;
+const MAX_SEGMENT_LENGTH = 20; // metres
+const TERRAIN_FRICTION = 0.3;
+const TERRAIN_RESTITUTION = 0.1;
 
 /**
  * Box2D Physics Engine
@@ -89,74 +103,8 @@ export class Box2DEngine {
       return;
     }
 
-    // Remove old terrain bodies
-    for (const bodyInfo of this.terrainBodies) {
-      this.world.DestroyBody(bodyInfo.body);
-    }
-    this.terrainBodies = [];
-
-    let totalSegments = 0;
-    let closedLoops = 0;
-    let openChains = 0;
-
-    for (let loopIndex = 0; loopIndex < loops.length; loopIndex++) {
-      const loop = loops[loopIndex];
-      if (loop.length < 2) continue;
-
-      // Create static body for this terrain loop
-      const body = this.world.CreateBody({
-        type: b2BodyType.b2_staticBody,
-      });
-
-      // Convert loop to b2Vec2 array
-      const vertices = loop.map(p => new b2Vec2(p.x, p.y));
-
-      // Check if loop is properly closed (first ≈ last)
-      const firstPoint = vertices[0];
-      const lastPoint = vertices[vertices.length - 1];
-      const dx = lastPoint.x - firstPoint.x;
-      const dy = lastPoint.y - firstPoint.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const isClosed = distance < 0.01; // Within 1cm tolerance
-
-      // CRITICAL FIX: Conditionally reverse winding order based on loop type
-      // Cave boundaries (rock inside, cave outside): Reverse CCW→CW so collision faces outward (toward cave)
-      // Rock islands (cave inside, rock outside): Keep CCW so collision faces outward (toward cave)
-      // Default to reversing if no classification provided (backwards compatibility)
-      const shouldReverseLoop = shouldReverse ? shouldReverse[loopIndex] : true;
-      const isRock = !shouldReverseLoop; // reverseLoop=true means cave boundary (rock outside)
-      const reversedVertices = shouldReverseLoop ? [...vertices].reverse() : vertices;
-
-      // Create chain shape
-      const chainShape = new b2ChainShape();
-
-      if (isClosed) {
-        // Remove duplicate last vertex and create closed loop
-        const loopVertices = reversedVertices.slice(0, -1);
-        chainShape.CreateLoop(loopVertices, loopVertices.length);
-        closedLoops++;
-      } else {
-        // Create open chain with ghost vertices
-        const prevVertex = reversedVertices[0];
-        const nextVertex = reversedVertices[reversedVertices.length - 1];
-        chainShape.CreateChain(reversedVertices, reversedVertices.length, prevVertex, nextVertex);
-        openChains++;
-      }
-
-      // Create fixture with physics properties
-      body.CreateFixture({
-        shape: chainShape,
-        friction: 0.3,
-        restitution: 0.1,
-        density: 0, // Static body
-      });
-
-      // Compute AABB for this loop
-      const aabb = this.computeLoopAABB(loop);
-      this.terrainBodies.push({ body, aabb, originalLoop: loop, isRock });
-
-      totalSegments += loop.length - 1;
-    }
+    const canonicalLoops = loops.map(createCanonicalLoop);
+    this.setCanonicalTerrainLoops(canonicalLoops, shouldReverse);
   }
 
   /**
@@ -207,23 +155,24 @@ export class Box2DEngine {
 
     ctx.save();
 
-    // Draw terrain bodies (green)
-    ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
-    ctx.lineWidth = 2;
-
+    // Draw terrain chains (green) and highlight individual segments
     for (const bodyInfo of this.terrainBodies) {
       const body = bodyInfo.body;
-      const fixtures = [];
+
+      // 1) Raw Box2D chain fixtures in green (baseline terrain)
+      ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+      ctx.lineWidth = 2;
+
+      const fixtures: any[] = [];
       let fixture = body.GetFixtureList();
       while (fixture) {
         fixtures.push(fixture);
         fixture = fixture.GetNext();
       }
 
-      for (const fixture of fixtures) {
-        const shape = fixture.GetShape();
+      for (const f of fixtures) {
+        const shape = f.GetShape();
         if (shape.GetType() === 3) { // b2Shape.e_chain
-          // Draw chain shape
           const chainShape = shape as any;
           const vertexCount = chainShape.m_count;
           const vertices = chainShape.m_vertices;
@@ -241,6 +190,48 @@ export class Box2DEngine {
             ctx.stroke();
           }
         }
+      }
+
+      // 2) Canonical segments overlay: each PhysicsSegment range highlighted
+      const loop = bodyInfo.canonicalLoop;
+      const segments = bodyInfo.segments;
+      if (loop && segments && segments.length > 0) {
+        segments.forEach((seg, idx) => {
+          if (seg.startIndex < 0 || seg.endIndex >= loop.vertices.length) return;
+
+          // Vary hue per segment to see stitching
+          const hue = (idx * 47) % 360;
+          ctx.strokeStyle = `hsla(${hue}, 80%, 60%, 0.9)`;
+          ctx.lineWidth = 3;
+
+          ctx.beginPath();
+          const first = loop.vertices[seg.startIndex];
+          const firstScreen = camera.worldToScreen(first.x, first.y, canvasWidth, canvasHeight);
+          ctx.moveTo(firstScreen.x, firstScreen.y);
+
+          for (let i = seg.startIndex + 1; i <= seg.endIndex; i++) {
+            const v = loop.vertices[i];
+            const s = camera.worldToScreen(v.x, v.y, canvasWidth, canvasHeight);
+            ctx.lineTo(s.x, s.y);
+          }
+          ctx.stroke();
+
+          // Mark segment endpoints
+          const start = loop.vertices[seg.startIndex];
+          const end = loop.vertices[seg.endIndex];
+          const startScreen = camera.worldToScreen(start.x, start.y, canvasWidth, canvasHeight);
+          const endScreen = camera.worldToScreen(end.x, end.y, canvasWidth, canvasHeight);
+
+          ctx.fillStyle = '#ff0000';
+          ctx.beginPath();
+          ctx.arc(startScreen.x, startScreen.y, 3, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#0000ff';
+          ctx.beginPath();
+          ctx.arc(endScreen.x, endScreen.y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
       }
     }
 
@@ -318,22 +309,6 @@ export class Box2DEngine {
   /**
    * Compute AABB for a loop of points
    */
-  private computeLoopAABB(loop: Point[]): AABB {
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    for (const p of loop) {
-      minX = Math.min(minX, p.x);
-      minY = Math.min(minY, p.y);
-      maxX = Math.max(maxX, p.x);
-      maxY = Math.max(maxY, p.y);
-    }
-
-    return { minX, minY, maxX, maxY };
-  }
-
   /**
    * Check if two AABBs intersect
    */
@@ -471,69 +446,104 @@ export class Box2DEngine {
       return 0;
     }
 
-    let totalSegments = 0;
-    let closedLoops = 0;
-    let openChains = 0;
-    let addedBodies = 0;
+    const canonicalLoops = loops.map(createCanonicalLoop);
+    return this.addCanonicalTerrainLoops(canonicalLoops, shouldReverse);
+  }
 
-    for (let loopIndex = 0; loopIndex < loops.length; loopIndex++) {
-      const loop = loops[loopIndex];
-      if (loop.length < 2) continue;
-
-      // Create static body for this terrain loop
-      const body = this.world.CreateBody({
-        type: b2BodyType.b2_staticBody,
-      });
-
-      // Convert loop to b2Vec2 array
-      const vertices = loop.map(p => new b2Vec2(p.x, p.y));
-
-      // Check if loop is properly closed (first ≈ last)
-      const firstPoint = vertices[0];
-      const lastPoint = vertices[vertices.length - 1];
-      const dx = lastPoint.x - firstPoint.x;
-      const dy = lastPoint.y - firstPoint.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const isClosed = distance < 0.01; // Within 1cm tolerance
-
-      // Conditionally reverse winding order based on loop type
-      const shouldReverseLoop = shouldReverse ? shouldReverse[loopIndex] : true;
-      const isRock = !shouldReverseLoop;
-      const reversedVertices = shouldReverseLoop ? [...vertices].reverse() : vertices;
-
-      // Create chain shape
-      const chainShape = new b2ChainShape();
-
-      if (isClosed) {
-        // Remove duplicate last vertex and create closed loop
-        const loopVertices = reversedVertices.slice(0, -1);
-        chainShape.CreateLoop(loopVertices, loopVertices.length);
-        closedLoops++;
-      } else {
-        // Create open chain with ghost vertices
-        const prevVertex = reversedVertices[0];
-        const nextVertex = reversedVertices[reversedVertices.length - 1];
-        chainShape.CreateChain(reversedVertices, reversedVertices.length, prevVertex, nextVertex);
-        openChains++;
-      }
-
-      // Create fixture with physics properties
-      body.CreateFixture({
-        shape: chainShape,
-        friction: 0.3,
-        restitution: 0.1,
-        density: 0, // Static body
-      });
-
-      // Compute AABB for this loop
-      const aabb = this.computeLoopAABB(loop);
-      this.terrainBodies.push({ body, aabb, originalLoop: loop, isRock });
-
-      totalSegments += loop.length - 1;
-      addedBodies++;
+  /**
+   * Set terrain using canonical loops (single source of truth)
+   */
+  setCanonicalTerrainLoops(canonicalLoops: CanonicalLoop[], shouldReverse?: boolean[]): void {
+    if (!this.world) {
+      console.error('[Box2DEngine] setCanonicalTerrainLoops called before world init');
+      return;
     }
 
-    return addedBodies;
+    console.log(`[Box2DEngine] setCanonicalTerrainLoops called with ${canonicalLoops.length} loops`);
+
+    // Remove old terrain bodies
+    for (const bodyInfo of this.terrainBodies) {
+      this.world.DestroyBody(bodyInfo.body);
+    }
+    this.terrainBodies = [];
+
+    for (let i = 0; i < canonicalLoops.length; i++) {
+      const loop = canonicalLoops[i];
+      if (loop.vertices.length < 2) {
+        console.warn('[Box2DEngine] Skipping canonical loop with <2 verts', loop);
+        continue;
+      }
+      const reverse = shouldReverse ? shouldReverse[i] : true;
+      console.log(`[Box2DEngine] Building terrain body for loop #${i}, verts=${loop.vertices.length}, reverse=${reverse}`);
+      const bodyInfo = this.buildTerrainBodyFromCanonical(loop, reverse);
+      this.terrainBodies.push(bodyInfo);
+    }
+    console.log(`[Box2DEngine] setCanonicalTerrainLoops finished; terrainBodies=${this.terrainBodies.length}`);
+  }
+
+  /**
+   * Append terrain using canonical loops.
+   */
+  addCanonicalTerrainLoops(canonicalLoops: CanonicalLoop[], shouldReverse?: boolean[]): number {
+    if (!this.world) {
+      console.error('[Box2DEngine] World not initialized!');
+      return 0;
+    }
+
+    let added = 0;
+    for (let i = 0; i < canonicalLoops.length; i++) {
+      const loop = canonicalLoops[i];
+      if (loop.vertices.length < 2) continue;
+      const reverse = shouldReverse ? shouldReverse[i] : true;
+      const bodyInfo = this.buildTerrainBodyFromCanonical(loop, reverse);
+      this.terrainBodies.push(bodyInfo);
+      added++;
+    }
+    return added;
+  }
+
+  /**
+   * Build a physics body + fixtures from a canonical loop (keeps canonical ordering intact).
+   */
+  private buildTerrainBodyFromCanonical(loop: CanonicalLoop, shouldReverse: boolean): TerrainBodyInfo {
+    if (!this.world) {
+      throw new Error('[Box2DEngine] buildTerrainBodyFromCanonical called without world');
+    }
+
+    const body = this.world.CreateBody({
+      type: b2BodyType.b2_staticBody,
+    });
+
+    // Build fresh segments each time (resets vertex back-links)
+    const segments = buildSegmentsForLoop(loop, MAX_SEGMENT_VERTS, MAX_SEGMENT_LENGTH);
+    validateSegments(loop, segments);
+    console.log(`[Box2DEngine] Loop ${loop.id}: built ${segments.length} segments (verts=${loop.vertices.length})`);
+    if (segments.length === 0) {
+      console.warn('[Box2DEngine] No segments built for loop', { loopId: loop.id, vertices: loop.vertices.length });
+    }
+
+    segments.forEach((seg, idx) => {
+      console.log('[Box2DEngine]  Segment', idx, {
+        id: seg.id,
+        startIndex: seg.startIndex,
+        endIndex: seg.endIndex,
+      });
+      const fixture = createFixtureForSegment(body, loop, seg, TERRAIN_FRICTION, TERRAIN_RESTITUTION, shouldReverse);
+      if (!fixture) {
+        console.warn('[Box2DEngine]  Segment produced no fixture (skipped)');
+      }
+    });
+
+    const aabb = loop.aabb ?? computeLoopAabbFromVertices(loop.vertices);
+
+    return {
+      body,
+      canonicalLoop: loop,
+      segments,
+      aabb,
+      shouldReverse,
+      originalLoop: loop.vertices.map(v => ({ x: v.x, y: v.y })),
+    };
   }
 
   /**

@@ -14,10 +14,10 @@ import type { LoopCache } from './LoopCache';
 import type { Box2DPhysics } from './Box2DPhysics';
 import type { Renderer } from './Renderer';
 import { VertexOptimizationPipeline, type OptimizationOptions } from './VertexOptimizationPipeline';
-import type { Point, AABB } from './types';
+import type { Point } from './types';
 import { cleanLoop } from './physics/shapeUtils';
 import { LoopPatcher } from './LoopPatcher';
-import { ChunkManager, type Chunk } from './ChunkManager';
+import { createCanonicalLoop, type CanonicalLoop } from './terrain/CanonicalGeometry';
 
 // Debug flag for loop classification - set to false to silence logs
 const DEBUG_LOOP_CLASSIFICATION = true;
@@ -93,7 +93,6 @@ export interface RemeshConfig {
   physics: Box2DPhysics;
   renderer: Renderer;
   optimizationOptions: OptimizationOptions;
-  chunkManager?: ChunkManager; // Optional for backwards compatibility
 }
 
 export interface RemeshStats {
@@ -112,7 +111,7 @@ export class RemeshManager {
   private optimizationPipeline: VertexOptimizationPipeline;
   private optimizationOptions: OptimizationOptions;
   private loopPatcher: LoopPatcher;
-  private chunkManager: ChunkManager | null = null;
+  private canonicalLoops: Array<{ loop: CanonicalLoop; shouldReverse: boolean }> = [];
 
   private lastFullHealTime = 0;
   private needsFullHeal = false;
@@ -130,13 +129,79 @@ export class RemeshManager {
       minArcLength: 3,
       affectedDistance: 0.5,
     });
-    this.chunkManager = config.chunkManager || null;
+  }
 
-    if (this.chunkManager) {
-      console.log('[RemeshManager] Chunk-based rebuilding enabled');
-    } else {
-      console.log('[RemeshManager] Using legacy AABB-based rebuilding');
+  /**
+   * Simple AABB intersection test
+   */
+  private aabbsIntersect(a: { minX: number; minY: number; maxX: number; maxY: number }, b: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+    return !(a.maxX < b.minX || a.minX > b.maxX || a.maxY < b.minY || a.minY > b.maxY);
+  }
+
+  /**
+   * Geometry helper: check whether a loop (as points) touches an AABB.
+   * Touch = any vertex inside, or any edge segment intersects the AABB.
+   */
+  private loopTouchesRegion(points: Point[], region: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+    const pointInside = (p: Point) =>
+      p.x >= region.minX && p.x <= region.maxX && p.y >= region.minY && p.y <= region.maxY;
+
+    const segmentsIntersect = (a: Point, b: Point, c: Point, d: Point): boolean => {
+      const cross = (p: Point, q: Point, r: Point) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+      const onSegment = (p: Point, q: Point, r: Point) =>
+        Math.min(p.x, r.x) - 1e-6 <= q.x && q.x <= Math.max(p.x, r.x) + 1e-6 &&
+        Math.min(p.y, r.y) - 1e-6 <= q.y && q.y <= Math.max(p.y, r.y) + 1e-6;
+
+      const o1 = cross(a, b, c);
+      const o2 = cross(a, b, d);
+      const o3 = cross(c, d, a);
+      const o4 = cross(c, d, b);
+
+      if (o1 === 0 && onSegment(a, c, b)) return true;
+      if (o2 === 0 && onSegment(a, d, b)) return true;
+      if (o3 === 0 && onSegment(c, a, d)) return true;
+      if (o4 === 0 && onSegment(c, b, d)) return true;
+
+      return (o1 > 0) !== (o2 > 0) && (o3 > 0) !== (o4 > 0);
+    };
+
+    const segmentIntersectsAABB = (p1: Point, p2: Point): boolean => {
+      if (pointInside(p1) || pointInside(p2)) return true;
+
+      // Quick reject using segment AABB
+      const minX = Math.min(p1.x, p2.x);
+      const maxX = Math.max(p1.x, p2.x);
+      const minY = Math.min(p1.y, p2.y);
+      const maxY = Math.max(p1.y, p2.y);
+      if (maxX < region.minX || minX > region.maxX || maxY < region.minY || minY > region.maxY) {
+        return false;
+      }
+
+      // Check against each rectangle edge
+      const topLeft = { x: region.minX, y: region.minY };
+      const topRight = { x: region.maxX, y: region.minY };
+      const bottomLeft = { x: region.minX, y: region.maxY };
+      const bottomRight = { x: region.maxX, y: region.maxY };
+
+      return (
+        segmentsIntersect(p1, p2, topLeft, topRight) ||
+        segmentsIntersect(p1, p2, topRight, bottomRight) ||
+        segmentsIntersect(p1, p2, bottomRight, bottomLeft) ||
+        segmentsIntersect(p1, p2, bottomLeft, topLeft)
+      );
+    };
+
+    // Any vertex inside?
+    for (const v of points) {
+      if (pointInside(v)) return true;
     }
+
+    // Any edge intersect?
+    for (let i = 0; i < points.length - 1; i++) {
+      if (segmentIntersectsAABB(points[i], points[i + 1])) return true;
+    }
+
+    return false;
   }
 
   /**
@@ -151,6 +216,7 @@ export class RemeshManager {
    */
   remesh(): RemeshStats | null {
     try {
+      console.log('[RemeshManager] remesh() start');
       const now = performance.now();
 
       // Check if we need a full heal (on-demand only, no periodic heal since carving is disabled)
@@ -160,19 +226,17 @@ export class RemeshManager {
         this.needsFullHeal = false;
         this.lastFullHealTime = now;
         return stats;
-      } else if (this.chunkManager) {
-        // Chunk-based incremental update
-        const dirtyAABB = this.densityField.getDirtyWorldAABB();
-        if (dirtyAABB) {
-          return this.rebuildChunks(dirtyAABB);
-        }
-        return null;
       } else {
         // No remesh needed
         return null;
       }
     } catch (error) {
-      // console.error('Error during remesh:', error);
+      const err: any = error;
+      console.error('[RemeshManager] Error during remesh:', {
+        message: err?.message,
+        stack: err?.stack,
+        raw: err,
+      });
       return null;
     }
   }
@@ -185,88 +249,7 @@ export class RemeshManager {
   }
 
   /**
-   * Rebuild a region using the proven legacy code path
-   * Works for any AABB - full world or individual chunk
-   *
-   * This is the PROVEN code path that was working well - extracted from legacy fullHeal()
-   * Returns loops and metadata without modifying physics or renderer (caller handles that)
-   */
-  private rebuildRegion(aabb: AABB, logPrefix: string): {
-    finalLoops: Point[][];
-    originalLoops: Point[][];
-    shouldReverse: boolean[];
-    stats: RemeshStats;
-  } {
-    const t0 = performance.now();
-
-    // Step 1: Run marching squares
-    const results = this.marchingSquares.generateContours(aabb, 0);
-    const t1 = performance.now();
-    const rawLoopCount = results.filter(r => r && r.loop && r.loop.length > 2).length;
-    console.log(`${logPrefix}   ⏱️ Marching Squares: ${(t1 - t0).toFixed(2)}ms (generated ${rawLoopCount} raw loops)`);
-
-    // Step 2: Clean loops
-    const t2 = performance.now();
-    const gridPitch = this.densityField.config.gridPitch;
-    const cleanedLoops: Point[][] = [];
-    let rawVertexCount = 0;
-    let cleanedVertexCount = 0;
-
-    for (const result of results) {
-      if (result && result.loop && result.loop.length > 2) {
-        rawVertexCount += result.loop.length;
-        const cleanedLoop = cleanLoop(result.loop, gridPitch);
-        if (cleanedLoop.length >= 3) {
-          cleanedLoops.push(cleanedLoop);
-          cleanedVertexCount += cleanedLoop.length;
-        }
-      }
-    }
-    const t3 = performance.now();
-    console.log(`${logPrefix}   ⏱️ Clean loops: ${(t3 - t2).toFixed(2)}ms (${rawVertexCount} → ${cleanedVertexCount} vertices)`);
-
-    // Step 3: Classify loops
-    const t4 = performance.now();
-    const validLoops: Point[][] = [];
-    const loopClassifications: boolean[] = [];
-    let deletedCount = 0;
-
-    cleanedLoops.forEach((loop, index) => {
-      if (loop.length < 3) return;
-
-      const classificationResult = this.isRockLoop(loop, index);
-
-      // Skip loops marked for deletion
-      if (classificationResult.shouldDelete) {
-        deletedCount++;
-        return;
-      }
-
-      validLoops.push(loop);
-      loopClassifications.push(classificationResult.isRock);
-    });
-    const t5 = performance.now();
-    console.log(`${logPrefix}   ⏱️ Classification: ${(t5 - t4).toFixed(2)}ms (${validLoops.length} valid loops, ${deletedCount} deleted)`);
-
-    // Step 4: Optimize loops
-    const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
-    const finalVertexCount = optimizationResult.finalLoops.reduce((sum, loop) => sum + loop.length, 0);
-    console.log(`${logPrefix}   ⏱️ Optimization: ${optimizationResult.timing.totalMs.toFixed(2)}ms (${cleanedVertexCount} → ${finalVertexCount} vertices)`);
-
-    // Step 5: Build shouldReverse array
-    const shouldReverse = loopClassifications.map((isRock) => !isRock);
-
-    return {
-      finalLoops: optimizationResult.finalLoops,
-      originalLoops: optimizationResult.trueOriginalLoops,
-      shouldReverse,
-      stats: optimizationResult.statistics,
-    };
-  }
-
-  /**
-   * Full world remesh - rebuild all chunks
-   * Uses chunk system from the start to ensure consistency
+   * Full world remesh - rebuild all loops
    */
   private fullHeal(): RemeshStats {
     const startTime = performance.now();
@@ -276,117 +259,6 @@ export class RemeshManager {
 
     // Clear cache
     this.loopCache.clear();
-
-    // If chunk manager exists, rebuild all chunks with batch optimization
-    if (this.chunkManager) {
-      console.log('[FullHeal] Using chunk-based full rebuild with BATCH optimization');
-
-      const engine = this.physics.getEngine();
-      const allChunks = this.chunkManager.getAllChunks();
-      const gridPitch = this.densityField.config.gridPitch;
-
-      // Phase 1: Run marching squares on all chunks and collect loops
-      const t0 = performance.now();
-      const chunkLoops: Array<{
-        chunk: Chunk;
-        cleanedLoops: Point[][];
-        classifications: boolean[];
-      }> = [];
-      const allLoopsForOptimization: Point[][] = [];
-
-      for (const chunk of allChunks) {
-        // Remove old physics bodies
-        engine.removeTerrainInRegion(chunk.bounds);
-
-        // Run marching squares
-        const results = this.marchingSquares.generateContours(chunk.bounds, 0);
-
-        // Clean loops
-        const cleanedLoops: Point[][] = [];
-        const classifications: boolean[] = [];
-
-        for (const result of results) {
-          if (result && result.loop && result.loop.length > 2) {
-            const cleanedLoop = cleanLoop(result.loop, gridPitch);
-            if (cleanedLoop.length >= 3) {
-              // Classify
-              const classificationResult = this.isRockLoop(cleanedLoop);
-              if (!classificationResult.shouldDelete) {
-                cleanedLoops.push(cleanedLoop);
-                classifications.push(classificationResult.isRock);
-                allLoopsForOptimization.push(cleanedLoop);
-              }
-            }
-          }
-        }
-
-        chunkLoops.push({ chunk, cleanedLoops, classifications });
-      }
-      const t1 = performance.now();
-      console.log(`[FullHeal] ⏱️ Phase 1 (Marching + Clean + Classify): ${(t1 - t0).toFixed(2)}ms for ${allChunks.length} chunks`);
-
-      // Phase 2: ONE optimization pass on all loops together
-      const t2 = performance.now();
-      const optimizationResult = this.optimizationPipeline.optimize(allLoopsForOptimization, this.optimizationOptions);
-      const t3 = performance.now();
-      console.log(`[FullHeal] ⏱️ Phase 2 (Batch Optimization): ${(t3 - t2).toFixed(2)}ms for ${allLoopsForOptimization.length} loops`);
-
-      // Phase 3: Distribute optimized loops back to chunks and create physics
-      const t4 = performance.now();
-      let loopIndex = 0;
-      let totalOriginalVertices = 0;
-      let totalFinalVertices = 0;
-      const allFinalLoops: Point[][] = [];
-      const allOriginalLoops: Point[][] = [];
-
-      for (const { chunk, cleanedLoops, classifications } of chunkLoops) {
-        const chunkFinalLoops: Point[][] = [];
-        const chunkOriginalLoops: Point[][] = [];
-        const shouldReverse: boolean[] = [];
-
-        // Extract this chunk's optimized loops
-        for (let i = 0; i < cleanedLoops.length; i++) {
-          const finalLoop = optimizationResult.finalLoops[loopIndex];
-          const originalLoop = optimizationResult.trueOriginalLoops[loopIndex];
-          chunkFinalLoops.push(finalLoop);
-          chunkOriginalLoops.push(originalLoop);
-          shouldReverse.push(!classifications[i]);
-          loopIndex++;
-        }
-
-        // Add physics bodies for this chunk
-        engine.addTerrainLoops(chunkFinalLoops, shouldReverse);
-
-        // Store in chunk
-        chunk.loops = chunkFinalLoops;
-        chunk.originalLoops = chunkOriginalLoops;
-
-        // Aggregate for rendering
-        allFinalLoops.push(...chunkFinalLoops);
-        allOriginalLoops.push(...chunkOriginalLoops);
-      }
-      const t5 = performance.now();
-      console.log(`[FullHeal] ⏱️ Phase 3 (Distribute + Physics): ${(t5 - t4).toFixed(2)}ms`);
-
-      // Update renderer with all loops
-      const t6 = performance.now();
-      this.renderer.updateOriginalPolylines(allOriginalLoops);
-      const finalForRender = allFinalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
-      this.renderer.updatePolylines(finalForRender);
-      const t7 = performance.now();
-      console.log(`[FullHeal] ⏱️ Re-render walls: ${(t7 - t6).toFixed(2)}ms`);
-
-      this.densityField.clearDirty();
-
-      const totalTime = t7 - startTime;
-      console.log(`[FullHeal] 🎯 TOTAL: ${totalTime.toFixed(2)}ms for ${allChunks.length} chunks`);
-
-      // Return aggregate stats
-      return optimizationResult.statistics;
-    }
-
-    // Fallback: Legacy full-world rebuild (if no chunk manager)
-    console.warn('[FullHeal] No chunk manager - using legacy full-world rebuild');
 
     // Generate all contours for entire field
     const fullField = {
@@ -490,9 +362,21 @@ export class RemeshManager {
       return !isRock;
     });
 
-    // Use final loops for both physics and rendering
+    // Use final loops for both physics and rendering (canonical representation)
     const t6 = performance.now();
-    this.physics.setCaveContours(optimizationResult.finalLoops, shouldReverse);
+    const canonicalLoops = optimizationResult.finalLoops.map(loop => createCanonicalLoop(loop));
+    const totalCanonicalVerts = canonicalLoops.reduce((sum, cl) => sum + cl.vertices.length, 0);
+    console.log(`[FullHeal] Canonical loops: ${canonicalLoops.length} (${totalCanonicalVerts} verts total)`);
+    this.canonicalLoops = canonicalLoops.map((loop, index) => ({ loop, shouldReverse: shouldReverse[index] ?? true }));
+    const physicsEngine = this.physics.getEngine();
+    console.log('[FullHeal] Calling physicsEngine.setCanonicalTerrainLoops');
+    try {
+      physicsEngine.setCanonicalTerrainLoops(canonicalLoops, shouldReverse);
+      console.log('[FullHeal] physicsEngine.setCanonicalTerrainLoops completed');
+    } catch (err) {
+      console.error('[FullHeal] physicsEngine.setCanonicalTerrainLoops threw', err);
+      throw err;
+    }
     const t7 = performance.now();
     console.log(`[FullHeal] ⏱️ Box2D colliders: ${(t7 - t6).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
 
@@ -500,8 +384,15 @@ export class RemeshManager {
 
     // Update renderer with final loops
     const t8 = performance.now();
-    const finalForRender = optimizationResult.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
-    this.renderer.updatePolylines(finalForRender);
+    const finalForRender = canonicalLoops.map(loop => loop.vertices.map(p => ({ x: p.x, y: p.y })));
+    console.log(`[FullHeal] Updating renderer polylines with ${finalForRender.length} loops`);
+    try {
+      this.renderer.updatePolylines(finalForRender);
+      console.log(`[FullHeal] Render polylines: ${finalForRender.length}, first lengths=${finalForRender.map(l => l.length).join(',')}`);
+    } catch (err) {
+      console.error('[FullHeal] Renderer.updatePolylines threw', err);
+      throw err;
+    }
     const t9 = performance.now();
     console.log(`[FullHeal] ⏱️ Re-render walls: ${(t9 - t8).toFixed(2)}ms`);
 
@@ -510,125 +401,6 @@ export class RemeshManager {
     this.densityField.clearDirty();
 
     return optimizationResult.statistics;
-  }
-
-  /**
-   * Chunk-based rebuild - only rebuild dirty chunks
-   * This is the main entry point for chunk-based updates
-   */
-  private rebuildChunks(dirtyAABB: AABB): RemeshStats | null {
-    if (!this.chunkManager) {
-      console.warn('[RebuildChunks] ChunkManager not initialized');
-      return null;
-    }
-
-    const t0 = performance.now();
-
-    // Mark affected chunks as dirty
-    this.chunkManager.markDirtyFromAABB(dirtyAABB);
-    const dirtyChunks = this.chunkManager.getDirtyChunks();
-
-    if (dirtyChunks.length === 0) {
-      return null;
-    }
-
-    console.log(`[RebuildChunks] 🔨 Rebuilding ${dirtyChunks.length} dirty chunks`);
-
-    let totalOriginalVertices = 0;
-    let totalFinalVertices = 0;
-
-    // Rebuild each dirty chunk
-    for (const chunk of dirtyChunks) {
-      const stats = this.rebuildSingleChunk(chunk);
-      if (stats) {
-        totalOriginalVertices += stats.originalVertexCount;
-        totalFinalVertices += stats.finalVertexCount;
-      }
-    }
-
-    // Clear dirty flags
-    this.chunkManager.clearAllDirty();
-    this.densityField.clearDirty();
-
-    const t1 = performance.now();
-    console.log(`[RebuildChunks] 🎯 TOTAL: ${(t1 - t0).toFixed(2)}ms for ${dirtyChunks.length} chunks`);
-
-    // Return aggregate stats
-    const simplificationReduction = totalOriginalVertices > 0
-      ? ((totalOriginalVertices - totalFinalVertices) / totalOriginalVertices) * 100
-      : 0;
-
-    return {
-      originalVertexCount: totalOriginalVertices,
-      finalVertexCount: totalFinalVertices,
-      simplificationReduction,
-      postSimplificationReduction: simplificationReduction,
-    };
-  }
-
-  /**
-   * Rebuild a single chunk using proven legacy code path
-   */
-  private rebuildSingleChunk(chunk: Chunk): RemeshStats | null {
-    if (!this.chunkManager) return null;
-
-    const t0 = performance.now();
-    const chunkInfo = this.chunkManager.getChunkInfo(chunk);
-    console.log(`[RebuildChunk] 📦 ${chunkInfo}`);
-
-    // Step 1: Remove old physics bodies in this chunk
-    const engine = this.physics.getEngine();
-    const t1 = performance.now();
-    const removedCount = engine.removeTerrainInRegion(chunk.bounds);
-    const t2 = performance.now();
-    console.log(`[RebuildChunk]   ⏱️ Remove old bodies: ${(t2 - t1).toFixed(2)}ms (removed ${removedCount})`);
-
-    // Step 2: Rebuild region using proven code path
-    const result = this.rebuildRegion(chunk.bounds, '[RebuildChunk]');
-
-    // Step 3: Add new physics bodies
-    const t3 = performance.now();
-    engine.addTerrainLoops(result.finalLoops, result.shouldReverse);
-    const t4 = performance.now();
-    console.log(`[RebuildChunk]   ⏱️ Add new bodies: ${(t4 - t3).toFixed(2)}ms (created ${result.finalLoops.length} bodies)`);
-
-    // Step 4: Update chunk data
-    chunk.loops = result.finalLoops;
-    chunk.originalLoops = result.originalLoops;
-    chunk.isDirty = false;
-
-    // Step 5: Update renderer - full remesh for visuals (simple and safe)
-    const t5 = performance.now();
-    this.updateRendererFromAllChunks();
-    const t6 = performance.now();
-    console.log(`[RebuildChunk]   ⏱️ Update renderer: ${(t6 - t5).toFixed(2)}ms`);
-
-    const totalTime = t6 - t0;
-    console.log(`[RebuildChunk]   🎯 Chunk total: ${totalTime.toFixed(2)}ms`);
-
-    return result.stats;
-  }
-
-  /**
-   * Update renderer from all chunks (full visual remesh)
-   * This is simpler and safer than incremental visual updates
-   */
-  private updateRendererFromAllChunks(): void {
-    if (!this.chunkManager) return;
-
-    const allChunks = this.chunkManager.getAllChunks();
-    const allFinalLoops: Point[][] = [];
-    const allOriginalLoops: Point[][] = [];
-
-    for (const chunk of allChunks) {
-      allFinalLoops.push(...chunk.loops);
-      allOriginalLoops.push(...chunk.originalLoops);
-    }
-
-    // Update renderer
-    this.renderer.updateOriginalPolylines(allOriginalLoops);
-    const finalForRender = allFinalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
-    this.renderer.updatePolylines(finalForRender);
   }
 
   /**
@@ -724,69 +496,80 @@ export class RemeshManager {
     // Step 6: Build shouldReverse array
     const shouldReverse = loopClassifications.map((isRock) => !isRock);
 
+    // Step 6b: Build canonical loops for physics and tracking
+    const newCanonicalLoops = optimizationResult.finalLoops.map(loop => createCanonicalLoop(loop));
+    const newCanonicalVerts = newCanonicalLoops.reduce((sum, cl) => sum + cl.vertices.length, 0);
+    console.log(`[LocalUpdate] Built ${newCanonicalLoops.length} canonical loops (${newCanonicalVerts} verts total)`);
+    // Update canonical registry: drop only loops whose geometry touches the padded region and append new ones
+    this.canonicalLoops = this.canonicalLoops.filter(entry => !this.loopTouchesRegion(entry.loop.vertices, paddedAABB));
+    for (let i = 0; i < newCanonicalLoops.length; i++) {
+      this.canonicalLoops.push({ loop: newCanonicalLoops[i], shouldReverse: shouldReverse[i] ?? true });
+    }
+
     // Step 7: Add new physics bodies (Box2D collider creation)
     const t8 = performance.now();
-    engine.addTerrainLoops(optimizationResult.finalLoops, shouldReverse);
+    engine.addCanonicalTerrainLoops(newCanonicalLoops, shouldReverse);
     const t9 = performance.now();
     console.log(`[LocalUpdate] ⏱️ Box2D colliders: ${(t9 - t8).toFixed(2)}ms (created ${optimizationResult.finalLoops.length} bodies)`);
+    console.log(`[LocalUpdate] Canonical registry now has ${this.canonicalLoops.length} loops`);
 
     console.log(`[LocalUpdate] 🎯 TOTAL (physics only): ${(t9 - t0).toFixed(2)}ms`);
 
     // Step 8: Set debug info for visualization
     this.renderer.setDirtyAABB(paddedAABB);
-    this.renderer.setRebuiltChains(optimizationResult.finalLoops);
+    // Build debug chains clipped to the padded region to visualize stitched arcs
+    const debugChains: Point[][] = [];
+    for (const cl of newCanonicalLoops) {
+      let current: Point[] = [];
+      for (let i = 0; i < cl.vertices.length; i++) {
+        const v = cl.vertices[i];
+        const inside =
+          v.x >= paddedAABB.minX && v.x <= paddedAABB.maxX &&
+          v.y >= paddedAABB.minY && v.y <= paddedAABB.maxY;
 
-    // Step 9: For rendering, regenerate full visual mesh (but don't touch physics)
-    // This is acceptable because rendering is fast, and it keeps the visual mesh consistent
-    const t10 = performance.now();
-
-    // Generate full contours for rendering only
-    const fullField = {
-      minX: 0,
-      minY: 0,
-      maxX: this.densityField.config.width,
-      maxY: this.densityField.config.height
-    };
-
-    const fullResults = this.marchingSquares.generateContours(fullField, 0);
-
-    // Clean and optimize for rendering (reuse gridPitch from above)
-    const renderLoops: Point[][] = [];
-
-    for (const result of fullResults) {
-      if (result && result.loop && result.loop.length > 2) {
-        const cleanedLoop = cleanLoop(result.loop, gridPitch);
-        if (cleanedLoop.length >= 3) {
-          renderLoops.push(cleanedLoop);
+        if (inside) {
+          current.push({ x: v.x, y: v.y });
+        } else if (current.length > 0) {
+          if (current.length >= 2) {
+            debugChains.push(current);
+          }
+          current = [];
         }
       }
+      if (current.length >= 2) {
+        debugChains.push(current);
+      }
     }
+    this.renderer.setRebuiltChains(debugChains);
 
-    // Optimize for rendering
-    const renderOptimization = this.optimizationPipeline.optimize(renderLoops, this.optimizationOptions);
+    // Step 9: Local visual refresh using canonical loops (no full-world march)
+    const t10 = performance.now();
+    const removedPolylineCount = this.renderer.removePolylinesInRegion(paddedAABB);
+    console.log(`[LocalUpdate] ⏱️ Remove old polylines: ${removedPolylineCount}`);
 
-    // Update renderer with final loops (but don't touch physics!)
-    this.renderer.updateOriginalPolylines(renderOptimization.trueOriginalLoops);
-    const finalForRender = renderOptimization.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
-    this.renderer.updatePolylines(finalForRender);
+    // Re-add only loops that intersect the region from the canonical registry
+    const regionCanonicals = this.canonicalLoops.filter(entry => this.aabbsIntersect(entry.loop.aabb, paddedAABB));
+    const regionPolylines = regionCanonicals.map(entry => entry.loop.vertices.map(v => ({ x: v.x, y: v.y })));
+    console.log(`[LocalUpdate] Re-adding ${regionCanonicals.length} canonical loops to renderer`);
+    this.renderer.addPolylines(regionPolylines, regionPolylines);
 
     const t11 = performance.now();
-    console.log(`[LocalUpdate] ⏱️ Re-render walls: ${(t11 - t10).toFixed(2)}ms (full world remesh for visuals)`);
+    console.log(`[LocalUpdate] ⏱️ Local visual update: ${(t11 - t10).toFixed(2)}ms (added ${regionPolylines.length} polylines)`);
 
     console.log(`[LocalUpdate] 🎯 TOTAL (including rendering): ${(t11 - t0).toFixed(2)}ms`);
 
     // Clear dirty region
     this.densityField.clearDirty();
 
-    return renderOptimization.statistics;
+    // Return stats based on physics-side optimization (local region)
+    return optimizationResult.statistics;
   }
 
   /**
-   * Local patch update - only patch affected arcs in loops
-   * This is the most efficient update mode, replacing only the changed arcs
-   * instead of rebuilding entire loops or regions
+   * Local patch update - legacy arc patching path.
+   * Currently unused in the carve flow; kept for reference.
    */
-  localPatchUpdate(expandCells: number = 1): RemeshStats | null {
+  localPatchUpdate(expandCells: number = 2): RemeshStats | null {
     const startTime = performance.now();
 
     // Get dirty region from density field
@@ -847,7 +630,6 @@ export class RemeshManager {
     }> = [];
 
     const patchedLoops: Point[][] = [];
-    const patchedOriginalLoops: Point[][] = [];
     const patchedShouldReverse: boolean[] = [];
     let totalPatchedCount = 0;
 
@@ -868,25 +650,14 @@ export class RemeshManager {
         console.log(`[LocalPatch]    afterPart: ${patchResult.afterPart.length} vertices (KEPT)`);
         console.log(`[LocalPatch]    patchedLoop: ${patchResult.patchedLoop.length} vertices total`);
 
-        // Optimize the patched loop (used for both physics and visuals)
+        // Optimize the patched loop
         const optimizationResult = this.optimizationPipeline.optimize([patchResult.patchedLoop], this.optimizationOptions);
         const optimizedPatchedLoop = optimizationResult.finalLoops[0];
-        const originalPatchedLoop = optimizationResult.trueOriginalLoops[0];
 
         // Classify the patched loop
-        let classification = this.isRockLoop(optimizedPatchedLoop, totalPatchedCount);
-        if (classification.shouldDelete) {
-          // Fallback to previous body classification to avoid deleting ambiguous loops
-          classification = {
-            isRock: Boolean((bodyInfo as any).isRock),
-            shouldDelete: false
-          };
-          console.warn(`[LocalPatch] Classification ambiguous; falling back to previous body classification (${classification.isRock ? 'ROCK' : 'CAVE'})`);
-        }
-
+        const classification = this.isRockLoop(optimizedPatchedLoop, totalPatchedCount);
         if (!classification.shouldDelete) {
           patchedLoops.push(optimizedPatchedLoop);
-          patchedOriginalLoops.push(originalPatchedLoop);
           patchedShouldReverse.push(!classification.isRock);
 
           // Store debug info
@@ -907,15 +678,6 @@ export class RemeshManager {
       }
     }
 
-    // If we failed to produce any valid patched loops, bail out without removing existing bodies/polylines
-    if (patchedLoops.length === 0) {
-      console.warn(`[LocalPatch] No valid patched loops; keeping existing bodies and scheduling full heal`);
-      this.needsFullHeal = true; // ensure next remesh heals state
-      this.renderer.setLoopPatchDebugInfo([]);
-      this.densityField.clearDirty();
-      return null;
-    }
-
     const t6 = performance.now();
     console.log(`[LocalPatch] ⏱️ Total patching: ${(t6 - t0).toFixed(2)}ms (patched ${totalPatchedCount} loops)`);
 
@@ -925,8 +687,16 @@ export class RemeshManager {
     const t8 = performance.now();
     console.log(`[LocalPatch] ⏱️ Remove old bodies: ${(t8 - t7).toFixed(2)}ms (removed ${removedCount} bodies)`);
 
+    const patchedCanonicalLoops = patchedLoops.map(loop => createCanonicalLoop(loop));
+    // Update canonical registry for patch region
+    this.canonicalLoops = this.canonicalLoops.filter(entry => !this.aabbsIntersect(entry.loop.aabb, paddedAABB));
+    for (let i = 0; i < patchedCanonicalLoops.length; i++) {
+      this.canonicalLoops.push({ loop: patchedCanonicalLoops[i], shouldReverse: patchedShouldReverse[i] ?? true });
+    }
+    console.log(`[LocalPatch] Canonical registry now has ${this.canonicalLoops.length} loops (added ${patchedCanonicalLoops.length})`);
+
     const t9 = performance.now();
-    engine.addTerrainLoops(patchedLoops, patchedShouldReverse);
+    engine.addCanonicalTerrainLoops(patchedCanonicalLoops, patchedShouldReverse);
     const t10 = performance.now();
     console.log(`[LocalPatch] ⏱️ Add patched bodies: ${(t10 - t9).toFixed(2)}ms (created ${patchedLoops.length} bodies)`);
 
@@ -944,34 +714,41 @@ export class RemeshManager {
     const t11a = performance.now();
     console.log(`[LocalPatch] ⏱️ Remove old polylines: ${(t11a - t11).toFixed(2)}ms (removed ${removedPolylineCount})`);
 
-    // Reuse patched physics loops for visuals (no second marching-squares/opt pass)
-    const finalForRender = patchedLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
-    const originalsForRender = patchedOriginalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
-    this.renderer.addPolylines(finalForRender, originalsForRender);
+    // Use the already-computed patched loops for visual update
+    // We need to run marching squares on the dirty region to get the visual representation
+    const visualResults = this.marchingSquares.generateContours(paddedAABB, expandCells);
+    const visualLoops: Point[][] = [];
+
+    for (const result of visualResults) {
+      if (result && result.loop && result.loop.length > 2) {
+        const cleanedLoop = cleanLoop(result.loop, gridPitch);
+        if (cleanedLoop.length >= 3) {
+          visualLoops.push(cleanedLoop);
+        }
+      }
+    }
+
+    const t11b = performance.now();
+    console.log(`[LocalPatch] ⏱️ Local marching squares for visuals: ${(t11b - t11a).toFixed(2)}ms (${visualLoops.length} loops)`);
+
+    // Optimize the local visual loops
+    const visualOptimization = this.optimizationPipeline.optimize(visualLoops, this.optimizationOptions);
+    const t11c = performance.now();
+    console.log(`[LocalPatch] ⏱️ Optimize local visual loops: ${(t11c - t11b).toFixed(2)}ms`);
+
+    // Add the new optimized polylines
+    const finalForRender = visualOptimization.finalLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y })));
+    this.renderer.addPolylines(finalForRender, visualOptimization.trueOriginalLoops);
 
     const t12 = performance.now();
-    console.log(`[LocalPatch] ⏱️ Local visual update (remove + add): ${(t12 - t11).toFixed(2)}ms (reused patched loops)`);
+    console.log(`[LocalPatch] ⏱️ Local visual update (remove + add): ${(t12 - t11).toFixed(2)}ms`);
 
     console.log(`[LocalPatch] 🎯 TOTAL (including rendering): ${(t12 - t0).toFixed(2)}ms`);
 
     // Clear dirty region
     this.densityField.clearDirty();
 
-    // Compute simple remesh stats from patched loops (used for UI)
-    const originalVertexCount = patchedOriginalLoops.reduce((sum, loop) => sum + loop.length, 0);
-    const finalVertexCount = patchedLoops.reduce((sum, loop) => sum + loop.length, 0);
-    const simplificationReduction = originalVertexCount > 0
-      ? ((originalVertexCount - finalVertexCount) / originalVertexCount) * 100
-      : 0;
-
-    const stats: RemeshStats = {
-      originalVertexCount,
-      finalVertexCount,
-      simplificationReduction,
-      postSimplificationReduction: simplificationReduction, // approximate when reusing physics-optimized loops
-    };
-
-    return stats;
+    return visualOptimization.statistics;
   }
 
   /**

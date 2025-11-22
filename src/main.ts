@@ -11,7 +11,6 @@ import { InputHandler } from './InputHandler';
 import { Box2DPhysics } from './Box2DPhysics';
 import { VirtualJoystick } from './VirtualJoystick';
 import { RemeshManager, type RemeshStats } from './RemeshManager';
-import { ChunkManager } from './ChunkManager';
 import { VersionChecker } from './VersionChecker';
 import type { WorldConfig, BrushSettings } from './types';
 import * as SpiderMath from './controllers/spider/SpiderMath';
@@ -132,7 +131,6 @@ class CarvableCaves {
   private spider: SpiderController | null = null; // Spider controller (parked for future reference)
   private player: IPlayerController | null = null; // Current active player controller
   private joystick: VirtualJoystick;
-  private chunkManager: ChunkManager;
   private remeshManager!: RemeshManager; // Initialized after physics
 
   private needsRemesh = true;
@@ -231,13 +229,9 @@ class CarvableCaves {
       // Initialize loop cache
       this.loopCache = new LoopCache();
 
-      // Initialize chunk manager (8m chunks for 32x32m world = 4x4 grid)
-      this.chunkManager = new ChunkManager(this.densityField, 8.0);
-
       // Initialize renderer
       this.renderer = new Renderer(this.canvas, this.camera);
       this.renderer.setDensityField(this.densityField); // For debug visualization
-      this.renderer.setChunkManager(this.chunkManager); // For chunk grid visualization
 
       // Initialize input handler (camera controls only, no brushing)
       const brushSettings: BrushSettings = {
@@ -335,8 +329,7 @@ class CarvableCaves {
         chaikinEnabled: this.chaikinEnabled,
         chaikinIterations: this.chaikinIterations,
         simplificationEpsilonPost: this.simplificationEpsilonPost
-      },
-      chunkManager: this.chunkManager
+      }
     });
 
     // Generate initial mesh and physics bodies
@@ -873,8 +866,8 @@ class CarvableCaves {
       false // false = carve (subtract density)
     );
 
-    // Trigger chunk-based rebuild to update physics (only rebuilds dirty chunks)
-    const stats = this.remeshManager.remesh();
+    // Trigger local regional rebuild using canonical loops/segments
+    const stats = this.remeshManager.localUpdate(2); // Pad by 2 cells for boundary continuity
     if (stats) {
       // Update UI stats if needed
       this.originalVertexCount = stats.originalVertexCount;
