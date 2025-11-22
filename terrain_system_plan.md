@@ -368,468 +368,496 @@ Optimized loops & segments are rebuilt ONLY for loops whose canonical changed.
 
 ---
 
-## 12. Implementation Phases (Step-by-Step with Debug & Verification)
+## 12. Implementation Phases (Testable Incremental Approach)
 
-### Phase 1: Data Structures & Types
-
-**Tasks:**
-1. Create new file `src/terrain/CanonicalGeometry.ts`:
-   - `CanonVertex` interface
-   - `CanonicalLoop` interface (with `id`, `vertices`, `aabb`, `version`)
-   - `OptVertex` interface (with `canonStart`, `canonEnd`)
-   - `OptimizedLoop` interface
-   - `PhysicsSegment` interface (with `canonicalStart`, `canonicalEnd`)
-
-2. Add ID allocation helpers:
-   - `allocateLoopId()`
-   - `allocateVertexId()` (for debugging)
-   - `allocateSegmentId()`
-
-**Debug Logging:**
-```typescript
-console.log('[CanonicalGeometry] Created loop', {
-  id: loop.id,
-  vertices: loop.vertices.length,
-  aabb: loop.aabb,
-  version: loop.version
-});
-```
-
-**Verification:**
-- Types compile without errors
-- IDs are unique and monotonic
-- AABBs computed correctly
+**Philosophy**: Each phase ships working code integrated into the running app. No "build everything then wire it up" approach. Every phase is testable end-to-end.
 
 ---
 
-### Phase 2: Canonical Loop Creation (No Optimization Yet)
+### Phase 1: Canonical Loops (Read-Only Layer)
+
+**Goal**: Add canonical loops as a parallel layer without affecting existing system
 
 **Tasks:**
-1. Modify `RemeshManager.fullHeal()`:
+1. Create `src/terrain/CanonicalGeometry.ts`:
+   - `CanonVertex` interface (`x`, `y`)
+   - `CanonicalLoop` interface (`id`, `vertices`, `aabb`, `version`)
+   - `allocateLoopId()` helper
+   - `computeLoopAABB(vertices)` helper
+
+2. Modify `RemeshManager.fullHeal()`:
    - After `cleanLoop()`, create `CanonicalLoop` objects
    - Store in `this.canonicalLoops: CanonicalLoop[]`
-   - Log vertex counts before/after cleanup
+   - **Keep existing optimization/physics unchanged**
 
-2. Keep existing optimization pipeline unchanged for now
-   - Still use `VertexOptimizationPipeline`
-   - Still create physics bodies the old way
-   - This is a **safe transition** - system still works
+3. Add debug visualization in `Renderer.ts`:
+   - Toggle to show canonical vertices (red dots, 2px)
+   - Toggle to show canonical AABBs (red rectangles)
+   - Add to debug console
 
 **Debug Logging:**
 ```typescript
-console.log('[Phase2] Created canonical loops', {
+console.log('[Phase1] Created canonical loops', {
   count: canonicalLoops.length,
   totalVertices: canonicalLoops.reduce((sum, l) => sum + l.vertices.length, 0),
   aabbs: canonicalLoops.map(l => l.aabb)
 });
 ```
 
-**Visual Debug:**
-- Add debug rendering mode: draw canonical vertices as small red dots
-- Draw canonical AABBs as red rectangles
-- Toggle with debug console
+**End-to-End Test:**
+- ✅ App loads and runs normally
+- ✅ Can toggle canonical visualization (red dots)
+- ✅ Canonical loops match cleaned marching squares output
+- ✅ AABBs correctly contain all vertices
+- ✅ Existing rendering and physics unchanged
 
-**Verification:**
-- Canonical loops match cleaned marching squares output
-- AABBs contain all vertices
-- Version numbers initialized to 0
-- App still renders and physics work (unchanged)
+**Ship It**: Canonical layer exists but doesn't affect anything yet
 
 ---
 
-### Phase 3: Ancestry-Aware Chaikin
+### Phase 2: Ancestry-Aware Chaikin (Replace Existing)
+
+**Goal**: Replace existing Chaikin with ancestry-tracking version
 
 **Tasks:**
-1. Create `src/terrain/ChaikinWithAncestry.ts`:
+1. Add `OptVertex` interface to `CanonicalGeometry.ts`:
    ```typescript
-   function chaikinWithAncestry(
-     vertices: OptVertex[],
-     iterations: number = 2
-   ): OptVertex[]
+   interface OptVertex {
+     x: number;
+     y: number;
+     canonStart: number;
+     canonEnd: number;
+   }
    ```
 
-2. Implement ancestry propagation:
-   - For each pair `(a, b)`, create Q and R
-   - `Q.canonStart = min(a.canonStart, b.canonStart)`
-   - `Q.canonEnd = max(a.canonEnd, b.canonEnd)`
-   - Same for R
+2. Create `src/terrain/ChaikinWithAncestry.ts`:
+   - Implement `chaikinWithAncestry(vertices: OptVertex[], iterations)`
+   - Propagate ancestry: `Q.canonStart = min(a.canonStart, b.canonStart)`
+   - Add assertions: `canonStart <= canonEnd`
 
-3. Add detailed logging per iteration:
-   ```typescript
-   console.log('[Chaikin] Iteration ${i}', {
-     before: vertices.length,
-     after: result.length,
-     ancestryRanges: result.map(v => [v.canonStart, v.canonEnd])
-   });
-   ```
+3. Modify `ChaikinSmoothing.ts`:
+   - **Replace** existing `chaikinSmooth()` implementation
+   - Initialize vertices with `canonStart = canonEnd = i`
+   - Use ancestry-aware version
+   - Return `OptVertex[]` instead of `Point[]`
+
+4. Update `VertexOptimizationPipeline.ts`:
+   - Accept `OptVertex[]` from Chaikin
+   - Pass through to Visvalingam (ignore ancestry for now)
+   - Convert back to `Point[]` for physics
+
+**Debug Logging:**
+```typescript
+console.log('[Chaikin] Iteration ${i}', {
+  before: vertices.length,
+  after: result.length,
+  sampleAncestry: result.slice(0, 5).map(v => [v.canonStart, v.canonEnd])
+});
+```
 
 **Visual Debug:**
-- Color-code optimized vertices by ancestry range
-- Hue based on `(canonStart + canonEnd) / 2`
-- Draw ancestry range as text label on hover
+- Color-code optimized vertices by ancestry range (hue based on `(canonStart + canonEnd) / 2`)
+- Draw ancestry range as text on hover
 
-**Verification:**
-- After 2 iterations, vertex count = `original * 4` (roughly)
-- Every `OptVertex` has valid `canonStart <= canonEnd`
-- Ancestry ranges never shrink (only expand or stay same)
-- No gaps in canonical coverage (union of all ranges = [0, N-1])
+**End-to-End Test:**
+- ✅ App still works identically
+- ✅ Terrain looks the same (Chaikin behavior unchanged)
+- ✅ Every `OptVertex` has valid `canonStart <= canonEnd`
+- ✅ Ancestry ranges never shrink across iterations
+- ✅ Can visualize ancestry coloring
 
-**Error Detection:**
-- Assert `canonStart <= canonEnd` after each vertex creation
-- Assert no vertex has `canonStart < 0` or `canonEnd >= canonical.length`
+**Ship It**: Chaikin now tracks ancestry (but nothing uses it yet)
 
 ---
 
-### Phase 4: Ancestry-Aware Visvalingam
+### Phase 3: Ancestry-Aware Visvalingam (Preserve Ancestry)
+
+**Goal**: Modify Visvalingam to preserve ancestry through simplification
 
 **Tasks:**
 1. Modify `PolylineSimplifier.ts`:
-   - Accept `OptVertex[]` instead of `Point[]`
-   - When removing vertex, just skip it
-   - When keeping vertex, preserve `canonStart/canonEnd`
+   - Accept `OptVertex[]` (check if vertex has `canonStart/End`)
+   - When removing vertex: just skip it
+   - When keeping vertex: preserve ancestry unchanged
+   - Return `OptVertex[]` if input had ancestry
 
-2. Add logging:
-   ```typescript
-   console.log('[Visvalingam] Simplification', {
-     before: vertices.length,
-     after: result.length,
-     reduction: ((before - after) / before * 100).toFixed(1) + '%',
-     preservedRanges: result.map(v => [v.canonStart, v.canonEnd])
-   });
-   ```
+2. Update `VertexOptimizationPipeline.ts`:
+   - Pass `OptVertex[]` through Visvalingam
+   - Store final `OptVertex[]` for later use
+   - Still convert to `Point[]` for physics (Phase 4 will fix this)
 
-**Verification:**
-- Vertex count reduced (as expected)
-- All kept vertices have unchanged ancestry
-- No new ancestry ranges created
-- Geometry still looks smooth
-
----
-
-### Phase 5: Full Optimization Pipeline with Ancestry
-
-**Tasks:**
-1. Create `src/terrain/OptimizationPipelineWithAncestry.ts`:
-   ```typescript
-   function optimizeWithAncestry(
-     canonical: CanonicalLoop,
-     options: OptimizationOptions
-   ): OptimizedLoop
-   ```
-
-2. Pipeline steps:
-   a. Initialize working vertices with ancestry
-   b. Run Chaikin (2 iterations) with ancestry
-   c. Run Visvalingam with ancestry
-   d. Return `OptimizedLoop`
-
-3. Add comprehensive logging:
-   ```typescript
-   console.log('[OptPipeline] Full optimization', {
-     canonicalId: canonical.id,
-     canonicalVerts: canonical.vertices.length,
-     afterChaikin: chaikinResult.length,
-     afterVisvalingam: optimized.vertices.length,
-     ancestryCoverage: computeCoverage(optimized.vertices, canonical.vertices.length)
-   });
-   ```
-
-**Visual Debug:**
-- Draw canonical loop in red (raw)
-- Draw optimized loop in blue (smooth)
-- On hover, show ancestry range for each optimized vertex
-- Highlight which canonical vertices are covered
-
-**Verification:**
-- Every canonical index [0, N-1] is covered by at least one optimized vertex
-- No canonical index is "orphaned"
-- Optimized loop is visually smoother than canonical
-- Vertex reduction is reasonable (not too aggressive)
-
-**Helper for Coverage Check:**
+**Debug Logging:**
 ```typescript
-function computeCoverage(optimized: OptVertex[], canonicalCount: number): boolean[] {
-  const covered = new Array(canonicalCount).fill(false);
-  for (const v of optimized) {
-    for (let i = v.canonStart; i <= v.canonEnd; i++) {
-      covered[i] = true;
-    }
-  }
-  return covered;
-}
+console.log('[Visvalingam] Simplification', {
+  before: vertices.length,
+  after: result.length,
+  reduction: ((before - after) / before * 100).toFixed(1) + '%',
+  ancestryPreserved: result.every(v => v.canonStart !== undefined)
+});
 ```
 
----
+**End-to-End Test:**
+- ✅ App still works identically
+- ✅ Terrain looks the same
+- ✅ All kept vertices have unchanged ancestry
+- ✅ No new ancestry ranges created
+- ✅ Coverage check passes (all canonical indices covered)
 
-### Phase 6: Segmentation with Canonical Ranges
-
-**Tasks:**
-1. Create `src/terrain/Segmenter.ts`:
-   ```typescript
-   function segmentOptimizedLoop(
-     optimized: OptimizedLoop,
-     maxVerts: number = 64
-   ): PhysicsSegment[]
-   ```
-
-2. Build segments with ancestry:
-   - Track `optStart`, `optEnd`
-   - Compute `canonicalStart = optimized[optStart].canonStart`
-   - Compute `canonicalEnd = optimized[optEnd].canonEnd`
-   - Compute segment AABB
-
-3. Add logging:
-   ```typescript
-   console.log('[Segmenter] Created segments', {
-     loopId: optimized.canonicalId,
-     segmentCount: segments.length,
-     segments: segments.map(s => ({
-       id: s.id,
-       optRange: [s.optStart, s.optEnd],
-       canonRange: [s.canonicalStart, s.canonicalEnd],
-       aabb: s.aabb
-     }))
-   });
-   ```
-
-**Visual Debug:**
-- Draw segment boundaries as yellow markers
-- Draw segment AABBs as dashed yellow rectangles
-- On hover, show canonical range covered by segment
-
-**Verification:**
-- Segments cover entire optimized loop (no gaps)
-- Each segment's canonical range is valid
-- Segment AABBs are correct
-- No segment exceeds `maxVerts`
+**Ship It**: Full optimization pipeline now has end-to-end ancestry
 
 ---
 
-### Phase 7: Box2D Integration (Using Optimized Geometry)
+### Phase 4: Physics Segments with Canonical Ranges
+
+**Goal**: Add canonical range tracking to physics segments
 
 **Tasks:**
-1. Modify `Box2DEngine.ts`:
-   - Accept `OptimizedLoop[]` instead of raw `Point[][]`
-   - Build segments from optimized vertices
-   - Create chain fixtures from segment vertex ranges
-   - Store `PhysicsSegment[]` with `canonicalStart/canonicalEnd`
-
-2. Add logging:
+1. Add `PhysicsSegment` interface to `CanonicalGeometry.ts`:
    ```typescript
-   console.log('[Box2D] Created terrain bodies', {
-     loopCount: optimizedLoops.length,
-     totalSegments: segments.length,
-     fixturesCreated: segments.filter(s => s.fixture !== null).length
-   });
+   interface PhysicsSegment {
+     id: number;
+     loopCanonicalId: number;
+     optStart: number;
+     optEnd: number;
+     canonicalStart: number;
+     canonicalEnd: number;
+     fixture: b2Fixture | null;
+     aabb: AABB;
+   }
    ```
 
-**Verification:**
-- Physics still works correctly
-- Player doesn't fall through terrain
-- Collisions are accurate
-- No visual/physics mismatch
+2. Modify `Box2DEngine.ts`:
+   - When building segments, compute canonical ranges:
+     - `canonicalStart = optimized[optStart].canonStart`
+     - `canonicalEnd = optimized[optEnd].canonEnd`
+   - Store `PhysicsSegment[]` instead of just fixtures
+   - Add helper: `getSegmentsForLoop(loopId)`
+
+3. Add segment debug visualization:
+   - Draw segment boundaries as yellow markers
+   - Show canonical range on hover
+   - Toggle in debug console
+
+**Debug Logging:**
+```typescript
+console.log('[Box2D] Created segments', {
+  loopId: loop.id,
+  segmentCount: segments.length,
+  segments: segments.map(s => ({
+    id: s.id,
+    optRange: [s.optStart, s.optEnd],
+    canonRange: [s.canonicalStart, s.canonicalEnd]
+  }))
+});
+```
+
+**End-to-End Test:**
+- ✅ App still works identically
+- ✅ Physics unchanged
+- ✅ Segments have valid canonical ranges
+- ✅ Can visualize segment canonical ranges
+- ✅ Segments cover entire optimized loop (no gaps)
+
+**Ship It**: Physics segments now know their canonical ancestry
 
 ---
 
-### Phase 8: Local Update - Canonical Surgery
+### Phase 5: Canonical Surgery (Unit Tested, Not Integrated Yet)
+
+**Goal**: Implement canonical loop surgery without integrating into carving yet
 
 **Tasks:**
-1. Implement `CanonicalLoop.replaceRange(startIdx, endIdx, newVertices)`:
-   - Replace vertices in range with new ones
-   - Re-run `cleanLoop()` on spliced result
-   - Increment `version` number
-   - Update AABB
-
-2. Handle topology changes:
-   - If new loop closes differently → split/merge detection
-   - Return `CanonicalLoop[]` (might be 0, 1, or 2+ loops)
-
-3. Add extensive logging:
+1. Add methods to `CanonicalGeometry.ts`:
    ```typescript
-   console.log('[CanonSurgery] Replacing range', {
-     loopId: loop.id,
-     oldRange: [startIdx, endIdx],
-     oldVerts: endIdx - startIdx + 1,
-     newVerts: newVertices.length,
-     oldVersion: loop.version,
-     newVersion: loop.version + 1,
-     topologyChange: resultLoops.length !== 1
-   });
+   function replaceCanonicalRange(
+     loop: CanonicalLoop,
+     startIdx: number,
+     endIdx: number,
+     newVertices: CanonVertex[]
+   ): CanonicalLoop[]
    ```
+   - Splice in new vertices
+   - Re-run `cleanLoop()`
+   - Recompute AABB
+   - Increment `version`
+   - Return array (handles split/merge)
 
-**Visual Debug:**
-- Highlight dirty canonical range in bright red
-- Show old vertices being removed in gray
-- Show new vertices being inserted in green
-- Animate the surgery (optional)
+2. Write unit tests (or manual test function):
+   - Test simple replacement (same topology)
+   - Test loop split (1 → 2)
+   - Test loop merge (2 → 1)
+   - Test edge cases (empty range, full loop, etc.)
 
-**Verification:**
-- Loop still closed after surgery
-- Winding order preserved (CCW)
-- AABB updated correctly
-- Version incremented
+**Debug Logging:**
+```typescript
+console.log('[CanonSurgery] Replacing range', {
+  loopId: loop.id,
+  oldRange: [startIdx, endIdx],
+  newVerts: newVertices.length,
+  resultLoops: resultLoops.length,
+  topologyChange: resultLoops.length !== 1
+});
+```
+
+**End-to-End Test:**
+- ✅ Surgery function exists and is tested
+- ✅ Handle topology changes correctly
+- ✅ AABBs updated correctly
+- ✅ Versions incremented
+- ⚠️ **Not called by carving yet** (Phase 6 will integrate)
+
+**Ship It**: Surgery logic is tested but not used yet
 
 ---
 
-### Phase 9: Local Update - Optimized Rebuild
+### Phase 6: Local Update - Canonical Layer Only
+
+**Goal**: Update canonical loops locally when carving, but fallback to full rebuild for optimized/physics
 
 **Tasks:**
-1. Implement overlap detection:
-   ```typescript
-   function findAffectedOptVertices(
-     optimized: OptVertex[],
-     dirtyStart: number,
-     dirtyEnd: number
-   ): { removeStart: number; removeEnd: number }
-   ```
-
-2. Remove affected optimized vertices
-
-3. Re-optimize only the dirty canonical range:
-   - Extract canonical slice `[dirtyStart..dirtyEnd]`
-   - Run Chaikin + Visvalingam with ancestry
-   - Stitch back into optimized loop
-
-4. Add detailed logging:
-   ```typescript
-   console.log('[LocalOptRebuild] Rebuilding optimized range', {
-     canonicalRange: [dirtyStart, dirtyEnd],
-     removedOptVerts: removeEnd - removeStart + 1,
-     newOptVerts: newOptimized.length,
-     stitchPoints: [optimized[removeStart - 1], optimized[removeEnd + 1]]
-   });
-   ```
-
-**Visual Debug:**
-- Draw removed optimized vertices in red (fading out)
-- Draw new optimized vertices in green (fading in)
-- Highlight stitch boundaries with yellow circles
-- Show before/after side-by-side
-
-**Verification:**
-- Optimized loop still closed
-- No gaps at stitch boundaries
-- Ancestry coverage still complete
-- Geometry looks smooth
-
-**Error Detection:**
-- Assert no gaps in optimized vertex array
-- Assert ancestry ranges still cover all canonical indices
-- Assert stitched loop has correct vertex count
-
----
-
-### Phase 10: Local Update - Segment Rebuild
-
-**Tasks:**
-1. Identify affected segments:
-   ```typescript
-   function findAffectedSegments(
-     segments: PhysicsSegment[],
-     dirtyStart: number,
-     dirtyEnd: number
-   ): PhysicsSegment[]
-   ```
-   - Check if `segment.canonicalEnd >= dirtyStart && segment.canonicalStart <= dirtyEnd`
-
-2. Destroy affected fixtures
-
-3. Re-segment the modified optimized loop region
-
-4. Create new fixtures
-
-5. Add logging:
-   ```typescript
-   console.log('[SegmentRebuild] Updating segments', {
-     canonicalRange: [dirtyStart, dirtyEnd],
-     affectedCount: affectedSegments.length,
-     destroyedFixtures: affectedSegments.length,
-     newSegments: newSegments.length,
-     createdFixtures: newSegments.filter(s => s.fixture !== null).length
-   });
-   ```
-
-**Visual Debug:**
-- Draw destroyed segments in red (fading out)
-- Draw new segments in green (fading in)
-- Flash segment boundaries briefly
-
-**Verification:**
-- Physics still works after rebuild
-- No duplicate fixtures
-- All optimized vertices have corresponding physics
-- Player collision still accurate
-
----
-
-### Phase 11: End-to-End Local Update
-
-**Tasks:**
-1. Wire up full local update flow in `RemeshManager.localUpdate()`:
+1. Modify `RemeshManager.localUpdate()`:
    ```typescript
    a. Get dirty AABB from density field
-   b. Find affected canonical loops
+   b. Find affected canonical loops (AABB intersection)
    c. Run marching squares in dirty region
-   d. Perform canonical surgery
-   e. Rebuild affected optimized ranges
-   f. Rebuild affected segments
-   g. Update physics fixtures
+   d. Perform canonical surgery on affected loops
+   e. **FALLBACK**: Do full rebuild for optimized/physics
    ```
 
-2. Add high-level logging:
-   ```typescript
-   console.log('[LocalUpdate] Complete', {
-     dirtyAABB,
-     affectedLoops: affectedCanonical.length,
-     totalCanonicalVerts: affectedCanonical.reduce(...),
-     totalOptVertsRebuilt: ...,
-     totalSegmentsRebuilt: ...,
-     durationMs: performance.now() - t0
-   });
-   ```
+2. Add method: `findAffectedCanonicalLoops(dirtyAABB)`
+
+3. Add method: `matchNewLoopsToOld(oldLoops, newLoops, dirtyAABB)`
+   - Match by overlap/proximity
+   - Handle topology changes
+
+**Debug Logging:**
+```typescript
+console.log('[LocalUpdate] Canonical surgery', {
+  dirtyAABB,
+  affectedLoops: affectedCanonical.length,
+  surgeryResults: results.map(r => ({
+    oldLoopId: r.oldId,
+    newLoopCount: r.newLoops.length
+  })),
+  fallbackToFullRebuild: true  // For optimized/physics
+});
+```
 
 **Visual Debug:**
-- Draw dirty AABB as pulsing red rectangle
-- Show affected canonical loops highlighted
-- Animate the rebuild process
-- Show performance stats overlay
+- Highlight affected canonical loops in bright red
+- Show dirty AABB pulsing
+- Animate surgery (old vertices fade out, new fade in)
 
-**Verification:**
-- After carving, terrain updates correctly
-- Only dirty region is rebuilt (not entire world)
-- Physics matches visuals exactly
-- No performance regression
-- Memory usage stable (no leaks)
+**End-to-End Test:**
+- ✅ Carving updates canonical loops locally
+- ✅ Canonical visualization shows local update
+- ✅ App still works (falls back to full rebuild for physics)
+- ✅ Terrain matches (full rebuild ensures correctness)
+- ✅ Performance not improved yet (expected)
+
+**Ship It**: Canonical layer updates locally, rest falls back
 
 ---
 
-### Phase 12: Error Handling & Edge Cases
+### Phase 7: Local Update - Optimized Layer
+
+**Goal**: Update optimized geometry locally, still full rebuild physics
+
+**Tasks:**
+1. Add method: `findAffectedOptVertices(optimized, dirtyStart, dirtyEnd)`:
+   ```typescript
+   // Find opt vertices whose canonStart..canonEnd overlaps [dirtyStart, dirtyEnd]
+   return { removeStart, removeEnd };
+   ```
+
+2. Add method: `rebuildOptimizedRange(canonical, dirtyStart, dirtyEnd)`:
+   - Extract canonical slice
+   - Run Chaikin + Visvalingam with ancestry
+   - Return new `OptVertex[]`
+
+3. Add method: `stitchOptimizedRange(optimized, removeStart, removeEnd, newOptVerts)`:
+   - Remove affected range
+   - Insert new optimized vertices
+   - Verify no gaps
+
+4. Modify `RemeshManager.localUpdate()`:
+   - After canonical surgery, rebuild affected optimized ranges
+   - **Still do full physics rebuild** (Phase 8 will fix this)
+
+**Debug Logging:**
+```typescript
+console.log('[LocalOptRebuild] Rebuilding range', {
+  canonRange: [dirtyStart, dirtyEnd],
+  removedOptVerts: removeEnd - removeStart + 1,
+  newOptVerts: newOptVerts.length,
+  ancestryCoverage: checkCoverage(stitched, canonical.length)
+});
+```
+
+**Visual Debug:**
+- Show removed opt vertices (red, fading)
+- Show new opt vertices (green, fading)
+- Highlight stitch boundaries (yellow circles)
+
+**End-to-End Test:**
+- ✅ Carving updates optimized geometry locally
+- ✅ No gaps at stitch boundaries
+- ✅ Ancestry coverage complete
+- ✅ Geometry looks smooth
+- ✅ App still works (physics full rebuild ensures correctness)
+
+**Ship It**: Two-layer local update (canonical + optimized)
+
+---
+
+### Phase 8: Local Update - Physics Segments (Complete!)
+
+**Goal**: Update physics segments locally - **full local update working**
+
+**Tasks:**
+1. Add method: `findAffectedSegments(segments, dirtyStart, dirtyEnd)`:
+   ```typescript
+   return segments.filter(s =>
+     s.canonicalEnd >= dirtyStart &&
+     s.canonicalStart <= dirtyEnd
+   );
+   ```
+
+2. Add method: `rebuildSegmentsForRange(optimized, affectedOptStart, affectedOptEnd)`:
+   - Re-segment only the affected optimized range
+   - Return new `PhysicsSegment[]`
+
+3. Modify `Box2DEngine.ts`:
+   - Add `destroySegments(segments[])`
+   - Add `createSegmentsForRange(optimized, startIdx, endIdx)`
+
+4. Modify `RemeshManager.localUpdate()`:
+   - After optimized rebuild, find affected segments
+   - Destroy old fixtures
+   - Create new fixtures
+   - **No more full rebuild!**
+
+**Debug Logging:**
+```typescript
+console.log('[SegmentRebuild] Local physics update', {
+  canonRange: [dirtyStart, dirtyEnd],
+  affectedSegments: affectedSegs.length,
+  destroyedFixtures: affectedSegs.length,
+  newSegments: newSegs.length,
+  createdFixtures: newSegs.length
+});
+```
+
+**Visual Debug:**
+- Flash destroyed segments (red)
+- Flash new segments (green)
+- Show segment boundaries updating
+
+**End-to-End Test:**
+- ✅ Carving updates all three layers locally
+- ✅ Only dirty region rebuilt (not entire world)
+- ✅ Physics works correctly (no leaks)
+- ✅ Terrain matches exactly
+- ✅ **Performance improvement visible!**
+
+**Ship It**: 🎉 **FULL LOCAL UPDATE WORKING!** 🎉
+
+---
+
+### Phase 9: Error Handling & Edge Cases
+
+**Goal**: Make local updates robust and production-ready
 
 **Tasks:**
 1. Add defensive checks:
-   - Canonical loop becomes invalid (< 3 vertices) → delete
-   - Optimized vertex has invalid ancestry → error + fallback
-   - Segment has no fixture → warning + skip
-   - Dirty range exceeds loop bounds → clamp + warn
+   - Canonical loop < 3 vertices → delete
+   - Invalid ancestry → error + full rebuild
+   - Topology change too complex → full rebuild
+   - Coverage gaps detected → full rebuild
 
-2. Fallback to full rebuild if:
-   - Topology change too complex
-   - Ancestry coverage broken
-   - Stitching produces invalid geometry
-
-3. Add error logging:
+2. Add fallback logic:
    ```typescript
-   console.error('[LocalUpdate] Fallback to full rebuild', {
-     reason: 'topology split detected',
-     loopId: loop.id,
-     dirtyRange: [dirtyStart, dirtyEnd]
-   });
+   try {
+     return localUpdate();
+   } catch (err) {
+     console.error('[LocalUpdate] Failed, falling back', err);
+     return fullHeal();
+   }
    ```
 
-**Verification:**
-- App never crashes on edge cases
-- Fallback always produces valid geometry
-- Errors are logged with enough context for debugging
+3. Add validation helpers:
+   - `validateAncestry(optVerts, canonicalCount)`
+   - `validateCoverage(optVerts, canonicalCount)`
+   - `validateTopology(loop)`
+
+**Debug Logging:**
+```typescript
+console.error('[LocalUpdate] Fallback to full rebuild', {
+  reason: err.message,
+  loopId: loop.id,
+  dirtyRange: [dirtyStart, dirtyEnd],
+  stack: err.stack
+});
+```
+
+**End-to-End Test:**
+- ✅ Rapid carving doesn't crash
+- ✅ Complex topology changes handled
+- ✅ Fallback always produces valid geometry
+- ✅ Errors logged with context
+
+**Ship It**: Local updates are robust and production-ready
+
+---
+
+### Phase 10: Performance Optimization & Polish
+
+**Goal**: Hit performance targets and polish UX
+
+**Tasks:**
+1. Add performance logging:
+   - Track time per phase (canonical, optimized, physics)
+   - Track memory usage
+   - Log statistics
+
+2. Optimize hot paths:
+   - Cache AABB intersection results
+   - Use spatial hash for segment lookups
+   - Lazy recompute AABBs
+
+3. Add debug console enhancements:
+   - Performance stats panel
+   - Vertex count comparison (local vs full)
+   - Memory usage chart
+
+**Performance Targets:**
+- Full world rebuild: < 50ms (baseline)
+- Local update: < 10ms (10x improvement) ✅
+- Memory: stable across 100+ carves ✅
+
+**Debug Logging:**
+```typescript
+console.log('[LocalUpdate] Performance', {
+  totalMs: performance.now() - t0,
+  breakdown: {
+    canonical: canonMs,
+    optimized: optMs,
+    physics: physicsMs
+  },
+  vertsCost: {
+    fullRebuild: totalCanonicalVerts,
+    localRebuild: rebuiltVerts,
+    savings: (1 - rebuiltVerts / totalCanonicalVerts) * 100 + '%'
+  }
+});
+```
+
+**End-to-End Test:**
+- ✅ Local update < 10ms for small carves
+- ✅ Memory stable (profile 100 carves)
+- ✅ Debug console shows performance gains
+
+**Ship It**: 🚀 **Production-ready local updates!** 🚀
 
 ---
 
