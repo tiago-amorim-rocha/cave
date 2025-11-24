@@ -190,7 +190,7 @@ class CarvableCaves {
       const worldConfig: WorldConfig = {
         width: 32, // metres - compact world for faster gameplay
         height: 32, // metres - compact world for faster gameplay
-        gridPitch: 0.25, // metres (h)
+        gridPitch: 1, // metres (h) - coarse resolution for clearer visualization
         isoValue: 128
       };
 
@@ -894,14 +894,25 @@ class CarvableCaves {
         maxY: Math.min(this.densityField.gridHeight - 2, Math.ceil(dirtyWorldAABB.maxY / h) + expandCells)
       };
 
+      const worldMinX = gridAABB.minX * h;
+      const worldMinY = gridAABB.minY * h;
+      const worldMaxX = (gridAABB.maxX + 1) * h;
+      const worldMaxY = (gridAABB.maxY + 1) * h;
+
       // Convert expanded grid AABB back to world coordinates for consistent cutting
       // Add +1 to max values to cover the full extent of the boundary cells
       const expandedWorldAABB = {
-        minX: gridAABB.minX * h,
-        minY: gridAABB.minY * h,
-        maxX: (gridAABB.maxX + 1) * h,  // Include right edge of rightmost cell
-        maxY: (gridAABB.maxY + 1) * h   // Include bottom edge of bottom cell
+        minX: worldMinX,
+        minY: worldMinY,
+        maxX: worldMaxX,  // Include right edge of rightmost cell
+        maxY: worldMaxY   // Include bottom edge of bottom cell
       };
+
+      // Closed-world check so boundary vertices classify consistently
+      const isInsideWorld = (v: { x: number; y: number }): boolean => (
+        v.x >= worldMinX && v.x <= worldMaxX &&
+        v.y >= worldMinY && v.y <= worldMaxY
+      );
 
       // Set boundary for confined marching
       this.marchingSquares.setBoundaryAABB(gridAABB);
@@ -915,59 +926,126 @@ class CarvableCaves {
       // Get canonical loops and extract portions OUTSIDE the dirty region
       const canonicalLoops = this.remeshManager.getCanonicalLoops();
       const outsideResults: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }> = [];
+      type SegmentInfo = {
+        segment: { x: number; y: number }[];
+        preCutVertex?: { x: number; y: number };
+        postCutVertex?: { x: number; y: number };
+      };
+      const loopSegmentsById = new Map<number, SegmentInfo[]>();
 
-      // Epsilon for boundary tolerance - vertices within this distance of boundary are considered INSIDE
-      const epsilon = 0.0001;
+      const buildOutsideSegments = (vertices: { x: number; y: number }[]): SegmentInfo[] => {
+        const segments: SegmentInfo[] = [];
+        let currentSegment: { x: number; y: number }[] = [];
+        let wasOutside = false;
+        let lastInsideVertex: { x: number; y: number } | undefined;
+
+        if (vertices.length > 0) {
+          const lastVertex = vertices[vertices.length - 1];
+          if (isInsideWorld(lastVertex)) {
+            lastInsideVertex = { x: lastVertex.x, y: lastVertex.y };
+          }
+        }
+
+        for (const vertex of vertices) {
+          const inside = isInsideWorld(vertex);
+          if (!inside) {
+            currentSegment.push({ x: vertex.x, y: vertex.y });
+            wasOutside = true;
+          } else {
+            const insideCopy = { x: vertex.x, y: vertex.y };
+            if (wasOutside && currentSegment.length > 0) {
+              segments.push({
+                segment: currentSegment,
+                preCutVertex: lastInsideVertex ? { ...lastInsideVertex } : undefined,
+                postCutVertex: insideCopy
+              });
+              currentSegment = [];
+            }
+            wasOutside = false;
+            lastInsideVertex = insideCopy;
+          }
+        }
+
+        if (currentSegment.length > 0) {
+          segments.push({
+            segment: currentSegment,
+            preCutVertex: lastInsideVertex ? { ...lastInsideVertex } : undefined,
+            postCutVertex: undefined
+          });
+        }
+
+        return segments;
+      };
 
       for (const canonLoop of canonicalLoops) {
         // Check if this loop intersects the EXPANDED AABB (use same boundary as inside loops)
         if (this.aabbsIntersect(canonLoop.aabb, expandedWorldAABB)) {
           // Split loop into segments based on inside/outside transitions
-          const segments: { x: number; y: number }[][] = [];
-          let currentSegment: { x: number; y: number }[] = [];
-          let wasOutside = false;
-
-          for (let i = 0; i < canonLoop.vertices.length; i++) {
-            const v = canonLoop.vertices[i];
-
-            // Use world coordinate check with epsilon for boundary vertices
-            // Vertices ON the boundary (within epsilon) are considered INSIDE
-            // This avoids floor() asymmetry where edge vertices get classified into adjacent cells
-            const isOutside =
-              v.x < expandedWorldAABB.minX - epsilon ||
-              v.x > expandedWorldAABB.maxX + epsilon ||
-              v.y < expandedWorldAABB.minY - epsilon ||
-              v.y > expandedWorldAABB.maxY + epsilon;
-
-            if (isOutside) {
-              // Add to current segment
-              currentSegment.push({ x: v.x, y: v.y });
-              wasOutside = true;
-            } else {
-              // Inside the dirty region - close current segment if we were outside
-              if (wasOutside && currentSegment.length > 0) {
-                segments.push(currentSegment);
-                currentSegment = [];
-                wasOutside = false;
-              }
-            }
-          }
-
-          // Close final segment if needed
-          if (currentSegment.length > 0) {
-            segments.push(currentSegment);
-          }
+          const segments = buildOutsideSegments(canonLoop.vertices);
+          loopSegmentsById.set(canonLoop.id, segments);
 
           // Add each segment as an open loop
-          for (const segment of segments) {
+          for (const segmentInfo of segments) {
+            const segment = segmentInfo.segment;
             if (segment.length > 1) {
+              const fallbackStart = segment[0];
+              const fallbackEnd = segment[segment.length - 1];
+              const endpointStart = segmentInfo.preCutVertex ?? fallbackStart;
+              const endpointEnd = segmentInfo.postCutVertex ?? fallbackEnd;
               const endpoints: [{ x: number; y: number }, { x: number; y: number }] = [
-                segment[0],
-                segment[segment.length - 1]
+                endpointStart,
+                endpointEnd
               ];
 
+              console.log('[Debug] Outside segment endpoints for renderer', {
+                canonicalLoopId: canonLoop.id,
+                segmentLength: segment.length,
+                fallbackStart: {
+                  x: fallbackStart.x.toFixed(3),
+                  y: fallbackStart.y.toFixed(3),
+                  inside: isInsideWorld(fallbackStart)
+                },
+                fallbackEnd: {
+                  x: fallbackEnd.x.toFixed(3),
+                  y: fallbackEnd.y.toFixed(3),
+                  inside: isInsideWorld(fallbackEnd)
+                },
+                preCutVertex: segmentInfo.preCutVertex
+                  ? {
+                      x: segmentInfo.preCutVertex.x.toFixed(3),
+                      y: segmentInfo.preCutVertex.y.toFixed(3),
+                      inside: isInsideWorld(segmentInfo.preCutVertex)
+                    }
+                  : null,
+                postCutVertex: segmentInfo.postCutVertex
+                  ? {
+                      x: segmentInfo.postCutVertex.x.toFixed(3),
+                      y: segmentInfo.postCutVertex.y.toFixed(3),
+                      inside: isInsideWorld(segmentInfo.postCutVertex)
+                    }
+                  : null,
+                usedStart: {
+                  x: endpointStart.x.toFixed(3),
+                  y: endpointStart.y.toFixed(3),
+                  inside: isInsideWorld(endpointStart)
+                },
+                usedEnd: {
+                  x: endpointEnd.x.toFixed(3),
+                  y: endpointEnd.y.toFixed(3),
+                  inside: isInsideWorld(endpointEnd)
+                }
+              });
+
+              const renderLoop = [...segment];
+              if (segmentInfo.preCutVertex) {
+                renderLoop.unshift({ ...segmentInfo.preCutVertex });
+              }
+              if (segmentInfo.postCutVertex) {
+                renderLoop.push({ ...segmentInfo.postCutVertex });
+              }
+
               outsideResults.push({
-                loop: segment,
+                loop: renderLoop,
                 closed: false,
                 endpoints
               });
@@ -1015,53 +1093,7 @@ class CarvableCaves {
       for (const canonLoop of canonicalLoops) {
         if (this.aabbsIntersect(canonLoop.aabb, expandedWorldAABB)) {
           // Find segments for this loop
-          const loopSegments: Array<{
-            segment: { x: number; y: number }[];
-            firstCutVertex?: { x: number; y: number };
-            lastCutVertex?: { x: number; y: number };
-          }> = [];
-
-          let currentSegment: { x: number; y: number }[] = [];
-          let wasOutside = false;
-          let firstCutVertex: { x: number; y: number } | undefined;
-
-          for (let i = 0; i < canonLoop.vertices.length; i++) {
-            const v = canonLoop.vertices[i];
-
-            // Use same world-based check as the main loop
-            const isOutside =
-              v.x < expandedWorldAABB.minX - epsilon ||
-              v.x > expandedWorldAABB.maxX + epsilon ||
-              v.y < expandedWorldAABB.minY - epsilon ||
-              v.y > expandedWorldAABB.maxY + epsilon;
-
-            if (isOutside) {
-              currentSegment.push({ x: v.x, y: v.y });
-              wasOutside = true;
-            } else {
-              // Inside - this is a cut vertex
-              if (wasOutside && currentSegment.length > 0) {
-                // Save the first inside vertex after this segment
-                loopSegments.push({
-                  segment: currentSegment,
-                  firstCutVertex: { x: v.x, y: v.y }
-                });
-                currentSegment = [];
-                wasOutside = false;
-              }
-              if (currentSegment.length === 0 && !wasOutside) {
-                // Track first cut vertex before next outside segment
-                firstCutVertex = { x: v.x, y: v.y };
-              }
-            }
-          }
-
-          if (currentSegment.length > 0) {
-            loopSegments.push({
-              segment: currentSegment,
-              lastCutVertex: firstCutVertex
-            });
-          }
+          const loopSegments = loopSegmentsById.get(canonLoop.id) ?? [];
 
           // Log each segment
           for (const segData of loopSegments) {
@@ -1076,17 +1108,17 @@ class CarvableCaves {
               console.log(`  Endpoint 1: (${ep1.x.toFixed(3)}, ${ep1.y.toFixed(3)}) at cell (${ep1Cell.gx}, ${ep1Cell.gy})`);
 
               // Log next cut vertex after endpoint 1 if it exists (previous segment's last cut or wrap-around)
-              if (segData.lastCutVertex) {
-                const cutCell = { gx: Math.floor(segData.lastCutVertex.x / h), gy: Math.floor(segData.lastCutVertex.y / h) };
-                console.log(`    → Next cut vertex (before ep1): (${segData.lastCutVertex.x.toFixed(3)}, ${segData.lastCutVertex.y.toFixed(3)}) at cell (${cutCell.gx}, ${cutCell.gy})`);
+              if (segData.preCutVertex) {
+                const cutCell = { gx: Math.floor(segData.preCutVertex.x / h), gy: Math.floor(segData.preCutVertex.y / h) };
+                console.log(`    → Next cut vertex (before ep1): (${segData.preCutVertex.x.toFixed(3)}, ${segData.preCutVertex.y.toFixed(3)}) at cell (${cutCell.gx}, ${cutCell.gy})`);
               }
 
               console.log(`  Endpoint 2: (${ep2.x.toFixed(3)}, ${ep2.y.toFixed(3)}) at cell (${ep2Cell.gx}, ${ep2Cell.gy})`);
 
               // Log next cut vertex after endpoint 2
-              if (segData.firstCutVertex) {
-                const cutCell = { gx: Math.floor(segData.firstCutVertex.x / h), gy: Math.floor(segData.firstCutVertex.y / h) };
-                console.log(`    → Next cut vertex (after ep2): (${segData.firstCutVertex.x.toFixed(3)}, ${segData.firstCutVertex.y.toFixed(3)}) at cell (${cutCell.gx}, ${cutCell.gy})`);
+              if (segData.postCutVertex) {
+                const cutCell = { gx: Math.floor(segData.postCutVertex.x / h), gy: Math.floor(segData.postCutVertex.y / h) };
+                console.log(`    → Next cut vertex (after ep2): (${segData.postCutVertex.x.toFixed(3)}, ${segData.postCutVertex.y.toFixed(3)}) at cell (${cutCell.gx}, ${cutCell.gy})`);
               }
 
               segmentIdx++;

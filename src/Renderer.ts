@@ -1539,10 +1539,10 @@ export class Renderer {
     }
     this.ctx.clip('evenodd');
 
-    // Very subtle grid color - slightly darker than cave background '#fff8e3'
-    this.ctx.strokeStyle = '#ede5d0';
-    this.ctx.lineWidth = 0.5;
-    this.ctx.globalAlpha = 0.6; // Additional subtlety
+    // Make cave grid lines stand out a bit more than the cave background '#fff8e3'
+    this.ctx.strokeStyle = '#d4b46b';
+    this.ctx.lineWidth = 1;
+    this.ctx.globalAlpha = 0.85;
 
     // Draw grid lines every 1 metre in world space
     const gridSpacing = 1; // metres
