@@ -895,11 +895,12 @@ class CarvableCaves {
       };
 
       // Convert expanded grid AABB back to world coordinates for consistent cutting
+      // Add +1 to max values to cover the full extent of the boundary cells
       const expandedWorldAABB = {
         minX: gridAABB.minX * h,
         minY: gridAABB.minY * h,
-        maxX: gridAABB.maxX * h,
-        maxY: gridAABB.maxY * h
+        maxX: (gridAABB.maxX + 1) * h,  // Include right edge of rightmost cell
+        maxY: (gridAABB.maxY + 1) * h   // Include bottom edge of bottom cell
       };
 
       // Set boundary for confined marching
