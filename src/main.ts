@@ -881,6 +881,9 @@ class CarvableCaves {
       this.debugLoops = [];
       this.debugAABB = null;
 
+      // Clear dirty region so it doesn't accumulate
+      this.densityField.clearDirty();
+
       // Convert world AABB to grid AABB with 1 cell expansion
       const h = this.densityField.config.gridPitch;
       const expandCells = 1;
