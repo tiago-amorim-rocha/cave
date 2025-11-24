@@ -180,6 +180,9 @@ class CarvableCaves {
   private carveStrength = 0.25; // 0-1 (25%)
   private carveOffset = 2.5; // metres - distance ahead of player to place brush
 
+  // Debug visualization for carved areas
+  private debugLoops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }> = [];
+
   constructor() {
     try {
       // World configuration
@@ -564,7 +567,7 @@ class CarvableCaves {
     const playerDirection = this.player.getDirection ? this.player.getDirection() : undefined;
 
     // Render (simple circle player with direction indicator)
-    this.renderer.render(playerPos, this.player.getRadius(), [], physicsDebugDraw, undefined, joystickDraw, undefined, playerDirection);
+    this.renderer.render(playerPos, this.player.getRadius(), [], physicsDebugDraw, undefined, joystickDraw, undefined, playerDirection, this.debugLoops);
   };
 
   private remesh(): void {
@@ -865,6 +868,38 @@ class CarvableCaves {
       this.carveBrush,
       false // false = carve (subtract density)
     );
+
+    // EXPERIMENT: Capture debug loops from dirty region
+    const dirtyWorldAABB = this.densityField.getDirtyWorldAABB();
+    if (dirtyWorldAABB) {
+      // Convert world AABB to grid AABB with 1 cell expansion
+      const h = this.densityField.config.gridPitch;
+      const expandCells = 1;
+      const gridAABB = {
+        minX: Math.max(0, Math.floor(dirtyWorldAABB.minX / h) - expandCells),
+        minY: Math.max(0, Math.floor(dirtyWorldAABB.minY / h) - expandCells),
+        maxX: Math.min(this.densityField.gridWidth - 2, Math.ceil(dirtyWorldAABB.maxX / h) + expandCells),
+        maxY: Math.min(this.densityField.gridHeight - 2, Math.ceil(dirtyWorldAABB.maxY / h) + expandCells)
+      };
+
+      // Set boundary for confined marching
+      this.marchingSquares.setBoundaryAABB(gridAABB);
+
+      // Generate contours with bidirectional walking
+      const debugResults = this.marchingSquares.generateContours(dirtyWorldAABB, expandCells);
+
+      // Clear boundary after use
+      this.marchingSquares.setBoundaryAABB(null);
+
+      // Store for rendering
+      this.debugLoops = debugResults;
+
+      console.log(`[Debug] Captured ${debugResults.length} loops from carve`, {
+        closed: debugResults.filter(r => r.closed).length,
+        open: debugResults.filter(r => !r.closed).length,
+        gridAABB
+      });
+    }
 
     // Trigger local regional rebuild using canonical loops/segments
     const stats = this.remeshManager.localUpdate(2); // Pad by 2 cells for boundary continuity

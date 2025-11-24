@@ -413,6 +413,7 @@ export class Renderer {
    * @param joystickDraw - Optional callback to draw virtual joystick
    * @param spider - Optional spider rendering data
    * @param playerDirection - Optional player direction in radians (for rendering direction indicator)
+   * @param debugLoops - Optional debug loops to render (for carving experiments)
    */
   render(
     playerPosition?: { x: number; y: number },
@@ -422,7 +423,8 @@ export class Renderer {
     playerDebugDraw?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
     joystickDraw?: (ctx: CanvasRenderingContext2D) => void,
     spider?: SpiderRenderData,
-    playerDirection?: number
+    playerDirection?: number,
+    debugLoops?: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }>
   ): void {
     try {
       const dpr = window.devicePixelRatio || 1;
@@ -519,6 +521,11 @@ export class Renderer {
       // Draw player debug info (velocity, grounded state, etc.)
       if (playerDebugDraw) {
         playerDebugDraw(this.ctx, width, height);
+      }
+
+      // Draw debug loops (carving experiment)
+      if (debugLoops && debugLoops.length > 0) {
+        this.drawDebugLoops(width, height, debugLoops);
       }
 
       // Draw virtual joystick (always on top, in screen coordinates)
@@ -1566,6 +1573,71 @@ export class Renderer {
       this.ctx.lineTo(right.x, right.y);
       this.ctx.stroke();
     }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw debug loops from carving experiment
+   * Each loop gets a different color, open loops show endpoints as larger dots
+   */
+  private drawDebugLoops(
+    canvasWidth: number,
+    canvasHeight: number,
+    debugLoops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }>
+  ): void {
+    this.ctx.save();
+
+    // Predefined colors for loops (bright, visible colors)
+    const loopColors = [
+      '#FF0000', // red
+      '#00FF00', // green
+      '#0000FF', // blue
+      '#FFFF00', // yellow
+      '#FF00FF', // magenta
+      '#00FFFF', // cyan
+      '#FFA500', // orange
+      '#FF1493', // deep pink
+      '#00FF7F', // spring green
+      '#FF4500', // orange red
+    ];
+
+    debugLoops.forEach((loopResult, loopIndex) => {
+      const { loop, closed, endpoints } = loopResult;
+      if (loop.length < 2) return;
+
+      // Pick color based on loop index (cycle through colors)
+      const color = loopColors[loopIndex % loopColors.length];
+
+      // Draw the loop
+      this.ctx.strokeStyle = color;
+      this.ctx.lineWidth = 3; // Thick for visibility
+      this.ctx.globalAlpha = 0.8;
+
+      this.ctx.beginPath();
+      const firstScreen = this.camera.worldToScreen(loop[0].x, loop[0].y, canvasWidth, canvasHeight);
+      this.ctx.moveTo(firstScreen.x, firstScreen.y);
+
+      for (let i = 1; i < loop.length; i++) {
+        const screen = this.camera.worldToScreen(loop[i].x, loop[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(screen.x, screen.y);
+      }
+
+      this.ctx.stroke();
+
+      // Draw endpoints for open loops
+      if (!closed && endpoints) {
+        this.ctx.fillStyle = color;
+        this.ctx.globalAlpha = 1.0;
+
+        endpoints.forEach(endpoint => {
+          const screen = this.camera.worldToScreen(endpoint.x, endpoint.y, canvasWidth, canvasHeight);
+          this.ctx.beginPath();
+          this.ctx.arc(screen.x, screen.y, 8, 0, Math.PI * 2); // 8px radius dots
+          this.ctx.fill();
+        });
+      }
+    });
 
     this.ctx.restore();
   }
