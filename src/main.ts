@@ -985,6 +985,110 @@ class CarvableCaves {
         outside: outsideResults.length,
         total: this.debugLoops.length
       });
+
+      // Log detailed endpoint information
+      console.log('\n=== INSIDE LOOPS (Marching Squares) ===');
+      console.log(`AABB Region (grid): [${gridAABB.minX}, ${gridAABB.minY}] to [${gridAABB.maxX}, ${gridAABB.maxY}]`);
+      console.log(`AABB Region (world): [${expandedWorldAABB.minX.toFixed(2)}, ${expandedWorldAABB.minY.toFixed(2)}] to [${expandedWorldAABB.maxX.toFixed(2)}, ${expandedWorldAABB.maxY.toFixed(2)}]`);
+
+      insideResults.forEach((result, idx) => {
+        if (!result.closed && result.endpoints) {
+          const [ep1, ep2] = result.endpoints;
+          const ep1Cell = { gx: Math.floor(ep1.x / h), gy: Math.floor(ep1.y / h) };
+          const ep2Cell = { gx: Math.floor(ep2.x / h), gy: Math.floor(ep2.y / h) };
+
+          console.log(`\nInside Loop ${idx} (${result.loop.length} vertices):`);
+          console.log(`  Endpoint 1: (${ep1.x.toFixed(3)}, ${ep1.y.toFixed(3)}) at cell (${ep1Cell.gx}, ${ep1Cell.gy})`);
+          console.log(`  Endpoint 2: (${ep2.x.toFixed(3)}, ${ep2.y.toFixed(3)}) at cell (${ep2Cell.gx}, ${ep2Cell.gy})`);
+        }
+      });
+
+      console.log('\n=== OUTSIDE LOOPS (Canonical Segments) ===');
+      console.log(`AABB Region (grid): [${gridAABB.minX}, ${gridAABB.minY}] to [${gridAABB.maxX}, ${gridAABB.maxY}]`);
+      console.log(`AABB Region (world): [${expandedWorldAABB.minX.toFixed(2)}, ${expandedWorldAABB.minY.toFixed(2)}] to [${expandedWorldAABB.maxX.toFixed(2)}, ${expandedWorldAABB.maxY.toFixed(2)}]`);
+
+      // Track which segments came from which canonical loop
+      let segmentIdx = 0;
+      for (const canonLoop of canonicalLoops) {
+        if (this.aabbsIntersect(canonLoop.aabb, expandedWorldAABB)) {
+          // Find segments for this loop
+          const loopSegments: Array<{
+            segment: { x: number; y: number }[];
+            firstCutVertex?: { x: number; y: number };
+            lastCutVertex?: { x: number; y: number };
+          }> = [];
+
+          let currentSegment: { x: number; y: number }[] = [];
+          let wasOutside = false;
+          let firstCutVertex: { x: number; y: number } | undefined;
+
+          for (let i = 0; i < canonLoop.vertices.length; i++) {
+            const v = canonLoop.vertices[i];
+            const vGx = Math.floor(v.x / h);
+            const vGy = Math.floor(v.y / h);
+            const isOutside = vGx < gridAABB.minX || vGx > gridAABB.maxX || vGy < gridAABB.minY || vGy > gridAABB.maxY;
+
+            if (isOutside) {
+              currentSegment.push({ x: v.x, y: v.y });
+              wasOutside = true;
+            } else {
+              // Inside - this is a cut vertex
+              if (wasOutside && currentSegment.length > 0) {
+                // Save the first inside vertex after this segment
+                loopSegments.push({
+                  segment: currentSegment,
+                  firstCutVertex: { x: v.x, y: v.y }
+                });
+                currentSegment = [];
+                wasOutside = false;
+              }
+              if (currentSegment.length === 0 && !wasOutside) {
+                // Track first cut vertex before next outside segment
+                firstCutVertex = { x: v.x, y: v.y };
+              }
+            }
+          }
+
+          if (currentSegment.length > 0) {
+            loopSegments.push({
+              segment: currentSegment,
+              lastCutVertex: firstCutVertex
+            });
+          }
+
+          // Log each segment
+          for (const segData of loopSegments) {
+            const segment = segData.segment;
+            if (segment.length > 1) {
+              const ep1 = segment[0];
+              const ep2 = segment[segment.length - 1];
+              const ep1Cell = { gx: Math.floor(ep1.x / h), gy: Math.floor(ep1.y / h) };
+              const ep2Cell = { gx: Math.floor(ep2.x / h), gy: Math.floor(ep2.y / h) };
+
+              console.log(`\nOutside Segment ${segmentIdx} (${segment.length} vertices):`);
+              console.log(`  Endpoint 1: (${ep1.x.toFixed(3)}, ${ep1.y.toFixed(3)}) at cell (${ep1Cell.gx}, ${ep1Cell.gy})`);
+
+              // Log next cut vertex after endpoint 1 if it exists (previous segment's last cut or wrap-around)
+              if (segData.lastCutVertex) {
+                const cutCell = { gx: Math.floor(segData.lastCutVertex.x / h), gy: Math.floor(segData.lastCutVertex.y / h) };
+                console.log(`    → Next cut vertex (before ep1): (${segData.lastCutVertex.x.toFixed(3)}, ${segData.lastCutVertex.y.toFixed(3)}) at cell (${cutCell.gx}, ${cutCell.gy})`);
+              }
+
+              console.log(`  Endpoint 2: (${ep2.x.toFixed(3)}, ${ep2.y.toFixed(3)}) at cell (${ep2Cell.gx}, ${ep2Cell.gy})`);
+
+              // Log next cut vertex after endpoint 2
+              if (segData.firstCutVertex) {
+                const cutCell = { gx: Math.floor(segData.firstCutVertex.x / h), gy: Math.floor(segData.firstCutVertex.y / h) };
+                console.log(`    → Next cut vertex (after ep2): (${segData.firstCutVertex.x.toFixed(3)}, ${segData.firstCutVertex.y.toFixed(3)}) at cell (${cutCell.gx}, ${cutCell.gy})`);
+              }
+
+              segmentIdx++;
+            }
+          }
+        }
+      }
+
+      console.log('\n');
     }
 
     // DISABLED: Bypass all rebuilding for experiment
