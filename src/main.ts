@@ -903,10 +903,10 @@ class CarvableCaves {
       for (const canonLoop of canonicalLoops) {
         // Check if this loop intersects the dirty AABB
         if (this.aabbsIntersect(canonLoop.aabb, dirtyWorldAABB)) {
-          // Extract vertices outside the dirty region
-          const outsideVertices: { x: number; y: number }[] = [];
-          let firstOutsideIdx = -1;
-          let lastOutsideIdx = -1;
+          // Split loop into segments based on inside/outside transitions
+          const segments: { x: number; y: number }[][] = [];
+          let currentSegment: { x: number; y: number }[] = [];
+          let wasOutside = false;
 
           for (let i = 0; i < canonLoop.vertices.length; i++) {
             const v = canonLoop.vertices[i];
@@ -915,24 +915,38 @@ class CarvableCaves {
               v.y < dirtyWorldAABB.minY || v.y > dirtyWorldAABB.maxY;
 
             if (isOutside) {
-              outsideVertices.push({ x: v.x, y: v.y });
-              if (firstOutsideIdx === -1) firstOutsideIdx = i;
-              lastOutsideIdx = i;
+              // Add to current segment
+              currentSegment.push({ x: v.x, y: v.y });
+              wasOutside = true;
+            } else {
+              // Inside the dirty region - close current segment if we were outside
+              if (wasOutside && currentSegment.length > 0) {
+                segments.push(currentSegment);
+                currentSegment = [];
+                wasOutside = false;
+              }
             }
           }
 
-          if (outsideVertices.length > 1) {
-            // Find endpoints (where loop crosses boundary)
-            const endpoints: [{ x: number; y: number }, { x: number; y: number }] | undefined =
-              outsideVertices.length < canonLoop.vertices.length
-                ? [outsideVertices[0], outsideVertices[outsideVertices.length - 1]]
-                : undefined;
+          // Close final segment if needed
+          if (currentSegment.length > 0) {
+            segments.push(currentSegment);
+          }
 
-            outsideResults.push({
-              loop: outsideVertices,
-              closed: false, // Outside portions are always open
-              endpoints
-            });
+          // Add each segment as an open loop
+          for (const segment of segments) {
+            if (segment.length > 1) {
+              const endpoints: [{ x: number; y: number }, { x: number; y: number }] = [
+                segment[0],
+                segment[segment.length - 1]
+              ];
+
+              outsideResults.push({
+                loop: segment,
+                closed: false,
+                endpoints
+              });
+            }
           }
         }
       }

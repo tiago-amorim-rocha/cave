@@ -1616,11 +1616,12 @@ export class Renderer {
       '#00FA9A', // medium spring green
     ];
 
-    // Draw AABB boundary as unfilled rectangle with thin strokes
+    // Draw AABB boundary as yellow dashed rectangle
     if (debugAABB) {
-      this.ctx.strokeStyle = '#FFFFFF';
-      this.ctx.lineWidth = 1;
-      this.ctx.globalAlpha = 0.5;
+      this.ctx.strokeStyle = '#FFFF00'; // Yellow
+      this.ctx.lineWidth = 2;
+      this.ctx.setLineDash([5, 5]); // Dashed line
+      this.ctx.globalAlpha = 0.8;
 
       const topLeft = this.camera.worldToScreen(debugAABB.minX, debugAABB.minY, canvasWidth, canvasHeight);
       const bottomRight = this.camera.worldToScreen(debugAABB.maxX, debugAABB.maxY, canvasWidth, canvasHeight);
@@ -1631,6 +1632,8 @@ export class Renderer {
         bottomRight.x - topLeft.x,
         bottomRight.y - topLeft.y
       );
+
+      this.ctx.setLineDash([]); // Reset to solid line
     }
 
     // Count inside and outside loops for color indexing
@@ -1664,14 +1667,22 @@ export class Renderer {
 
       // Draw endpoints for open loops
       if (!closed && endpoints) {
-        this.ctx.fillStyle = color;
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 2;
         this.ctx.globalAlpha = 1.0;
 
         endpoints.forEach(endpoint => {
           const screen = this.camera.worldToScreen(endpoint.x, endpoint.y, canvasWidth, canvasHeight);
           this.ctx.beginPath();
           this.ctx.arc(screen.x, screen.y, 8, 0, Math.PI * 2); // 8px radius dots
-          this.ctx.fill();
+
+          // Fill for inside loops, stroke only for outside loops
+          if (inside) {
+            this.ctx.fillStyle = color;
+            this.ctx.fill();
+          } else {
+            this.ctx.stroke();
+          }
         });
       }
     });
