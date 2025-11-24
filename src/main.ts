@@ -877,6 +877,10 @@ class CarvableCaves {
     // EXPERIMENT: Capture debug loops from dirty region
     const dirtyWorldAABB = this.densityField.getDirtyWorldAABB();
     if (dirtyWorldAABB) {
+      // Erase previous debug visualization
+      this.debugLoops = [];
+      this.debugAABB = null;
+
       // Convert world AABB to grid AABB with 1 cell expansion
       const h = this.densityField.config.gridPitch;
       const expandCells = 1;
@@ -885,6 +889,14 @@ class CarvableCaves {
         minY: Math.max(0, Math.floor(dirtyWorldAABB.minY / h) - expandCells),
         maxX: Math.min(this.densityField.gridWidth - 2, Math.ceil(dirtyWorldAABB.maxX / h) + expandCells),
         maxY: Math.min(this.densityField.gridHeight - 2, Math.ceil(dirtyWorldAABB.maxY / h) + expandCells)
+      };
+
+      // Convert expanded grid AABB back to world coordinates for consistent cutting
+      const expandedWorldAABB = {
+        minX: gridAABB.minX * h,
+        minY: gridAABB.minY * h,
+        maxX: gridAABB.maxX * h,
+        maxY: gridAABB.maxY * h
       };
 
       // Set boundary for confined marching
@@ -901,8 +913,8 @@ class CarvableCaves {
       const outsideResults: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }> = [];
 
       for (const canonLoop of canonicalLoops) {
-        // Check if this loop intersects the dirty AABB
-        if (this.aabbsIntersect(canonLoop.aabb, dirtyWorldAABB)) {
+        // Check if this loop intersects the EXPANDED AABB (use same boundary as inside loops)
+        if (this.aabbsIntersect(canonLoop.aabb, expandedWorldAABB)) {
           // Split loop into segments based on inside/outside transitions
           const segments: { x: number; y: number }[][] = [];
           let currentSegment: { x: number; y: number }[] = [];
@@ -910,9 +922,10 @@ class CarvableCaves {
 
           for (let i = 0; i < canonLoop.vertices.length; i++) {
             const v = canonLoop.vertices[i];
+            // Use EXPANDED world AABB for consistent boundary
             const isOutside =
-              v.x < dirtyWorldAABB.minX || v.x > dirtyWorldAABB.maxX ||
-              v.y < dirtyWorldAABB.minY || v.y > dirtyWorldAABB.maxY;
+              v.x < expandedWorldAABB.minX || v.x > expandedWorldAABB.maxX ||
+              v.y < expandedWorldAABB.minY || v.y > expandedWorldAABB.maxY;
 
             if (isOutside) {
               // Add to current segment
@@ -956,7 +969,7 @@ class CarvableCaves {
         ...insideResults.map(r => ({ ...r, inside: true })),
         ...outsideResults.map(r => ({ ...r, inside: false }))
       ];
-      this.debugAABB = dirtyWorldAABB;
+      this.debugAABB = expandedWorldAABB; // Use expanded AABB for visualization
 
       console.log(`[Debug] Captured loops from carve`, {
         inside: insideResults.length,
