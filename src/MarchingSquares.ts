@@ -41,6 +41,12 @@ interface CellInfo {
   v01: number;
 }
 
+export interface DebugLoopResult {
+  loop: Vec2[];
+  closed: boolean;
+  endpoints?: [Vec2, Vec2]; // For open loops: start and end vertices that hit boundary
+}
+
 export class MarchingSquares {
   field: DensityField;
   isoValue: number;
@@ -50,9 +56,20 @@ export class MarchingSquares {
   private cellInfo: Map<string, CellInfo> = new Map();
   private visited: Set<string> = new Set();
 
+  // Optional boundary for confined marching (for debug visualization)
+  private boundaryAABB: AABB | null = null;
+
   constructor(field: DensityField, isoValue: number) {
     this.field = field;
     this.isoValue = isoValue;
+  }
+
+  /**
+   * Set a boundary AABB to confine marching squares
+   * When set, loops that hit this boundary will perform bidirectional walking
+   */
+  setBoundaryAABB(aabb: AABB | null): void {
+    this.boundaryAABB = aabb;
   }
 
   setDebug(enabled: boolean): void {
@@ -62,7 +79,7 @@ export class MarchingSquares {
   /**
    * Generate contour polylines using topology-driven edge walking
    */
-  generateContours(dirtyAABB?: AABB | null, expandCells: number = 1): { loop: Vec2[]; closed: boolean }[] {
+  generateContours(dirtyAABB?: AABB | null, expandCells: number = 1): DebugLoopResult[] {
     if (!dirtyAABB) {
       dirtyAABB = this.field.getDirtyWorldAABB();
     }
@@ -100,7 +117,7 @@ export class MarchingSquares {
     }
 
     // Step 2: Walk topology to trace closed loops
-    const results: { loop: Vec2[]; closed: boolean }[] = [];
+    const results: DebugLoopResult[] = [];
     let tracedEdges = 0;
     let closedCount = 0;
     let openCount = 0;
@@ -153,9 +170,17 @@ export class MarchingSquares {
    * Get or compute cell info on-demand (with caching and bounds checking)
    */
   private getCellInfo(gx: number, gy: number): CellInfo | null {
-    // Check bounds
+    // Check field bounds
     if (gx < 0 || gy < 0 || gx >= this.field.gridWidth - 1 || gy >= this.field.gridHeight - 1) {
       return null;
+    }
+
+    // Check boundary AABB if set (for confined marching)
+    if (this.boundaryAABB) {
+      if (gx < this.boundaryAABB.minX || gx > this.boundaryAABB.maxX ||
+          gy < this.boundaryAABB.minY || gy > this.boundaryAABB.maxY) {
+        return null;
+      }
     }
 
     const key = this.cellKey(gx, gy);
@@ -210,18 +235,71 @@ export class MarchingSquares {
 
   /**
    * Trace a closed loop starting from a specific edge pair in a cell
+   * Supports bidirectional walking when boundary is set
    */
-  private traceLoop(startGx: number, startGy: number, startPairIdx: number): { loop: Vec2[]; closed: boolean } | null {
+  private traceLoop(startGx: number, startGy: number, startPairIdx: number): DebugLoopResult | null {
+    // Walk in one direction first
+    const forwardResult = this.walkDirection(startGx, startGy, startPairIdx, true);
+
+    if (!forwardResult) {
+      return null;
+    }
+
+    // If we closed the loop, we're done
+    if (forwardResult.closed) {
+      return {
+        loop: forwardResult.loop,
+        closed: true
+      };
+    }
+
+    // If we hit a boundary and boundaryAABB is set, walk backwards too
+    if (forwardResult.hitBoundary && this.boundaryAABB) {
+      const backwardResult = this.walkDirection(startGx, startGy, startPairIdx, false);
+
+      if (backwardResult && backwardResult.hitBoundary) {
+        // Combine: reverse backward + forward
+        const backwardReversed = [...backwardResult.loop].reverse();
+        const combinedLoop = [...backwardReversed, ...forwardResult.loop];
+
+        return {
+          loop: combinedLoop,
+          closed: false,
+          endpoints: [backwardReversed[0], forwardResult.loop[forwardResult.loop.length - 1]]
+        };
+      }
+    }
+
+    // Open loop (single direction)
+    return {
+      loop: forwardResult.loop,
+      closed: false,
+      endpoints: forwardResult.endpoint ? [forwardResult.loop[0], forwardResult.endpoint] : undefined
+    };
+  }
+
+  /**
+   * Walk in one direction from a starting cell
+   * @param forward - true = choose e1 as entry, false = choose e2 as entry
+   */
+  private walkDirection(
+    startGx: number,
+    startGy: number,
+    startPairIdx: number,
+    forward: boolean
+  ): { loop: Vec2[]; closed: boolean; hitBoundary: boolean; endpoint?: Vec2 } | null {
     const loop: Vec2[] = [];
     let gx = startGx;
     let gy = startGy;
     let pairIdx = startPairIdx;
-    let enterEdge: number | null = null; // Which edge we entered from
+    let enterEdge: number | null = null;
 
     const startKey = this.edgeKey(startGx, startGy, startPairIdx);
     let closed = false;
+    let hitBoundary = false;
     let steps = 0;
-    const maxSteps = 100000; // Safety limit
+    const maxSteps = 100000;
+    let lastVertex: Vec2 | undefined;
 
     while (steps < maxSteps) {
       const key = this.edgeKey(gx, gy, pairIdx);
@@ -232,18 +310,17 @@ export class MarchingSquares {
         break;
       }
 
-      if (this.visited.has(key)) {
-        // Already visited this edge
-        break;
+      // For backward walk, don't mark first cell as visited on step 0
+      if (steps > 0 || forward) {
+        if (this.visited.has(key)) {
+          break;
+        }
+        this.visited.add(key);
       }
-
-      this.visited.add(key);
 
       const info = this.getCellInfo(gx, gy);
       if (!info) {
-        if (this.debug) {
-          console.warn(`No cell info for (${gx},${gy})`);
-        }
+        hitBoundary = true;
         break;
       }
 
@@ -252,16 +329,14 @@ export class MarchingSquares {
       const worldX = gx * h;
       const worldY = gy * h;
 
-      // Determine which edge we enter and exit from
       let entryEdge: number;
       let exitEdge: number;
 
       if (enterEdge === null) {
-        // First cell - arbitrarily choose e1 as entry
-        entryEdge = e1;
-        exitEdge = e2;
+        // First cell - choose direction based on forward flag
+        entryEdge = forward ? e1 : e2;
+        exitEdge = forward ? e2 : e1;
       } else {
-        // Subsequent cells - entry edge is known, find exit edge
         if (e1 === enterEdge) {
           entryEdge = e1;
           exitEdge = e2;
@@ -269,24 +344,17 @@ export class MarchingSquares {
           entryEdge = e2;
           exitEdge = e1;
         } else {
-          if (this.debug) {
-            console.warn(`Enter edge ${enterEdge} doesn't match pair [${e1},${e2}] in cell (${gx},${gy})`);
-          }
           break;
         }
       }
 
-      // Add vertex for the exit edge (this becomes the next cell's entry vertex)
       const vertex = this.interpolateEdge(gx, gy, exitEdge, info, h, worldX, worldY);
       loop.push(vertex);
+      lastVertex = vertex;
 
-      // Move to neighbor cell through exit edge
       const next = this.getNeighborThroughEdge(gx, gy, exitEdge);
       if (!next) {
-        // Hit boundary
-        if (this.debug) {
-          console.warn(`Hit boundary at (${gx},${gy}) edge ${exitEdge}`);
-        }
+        hitBoundary = true;
         break;
       }
 
@@ -294,12 +362,9 @@ export class MarchingSquares {
       gy = next.gy;
       enterEdge = this.oppositeEdge(exitEdge);
 
-      // Find which edge pair in the neighbor cell contains enterEdge
       const nextInfo = this.getCellInfo(gx, gy);
       if (!nextInfo) {
-        if (this.debug) {
-          console.warn(`No cell info for neighbor (${gx},${gy})`);
-        }
+        hitBoundary = true;
         break;
       }
 
@@ -313,9 +378,6 @@ export class MarchingSquares {
       }
 
       if (pairIdx === -1) {
-        if (this.debug) {
-          console.warn(`No matching edge pair in neighbor (${gx},${gy}) for edge ${enterEdge}`);
-        }
         break;
       }
 
@@ -323,21 +385,15 @@ export class MarchingSquares {
     }
 
     if (steps >= maxSteps) {
-      console.error(`[MarchingSquares] Loop trace exceeded max steps (${maxSteps})`);
+      console.error(`[MarchingSquares] Walk exceeded max steps`);
       return null;
     }
 
-    // Log why loop terminated if not closed
-    if (!closed && this.debug) {
-      console.warn(`[MarchingSquares] Open loop from (${startGx},${startGy}): ${steps} steps, ${loop.length} vertices`);
-    }
-
-    // If closed, append first vertex to end so first==last
     if (closed && loop.length > 0) {
       loop.push({ ...loop[0] });
     }
 
-    return loop.length > 2 ? { loop, closed } : null;
+    return loop.length > 0 ? { loop, closed, hitBoundary, endpoint: lastVertex } : null;
   }
 
   /**
