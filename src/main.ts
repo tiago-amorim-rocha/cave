@@ -181,7 +181,8 @@ class CarvableCaves {
   private carveOffset = 2.5; // metres - distance ahead of player to place brush
 
   // Debug visualization for carved areas
-  private debugLoops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }> = [];
+  private debugLoops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }> = [];
+  private debugAABB: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
 
   constructor() {
     try {
@@ -567,7 +568,7 @@ class CarvableCaves {
     const playerDirection = this.player.getDirection ? this.player.getDirection() : undefined;
 
     // Render (simple circle player with direction indicator)
-    this.renderer.render(playerPos, this.player.getRadius(), [], physicsDebugDraw, undefined, joystickDraw, undefined, playerDirection, this.debugLoops);
+    this.renderer.render(playerPos, this.player.getRadius(), [], physicsDebugDraw, undefined, joystickDraw, undefined, playerDirection, this.debugLoops, this.debugAABB);
   };
 
   private remesh(): void {
@@ -801,6 +802,10 @@ class CarvableCaves {
   /**
    * Regenerate brush with current parameters
    */
+  private aabbsIntersect(a: { minX: number; minY: number; maxX: number; maxY: number }, b: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+    return !(a.maxX < b.minX || a.minX > b.maxX || a.maxY < b.minY || a.minY > b.maxY);
+  }
+
   private regenerateBrush(): void {
     const gridPitch = this.densityField.config.gridPitch;
 
@@ -885,31 +890,75 @@ class CarvableCaves {
       // Set boundary for confined marching
       this.marchingSquares.setBoundaryAABB(gridAABB);
 
-      // Generate contours with bidirectional walking
-      const debugResults = this.marchingSquares.generateContours(dirtyWorldAABB, expandCells);
+      // Generate contours with bidirectional walking (INSIDE dirty region)
+      const insideResults = this.marchingSquares.generateContours(dirtyWorldAABB, expandCells);
 
       // Clear boundary after use
       this.marchingSquares.setBoundaryAABB(null);
 
-      // Store for rendering
-      this.debugLoops = debugResults;
+      // Get canonical loops and extract portions OUTSIDE the dirty region
+      const canonicalLoops = this.remeshManager.getCanonicalLoops();
+      const outsideResults: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }> = [];
 
-      console.log(`[Debug] Captured ${debugResults.length} loops from carve`, {
-        closed: debugResults.filter(r => r.closed).length,
-        open: debugResults.filter(r => !r.closed).length,
-        gridAABB
+      for (const canonLoop of canonicalLoops) {
+        // Check if this loop intersects the dirty AABB
+        if (this.aabbsIntersect(canonLoop.aabb, dirtyWorldAABB)) {
+          // Extract vertices outside the dirty region
+          const outsideVertices: { x: number; y: number }[] = [];
+          let firstOutsideIdx = -1;
+          let lastOutsideIdx = -1;
+
+          for (let i = 0; i < canonLoop.vertices.length; i++) {
+            const v = canonLoop.vertices[i];
+            const isOutside =
+              v.x < dirtyWorldAABB.minX || v.x > dirtyWorldAABB.maxX ||
+              v.y < dirtyWorldAABB.minY || v.y > dirtyWorldAABB.maxY;
+
+            if (isOutside) {
+              outsideVertices.push({ x: v.x, y: v.y });
+              if (firstOutsideIdx === -1) firstOutsideIdx = i;
+              lastOutsideIdx = i;
+            }
+          }
+
+          if (outsideVertices.length > 1) {
+            // Find endpoints (where loop crosses boundary)
+            const endpoints: [{ x: number; y: number }, { x: number; y: number }] | undefined =
+              outsideVertices.length < canonLoop.vertices.length
+                ? [outsideVertices[0], outsideVertices[outsideVertices.length - 1]]
+                : undefined;
+
+            outsideResults.push({
+              loop: outsideVertices,
+              closed: false, // Outside portions are always open
+              endpoints
+            });
+          }
+        }
+      }
+
+      // Combine inside and outside results
+      this.debugLoops = [
+        ...insideResults.map(r => ({ ...r, inside: true })),
+        ...outsideResults.map(r => ({ ...r, inside: false }))
+      ];
+      this.debugAABB = dirtyWorldAABB;
+
+      console.log(`[Debug] Captured loops from carve`, {
+        inside: insideResults.length,
+        outside: outsideResults.length,
+        total: this.debugLoops.length
       });
     }
 
-    // Trigger local regional rebuild using canonical loops/segments
-    const stats = this.remeshManager.localUpdate(2); // Pad by 2 cells for boundary continuity
-    if (stats) {
-      // Update UI stats if needed
-      this.originalVertexCount = stats.originalVertexCount;
-      this.finalVertexCount = stats.finalVertexCount;
-      this.simplificationReduction = stats.simplificationReduction;
-      this.postSimplificationReduction = stats.postSimplificationReduction;
-    }
+    // DISABLED: Bypass all rebuilding for experiment
+    // const stats = this.remeshManager.localUpdate(2);
+    // if (stats) {
+    //   this.originalVertexCount = stats.originalVertexCount;
+    //   this.finalVertexCount = stats.finalVertexCount;
+    //   this.simplificationReduction = stats.simplificationReduction;
+    //   this.postSimplificationReduction = stats.postSimplificationReduction;
+    // }
   }
 }
 
