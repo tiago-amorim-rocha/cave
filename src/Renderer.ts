@@ -414,6 +414,7 @@ export class Renderer {
    * @param spider - Optional spider rendering data
    * @param playerDirection - Optional player direction in radians (for rendering direction indicator)
    * @param debugLoops - Optional debug loops to render (for carving experiments)
+   * @param debugAABB - Optional AABB boundary to render
    */
   render(
     playerPosition?: { x: number; y: number },
@@ -424,7 +425,8 @@ export class Renderer {
     joystickDraw?: (ctx: CanvasRenderingContext2D) => void,
     spider?: SpiderRenderData,
     playerDirection?: number,
-    debugLoops?: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }>
+    debugLoops?: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }>,
+    debugAABB?: { minX: number; minY: number; maxX: number; maxY: number } | null
   ): void {
     try {
       const dpr = window.devicePixelRatio || 1;
@@ -525,7 +527,7 @@ export class Renderer {
 
       // Draw debug loops (carving experiment)
       if (debugLoops && debugLoops.length > 0) {
-        this.drawDebugLoops(width, height, debugLoops);
+        this.drawDebugLoops(width, height, debugLoops, debugAABB);
       }
 
       // Draw virtual joystick (always on top, in screen coordinates)
@@ -1579,35 +1581,70 @@ export class Renderer {
 
   /**
    * Draw debug loops from carving experiment
-   * Each loop gets a different color, open loops show endpoints as larger dots
+   * Warm colors for inside loops, cold colors for outside loops
+   * Shows AABB boundary as unfilled rectangle
    */
   private drawDebugLoops(
     canvasWidth: number,
     canvasHeight: number,
-    debugLoops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }>
+    debugLoops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }>,
+    debugAABB?: { minX: number; minY: number; maxX: number; maxY: number } | null
   ): void {
     this.ctx.save();
 
-    // Predefined colors for loops (bright, visible colors)
-    const loopColors = [
+    // Warm colors for inside loops (reds, oranges, yellows)
+    const warmColors = [
       '#FF0000', // red
-      '#00FF00', // green
-      '#0000FF', // blue
-      '#FFFF00', // yellow
-      '#FF00FF', // magenta
-      '#00FFFF', // cyan
-      '#FFA500', // orange
-      '#FF1493', // deep pink
-      '#00FF7F', // spring green
       '#FF4500', // orange red
+      '#FFA500', // orange
+      '#FFD700', // gold
+      '#FFFF00', // yellow
+      '#FF1493', // deep pink
+      '#FF6347', // tomato
+      '#FF8C00', // dark orange
     ];
 
-    debugLoops.forEach((loopResult, loopIndex) => {
-      const { loop, closed, endpoints } = loopResult;
+    // Cold colors for outside loops (blues, greens, cyans)
+    const coldColors = [
+      '#0000FF', // blue
+      '#00FFFF', // cyan
+      '#00FF00', // green
+      '#00FF7F', // spring green
+      '#1E90FF', // dodger blue
+      '#00CED1', // dark turquoise
+      '#4169E1', // royal blue
+      '#00FA9A', // medium spring green
+    ];
+
+    // Draw AABB boundary as unfilled rectangle with thin strokes
+    if (debugAABB) {
+      this.ctx.strokeStyle = '#FFFFFF';
+      this.ctx.lineWidth = 1;
+      this.ctx.globalAlpha = 0.5;
+
+      const topLeft = this.camera.worldToScreen(debugAABB.minX, debugAABB.minY, canvasWidth, canvasHeight);
+      const bottomRight = this.camera.worldToScreen(debugAABB.maxX, debugAABB.maxY, canvasWidth, canvasHeight);
+
+      this.ctx.strokeRect(
+        topLeft.x,
+        topLeft.y,
+        bottomRight.x - topLeft.x,
+        bottomRight.y - topLeft.y
+      );
+    }
+
+    // Count inside and outside loops for color indexing
+    let insideIndex = 0;
+    let outsideIndex = 0;
+
+    debugLoops.forEach((loopResult) => {
+      const { loop, closed, endpoints, inside } = loopResult;
       if (loop.length < 2) return;
 
-      // Pick color based on loop index (cycle through colors)
-      const color = loopColors[loopIndex % loopColors.length];
+      // Pick color based on inside/outside and index
+      const colors = inside ? warmColors : coldColors;
+      const colorIndex = inside ? insideIndex++ : outsideIndex++;
+      const color = colors[colorIndex % colors.length];
 
       // Draw the loop
       this.ctx.strokeStyle = color;

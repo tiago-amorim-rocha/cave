@@ -353,6 +353,13 @@ export class RemeshManager {
   }
 
   /**
+   * Get current canonical loops (for debug visualization)
+   */
+  getCanonicalLoops(): CanonicalLoop[] {
+    return this.canonicalLoops;
+  }
+
+  /**
    * Update optimization options (called when user changes settings)
    */
   updateOptimizationOptions(options: Partial<OptimizationOptions>): void {
