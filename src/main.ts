@@ -916,6 +916,9 @@ class CarvableCaves {
       const canonicalLoops = this.remeshManager.getCanonicalLoops();
       const outsideResults: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }> = [];
 
+      // Epsilon for boundary tolerance - vertices within this distance of boundary are considered INSIDE
+      const epsilon = 0.0001;
+
       for (const canonLoop of canonicalLoops) {
         // Check if this loop intersects the EXPANDED AABB (use same boundary as inside loops)
         if (this.aabbsIntersect(canonLoop.aabb, expandedWorldAABB)) {
@@ -927,14 +930,14 @@ class CarvableCaves {
           for (let i = 0; i < canonLoop.vertices.length; i++) {
             const v = canonLoop.vertices[i];
 
-            // Convert vertex to grid coordinates (cell-based, same as marching squares)
-            const vGx = Math.floor(v.x / h);
-            const vGy = Math.floor(v.y / h);
-
-            // Check if the CELL is outside the gridAABB (matches marching squares logic exactly)
+            // Use world coordinate check with epsilon for boundary vertices
+            // Vertices ON the boundary (within epsilon) are considered INSIDE
+            // This avoids floor() asymmetry where edge vertices get classified into adjacent cells
             const isOutside =
-              vGx < gridAABB.minX || vGx > gridAABB.maxX ||
-              vGy < gridAABB.minY || vGy > gridAABB.maxY;
+              v.x < expandedWorldAABB.minX - epsilon ||
+              v.x > expandedWorldAABB.maxX + epsilon ||
+              v.y < expandedWorldAABB.minY - epsilon ||
+              v.y > expandedWorldAABB.maxY + epsilon;
 
             if (isOutside) {
               // Add to current segment
@@ -1024,9 +1027,13 @@ class CarvableCaves {
 
           for (let i = 0; i < canonLoop.vertices.length; i++) {
             const v = canonLoop.vertices[i];
-            const vGx = Math.floor(v.x / h);
-            const vGy = Math.floor(v.y / h);
-            const isOutside = vGx < gridAABB.minX || vGx > gridAABB.maxX || vGy < gridAABB.minY || vGy > gridAABB.maxY;
+
+            // Use same world-based check as the main loop
+            const isOutside =
+              v.x < expandedWorldAABB.minX - epsilon ||
+              v.x > expandedWorldAABB.maxX + epsilon ||
+              v.y < expandedWorldAABB.minY - epsilon ||
+              v.y > expandedWorldAABB.maxY + epsilon;
 
             if (isOutside) {
               currentSegment.push({ x: v.x, y: v.y });
