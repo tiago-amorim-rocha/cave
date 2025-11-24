@@ -925,10 +925,15 @@ class CarvableCaves {
 
           for (let i = 0; i < canonLoop.vertices.length; i++) {
             const v = canonLoop.vertices[i];
-            // Use EXPANDED world AABB for consistent boundary
+
+            // Convert vertex to grid coordinates (cell-based, same as marching squares)
+            const vGx = Math.floor(v.x / h);
+            const vGy = Math.floor(v.y / h);
+
+            // Check if the CELL is outside the gridAABB (matches marching squares logic exactly)
             const isOutside =
-              v.x < expandedWorldAABB.minX || v.x > expandedWorldAABB.maxX ||
-              v.y < expandedWorldAABB.minY || v.y > expandedWorldAABB.maxY;
+              vGx < gridAABB.minX || vGx > gridAABB.maxX ||
+              vGy < gridAABB.minY || vGy > gridAABB.maxY;
 
             if (isOutside) {
               // Add to current segment
