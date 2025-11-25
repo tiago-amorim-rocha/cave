@@ -183,6 +183,7 @@ class CarvableCaves {
   // Debug visualization for carved areas
   private debugLoops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }> = [];
   private debugAABB: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+  private debugCaptureEnabled = true;
 
   constructor() {
     try {
@@ -874,9 +875,11 @@ class CarvableCaves {
       false // false = carve (subtract density)
     );
 
-    // EXPERIMENT: Capture debug loops from dirty region
-    const dirtyWorldAABB = this.densityField.getDirtyWorldAABB();
-    if (dirtyWorldAABB) {
+    // EXPERIMENT: Capture debug loops from dirty region (guarded by toggle)
+    if (this.debugCaptureEnabled) {
+      const dirtyWorldAABB = this.densityField.getDirtyWorldAABB();
+      if (!dirtyWorldAABB) return;
+
       // Erase previous debug visualization
       this.debugLoops = [];
       this.debugAABB = null;
@@ -1022,6 +1025,14 @@ class CarvableCaves {
           prev: { x: number; y: number },
           curr: { x: number; y: number }
         ): { x: number; y: number } | null => {
+          // Quick reject if segment AABB doesn't overlap expandedWorldAABB
+          const minX = Math.min(prev.x, curr.x);
+          const maxX = Math.max(prev.x, curr.x);
+          const minY = Math.min(prev.y, curr.y);
+          const maxY = Math.max(prev.y, curr.y);
+          if (maxX < expandedWorldAABB.minX || minX > expandedWorldAABB.maxX || maxY < expandedWorldAABB.minY || minY > expandedWorldAABB.maxY) {
+            return null;
+          }
           const dx = curr.x - prev.x;
           const dy = curr.y - prev.y;
           let tEnter = 0;
