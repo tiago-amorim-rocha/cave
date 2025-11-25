@@ -1018,6 +1018,49 @@ class CarvableCaves {
           return segments;
         }
 
+        const addIntersectionIfNeeded = (
+          prev: { x: number; y: number },
+          curr: { x: number; y: number }
+        ): { x: number; y: number } | null => {
+          const dx = curr.x - prev.x;
+          const dy = curr.y - prev.y;
+          let tEnter = 0;
+          let tExit = 1;
+
+          // Liang-Barsky style parametric clipping against expandedWorldAABB
+          const clip = (p: number, q: number): boolean => {
+            if (p === 0) {
+              return q >= 0;
+            }
+            const r = q / p;
+            if (p < 0) {
+              if (r > tExit) return false;
+              if (r > tEnter) tEnter = r;
+            } else if (p > 0) {
+              if (r < tEnter) return false;
+              if (r < tExit) tExit = r;
+            }
+            return true;
+          };
+
+          if (
+            !clip(-dx, prev.x - expandedWorldAABB.minX) ||
+            !clip(dx, expandedWorldAABB.maxX - prev.x) ||
+            !clip(-dy, prev.y - expandedWorldAABB.minY) ||
+            !clip(dy, expandedWorldAABB.maxY - prev.y)
+          ) {
+            return null;
+          }
+
+          // We only care about the first enter point when prev is outside and curr is outside
+          if (tEnter > 0 && tEnter < 1) {
+            const ix = prev.x + tEnter * dx;
+            const iy = prev.y + tEnter * dy;
+            return { x: Math.round(ix / quantStep) * quantStep, y: Math.round(iy / quantStep) * quantStep };
+          }
+          return null;
+        };
+
         let currentSegment: { x: number; y: number }[] | null = null;
         let currentPre: { x: number; y: number } | undefined;
 
@@ -1034,6 +1077,15 @@ class CarvableCaves {
           } else if (!currInside && !prevInside) {
             if (currentSegment) {
               currentSegment.push({ x: v.x, y: v.y });
+            } else {
+              // Entire edge outside; check if it crosses the AABB
+              const inter = addIntersectionIfNeeded(vertices[prevIdx], v);
+              if (inter) {
+                currentSegment = [];
+                currentPre = inter; // intersection is the entering cut
+                currentSegment.push({ ...inter });
+                currentSegment.push({ x: v.x, y: v.y });
+              }
             }
           } else if (currInside && !prevInside) {
             if (currentSegment) {
@@ -1047,6 +1099,34 @@ class CarvableCaves {
               currentPre = undefined;
             }
           }
+        }
+
+        // If we ended while still outside, we need to close the segment using the first inside vertex after start
+        if (currentSegment) {
+          let firstInsideIdx = -1;
+          let exitIntersection: { x: number; y: number } | undefined;
+          for (let k = 0; k < n; k++) {
+            const prevIdx = (k - 1 + n) % n;
+            if (!inside[prevIdx] && inside[k]) {
+              firstInsideIdx = k;
+              // Add the intersection point where we exit the AABB
+              const inter = addIntersectionIfNeeded(vertices[prevIdx], vertices[k]);
+              if (inter) {
+                exitIntersection = inter;
+              }
+              break;
+            }
+          }
+          const postCut = exitIntersection
+            ? exitIntersection
+            : firstInsideIdx !== -1
+              ? { x: vertices[firstInsideIdx].x, y: vertices[firstInsideIdx].y }
+              : undefined;
+          segments.push({
+            segment: currentSegment,
+            preCutVertex: currentPre ? { ...currentPre } : undefined,
+            postCutVertex: postCut
+          });
         }
 
         return segments;
