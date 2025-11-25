@@ -51,6 +51,7 @@ export class MarchingSquares {
   field: DensityField;
   isoValue: number;
   debug: boolean = false;
+  private quantizationStep: number;
 
   // Topology tracking
   private cellInfo: Map<string, CellInfo> = new Map();
@@ -62,6 +63,9 @@ export class MarchingSquares {
   constructor(field: DensityField, isoValue: number) {
     this.field = field;
     this.isoValue = isoValue;
+    // Snap all marching-squares vertices onto a small lattice for stable matching.
+    // Use quarter-cell resolution to keep detail while avoiding epsilon comparisons.
+    this.quantizationStep = this.field.config.gridPitch / 4;
   }
 
   /**
@@ -463,10 +467,10 @@ export class MarchingSquares {
     x = edgeStart.x + t * (edgeEnd.x - edgeStart.x);
     y = edgeStart.y + t * (edgeEnd.y - edgeStart.y);
 
-    // Quantize to avoid floating-point precision issues
-    const precision = 1000000;
-    x = Math.round(x * precision) / precision;
-    y = Math.round(y * precision) / precision;
+    // Quantize to a shared lattice to avoid float mismatches downstream
+    const q = this.quantizationStep;
+    x = Math.round(x / q) * q;
+    y = Math.round(y / q) * q;
 
     return { x, y };
   }

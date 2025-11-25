@@ -898,6 +898,10 @@ class CarvableCaves {
       const worldMinY = gridAABB.minY * h;
       const worldMaxX = (gridAABB.maxX + 1) * h;
       const worldMaxY = (gridAABB.maxY + 1) * h;
+      const quantStep = h / 4; // snap lattice for matching endpoints
+
+      const quantKey = (v: { x: number; y: number }): string =>
+        `${Math.round(v.x / quantStep)},${Math.round(v.y / quantStep)}`;
 
       // Convert expanded grid AABB back to world coordinates for consistent cutting
       // Add +1 to max values to cover the full extent of the boundary cells
@@ -919,6 +923,70 @@ class CarvableCaves {
 
       // Generate contours with bidirectional walking (INSIDE dirty region)
       const insideResults = this.marchingSquares.generateContours(dirtyWorldAABB, expandCells);
+      // Merge adjacent open loops that touch at quantized endpoints to avoid artificial splits
+      const mergeOpenLoops = (
+        loops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }>
+      ) => {
+        const open: typeof loops = [];
+        const closed: typeof loops = [];
+        let mergesPerformed = 0;
+        for (const l of loops) {
+          if (l.closed || !l.endpoints) {
+            closed.push(l);
+          } else {
+            open.push(l);
+          }
+        }
+
+        let changed = true;
+        while (changed) {
+          changed = false;
+          outer: for (let i = 0; i < open.length; i++) {
+            for (let j = 0; j < open.length; j++) {
+              if (i === j) continue;
+              const a = open[i];
+              const b = open[j];
+              if (!a.endpoints || !b.endpoints) continue;
+
+              const aEndKey = quantKey(a.endpoints[1]);
+              const bStartKey = quantKey(b.endpoints[0]);
+
+              if (aEndKey === bStartKey) {
+                // Merge A then B (drop duplicate touching vertex)
+                const mergedLoop = [...a.loop, ...b.loop.slice(1)];
+                const mergedEndpoints: [{ x: number; y: number }, { x: number; y: number }] = [
+                  a.endpoints[0],
+                  b.endpoints[1]
+                ];
+                const merged = { loop: mergedLoop, closed: false, endpoints: mergedEndpoints };
+                open.splice(i, 1);
+                const jIdx = j > i ? j - 1 : j;
+                open.splice(jIdx, 1);
+                open.push(merged);
+                changed = true;
+                mergesPerformed++;
+                console.log('[Debug] Merged open loops at boundary', {
+                  aEnd: a.endpoints[1],
+                  bStart: b.endpoints[0],
+                  mergedStart: mergedEndpoints[0],
+                  mergedEnd: mergedEndpoints[1],
+                  aLength: a.loop.length,
+                  bLength: b.loop.length,
+                  mergedLength: mergedLoop.length
+                });
+                break outer;
+              }
+            }
+          }
+        }
+
+        if (mergesPerformed > 0) {
+          console.log(`[Debug] Merged ${mergesPerformed} open loop pairs`);
+        }
+
+        return [...closed, ...open];
+      };
+      const insideMerged = mergeOpenLoops(insideResults);
 
       // Clear boundary after use
       this.marchingSquares.setBoundaryAABB(null);
@@ -935,43 +1003,50 @@ class CarvableCaves {
 
       const buildOutsideSegments = (vertices: { x: number; y: number }[]): SegmentInfo[] => {
         const segments: SegmentInfo[] = [];
-        let currentSegment: { x: number; y: number }[] = [];
-        let wasOutside = false;
-        let lastInsideVertex: { x: number; y: number } | undefined;
+        const n = vertices.length;
+        if (n < 2) return segments;
 
-        if (vertices.length > 0) {
-          const lastVertex = vertices[vertices.length - 1];
-          if (isInsideWorld(lastVertex)) {
-            lastInsideVertex = { x: lastVertex.x, y: lastVertex.y };
-          }
+        const inside: boolean[] = new Array(n);
+        let anyOutside = false;
+        let anyInside = false;
+        for (let i = 0; i < n; i++) {
+          inside[i] = isInsideWorld(vertices[i]);
+          if (inside[i]) anyInside = true;
+          else anyOutside = true;
+        }
+        if (!anyOutside) {
+          return segments;
         }
 
-        for (const vertex of vertices) {
-          const inside = isInsideWorld(vertex);
-          if (!inside) {
-            currentSegment.push({ x: vertex.x, y: vertex.y });
-            wasOutside = true;
-          } else {
-            const insideCopy = { x: vertex.x, y: vertex.y };
-            if (wasOutside && currentSegment.length > 0) {
+        let currentSegment: { x: number; y: number }[] | null = null;
+        let currentPre: { x: number; y: number } | undefined;
+
+        for (let i = 0; i < n; i++) {
+          const prevIdx = (i - 1 + n) % n;
+          const prevInside = inside[prevIdx];
+          const currInside = inside[i];
+          const v = vertices[i];
+
+          if (!currInside && prevInside) {
+            currentSegment = [];
+            currentPre = { x: vertices[prevIdx].x, y: vertices[prevIdx].y };
+            currentSegment.push({ x: v.x, y: v.y });
+          } else if (!currInside && !prevInside) {
+            if (currentSegment) {
+              currentSegment.push({ x: v.x, y: v.y });
+            }
+          } else if (currInside && !prevInside) {
+            if (currentSegment) {
+              const postCut = { x: v.x, y: v.y };
               segments.push({
                 segment: currentSegment,
-                preCutVertex: lastInsideVertex ? { ...lastInsideVertex } : undefined,
-                postCutVertex: insideCopy
+                preCutVertex: currentPre ? { ...currentPre } : undefined,
+                postCutVertex: postCut
               });
-              currentSegment = [];
+              currentSegment = null;
+              currentPre = undefined;
             }
-            wasOutside = false;
-            lastInsideVertex = insideCopy;
           }
-        }
-
-        if (currentSegment.length > 0) {
-          segments.push({
-            segment: currentSegment,
-            preCutVertex: lastInsideVertex ? { ...lastInsideVertex } : undefined,
-            postCutVertex: undefined
-          });
         }
 
         return segments;
@@ -1056,7 +1131,7 @@ class CarvableCaves {
 
       // Combine inside and outside results
       this.debugLoops = [
-        ...insideResults.map(r => ({ ...r, inside: true })),
+        ...insideMerged.map(r => ({ ...r, inside: true })),
         ...outsideResults.map(r => ({ ...r, inside: false }))
       ];
       this.debugAABB = expandedWorldAABB; // Use expanded AABB for visualization
@@ -1072,7 +1147,7 @@ class CarvableCaves {
       console.log(`AABB Region (grid): [${gridAABB.minX}, ${gridAABB.minY}] to [${gridAABB.maxX}, ${gridAABB.maxY}]`);
       console.log(`AABB Region (world): [${expandedWorldAABB.minX.toFixed(2)}, ${expandedWorldAABB.minY.toFixed(2)}] to [${expandedWorldAABB.maxX.toFixed(2)}, ${expandedWorldAABB.maxY.toFixed(2)}]`);
 
-      insideResults.forEach((result, idx) => {
+      insideMerged.forEach((result, idx) => {
         if (!result.closed && result.endpoints) {
           const [ep1, ep2] = result.endpoints;
           const ep1Cell = { gx: Math.floor(ep1.x / h), gy: Math.floor(ep1.y / h) };
