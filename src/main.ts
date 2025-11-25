@@ -1007,6 +1007,103 @@ class CarvableCaves {
         return len;
       };
 
+      const arcOutsideMetrics = (verts: { x: number; y: number }[]) => {
+        let total = 0;
+        let outside = 0;
+        for (let i = 1; i < verts.length; i++) {
+          const dx = verts[i].x - verts[i - 1].x;
+          const dy = verts[i].y - verts[i - 1].y;
+          const segLen = Math.hypot(dx, dy);
+          total += segLen;
+          if (!isInsideWorld(verts[i - 1]) && !isInsideWorld(verts[i])) {
+            outside += segLen;
+          }
+        }
+        return { total, outside, outsideFrac: total > 0 ? outside / total : 0 };
+      };
+
+      const splitArcOutside = (verts: { x: number; y: number }[]) => {
+        const result: { x: number; y: number }[][] = [];
+        if (verts.length < 2) return result;
+
+        const inside = (p: { x: number; y: number }) => isInsideWorld(p);
+
+        const edgeIntersections = (p: { x: number; y: number }, q: { x: number; y: number }): number[] => {
+          // Liang-Barsky to find enter/exit t values (can yield 0,1 or 2 intersections)
+          const ts: number[] = [];
+          const dx = q.x - p.x;
+          const dy = q.y - p.y;
+          let tEnter = 0;
+          let tExit = 1;
+          const clip = (pC: number, qC: number): boolean => {
+            if (pC === 0) return qC >= 0;
+            const r = qC / pC;
+            if (pC < 0) {
+              if (r > tExit) return false;
+              if (r > tEnter) tEnter = r;
+            } else if (pC > 0) {
+              if (r < tEnter) return false;
+              if (r < tExit) tExit = r;
+            }
+            return true;
+          };
+
+          if (
+            !clip(-dx, p.x - expandedWorldAABB.minX) ||
+            !clip(dx, expandedWorldAABB.maxX - p.x) ||
+            !clip(-dy, p.y - expandedWorldAABB.minY) ||
+            !clip(dy, expandedWorldAABB.maxY - p.y)
+          ) {
+            return ts;
+          }
+
+          if (tEnter > 0 && tEnter < 1) ts.push(tEnter);
+          if (tExit > 0 && tExit < 1 && tExit !== tEnter) ts.push(tExit);
+          ts.sort((a, b) => a - b);
+          return ts;
+        };
+
+        const pointAt = (p: { x: number; y: number }, q: { x: number; y: number }, t: number) => ({
+          x: Math.round((p.x + (q.x - p.x) * t) / quantStep) * quantStep,
+          y: Math.round((p.y + (q.y - p.y) * t) / quantStep) * quantStep
+        });
+
+        let current: { x: number; y: number }[] = [];
+
+        for (let i = 0; i < verts.length - 1; i++) {
+          const p = verts[i];
+          const q = verts[i + 1];
+          const ts = edgeIntersections(p, q);
+          const pts: { x: number; y: number }[] = [p];
+          for (const t of ts) {
+            pts.push(pointAt(p, q, t));
+          }
+          pts.push(q);
+
+          for (let k = 0; k < pts.length - 1; k++) {
+            const a = pts[k];
+            const b = pts[k + 1];
+            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            const segmentOutside = !inside(mid);
+            if (segmentOutside) {
+              if (current.length === 0) current.push({ ...a });
+              current.push({ ...b });
+            } else {
+              if (current.length > 1) {
+                result.push(current);
+              }
+              current = [];
+            }
+          }
+        }
+
+        if (current.length > 1) {
+          result.push(current);
+        }
+
+        return result;
+      };
+
       const collectArc = (verts: { x: number; y: number }[], startIdx: number, endIdx: number): { x: number; y: number }[] => {
         const n = verts.length;
         const result: { x: number; y: number }[] = [];
@@ -1051,35 +1148,53 @@ class CarvableCaves {
 
           const forward = collectArc(verts, iA, iB);
           const backward = collectArc(verts, iB, iA);
-          const fLen = arcLength(forward);
-          const bLen = arcLength(backward);
-          const chosen = fLen <= bLen ? forward : backward;
+          const fMetrics = arcOutsideMetrics(forward);
+          const bMetrics = arcOutsideMetrics(backward);
+
+          let chosen = forward;
+          let chosenMetrics = fMetrics;
+          if (bMetrics.outsideFrac > fMetrics.outsideFrac || (bMetrics.outsideFrac === fMetrics.outsideFrac && bMetrics.outside > fMetrics.outside)) {
+            chosen = backward;
+            chosenMetrics = bMetrics;
+          }
+
           const arcVerts = chosen.map(v => ({ x: v.x, y: v.y }));
 
-          if (!bestArc || arcLength(arcVerts) < arcLength(bestArc.verts)) {
-            bestArc = { verts: arcVerts, loopId: canonLoop.id };
+          if (
+            !bestArc ||
+            chosenMetrics.outsideFrac > bestArc.bestFrac ||
+            (chosenMetrics.outsideFrac === bestArc.bestFrac && chosenMetrics.outside > bestArc.bestOutside)
+          ) {
+            bestArc = { verts: arcVerts, loopId: canonLoop.id, bestFrac: chosenMetrics.outsideFrac, bestOutside: chosenMetrics.outside };
           }
         }
 
         if (bestArc && bestArc.verts.length > 1) {
-          const endpoints: [{ x: number; y: number }, { x: number; y: number }] = [
-            { ...bestArc.verts[0] },
-            { ...bestArc.verts[bestArc.verts.length - 1] }
-          ];
+          const outsidePieces = splitArcOutside(bestArc.verts);
 
-          outsideResults.push({
-            loop: bestArc.verts,
-            closed: false,
-            endpoints
-          });
+          outsidePieces.forEach((piece, pieceIdx) => {
+            if (piece.length < 2) return;
+            const endpoints: [{ x: number; y: number }, { x: number; y: number }] = [
+              { ...piece[0] },
+              { ...piece[piece.length - 1] }
+            ];
 
-          console.log('[Debug] Outside arc chosen', {
-            insideLoop: insideIdx,
-            canonicalLoopId: bestArc.loopId,
-            arcLength: arcLength(bestArc.verts).toFixed(3),
-            arcVerts: bestArc.verts.length,
-            start: endpoints[0],
-            end: endpoints[1]
+            outsideResults.push({
+              loop: piece,
+              closed: false,
+              endpoints
+            });
+
+            console.log('[Debug] Outside arc chosen', {
+              insideLoop: insideIdx,
+              canonicalLoopId: bestArc.loopId,
+              arcLength: arcLength(piece).toFixed(3),
+              arcVerts: piece.length,
+              outsideFrac: arcOutsideMetrics(piece).outsideFrac,
+              pieceIdx,
+              start: endpoints[0],
+              end: endpoints[1]
+            });
           });
         }
       });
@@ -1118,42 +1233,19 @@ class CarvableCaves {
       console.log(`AABB Region (grid): [${gridAABB.minX}, ${gridAABB.minY}] to [${gridAABB.maxX}, ${gridAABB.maxY}]`);
       console.log(`AABB Region (world): [${expandedWorldAABB.minX.toFixed(2)}, ${expandedWorldAABB.minY.toFixed(2)}] to [${expandedWorldAABB.maxX.toFixed(2)}, ${expandedWorldAABB.maxY.toFixed(2)}]`);
 
-      // Track which segments came from which canonical loop
+      // Log each outside segment that was chosen
       let segmentIdx = 0;
-      for (const canonLoop of canonicalLoops) {
-        if (this.aabbsIntersect(canonLoop.aabb, expandedWorldAABB)) {
-          // Find segments for this loop
-          const loopSegments = loopSegmentsById.get(canonLoop.id) ?? [];
+      for (const seg of outsideResults) {
+        if (seg.loop.length > 1) {
+          const ep1 = seg.loop[0];
+          const ep2 = seg.loop[seg.loop.length - 1];
+          const ep1Cell = { gx: Math.floor(ep1.x / h), gy: Math.floor(ep1.y / h) };
+          const ep2Cell = { gx: Math.floor(ep2.x / h), gy: Math.floor(ep2.y / h) };
 
-          // Log each segment
-          for (const segData of loopSegments) {
-            const segment = segData.segment;
-            if (segment.length > 1) {
-              const ep1 = segment[0];
-              const ep2 = segment[segment.length - 1];
-              const ep1Cell = { gx: Math.floor(ep1.x / h), gy: Math.floor(ep1.y / h) };
-              const ep2Cell = { gx: Math.floor(ep2.x / h), gy: Math.floor(ep2.y / h) };
-
-              console.log(`\nOutside Segment ${segmentIdx} (${segment.length} vertices):`);
-              console.log(`  Endpoint 1: (${ep1.x.toFixed(3)}, ${ep1.y.toFixed(3)}) at cell (${ep1Cell.gx}, ${ep1Cell.gy})`);
-
-              // Log next cut vertex after endpoint 1 if it exists (previous segment's last cut or wrap-around)
-              if (segData.preCutVertex) {
-                const cutCell = { gx: Math.floor(segData.preCutVertex.x / h), gy: Math.floor(segData.preCutVertex.y / h) };
-                console.log(`    → Next cut vertex (before ep1): (${segData.preCutVertex.x.toFixed(3)}, ${segData.preCutVertex.y.toFixed(3)}) at cell (${cutCell.gx}, ${cutCell.gy})`);
-              }
-
-              console.log(`  Endpoint 2: (${ep2.x.toFixed(3)}, ${ep2.y.toFixed(3)}) at cell (${ep2Cell.gx}, ${ep2Cell.gy})`);
-
-              // Log next cut vertex after endpoint 2
-              if (segData.postCutVertex) {
-                const cutCell = { gx: Math.floor(segData.postCutVertex.x / h), gy: Math.floor(segData.postCutVertex.y / h) };
-                console.log(`    → Next cut vertex (after ep2): (${segData.postCutVertex.x.toFixed(3)}, ${segData.postCutVertex.y.toFixed(3)}) at cell (${cutCell.gx}, ${cutCell.gy})`);
-              }
-
-              segmentIdx++;
-            }
-          }
+          console.log(`\nOutside Segment ${segmentIdx} (${seg.loop.length} vertices):`);
+          console.log(`  Endpoint 1: (${ep1.x.toFixed(3)}, ${ep1.y.toFixed(3)}) at cell (${ep1Cell.gx}, ${ep1Cell.gy})`);
+          console.log(`  Endpoint 2: (${ep2.x.toFixed(3)}, ${ep2.y.toFixed(3)}) at cell (${ep2Cell.gx}, ${ep2Cell.gy})`);
+          segmentIdx++;
         }
       }
 

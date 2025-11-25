@@ -1,0 +1,450 @@
+[23:28:06] LOG: [RemeshManager] remesh() start
+[23:28:06] LOG: [FullHeal] ⏱️ Marching Squares: 1.10ms (generated 1 raw loops)
+[23:28:06] LOG: [FullHeal] ⏱️ Clean loops: 0.20ms (113 → 102 vertices)
+[23:28:06] LOG: [FullHeal] ⏱️ Classification: 0.20ms (1 valid loops, 0 deleted)
+[23:28:06] LOG: [Phase1] Created canonical loops {
+  "count": 1,
+  "totalVertices": 102,
+  "aabbs": [
+    {
+      "minX": 4.75,
+      "minY": 4.75,
+      "maxX": 27,
+      "maxY": 27.25
+    }
+  ]
+}
+[23:28:06] LOG: [Chaikin] Iteration 0 {
+  "before": 102,
+  "after": 205,
+  "sampleAncestry": [
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      3
+    ]
+  ]
+}
+[23:28:06] LOG: [Chaikin] Iteration 1 {
+  "before": 205,
+  "after": 411,
+  "sampleAncestry": [
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      2
+    ],
+    [
+      0,
+      2
+    ],
+    [
+      1,
+      2
+    ]
+  ]
+}
+[23:28:06] LOG: [Visvalingam] Simplification {
+  "before": 411,
+  "after": 128,
+  "reduction": "68.9%",
+  "ancestryPreserved": true
+}
+[23:28:06] LOG: [FullHeal] ⏱️ Optimization: 7.40ms (102 → 128 vertices)
+[23:28:06] LOG: [FullHeal]    ↳ cleanLoop: 0.10ms
+[23:28:06] LOG: [FullHeal]    ↳ Chaikin smoothing (expand): 0.40ms
+[23:28:06] LOG: [FullHeal]    ↳ Post-simplification (reduce): 6.80ms
+[23:28:06] LOG: [FullHeal] Canonical loops: 1 (128 verts total)
+[23:28:06] LOG: [FullHeal] Calling physicsEngine.setCanonicalTerrainLoops
+[23:28:06] LOG: [Box2DEngine] setCanonicalTerrainLoops called with 1 loops
+[23:28:06] LOG: [Box2DEngine] Building terrain body for loop #0, verts=128, reverse=true
+[23:28:06] LOG: [Box2DEngine] Loop 2: built 12 segments (verts=128)
+[23:28:06] LOG: [Box2DEngine]  Segment 0 {
+  "id": 1,
+  "optStart": 0,
+  "optEnd": 6,
+  "canonRange": [
+    0,
+    8
+  ]
+}
+[23:28:06] LOG: [Box2DEngine]  Segment 1 {
+  "id": 2,
+  "optStart": 6,
+  "optEnd": 7,
+  "canonRange": [
+    7,
+    15
+  ]
+}
+[23:28:06] LOG: [Box2DEngine]  Segment 2 {
+  "id": 3,
+  "optStart": 7,
+  "optEnd": 31,
+  "canonRange": [
+    14,
+    23
+  ]
+}
+[23:28:06] LOG: [Box2DEngine]  Segment 3 {
+  "id": 4,
+  "optStart": 31,
+  "optEnd": 48,
+  "canonRange": [
+    21,
+    29
+  ]
+}
+[23:28:06] LOG: [Box2DEngine]  Segment 4 {
+  "id": 5,
+  "optStart": 48,
+  "optEnd": 66,
+  "canonRange": [
+    28,
+    36
+  ]
+}
+[23:28:06] LOG: [Box2DEngine]  Segment 5 {
+  "id": 6,
+  "optStart": 66,
+  "optEnd": 83,
+  "canonRange": [
+    35,
+    43
+  ]
+}
+[23:28:06] LOG: [Box2DEngine]  Segment 6 {
+  "id": 7,
+  "optStart": 83,
+  "optEnd": 94,
+  "canonRange": [
+    41,
+    55
+  ]
+}
+[23:28:06] LOG: [Box2DEngine]  Segment 7 {
+  "id": 8,
+  "optStart": 94,
+  "optEnd": 108,
+  "canonRange": [
+    54,
+    63
+  ]
+}
+[23:28:06] LOG: [Box2DEngine]  Segment 8 {
+  "id": 9,
+  "optStart": 108,
+  "optEnd": 113,
+  "canonRange": [
+    62,
+    70
+  ]
+}
+[23:28:06] LOG: [Box2DEngine]  Segment 9 {
+  "id": 10,
+  "optStart": 113,
+  "optEnd": 116,
+  "canonRange": [
+    68,
+    78
+  ]
+}
+[23:28:06] LOG: [Box2DEngine]  Segment 10 {
+  "id": 11,
+  "optStart": 116,
+  "optEnd": 126,
+  "canonRange": [
+    0,
+    101
+  ]
+}
+[23:28:06] LOG: [Box2DEngine]  Segment 11 {
+  "id": 12,
+  "optStart": 126,
+  "optEnd": 127,
+  "canonRange": [
+    0,
+    101
+  ]
+}
+[23:28:06] LOG: [Box2D] Created segments {
+  "loopId": 2,
+  "segmentCount": 12,
+  "segments": [
+    {
+      "id": 1,
+      "optRange": [
+        0,
+        6
+      ],
+      "canonRange": [
+        0,
+        8
+      ]
+    },
+    {
+      "id": 2,
+      "optRange": [
+        6,
+        7
+      ],
+      "canonRange": [
+        7,
+        15
+      ]
+    },
+    {
+      "id": 3,
+      "optRange": [
+        7,
+        31
+      ],
+      "canonRange": [
+        14,
+        23
+      ]
+    },
+    {
+      "id": 4,
+      "optRange": [
+        31,
+        48
+      ],
+      "canonRange": [
+        21,
+        29
+      ]
+    },
+    {
+      "id": 5,
+      "optRange": [
+        48,
+        66
+      ],
+      "canonRange": [
+        28,
+        36
+      ]
+    },
+    {
+      "id": 6,
+      "optRange": [
+        66,
+        83
+      ],
+      "canonRange": [
+        35,
+        43
+      ]
+    },
+    {
+      "id": 7,
+      "optRange": [
+        83,
+        94
+      ],
+      "canonRange": [
+        41,
+        55
+      ]
+    },
+    {
+      "id": 8,
+      "optRange": [
+        94,
+        108
+      ],
+      "canonRange": [
+        54,
+        63
+      ]
+    },
+    {
+      "id": 9,
+      "optRange": [
+        108,
+        113
+      ],
+      "canonRange": [
+        62,
+        70
+      ]
+    },
+    {
+      "id": 10,
+      "optRange": [
+        113,
+        116
+      ],
+      "canonRange": [
+        68,
+        78
+      ]
+    },
+    {
+      "id": 11,
+      "optRange": [
+        116,
+        126
+      ],
+      "canonRange": [
+        0,
+        101
+      ]
+    },
+    {
+      "id": 12,
+      "optRange": [
+        126,
+        127
+      ],
+      "canonRange": [
+        0,
+        101
+      ]
+    }
+  ]
+}
+[23:28:06] LOG: [Box2DEngine] setCanonicalTerrainLoops finished; terrainBodies=1
+[23:28:06] LOG: [FullHeal] physicsEngine.setCanonicalTerrainLoops completed
+[23:28:06] LOG: [FullHeal] ⏱️ Box2D colliders: 5.50ms (created 1 bodies)
+[23:28:06] LOG: [FullHeal] 🎯 TOTAL (physics only): 15.60ms
+[23:28:06] LOG: [FullHeal] Updating renderer polylines with 1 loops
+[23:28:06] LOG: [Renderer] updatePolylines: 1 polylines
+[23:28:06] LOG: [Renderer] first polyline length=128
+[23:28:06] LOG: [FullHeal] Render polylines: 1, first lengths=128
+[23:28:06] LOG: [FullHeal] ⏱️ Re-render walls: 0.30ms
+[23:28:06] LOG: [FullHeal] 🎯 TOTAL (including rendering): 15.90ms
+[23:28:09] LOG: Module loaded successfully!
+[23:28:12] WARN:   ⚠️  WARNING: 2 OPEN CONTOURS DETECTED!
+[23:28:12] WARN:   This usually means loops hit boundaries or density gradients are too sharp
+[23:28:12] WARN:   Loop 0: 19 vertices, gap=12.023m
+[23:28:12] WARN:     First: (17.25, 9.00)
+[23:28:12] WARN:     Last: (18.00, 21.00)
+[23:28:12] WARN:   Loop 1: 7 vertices, gap=3.010m
+[23:28:12] WARN:     First: (22.00, 19.00)
+[23:28:12] WARN:     Last: (19.75, 21.00)
+[23:28:12] LOG: [Debug] Outside arc chosen {
+  "insideLoop": 0,
+  "canonicalLoopId": 1,
+  "arcLength": "2.019",
+  "arcVerts": 3,
+  "outsideFrac": 0,
+  "pieceIdx": 0,
+  "start": {
+    "x": 18,
+    "y": 21
+  },
+  "end": {
+    "x": 19.75,
+    "y": 21
+  }
+}
+[23:28:12] LOG: [Debug] Outside arc chosen {
+  "insideLoop": 0,
+  "canonicalLoopId": 1,
+  "arcLength": "78.608",
+  "arcVerts": 83,
+  "outsideFrac": 0.9758117126441194,
+  "pieceIdx": 1,
+  "start": {
+    "x": 22,
+    "y": 19
+  },
+  "end": {
+    "x": 17.25,
+    "y": 9
+  }
+}
+[23:28:12] LOG: [Debug] Outside arc chosen {
+  "insideLoop": 1,
+  "canonicalLoopId": 1,
+  "arcLength": "78.608",
+  "arcVerts": 83,
+  "outsideFrac": 0.9758117126441194,
+  "pieceIdx": 0,
+  "start": {
+    "x": 22,
+    "y": 19
+  },
+  "end": {
+    "x": 17.25,
+    "y": 9
+  }
+}
+[23:28:12] LOG: [Debug] Outside arc chosen {
+  "insideLoop": 1,
+  "canonicalLoopId": 1,
+  "arcLength": "2.019",
+  "arcVerts": 3,
+  "outsideFrac": 0,
+  "pieceIdx": 1,
+  "start": {
+    "x": 18,
+    "y": 21
+  },
+  "end": {
+    "x": 19.75,
+    "y": 21
+  }
+}
+[23:28:12] LOG: [Debug] Captured loops from carve {
+  "inside": 2,
+  "outside": 4,
+  "total": 6
+}
+[23:28:12] LOG: 
+=== INSIDE LOOPS (Marching Squares) ===
+[23:28:12] LOG: AABB Region (grid): [10, 9] to [21, 20]
+[23:28:12] LOG: AABB Region (world): [10.00, 9.00] to [22.00, 21.00]
+[23:28:12] LOG: 
+Inside Loop 0 (19 vertices):
+[23:28:12] LOG:   Endpoint 1: (17.250, 9.000) at cell (17, 9)
+[23:28:12] LOG:   Endpoint 2: (18.000, 21.000) at cell (18, 21)
+[23:28:12] LOG: 
+Inside Loop 1 (7 vertices):
+[23:28:12] LOG:   Endpoint 1: (22.000, 19.000) at cell (22, 19)
+[23:28:12] LOG:   Endpoint 2: (19.750, 21.000) at cell (19, 21)
+[23:28:12] LOG: 
+=== OUTSIDE LOOPS (Canonical Segments) ===
+[23:28:12] LOG: AABB Region (grid): [10, 9] to [21, 20]
+[23:28:12] LOG: AABB Region (world): [10.00, 9.00] to [22.00, 21.00]
+[23:28:12] LOG: 
+Outside Segment 0 (3 vertices):
+[23:28:12] LOG:   Endpoint 1: (18.000, 21.000) at cell (18, 21)
+[23:28:12] LOG:   Endpoint 2: (19.750, 21.000) at cell (19, 21)
+[23:28:12] LOG: 
+Outside Segment 1 (83 vertices):
+[23:28:12] LOG:   Endpoint 1: (22.000, 19.000) at cell (22, 19)
+[23:28:12] LOG:   Endpoint 2: (17.250, 9.000) at cell (17, 9)
+[23:28:12] LOG: 
+Outside Segment 2 (83 vertices):
+[23:28:12] LOG:   Endpoint 1: (22.000, 19.000) at cell (22, 19)
+[23:28:12] LOG:   Endpoint 2: (17.250, 9.000) at cell (17, 9)
+[23:28:12] LOG: 
+Outside Segment 3 (3 vertices):
+[23:28:12] LOG:   Endpoint 1: (18.000, 21.000) at cell (18, 21)
+[23:28:12] LOG:   Endpoint 2: (19.750, 21.000) at cell (19, 21)
+[23:28:12] LOG: 
