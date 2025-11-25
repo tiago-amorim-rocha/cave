@@ -997,228 +997,92 @@ class CarvableCaves {
       // Get canonical loops and extract portions OUTSIDE the dirty region
       const canonicalLoops = this.remeshManager.getCanonicalLoops();
       const outsideResults: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }> = [];
-      type SegmentInfo = {
-        segment: { x: number; y: number }[];
-        preCutVertex?: { x: number; y: number };
-        postCutVertex?: { x: number; y: number };
+      const arcLength = (verts: { x: number; y: number }[]): number => {
+        let len = 0;
+        for (let i = 1; i < verts.length; i++) {
+          const dx = verts[i].x - verts[i - 1].x;
+          const dy = verts[i].y - verts[i - 1].y;
+          len += Math.hypot(dx, dy);
+        }
+        return len;
       };
-      const loopSegmentsById = new Map<number, SegmentInfo[]>();
 
-      const buildOutsideSegments = (vertices: { x: number; y: number }[]): SegmentInfo[] => {
-        const segments: SegmentInfo[] = [];
-        const n = vertices.length;
-        if (n < 2) return segments;
-
-        const inside: boolean[] = new Array(n);
-        let anyOutside = false;
-        let anyInside = false;
-        for (let i = 0; i < n; i++) {
-          inside[i] = isInsideWorld(vertices[i]);
-          if (inside[i]) anyInside = true;
-          else anyOutside = true;
+      const collectArc = (verts: { x: number; y: number }[], startIdx: number, endIdx: number): { x: number; y: number }[] => {
+        const n = verts.length;
+        const result: { x: number; y: number }[] = [];
+        let idx = startIdx;
+        result.push({ x: verts[idx].x, y: verts[idx].y });
+        while (idx !== endIdx) {
+          idx = (idx + 1) % n;
+          result.push({ x: verts[idx].x, y: verts[idx].y });
         }
-        if (!anyOutside) {
-          return segments;
+        return result;
+      };
+
+      const nearestIndex = (verts: { x: number; y: number }[], target: { x: number; y: number }): number => {
+        let best = 0;
+        let bestD2 = Infinity;
+        for (let i = 0; i < verts.length; i++) {
+          const dx = verts[i].x - target.x;
+          const dy = verts[i].y - target.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < bestD2) {
+            bestD2 = d2;
+            best = i;
+          }
         }
+        return best;
+      };
 
-        const addIntersectionIfNeeded = (
-          prev: { x: number; y: number },
-          curr: { x: number; y: number }
-        ): { x: number; y: number } | null => {
-          // Quick reject if segment AABB doesn't overlap expandedWorldAABB
-          const minX = Math.min(prev.x, curr.x);
-          const maxX = Math.max(prev.x, curr.x);
-          const minY = Math.min(prev.y, curr.y);
-          const maxY = Math.max(prev.y, curr.y);
-          if (maxX < expandedWorldAABB.minX || minX > expandedWorldAABB.maxX || maxY < expandedWorldAABB.minY || minY > expandedWorldAABB.maxY) {
-            return null;
-          }
-          const dx = curr.x - prev.x;
-          const dy = curr.y - prev.y;
-          let tEnter = 0;
-          let tExit = 1;
+      // Build outside arcs by pairing each inside open loop to the nearest canonical loop segment between its endpoints
+      insideMerged.forEach((insideLoop, insideIdx) => {
+        if (insideLoop.closed || !insideLoop.endpoints) return;
+        const [epA, epB] = insideLoop.endpoints;
+        let bestArc: { verts: { x: number; y: number }[]; loopId: number } | null = null;
 
-          // Liang-Barsky style parametric clipping against expandedWorldAABB
-          const clip = (p: number, q: number): boolean => {
-            if (p === 0) {
-              return q >= 0;
-            }
-            const r = q / p;
-            if (p < 0) {
-              if (r > tExit) return false;
-              if (r > tEnter) tEnter = r;
-            } else if (p > 0) {
-              if (r < tEnter) return false;
-              if (r < tExit) tExit = r;
-            }
-            return true;
-          };
+        for (const canonLoop of canonicalLoops) {
+          if (!this.aabbsIntersect(canonLoop.aabb, expandedWorldAABB)) continue;
+          const verts = canonLoop.vertices;
+          if (verts.length < 2) continue;
 
-          if (
-            !clip(-dx, prev.x - expandedWorldAABB.minX) ||
-            !clip(dx, expandedWorldAABB.maxX - prev.x) ||
-            !clip(-dy, prev.y - expandedWorldAABB.minY) ||
-            !clip(dy, expandedWorldAABB.maxY - prev.y)
-          ) {
-            return null;
-          }
+          const iA = nearestIndex(verts, epA);
+          const iB = nearestIndex(verts, epB);
+          if (iA === iB) continue;
 
-          // We only care about the first enter point when prev is outside and curr is outside
-          if (tEnter > 0 && tEnter < 1) {
-            const ix = prev.x + tEnter * dx;
-            const iy = prev.y + tEnter * dy;
-            return { x: Math.round(ix / quantStep) * quantStep, y: Math.round(iy / quantStep) * quantStep };
-          }
-          return null;
-        };
+          const forward = collectArc(verts, iA, iB);
+          const backward = collectArc(verts, iB, iA);
+          const fLen = arcLength(forward);
+          const bLen = arcLength(backward);
+          const chosen = fLen <= bLen ? forward : backward;
+          const arcVerts = chosen.map(v => ({ x: v.x, y: v.y }));
 
-        let currentSegment: { x: number; y: number }[] | null = null;
-        let currentPre: { x: number; y: number } | undefined;
-
-        for (let i = 0; i < n; i++) {
-          const prevIdx = (i - 1 + n) % n;
-          const prevInside = inside[prevIdx];
-          const currInside = inside[i];
-          const v = vertices[i];
-
-          if (!currInside && prevInside) {
-            currentSegment = [];
-            currentPre = { x: vertices[prevIdx].x, y: vertices[prevIdx].y };
-            currentSegment.push({ x: v.x, y: v.y });
-          } else if (!currInside && !prevInside) {
-            if (currentSegment) {
-              currentSegment.push({ x: v.x, y: v.y });
-            } else {
-              // Entire edge outside; check if it crosses the AABB
-              const inter = addIntersectionIfNeeded(vertices[prevIdx], v);
-              if (inter) {
-                currentSegment = [];
-                currentPre = inter; // intersection is the entering cut
-                currentSegment.push({ ...inter });
-                currentSegment.push({ x: v.x, y: v.y });
-              }
-            }
-          } else if (currInside && !prevInside) {
-            if (currentSegment) {
-              const postCut = { x: v.x, y: v.y };
-              segments.push({
-                segment: currentSegment,
-                preCutVertex: currentPre ? { ...currentPre } : undefined,
-                postCutVertex: postCut
-              });
-              currentSegment = null;
-              currentPre = undefined;
-            }
+          if (!bestArc || arcLength(arcVerts) < arcLength(bestArc.verts)) {
+            bestArc = { verts: arcVerts, loopId: canonLoop.id };
           }
         }
 
-        // If we ended while still outside, we need to close the segment using the first inside vertex after start
-        if (currentSegment) {
-          let firstInsideIdx = -1;
-          let exitIntersection: { x: number; y: number } | undefined;
-          for (let k = 0; k < n; k++) {
-            const prevIdx = (k - 1 + n) % n;
-            if (!inside[prevIdx] && inside[k]) {
-              firstInsideIdx = k;
-              // Add the intersection point where we exit the AABB
-              const inter = addIntersectionIfNeeded(vertices[prevIdx], vertices[k]);
-              if (inter) {
-                exitIntersection = inter;
-              }
-              break;
-            }
-          }
-          const postCut = exitIntersection
-            ? exitIntersection
-            : firstInsideIdx !== -1
-              ? { x: vertices[firstInsideIdx].x, y: vertices[firstInsideIdx].y }
-              : undefined;
-          segments.push({
-            segment: currentSegment,
-            preCutVertex: currentPre ? { ...currentPre } : undefined,
-            postCutVertex: postCut
+        if (bestArc && bestArc.verts.length > 1) {
+          const endpoints: [{ x: number; y: number }, { x: number; y: number }] = [
+            { ...bestArc.verts[0] },
+            { ...bestArc.verts[bestArc.verts.length - 1] }
+          ];
+
+          outsideResults.push({
+            loop: bestArc.verts,
+            closed: false,
+            endpoints
+          });
+
+          console.log('[Debug] Outside arc chosen', {
+            insideLoop: insideIdx,
+            canonicalLoopId: bestArc.loopId,
+            arcLength: arcLength(bestArc.verts).toFixed(3),
+            arcVerts: bestArc.verts.length,
+            start: endpoints[0],
+            end: endpoints[1]
           });
         }
-
-        return segments;
-      };
-
-      for (const canonLoop of canonicalLoops) {
-        // Check if this loop intersects the EXPANDED AABB (use same boundary as inside loops)
-        if (this.aabbsIntersect(canonLoop.aabb, expandedWorldAABB)) {
-          // Split loop into segments based on inside/outside transitions
-          const segments = buildOutsideSegments(canonLoop.vertices);
-          loopSegmentsById.set(canonLoop.id, segments);
-
-          // Add each segment as an open loop
-          for (const segmentInfo of segments) {
-            const segment = segmentInfo.segment;
-            if (segment.length > 1) {
-              const fallbackStart = segment[0];
-              const fallbackEnd = segment[segment.length - 1];
-              const endpointStart = segmentInfo.preCutVertex ?? fallbackStart;
-              const endpointEnd = segmentInfo.postCutVertex ?? fallbackEnd;
-              const endpoints: [{ x: number; y: number }, { x: number; y: number }] = [
-                endpointStart,
-                endpointEnd
-              ];
-
-              console.log('[Debug] Outside segment endpoints for renderer', {
-                canonicalLoopId: canonLoop.id,
-                segmentLength: segment.length,
-                fallbackStart: {
-                  x: fallbackStart.x.toFixed(3),
-                  y: fallbackStart.y.toFixed(3),
-                  inside: isInsideWorld(fallbackStart)
-                },
-                fallbackEnd: {
-                  x: fallbackEnd.x.toFixed(3),
-                  y: fallbackEnd.y.toFixed(3),
-                  inside: isInsideWorld(fallbackEnd)
-                },
-                preCutVertex: segmentInfo.preCutVertex
-                  ? {
-                      x: segmentInfo.preCutVertex.x.toFixed(3),
-                      y: segmentInfo.preCutVertex.y.toFixed(3),
-                      inside: isInsideWorld(segmentInfo.preCutVertex)
-                    }
-                  : null,
-                postCutVertex: segmentInfo.postCutVertex
-                  ? {
-                      x: segmentInfo.postCutVertex.x.toFixed(3),
-                      y: segmentInfo.postCutVertex.y.toFixed(3),
-                      inside: isInsideWorld(segmentInfo.postCutVertex)
-                    }
-                  : null,
-                usedStart: {
-                  x: endpointStart.x.toFixed(3),
-                  y: endpointStart.y.toFixed(3),
-                  inside: isInsideWorld(endpointStart)
-                },
-                usedEnd: {
-                  x: endpointEnd.x.toFixed(3),
-                  y: endpointEnd.y.toFixed(3),
-                  inside: isInsideWorld(endpointEnd)
-                }
-              });
-
-              const renderLoop = [...segment];
-              if (segmentInfo.preCutVertex) {
-                renderLoop.unshift({ ...segmentInfo.preCutVertex });
-              }
-              if (segmentInfo.postCutVertex) {
-                renderLoop.push({ ...segmentInfo.postCutVertex });
-              }
-
-              outsideResults.push({
-                loop: renderLoop,
-                closed: false,
-                endpoints
-              });
-            }
-          }
-        }
-      }
+      });
 
       // Combine inside and outside results
       this.debugLoops = [
