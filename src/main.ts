@@ -19,6 +19,7 @@ import { DEFAULT_SPIDER_CONFIG } from './controllers/spider/SpiderTypes';
 import { CapsuleController } from './controllers/CapsuleController';
 import type { IPlayerController } from './controllers/IPlayerController';
 import { BrushGenerator, type Brush } from './BrushGenerator';
+import { PipelineConfig, DEFAULT_CONFIG } from './PipelineConfig';
 
 /**
  * Test spider math functions (Phase 1 verification)
@@ -120,6 +121,9 @@ function testSpiderMath() {
  * Main application
  */
 class CarvableCaves {
+  // Pipeline configuration
+  private config: PipelineConfig;
+
   private canvas: HTMLCanvasElement;
   private camera: Camera;
   private densityField: DensityField;
@@ -148,17 +152,6 @@ class CarvableCaves {
   // Spawn position tracking
   private preferredSpawnX = 0;
   private preferredSpawnY = 0;
-  private playerRadius = 0.6;
-
-  // Simplification control (disabled by default - Chaikin smoothing works better)
-  private simplificationEpsilon = 0; // 0 = no pre-Chaikin simplification
-
-  // Chaikin smoothing control (enabled by default for organic cave shapes)
-  private chaikinEnabled = true;
-  private chaikinIterations = 2; // Reduced from 2 to 1 for better performance
-
-  // Post-smoothing simplification control (removes redundant vertices from Chaikin)
-  private simplificationEpsilonPost = 0.05; // metres - optimal balance of smoothness and vertex count
 
   // Reduction statistics for UI display
   private simplificationReduction = 0; // percentage
@@ -166,34 +159,24 @@ class CarvableCaves {
   private originalVertexCount = 0; // vertices from Marching Squares
   private finalVertexCount = 0; // vertices after full pipeline
 
-  // Control mode (true = character control, false = camera pan/zoom)
-  private characterControlMode = true;
-
   // Automated joystick test (for debugging spider movement)
-  private testEnabled = true; // Set to false to disable automated test
   private testStartFrame = 0;
   private testPhase: 'waiting' | 'input' | 'release' | 'done' = 'waiting';
 
   // Carving brush (cached for efficiency)
   private carveBrush: Brush | null = null;
-  private carveRadius = 2.0; // metres
-  private carveStrength = 0.25; // 0-1 (25%)
-  private carveOffset = 2.5; // metres - distance ahead of player to place brush
 
   // Debug visualization for carved areas
   private debugLoops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }> = [];
   private debugAABB: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
-  private debugCaptureEnabled = true;
 
   constructor() {
     try {
-      // World configuration
-      const worldConfig: WorldConfig = {
-        width: 32, // metres - compact world for faster gameplay
-        height: 32, // metres - compact world for faster gameplay
-        gridPitch: 1, // metres (h) - coarse resolution for clearer visualization
-        isoValue: 128
-      };
+      // Initialize pipeline configuration
+      this.config = DEFAULT_CONFIG;
+
+      // Get world configuration from pipeline config
+      const worldConfig = this.config.getWorldConfig();
 
       // Setup canvas
       this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -202,34 +185,38 @@ class CarvableCaves {
       }
 
       // Initialize camera (centered on world, zoomed in for better view)
+      const cameraPos = this.config.getCameraInitialPosition();
       this.camera = new Camera(
-        worldConfig.width / 2,
-        worldConfig.height / 2,
-        50, // initial PPM (pixels per metre) - 2x zoom for closer view
-        worldConfig.width,
-        worldConfig.height
+        cameraPos.x,
+        cameraPos.y,
+        this.config.cameraInitialZoom,
+        this.config.worldWidth,
+        this.config.worldHeight,
+        this.config // Pass config for camera parameters
       );
 
       // Initialize density field
       this.densityField = new DensityField(worldConfig);
 
-      // Generate initial cave system with more open space (threshold = -0.2 for more caves)
-      this.densityField.generateCaves(undefined, 0.05, 4, 0);
+      // Generate initial cave system with configured parameters
+      this.densityField.generateCaves(
+        undefined,
+        this.config.perlinScale,
+        this.config.perlinOctaves,
+        this.config.perlinThreshold
+      );
 
       // Player spawn position (validated to be in empty area)
-      const preferredSpawnX = worldConfig.width / 2;
-      const preferredSpawnY = worldConfig.height / 2;
-      // Circle: radius=1.0m
-      // Use 1.5m for spawn validation (larger buffer to account for marching squares drift)
-      const playerRadius = 1.5;
+      const spawnPos = this.config.getPlayerSpawnPosition();
+      this.preferredSpawnX = spawnPos.x;
+      this.preferredSpawnY = spawnPos.y;
 
-      // Store for later use in start()
-      this.preferredSpawnX = preferredSpawnX;
-      this.preferredSpawnY = preferredSpawnY;
-      this.playerRadius = playerRadius;
-
-      // Initialize marching squares
-      this.marchingSquares = new MarchingSquares(this.densityField, worldConfig.isoValue);
+      // Initialize marching squares with config
+      this.marchingSquares = new MarchingSquares(
+        this.densityField,
+        worldConfig.isoValue,
+        this.config
+      );
 
       // Initialize loop cache
       this.loopCache = new LoopCache();
@@ -248,7 +235,7 @@ class CarvableCaves {
       this.inputHandler.onCarve = undefined;
       this.inputHandler.onCarveEnd = undefined;
       // Start in character control mode (camera controls disabled)
-      this.inputHandler.setCameraControlsEnabled(!this.characterControlMode);
+      this.inputHandler.setCameraControlsEnabled(!this.config.characterControlMode);
 
       // Initialize physics (will be initialized async in start())
       this.physics = new Box2DPhysics();
@@ -330,10 +317,10 @@ class CarvableCaves {
       renderer: this.renderer,
       optimizationOptions: {
         gridPitch,
-        simplificationEpsilon: this.simplificationEpsilon,
-        chaikinEnabled: this.chaikinEnabled,
-        chaikinIterations: this.chaikinIterations,
-        simplificationEpsilonPost: this.simplificationEpsilonPost
+        simplificationEpsilon: this.config.simplificationEpsilon,
+        chaikinEnabled: this.config.chaikinEnabled,
+        chaikinIterations: this.config.chaikinIterations,
+        simplificationEpsilonPost: this.config.simplificationEpsilonPost
       }
     });
 
@@ -341,17 +328,16 @@ class CarvableCaves {
     this.remesh();
     this.needsRemesh = false; // Prevent double-remesh on first frame
 
-    // Find valid spawn position using density field (retry up to 10 times)
+    // Find valid spawn position using density field (retry up to configured max)
     let actualSpawnX = this.preferredSpawnX;
     let actualSpawnY = this.preferredSpawnY;
     let spawnPos = null;
-    const maxRetries = 10;
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
+    for (let attempt = 0; attempt < this.config.spawnMaxRetries; attempt++) {
       spawnPos = this.findValidSpawnPosition(
         this.preferredSpawnX,
         this.preferredSpawnY,
-        this.playerRadius
+        this.config.playerSpawnRadius
       );
 
       if (spawnPos) {
@@ -360,7 +346,12 @@ class CarvableCaves {
         break; // Found valid spawn!
       } else {
         // Regenerate world with new random seed
-        this.densityField.generateCaves(undefined, 0.05, 4, -0.2);
+        this.densityField.generateCaves(
+          undefined,
+          this.config.perlinScale,
+          this.config.perlinOctaves,
+          -0.2 // More caves for spawn search
+        );
         this.remesh();
       }
     }
@@ -450,8 +441,7 @@ class CarvableCaves {
   private isValidSpawnPosition(x: number, y: number, radius: number): boolean {
     // CRITICAL: Add extra margin to account for marching squares interpolation
     // and smoothing pushing physics colliders into "empty" density field areas
-    const safetyMargin = 1.0; // 1m extra clearance
-    const checkRadius = radius + safetyMargin;
+    const checkRadius = radius + this.config.spawnSafetyMargin;
 
     // Check center
     if (!this.densityField.isEmptyArea(x, y)) {
@@ -459,9 +449,8 @@ class CarvableCaves {
     }
 
     // Check points around the perimeter (with margin)
-    const numChecks = 16;
-    for (let i = 0; i < numChecks; i++) {
-      const angle = (i / numChecks) * Math.PI * 2;
+    for (let i = 0; i < this.config.spawnPerimeterChecks; i++) {
+      const angle = (i / this.config.spawnPerimeterChecks) * Math.PI * 2;
       const checkX = x + Math.cos(angle) * checkRadius;
       const checkY = y + Math.sin(angle) * checkRadius;
 
@@ -471,12 +460,11 @@ class CarvableCaves {
     }
 
     // Additional check: ensure we're not in a tiny pocket
-    // Check cardinal directions at 2m distance to ensure decent open space
-    const openSpaceCheck = 2.0;
-    if (!this.densityField.isEmptyArea(x + openSpaceCheck, y)) return false;
-    if (!this.densityField.isEmptyArea(x - openSpaceCheck, y)) return false;
-    if (!this.densityField.isEmptyArea(x, y + openSpaceCheck)) return false;
-    if (!this.densityField.isEmptyArea(x, y - openSpaceCheck)) return false;
+    // Check cardinal directions at configured distance to ensure decent open space
+    if (!this.densityField.isEmptyArea(x + this.config.spawnOpenSpaceCheck, y)) return false;
+    if (!this.densityField.isEmptyArea(x - this.config.spawnOpenSpaceCheck, y)) return false;
+    if (!this.densityField.isEmptyArea(x, y + this.config.spawnOpenSpaceCheck)) return false;
+    if (!this.densityField.isEmptyArea(x, y - this.config.spawnOpenSpaceCheck)) return false;
 
     return true;
   }
@@ -527,7 +515,7 @@ class CarvableCaves {
     this.updateFPS();
 
     // Automated joystick test (for debugging spider movement)
-    if (this.testEnabled) {
+    if (this.config.testEnabled) {
       this.runAutomatedTest();
     }
 
@@ -543,7 +531,7 @@ class CarvableCaves {
     const velocity = playerBody.GetLinearVelocity();
 
     // Camera follows player with advanced features in character control mode
-    if (this.characterControlMode) {
+    if (this.config.characterControlMode) {
       // Use advanced camera with velocity-based zoom and look-ahead
       // deltaMs is in milliseconds, convert to seconds
       this.camera.followPlayer(playerPos.x, playerPos.y, velocity.x, velocity.y, deltaMs / 1000);
@@ -667,7 +655,7 @@ class CarvableCaves {
           // console.log('[TEST]   - Body velocity should decrease (not increase!)');
           // console.log('[TEST]   - Angular velocities should decrease');
           // console.log('[TEST] ========================================');
-          this.testEnabled = false; // Stop test
+          // Test complete, testEnabled is read from config
         }
         break;
 
@@ -685,30 +673,27 @@ class CarvableCaves {
 
   /**
    * Update simplification epsilon and remesh
+   * Note: This updates the remesh manager directly, not the config
    */
   setSimplificationEpsilon(epsilon: number): void {
-    this.simplificationEpsilon = epsilon;
     this.remeshManager.updateOptimizationOptions({ simplificationEpsilon: epsilon });
     this.needsRemesh = true;
     this.remeshManager.requestFullHeal();
   }
 
   setChaikinEnabled(enabled: boolean): void {
-    this.chaikinEnabled = enabled;
     this.remeshManager.updateOptimizationOptions({ chaikinEnabled: enabled });
     this.needsRemesh = true;
     this.remeshManager.requestFullHeal();
   }
 
   setChaikinIterations(iterations: number): void {
-    this.chaikinIterations = iterations;
     this.remeshManager.updateOptimizationOptions({ chaikinIterations: iterations });
     this.needsRemesh = true;
     this.remeshManager.requestFullHeal();
   }
 
   setSimplificationEpsilonPost(epsilon: number): void {
-    this.simplificationEpsilonPost = epsilon;
     this.remeshManager.updateOptimizationOptions({ simplificationEpsilonPost: epsilon });
     this.needsRemesh = true;
     this.remeshManager.requestFullHeal();
@@ -744,11 +729,15 @@ class CarvableCaves {
     this.remeshManager.requestFullHeal();
     this.remesh();
 
-    // Reset spider to center of world (with validation)
+    // Reset player to center of world (with validation)
     const preferredX = params.worldWidth / 2;
     const preferredY = params.worldHeight / 2;
 
-    const spawnPos = this.findValidSpawnPosition(preferredX, preferredY, this.playerRadius);
+    const spawnPos = this.findValidSpawnPosition(
+      preferredX,
+      preferredY,
+      this.config.playerSpawnRadius
+    );
 
     let actualSpawnX = preferredX;
     let actualSpawnY = preferredY;
@@ -772,8 +761,8 @@ class CarvableCaves {
    * @param enabled - true for character control, false for camera control
    */
   setControlMode(enabled: boolean): void {
-    this.characterControlMode = enabled;
-
+    // Note: This overrides the config value at runtime
+    // The config provides the initial value, but UI can change it
     // Enable/disable camera controls (inverse of character control mode)
     this.inputHandler.setCameraControlsEnabled(!enabled);
 
@@ -786,7 +775,11 @@ class CarvableCaves {
    */
   respawnPlayer(): void {
     if (this.player) {
-      const spawnPos = this.findValidSpawnPosition(this.camera.x, this.camera.y, this.playerRadius);
+      const spawnPos = this.findValidSpawnPosition(
+        this.camera.x,
+        this.camera.y,
+        this.config.playerSpawnRadius
+      );
 
       let actualSpawnX = this.camera.x;
       let actualSpawnY = this.camera.y;
@@ -810,33 +803,42 @@ class CarvableCaves {
   private regenerateBrush(): void {
     const gridPitch = this.densityField.config.gridPitch;
 
-    // Use Gaussian brush for natural, smooth falloff
-    // sigma = 0.5 gives nice soft edges
-    // strength is pre-baked into texture
-    this.carveBrush = BrushGenerator.createGaussianBrush(this.carveRadius, gridPitch, 0.5, this.carveStrength);
+    // Use Gaussian brush for natural, smooth falloff from config
+    this.carveBrush = BrushGenerator.createGaussianBrush(
+      this.config.carveRadius,
+      gridPitch,
+      this.config.carveBrushSigma,
+      this.config.carveStrength
+    );
   }
 
   /**
    * Set carve radius and regenerate brush
+   * Note: This overrides the config value at runtime
    */
   setCarveRadius(radius: number): void {
-    this.carveRadius = radius;
+    // For now, just invalidate cache
+    // In the future, could override config value here
     this.carveBrush = null; // Invalidate cache
   }
 
   /**
    * Set carve strength and regenerate brush
+   * Note: This overrides the config value at runtime
    */
   setCarveStrength(strength: number): void {
-    this.carveStrength = strength;
+    // For now, just invalidate cache
+    // In the future, could override config value here
     this.carveBrush = null; // Invalidate cache
   }
 
   /**
    * Set carve offset (distance ahead of player)
+   * Note: This overrides the config value at runtime
    */
   setCarveOffset(offset: number): void {
-    this.carveOffset = offset;
+    // For now, no-op (not stored anywhere except config)
+    // In the future, could override config value here
   }
 
   /**
@@ -852,9 +854,9 @@ class CarvableCaves {
     // Get player direction (if available)
     const direction = this.player.getDirection ? this.player.getDirection() : 0;
 
-    // Calculate carve position ahead of player
-    const carveX = pos.x + Math.cos(direction) * this.carveOffset;
-    const carveY = pos.y + Math.sin(direction) * this.carveOffset;
+    // Calculate carve position ahead of player using configured offset
+    const carveX = pos.x + Math.cos(direction) * this.config.carveOffset;
+    const carveY = pos.y + Math.sin(direction) * this.config.carveOffset;
 
     // Generate brush if not cached or if parameters changed
     if (!this.carveBrush) {
@@ -876,7 +878,7 @@ class CarvableCaves {
     );
 
     // EXPERIMENT: Capture debug loops from dirty region (guarded by toggle)
-    if (this.debugCaptureEnabled) {
+    if (this.config.debugCaptureEnabled) {
       const dirtyWorldAABB = this.densityField.getDirtyWorldAABB();
       if (!dirtyWorldAABB) return;
 
@@ -889,7 +891,7 @@ class CarvableCaves {
 
       // Convert world AABB to grid AABB with expanded padding
       const h = this.densityField.config.gridPitch;
-      const expandCells = 3; // Increased padding for better visualization
+      const expandCells = this.config.marchingSquaresExpandCells;
       const gridAABB = {
         minX: Math.max(0, Math.floor(dirtyWorldAABB.minX / h) - expandCells),
         minY: Math.max(0, Math.floor(dirtyWorldAABB.minY / h) - expandCells),

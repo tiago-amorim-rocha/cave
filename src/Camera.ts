@@ -1,43 +1,66 @@
 import type { CameraState, Vec2 } from './types';
+import { DEFAULT_CONFIG, type PipelineConfig } from './PipelineConfig';
 
 /**
  * Camera system for world-space navigation
  * All positions are in metres, zoom is pixels-per-metre
+ *
+ * Camera behavior is now configurable via PipelineConfig.
+ * All constants are initialized from config for consistency.
  */
 export class Camera {
   x: number; // world position (metres)
   y: number;
   zoom: number; // pixels per metre (PPM)
 
-  minZoom = 10; // minimum PPM
-  maxZoom = 400; // maximum PPM (2x more than before)
+  // Zoom limits (from config)
+  minZoom: number; // minimum PPM
+  maxZoom: number; // maximum PPM
 
   worldWidth: number; // world bounds (metres)
   worldHeight: number;
 
-  // Dynamic camera parameters (reduced for smoother, more zoomed out view)
-  private baseZoom = 40; // PPM when stationary (slightly zoomed in from initial)
-  private minDynamicZoom = 30; // PPM when moving fast (matches initial zoom)
-  private speedThreshold = 4.0; // Speed at which max zoom-out occurs (m/s)
-  private zoomSmoothSpeed = 0.03; // Zoom transition speed (slower for smoothness)
+  // Dynamic camera parameters (from config)
+  private baseZoom: number; // PPM when stationary
+  private minDynamicZoom: number; // PPM when moving fast
+  private speedThreshold: number; // Speed at which max zoom-out occurs (m/s)
+  private zoomSmoothSpeed: number; // Zoom transition speed (0-1)
 
-  // Look-ahead parameters (reduced to minimize jarring movement)
-  private lookAheadDistance = 0.6; // Maximum look-ahead distance in metres (reduced by 50%)
-  private lookAheadSpeed = 4.0; // Speed threshold for max look-ahead (m/s)
+  // Look-ahead parameters (from config)
+  private lookAheadDistance: number; // Maximum look-ahead distance in metres
+  private lookAheadSpeed: number; // Speed threshold for max look-ahead (m/s)
 
-  // Smoothing parameters (reduced for smoother following)
-  private smoothSpeed = 0.06; // Camera follow smoothing (lower = smoother, less snappy)
+  // Smoothing parameters (from config)
+  private smoothSpeed: number; // Camera follow smoothing (0-1)
 
   // Target zoom (for smooth transitions)
   private targetZoom: number;
 
-  constructor(x: number, y: number, zoom: number, worldWidth: number = 50, worldHeight: number = 30) {
+  constructor(
+    x: number,
+    y: number,
+    zoom: number,
+    worldWidth: number = 50,
+    worldHeight: number = 30,
+    config: PipelineConfig = DEFAULT_CONFIG
+  ) {
     this.x = x;
     this.y = y;
     this.zoom = zoom;
     this.targetZoom = zoom;
     this.worldWidth = worldWidth;
     this.worldHeight = worldHeight;
+
+    // Initialize camera parameters from config
+    this.minZoom = config.cameraMinZoom;
+    this.maxZoom = config.cameraMaxZoom;
+    this.baseZoom = config.cameraBaseZoom;
+    this.minDynamicZoom = config.cameraMinDynamicZoom;
+    this.speedThreshold = config.cameraSpeedThreshold;
+    this.zoomSmoothSpeed = config.cameraZoomSmoothSpeed;
+    this.lookAheadDistance = config.cameraLookAheadDistance;
+    this.lookAheadSpeed = config.cameraLookAheadSpeed;
+    this.smoothSpeed = config.cameraSmoothSpeed;
   }
 
   /**
