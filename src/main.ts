@@ -20,6 +20,7 @@ import { CapsuleController } from './controllers/CapsuleController';
 import type { IPlayerController } from './controllers/IPlayerController';
 import { BrushGenerator, type Brush } from './BrushGenerator';
 import { PipelineConfig, DEFAULT_CONFIG } from './PipelineConfig';
+import { TerrainSurgery, type CarvedLoop, type CarveSurgeryResult } from './TerrainSurgery';
 
 /**
  * Test spider math functions (Phase 1 verification)
@@ -136,6 +137,7 @@ class CarvableCaves {
   private player: IPlayerController | null = null; // Current active player controller
   private joystick: VirtualJoystick;
   private remeshManager!: RemeshManager; // Initialized after physics
+  private terrainSurgery!: TerrainSurgery; // Initialized after remeshManager
 
   private needsRemesh = true;
   private animationFrameId = 0;
@@ -166,9 +168,9 @@ class CarvableCaves {
   // Carving brush (cached for efficiency)
   private carveBrush: Brush | null = null;
 
-  // Debug visualization for carved areas
-  private debugLoops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }> = [];
-  private debugAABB: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+  // Carved terrain geometry (for visualization and future stitching)
+  private carvedLoops: CarvedLoop[] = [];
+  private carveRegion: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
 
   constructor() {
     try {
@@ -323,6 +325,13 @@ class CarvableCaves {
         simplificationEpsilonPost: this.config.simplificationEpsilonPost
       }
     });
+
+    // Initialize terrain surgery (after remeshManager)
+    this.terrainSurgery = new TerrainSurgery(
+      this.densityField,
+      this.marchingSquares,
+      this.remeshManager
+    );
 
     // Generate initial mesh and physics bodies
     this.remesh();
@@ -557,7 +566,14 @@ class CarvableCaves {
     const playerDirection = this.player.getDirection ? this.player.getDirection() : undefined;
 
     // Render (simple circle player with direction indicator)
-    this.renderer.render(playerPos, this.player.getRadius(), [], physicsDebugDraw, undefined, joystickDraw, undefined, playerDirection, this.debugLoops, this.debugAABB);
+    // Map carved loops to renderer format (isNew → inside for color coding)
+    const carvedLoopsForRender = this.carvedLoops.map(l => ({
+      loop: l.loop,
+      closed: l.closed,
+      endpoints: l.endpoints,
+      inside: l.isNew // New loops (from dirty region) = inside = warm colors
+    }));
+    this.renderer.render(playerPos, this.player.getRadius(), [], physicsDebugDraw, undefined, joystickDraw, undefined, playerDirection, carvedLoopsForRender, this.carveRegion);
   };
 
   private remesh(): void {
@@ -877,391 +893,26 @@ class CarvableCaves {
       false // false = carve (subtract density)
     );
 
-    // EXPERIMENT: Capture debug loops from dirty region (guarded by toggle)
+    // Extract carved loops using terrain surgery (for visualization and future stitching)
     if (this.config.debugCaptureEnabled) {
-      const dirtyWorldAABB = this.densityField.getDirtyWorldAABB();
-      if (!dirtyWorldAABB) return;
-
-      // Erase previous debug visualization
-      this.debugLoops = [];
-      this.debugAABB = null;
-
-      // Clear dirty region so it doesn't accumulate
-      this.densityField.clearDirty();
-
-      // Convert world AABB to grid AABB with expanded padding
-      const h = this.densityField.config.gridPitch;
+      // Extract carved loops from dirty region using terrain surgery
       const expandCells = this.config.carveDebugExpandCells;
-      const gridAABB = {
-        minX: Math.max(0, Math.floor(dirtyWorldAABB.minX / h) - expandCells),
-        minY: Math.max(0, Math.floor(dirtyWorldAABB.minY / h) - expandCells),
-        maxX: Math.min(this.densityField.gridWidth - 2, Math.ceil(dirtyWorldAABB.maxX / h) + expandCells),
-        maxY: Math.min(this.densityField.gridHeight - 2, Math.ceil(dirtyWorldAABB.maxY / h) + expandCells)
-      };
+      const surgeryResult = this.terrainSurgery.extractCarvedLoops(expandCells);
 
-      const worldMinX = gridAABB.minX * h;
-      const worldMinY = gridAABB.minY * h;
-      const worldMaxX = (gridAABB.maxX + 1) * h;
-      const worldMaxY = (gridAABB.maxY + 1) * h;
-      const quantStep = h / 4; // snap lattice for matching endpoints
+      if (surgeryResult) {
+        this.carvedLoops = surgeryResult.loops;
+        this.carveRegion = surgeryResult.carveRegion;
 
-      const quantKey = (v: { x: number; y: number }): string =>
-        `${Math.round(v.x / quantStep)},${Math.round(v.y / quantStep)}`;
-
-      // Convert expanded grid AABB back to world coordinates for consistent cutting
-      // Add +1 to max values to cover the full extent of the boundary cells
-      const expandedWorldAABB = {
-        minX: worldMinX,
-        minY: worldMinY,
-        maxX: worldMaxX,  // Include right edge of rightmost cell
-        maxY: worldMaxY   // Include bottom edge of bottom cell
-      };
-
-      // Closed-world check so boundary vertices classify consistently
-      const isInsideWorld = (v: { x: number; y: number }): boolean => (
-        v.x >= worldMinX && v.x <= worldMaxX &&
-        v.y >= worldMinY && v.y <= worldMaxY
-      );
-
-      // Set boundary for confined marching
-      this.marchingSquares.setBoundaryAABB(gridAABB);
-
-      // Generate contours with bidirectional walking (INSIDE dirty region)
-      const insideResults = this.marchingSquares.generateContours(dirtyWorldAABB, expandCells);
-      // Merge adjacent open loops that touch at quantized endpoints to avoid artificial splits
-      const mergeOpenLoops = (
-        loops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }>
-      ) => {
-        const open: typeof loops = [];
-        const closed: typeof loops = [];
-        let mergesPerformed = 0;
-        for (const l of loops) {
-          if (l.closed || !l.endpoints) {
-            closed.push(l);
-          } else {
-            open.push(l);
-          }
-        }
-
-        let changed = true;
-        while (changed) {
-          changed = false;
-          outer: for (let i = 0; i < open.length; i++) {
-            for (let j = 0; j < open.length; j++) {
-              if (i === j) continue;
-              const a = open[i];
-              const b = open[j];
-              if (!a.endpoints || !b.endpoints) continue;
-
-              const aEndKey = quantKey(a.endpoints[1]);
-              const bStartKey = quantKey(b.endpoints[0]);
-
-              if (aEndKey === bStartKey) {
-                // Merge A then B (drop duplicate touching vertex)
-                const mergedLoop = [...a.loop, ...b.loop.slice(1)];
-                const mergedEndpoints: [{ x: number; y: number }, { x: number; y: number }] = [
-                  a.endpoints[0],
-                  b.endpoints[1]
-                ];
-                const merged = { loop: mergedLoop, closed: false, endpoints: mergedEndpoints };
-                open.splice(i, 1);
-                const jIdx = j > i ? j - 1 : j;
-                open.splice(jIdx, 1);
-                open.push(merged);
-                changed = true;
-                mergesPerformed++;
-                console.log('[Debug] Merged open loops at boundary', {
-                  aEnd: a.endpoints[1],
-                  bStart: b.endpoints[0],
-                  mergedStart: mergedEndpoints[0],
-                  mergedEnd: mergedEndpoints[1],
-                  aLength: a.loop.length,
-                  bLength: b.loop.length,
-                  mergedLength: mergedLoop.length
-                });
-                break outer;
-              }
-            }
-          }
-        }
-
-        if (mergesPerformed > 0) {
-          console.log(`[Debug] Merged ${mergesPerformed} open loop pairs`);
-        }
-
-        return [...closed, ...open];
-      };
-      const insideMerged = mergeOpenLoops(insideResults);
-
-      // Clear boundary after use
-      this.marchingSquares.setBoundaryAABB(null);
-
-      // Get canonical loops and extract portions OUTSIDE the dirty region
-      const canonicalLoops = this.remeshManager.getCanonicalLoops();
-      const outsideResults: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }] }> = [];
-      const arcLength = (verts: { x: number; y: number }[]): number => {
-        let len = 0;
-        for (let i = 1; i < verts.length; i++) {
-          const dx = verts[i].x - verts[i - 1].x;
-          const dy = verts[i].y - verts[i - 1].y;
-          len += Math.hypot(dx, dy);
-        }
-        return len;
-      };
-
-      const arcOutsideMetrics = (verts: { x: number; y: number }[]) => {
-        let total = 0;
-        let outside = 0;
-        for (let i = 1; i < verts.length; i++) {
-          const dx = verts[i].x - verts[i - 1].x;
-          const dy = verts[i].y - verts[i - 1].y;
-          const segLen = Math.hypot(dx, dy);
-          total += segLen;
-          if (!isInsideWorld(verts[i - 1]) && !isInsideWorld(verts[i])) {
-            outside += segLen;
-          }
-        }
-        return { total, outside, outsideFrac: total > 0 ? outside / total : 0 };
-      };
-
-      const splitArcOutside = (verts: { x: number; y: number }[]) => {
-        const result: { x: number; y: number }[][] = [];
-        if (verts.length < 2) return result;
-
-        const inside = (p: { x: number; y: number }) => isInsideWorld(p);
-
-        const edgeIntersections = (p: { x: number; y: number }, q: { x: number; y: number }): number[] => {
-          // Liang-Barsky to find enter/exit t values (can yield 0,1 or 2 intersections)
-          const ts: number[] = [];
-          const dx = q.x - p.x;
-          const dy = q.y - p.y;
-          let tEnter = 0;
-          let tExit = 1;
-          const clip = (pC: number, qC: number): boolean => {
-            if (pC === 0) return qC >= 0;
-            const r = qC / pC;
-            if (pC < 0) {
-              if (r > tExit) return false;
-              if (r > tEnter) tEnter = r;
-            } else if (pC > 0) {
-              if (r < tEnter) return false;
-              if (r < tExit) tExit = r;
-            }
-            return true;
-          };
-
-          if (
-            !clip(-dx, p.x - expandedWorldAABB.minX) ||
-            !clip(dx, expandedWorldAABB.maxX - p.x) ||
-            !clip(-dy, p.y - expandedWorldAABB.minY) ||
-            !clip(dy, expandedWorldAABB.maxY - p.y)
-          ) {
-            return ts;
-          }
-
-          if (tEnter > 0 && tEnter < 1) ts.push(tEnter);
-          if (tExit > 0 && tExit < 1 && tExit !== tEnter) ts.push(tExit);
-          ts.sort((a, b) => a - b);
-          return ts;
-        };
-
-        const pointAt = (p: { x: number; y: number }, q: { x: number; y: number }, t: number) => ({
-          x: Math.round((p.x + (q.x - p.x) * t) / quantStep) * quantStep,
-          y: Math.round((p.y + (q.y - p.y) * t) / quantStep) * quantStep
+        // Log statistics
+        console.log('[Carving] Surgery complete:', {
+          newLoops: surgeryResult.stats.newLoopCount,
+          boundaryArcs: surgeryResult.stats.boundaryArcCount,
+          totalLoops: surgeryResult.loops.length
         });
-
-        let current: { x: number; y: number }[] = [];
-
-        for (let i = 0; i < verts.length - 1; i++) {
-          const p = verts[i];
-          const q = verts[i + 1];
-          const ts = edgeIntersections(p, q);
-          const pts: { x: number; y: number }[] = [p];
-          for (const t of ts) {
-            pts.push(pointAt(p, q, t));
-          }
-          pts.push(q);
-
-          for (let k = 0; k < pts.length - 1; k++) {
-            const a = pts[k];
-            const b = pts[k + 1];
-            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-            const segmentOutside = !inside(mid);
-            if (segmentOutside) {
-              if (current.length === 0) current.push({ ...a });
-              current.push({ ...b });
-            } else {
-              if (current.length > 1) {
-                result.push(current);
-              }
-              current = [];
-            }
-          }
-        }
-
-        if (current.length > 1) {
-          result.push(current);
-        }
-
-        return result;
-      };
-
-      const collectArc = (verts: { x: number; y: number }[], startIdx: number, endIdx: number): { x: number; y: number }[] => {
-        const n = verts.length;
-        const result: { x: number; y: number }[] = [];
-        let idx = startIdx;
-        result.push({ x: verts[idx].x, y: verts[idx].y });
-        while (idx !== endIdx) {
-          idx = (idx + 1) % n;
-          result.push({ x: verts[idx].x, y: verts[idx].y });
-        }
-        return result;
-      };
-
-      const nearestIndex = (verts: { x: number; y: number }[], target: { x: number; y: number }): number => {
-        let best = 0;
-        let bestD2 = Infinity;
-        for (let i = 0; i < verts.length; i++) {
-          const dx = verts[i].x - target.x;
-          const dy = verts[i].y - target.y;
-          const d2 = dx * dx + dy * dy;
-          if (d2 < bestD2) {
-            bestD2 = d2;
-            best = i;
-          }
-        }
-        return best;
-      };
-
-      // Build outside arcs by pairing each inside open loop to the nearest canonical loop segment between its endpoints
-      insideMerged.forEach((insideLoop, insideIdx) => {
-        if (insideLoop.closed || !insideLoop.endpoints) return;
-        const [epA, epB] = insideLoop.endpoints;
-        let bestArc: { verts: { x: number; y: number }[]; loopId: number; bestFrac: number; bestOutside: number } | null = null;
-
-        for (const canonLoop of canonicalLoops) {
-          if (!this.aabbsIntersect(canonLoop.aabb, expandedWorldAABB)) continue;
-          const verts = canonLoop.vertices;
-          if (verts.length < 2) continue;
-
-          const iA = nearestIndex(verts, epA);
-          const iB = nearestIndex(verts, epB);
-          if (iA === iB) continue;
-
-          const forward = collectArc(verts, iA, iB);
-          const backward = collectArc(verts, iB, iA);
-          const fMetrics = arcOutsideMetrics(forward);
-          const bMetrics = arcOutsideMetrics(backward);
-
-          let chosen = forward;
-          let chosenMetrics = fMetrics;
-          if (bMetrics.outsideFrac > fMetrics.outsideFrac || (bMetrics.outsideFrac === fMetrics.outsideFrac && bMetrics.outside > fMetrics.outside)) {
-            chosen = backward;
-            chosenMetrics = bMetrics;
-          }
-
-          const arcVerts = chosen.map(v => ({ x: v.x, y: v.y }));
-
-          if (
-            !bestArc ||
-            chosenMetrics.outsideFrac > bestArc.bestFrac ||
-            (chosenMetrics.outsideFrac === bestArc.bestFrac && chosenMetrics.outside > bestArc.bestOutside)
-          ) {
-            bestArc = { verts: arcVerts, loopId: canonLoop.id, bestFrac: chosenMetrics.outsideFrac, bestOutside: chosenMetrics.outside };
-          }
-        }
-
-        if (bestArc && bestArc.verts.length > 1) {
-          const outsidePieces = splitArcOutside(bestArc.verts);
-
-          outsidePieces.forEach((piece, pieceIdx) => {
-            if (piece.length < 2) return;
-            const endpoints: [{ x: number; y: number }, { x: number; y: number }] = [
-              { ...piece[0] },
-              { ...piece[piece.length - 1] }
-            ];
-
-            outsideResults.push({
-              loop: piece,
-              closed: false,
-              endpoints
-            });
-
-            console.log('[Debug] Outside arc chosen', {
-              insideLoop: insideIdx,
-              canonicalLoopId: bestArc.loopId,
-              arcLength: arcLength(piece).toFixed(3),
-              arcVerts: piece.length,
-              outsideFrac: arcOutsideMetrics(piece).outsideFrac,
-              pieceIdx,
-              start: endpoints[0],
-              end: endpoints[1]
-            });
-          });
-        }
-      });
-
-      // Combine inside and outside results
-      this.debugLoops = [
-        ...insideMerged.map(r => ({ ...r, inside: true })),
-        ...outsideResults.map(r => ({ ...r, inside: false }))
-      ];
-      this.debugAABB = expandedWorldAABB; // Use expanded AABB for visualization
-
-      console.log(`[Debug] Captured loops from carve`, {
-        inside: insideResults.length,
-        outside: outsideResults.length,
-        total: this.debugLoops.length
-      });
-
-      // Log detailed endpoint information
-      console.log('\n=== INSIDE LOOPS (Marching Squares) ===');
-      console.log(`AABB Region (grid): [${gridAABB.minX}, ${gridAABB.minY}] to [${gridAABB.maxX}, ${gridAABB.maxY}]`);
-      console.log(`AABB Region (world): [${expandedWorldAABB.minX.toFixed(2)}, ${expandedWorldAABB.minY.toFixed(2)}] to [${expandedWorldAABB.maxX.toFixed(2)}, ${expandedWorldAABB.maxY.toFixed(2)}]`);
-
-      insideMerged.forEach((result, idx) => {
-        if (!result.closed && result.endpoints) {
-          const [ep1, ep2] = result.endpoints;
-          const ep1Cell = { gx: Math.floor(ep1.x / h), gy: Math.floor(ep1.y / h) };
-          const ep2Cell = { gx: Math.floor(ep2.x / h), gy: Math.floor(ep2.y / h) };
-
-          console.log(`\nInside Loop ${idx} (${result.loop.length} vertices):`);
-          console.log(`  Endpoint 1: (${ep1.x.toFixed(3)}, ${ep1.y.toFixed(3)}) at cell (${ep1Cell.gx}, ${ep1Cell.gy})`);
-          console.log(`  Endpoint 2: (${ep2.x.toFixed(3)}, ${ep2.y.toFixed(3)}) at cell (${ep2Cell.gx}, ${ep2Cell.gy})`);
-        }
-      });
-
-      console.log('\n=== OUTSIDE LOOPS (Canonical Segments) ===');
-      console.log(`AABB Region (grid): [${gridAABB.minX}, ${gridAABB.minY}] to [${gridAABB.maxX}, ${gridAABB.maxY}]`);
-      console.log(`AABB Region (world): [${expandedWorldAABB.minX.toFixed(2)}, ${expandedWorldAABB.minY.toFixed(2)}] to [${expandedWorldAABB.maxX.toFixed(2)}, ${expandedWorldAABB.maxY.toFixed(2)}]`);
-
-      // Log each outside segment that was chosen
-      let segmentIdx = 0;
-      for (const seg of outsideResults) {
-        if (seg.loop.length > 1) {
-          const ep1 = seg.loop[0];
-          const ep2 = seg.loop[seg.loop.length - 1];
-          const ep1Cell = { gx: Math.floor(ep1.x / h), gy: Math.floor(ep1.y / h) };
-          const ep2Cell = { gx: Math.floor(ep2.x / h), gy: Math.floor(ep2.y / h) };
-
-          console.log(`\nOutside Segment ${segmentIdx} (${seg.loop.length} vertices):`);
-          console.log(`  Endpoint 1: (${ep1.x.toFixed(3)}, ${ep1.y.toFixed(3)}) at cell (${ep1Cell.gx}, ${ep1Cell.gy})`);
-          console.log(`  Endpoint 2: (${ep2.x.toFixed(3)}, ${ep2.y.toFixed(3)}) at cell (${ep2Cell.gx}, ${ep2Cell.gy})`);
-          segmentIdx++;
-        }
       }
-
-      console.log('\n');
     }
 
-    // DISABLED: Bypass all rebuilding for experiment
-    // const stats = this.remeshManager.localUpdate(2);
-    // if (stats) {
-    //   this.originalVertexCount = stats.originalVertexCount;
-    //   this.finalVertexCount = stats.finalVertexCount;
-    //   this.simplificationReduction = stats.simplificationReduction;
-    //   this.postSimplificationReduction = stats.postSimplificationReduction;
-    // }
+    // TODO: Wire up remeshing after surgery (not yet implemented)
   }
 }
 
