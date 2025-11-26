@@ -1135,7 +1135,7 @@ class CarvableCaves {
       insideMerged.forEach((insideLoop, insideIdx) => {
         if (insideLoop.closed || !insideLoop.endpoints) return;
         const [epA, epB] = insideLoop.endpoints;
-        let bestArc: { verts: { x: number; y: number }[]; loopId: number } | null = null;
+        let bestArc: { verts: { x: number; y: number }[]; loopId: number; bestFrac: number; bestOutside: number } | null = null;
 
         for (const canonLoop of canonicalLoops) {
           if (!this.aabbsIntersect(canonLoop.aabb, expandedWorldAABB)) continue;
