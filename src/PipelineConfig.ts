@@ -159,6 +159,9 @@ export class PipelineConfig {
   // Brush tool parameters for terrain modification
   // ============================================================================
 
+  /** AABB expand cells for carving debug visualization - increased padding for better visualization */
+  readonly carveDebugExpandCells = 3;
+
   /** Carve brush radius in metres */
   readonly carveRadius = 2.0;
 
