@@ -160,7 +160,7 @@ export class PipelineConfig {
   // ============================================================================
 
   /** AABB expand cells for carving debug visualization - increased padding for better visualization */
-  readonly carveDebugExpandCells = 3;
+  readonly carveDebugExpandCells = 1;
 
   /** Carve brush radius in metres */
   readonly carveRadius = 2.0;
