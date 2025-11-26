@@ -891,7 +891,7 @@ class CarvableCaves {
 
       // Convert world AABB to grid AABB with expanded padding
       const h = this.densityField.config.gridPitch;
-      const expandCells = this.config.marchingSquaresExpandCells;
+      const expandCells = this.config.carveDebugExpandCells;
       const gridAABB = {
         minX: Math.max(0, Math.floor(dirtyWorldAABB.minX / h) - expandCells),
         minY: Math.max(0, Math.floor(dirtyWorldAABB.minY / h) - expandCells),
