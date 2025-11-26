@@ -22,6 +22,9 @@ import type { Point, AABB } from './types';
  * Result from loop extraction in carved region
  */
 export interface CarvedLoop {
+  /** Debug/ordering id */
+  id: number;
+
   /** Vertex positions */
   loop: Point[];
 
@@ -30,9 +33,19 @@ export interface CarvedLoop {
 
   /** For open loops, the two endpoints */
   endpoints?: [Point, Point];
+  /** Canonical vertex indices (for boundary arcs) */
+  canonicalEndpoints?: [number, number];
 
   /** True if extracted from dirty region (new), false if from existing boundary (preserved) */
   isNew: boolean;
+
+  /** For boundary arcs: original canonical loop id */
+  sourceCanonicalId?: number;
+}
+
+export interface StitchedLoop {
+  id: number;
+  vertices: Point[];
 }
 
 /**
@@ -41,6 +54,9 @@ export interface CarvedLoop {
 export interface CarveSurgeryResult {
   /** Extracted loops (both new and boundary arcs) */
   loops: CarvedLoop[];
+
+  /** Newly stitched canonical loops */
+  stitchedLoops: StitchedLoop[];
 
   /** Bounding box of the carved region */
   carveRegion: AABB;
@@ -99,13 +115,14 @@ export class TerrainSurgery {
       maxY: Math.min(this.densityField.gridHeight - 2, Math.ceil(dirtyWorldAABB.maxY / h) + expandCells)
     };
 
+    // Use the same quantization lattice everywhere (marching squares + boundary stitching)
+    const quantStep = this.marchingSquares.getQuantizationStep();
+
     const worldMinX = gridAABB.minX * h;
     const worldMinY = gridAABB.minY * h;
     const worldMaxX = (gridAABB.maxX + 1) * h;
     const worldMaxY = (gridAABB.maxY + 1) * h;
 
-    // Quantization step for vertex snapping (prevents floating point mismatches at boundaries)
-    const quantStep = h / 4;
     const quantKey = (v: Point): string =>
       `${Math.round(v.x / quantStep)},${Math.round(v.y / quantStep)}`;
 
@@ -132,12 +149,58 @@ export class TerrainSurgery {
     // Merge adjacent open loops that touch at quantized endpoints
     const mergedNewLoops = this.mergeAdjacentOpenLoops(newLoopResults, quantKey);
 
+    const loopLength = (verts: Point[]): number => {
+      let len = 0;
+      for (let i = 1; i < verts.length; i++) {
+        const dx = verts[i].x - verts[i - 1].x;
+        const dy = verts[i].y - verts[i - 1].y;
+        len += Math.hypot(dx, dy);
+      }
+      return len;
+    };
+
+    const openLoops = newLoopResults.filter(l => l && !l.closed);
+    const closedLoops = newLoopResults.filter(l => l && l.closed);
+    console.log('[TerrainSurgery] New marching squares results', {
+      total: newLoopResults.length,
+      open: openLoops.length,
+      closed: closedLoops.length,
+      carveAABB: expandedWorldAABB
+    });
+    openLoops.forEach((l, idx) => {
+      if (!l || !l.endpoints) return;
+      const [a, b] = l.endpoints;
+      console.log(`[TerrainSurgery]   Open#${idx} endpoints`, {
+        a,
+        b,
+        length: loopLength(l.loop).toFixed(3),
+        aabb: this.computeLoopAabb(l.loop)
+      });
+    });
+
+    // Drop degenerate open loops whose endpoints quantize to the same key or have trivial length
+    const cleanedNewLoops = mergedNewLoops.filter(l => {
+      if (l.closed || !l.endpoints) return true;
+      const [a, b] = l.endpoints;
+      const sameKey = quantKey(a) === quantKey(b);
+      const short = loopLength(l.loop) < quantStep;
+      if (sameKey || short) {
+        console.log('[TerrainSurgery] Dropping degenerate open loop', {
+          length: loopLength(l.loop).toFixed(3),
+          sameKey,
+          endpoints: l.endpoints
+        });
+        return false;
+      }
+      return true;
+    });
+
     // Clear boundary after use
     this.marchingSquares.setBoundaryAABB(null);
 
     // Extract matching boundary arcs from existing canonical loops
     const boundaryArcs = this.extractBoundaryArcs(
-      mergedNewLoops,
+      cleanedNewLoops,
       expandedWorldAABB,
       isInsideCarveRegion,
       quantKey,
@@ -145,10 +208,34 @@ export class TerrainSurgery {
     );
 
     // Combine results
+    let nextId = 1;
     const allLoops: CarvedLoop[] = [
-      ...mergedNewLoops.map(r => ({ ...r, isNew: true })),
-      ...boundaryArcs.map(r => ({ ...r, isNew: false }))
+      ...cleanedNewLoops.map(r => ({ ...r, isNew: true, id: nextId++ })),
+      ...boundaryArcs.map(r => ({ ...r, isNew: false, id: nextId++ }))
     ];
+
+    // Snapshot of what we have after step 1 (raw carve + boundary arcs)
+    console.log('[TerrainSurgery] Step1 loop snapshot', {
+      total: allLoops.length,
+      loops: allLoops.map(l => ({
+        id: l.id,
+        type: l.isNew ? (l.closed ? 'new-closed' : 'new-open') : 'boundary-arc',
+        closed: l.closed,
+        verts: l.loop.length,
+        length: loopLength(l.loop).toFixed(3),
+        endpoints: l.endpoints,
+        canonicalEndpoints: l.canonicalEndpoints,
+        sourceCanonicalId: l.sourceCanonicalId
+      }))
+    });
+
+    // Stitch canonical loops by walking open endpoints
+    const stitchedLoops = this.stitchCanonicalLoops(
+      allLoops,
+      quantKey,
+      isInsideCarveRegion,
+      quantStep
+    );
 
     const stats = {
       newLoopCount: mergedNewLoops.length,
@@ -162,9 +249,14 @@ export class TerrainSurgery {
       totalLoops: allLoops.length,
       mergedPairs: stats.mergedLoopPairs
     });
+    console.log('[Stitch] Result', {
+      stitchedCount: stitchedLoops.length,
+      stitchedLengths: stitchedLoops.map(s => s.vertices.length)
+    });
 
     return {
       loops: allLoops,
+      stitchedLoops,
       carveRegion: expandedWorldAABB,
       stats
     };
@@ -253,9 +345,11 @@ export class TerrainSurgery {
     isInsideCarveRegion: (v: Point) => boolean,
     quantKey: (v: Point) => string,
     quantStep: number
-  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point] }> {
+  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }> {
     const canonicalLoops = this.remeshManager.getCanonicalLoops();
-    const boundaryArcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point] }> = [];
+    const boundaryArcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }> = [];
+    const fracEps = 1e-6;
+    const lenEps = 1e-6;
 
     const arcLength = (verts: Point[]): number => {
       let len = 0;
@@ -297,6 +391,46 @@ export class TerrainSurgery {
       return best;
     };
 
+    const preferMetrics = (
+      candidate: { outsideFrac: number; outside: number; total: number },
+      current: { outsideFrac: number; outside: number; total: number } | null
+    ): boolean => {
+      const candidateInside = candidate.total - candidate.outside;
+      const currentInside = current ? current.total - current.outside : Infinity;
+
+      if (!current) return true;
+
+      // Prefer arcs that minimize how much they pass through the carve region
+      if (candidateInside + lenEps < currentInside) return true;
+      if (currentInside + lenEps < candidateInside) return false;
+
+      // Next prefer the shorter arc to avoid wrapping around the world
+      if (candidate.total + lenEps < current.total) return true;
+      if (current.total + lenEps < candidate.total) return false;
+
+      // Finally fall back to outside coverage and absolute outside length
+      if (candidate.outsideFrac > current.outsideFrac + fracEps) return true;
+      if (current.outsideFrac > candidate.outsideFrac + fracEps) return false;
+      return candidate.outside + lenEps < current.outside;
+    };
+
+    const computePieceAabb = (verts: Point[]): AABB => {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const v of verts) {
+        if (v.x < minX) minX = v.x;
+        if (v.y < minY) minY = v.y;
+        if (v.x > maxX) maxX = v.x;
+        if (v.y > maxY) maxY = v.y;
+      }
+      if (!Number.isFinite(minX)) {
+        return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+      }
+      return { minX, minY, maxX, maxY };
+    };
+
     const collectArc = (verts: Point[], startIdx: number, endIdx: number): Point[] => {
       const n = verts.length;
       const result: Point[] = [];
@@ -309,73 +443,218 @@ export class TerrainSurgery {
       return result;
     };
 
-    // For each open loop from the new marching squares, find matching boundary arc
-    newLoops.forEach((newLoop, newLoopIdx) => {
-      if (newLoop.closed || !newLoop.endpoints) return;
-
-      const [epA, epB] = newLoop.endpoints;
-      let bestArc: { verts: Point[]; loopId: number; bestFrac: number; bestOutside: number } | null = null;
-
-      for (const canonLoop of canonicalLoops) {
-        if (!this.aabbsIntersect(canonLoop.aabb, carveRegion)) continue;
-        const verts = canonLoop.vertices;
-        if (verts.length < 2) continue;
-
-        const iA = nearestIndex(verts, epA);
-        const iB = nearestIndex(verts, epB);
-        if (iA === iB) continue;
-
-        const forward = collectArc(verts, iA, iB);
-        const backward = collectArc(verts, iB, iA);
-        const fMetrics = arcOutsideMetrics(forward);
-        const bMetrics = arcOutsideMetrics(backward);
-
-        let chosen = forward;
-        let chosenMetrics = fMetrics;
-        if (bMetrics.outsideFrac > fMetrics.outsideFrac ||
-            (bMetrics.outsideFrac === fMetrics.outsideFrac && bMetrics.outside > fMetrics.outside)) {
-          chosen = backward;
-          chosenMetrics = bMetrics;
-        }
-
-        const arcVerts = chosen.map(v => ({ x: v.x, y: v.y }));
-
-        if (!bestArc ||
-            chosenMetrics.outsideFrac > bestArc.bestFrac ||
-            (chosenMetrics.outsideFrac === bestArc.bestFrac && chosenMetrics.outside > bestArc.bestOutside)) {
-          bestArc = { verts: arcVerts, loopId: canonLoop.id, bestFrac: chosenMetrics.outsideFrac, bestOutside: chosenMetrics.outside };
-        }
-      }
-
-      if (bestArc && bestArc.verts.length > 1) {
-        const outsidePieces = this.splitArcOutsideRegion(bestArc.verts, carveRegion, isInsideCarveRegion, quantStep);
-
-        outsidePieces.forEach((piece, pieceIdx) => {
-          if (piece.length < 2) return;
-          const endpoints: [Point, Point] = [
-            { ...piece[0] },
-            { ...piece[piece.length - 1] }
-          ];
-
-          boundaryArcs.push({
-            loop: piece,
-            closed: false,
-            endpoints
-          });
-
-          console.log('[TerrainSurgery] Boundary arc extracted', {
-            newLoop: newLoopIdx,
-            canonicalLoopId: bestArc.loopId,
-            arcLength: arcLength(piece).toFixed(3),
-            arcVerts: piece.length,
-            outsideFrac: arcOutsideMetrics(piece).outsideFrac.toFixed(2),
-            pieceIdx,
-            start: endpoints[0],
-            end: endpoints[1]
-          });
-        });
+    // Gather all endpoints from new open loops for snapping boundary arcs
+    const newLoopEndpoints: Point[] = [];
+    newLoops.forEach(l => {
+      if (!l.closed && l.endpoints) {
+        newLoopEndpoints.push(l.endpoints[0], l.endpoints[1]);
       }
     });
+
+    const expandAabb = (aabb: AABB, pad: number): AABB => ({
+      minX: aabb.minX - pad,
+      minY: aabb.minY - pad,
+      maxX: aabb.maxX + pad,
+      maxY: aabb.maxY + pad
+    });
+
+    const pointInAabb = (p: Point, aabb: AABB): boolean =>
+      p.x >= aabb.minX && p.x <= aabb.maxX && p.y >= aabb.minY && p.y <= aabb.maxY;
+
+    const snapDist = quantStep * 4; // generous to catch slight drift between MS endpoints and canonical vertices
+
+    const buildForcedEdgeSplits = (canonLoop: CanonicalLoop): Map<number, number[]> => {
+      const forced = new Map<number, number[]>();
+      if (newLoopEndpoints.length === 0) return forced;
+
+      const padded = expandAabb(canonLoop.aabb, snapDist);
+
+      const maybeAdd = (edgeIdx: number, t: number) => {
+        if (t <= 1e-6 || t >= 1 - 1e-6) return; // avoid duplicating endpoints
+        const arr = forced.get(edgeIdx);
+        if (arr) {
+          // avoid near-duplicate t values
+          if (!arr.some(existing => Math.abs(existing - t) < 1e-6)) {
+            arr.push(t);
+          }
+        } else {
+          forced.set(edgeIdx, [t]);
+        }
+      };
+
+      const projectToSegment = (p: Point, q: Point, target: Point): { t: number; dist: number } => {
+        const vx = q.x - p.x;
+        const vy = q.y - p.y;
+        const len2 = vx * vx + vy * vy || 1e-6;
+        const t = Math.max(0, Math.min(1, ((target.x - p.x) * vx + (target.y - p.y) * vy) / len2));
+        const projX = p.x + vx * t;
+        const projY = p.y + vy * t;
+        const dx = projX - target.x;
+        const dy = projY - target.y;
+        return { t, dist: Math.hypot(dx, dy) };
+      };
+
+      for (const ep of newLoopEndpoints) {
+        if (!pointInAabb(ep, padded)) continue;
+        let bestEdge = -1;
+        let bestT = 0;
+        let bestDist = Infinity;
+
+        for (let i = 0; i < canonLoop.vertices.length; i++) {
+          const p = canonLoop.vertices[i];
+          const q = canonLoop.vertices[(i + 1) % canonLoop.vertices.length];
+          const { t, dist } = projectToSegment(p, q, ep);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestT = t;
+            bestEdge = i;
+          }
+        }
+
+        if (bestEdge >= 0 && bestDist <= snapDist) {
+          maybeAdd(bestEdge, bestT);
+        }
+      }
+
+      return forced;
+    };
+
+    const snapBoundaryArcEndpoints = (
+      arcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point] }>,
+      targets: Point[]
+    ) => {
+      if (targets.length === 0) return;
+      const snap = (p: Point): Point | null => {
+        let best: Point | null = null;
+        let bestD = snapDist;
+        for (const t of targets) {
+          const d = Math.hypot(t.x - p.x, t.y - p.y);
+          if (d < bestD) {
+            bestD = d;
+            best = t;
+          }
+        }
+        return best ? { x: best.x, y: best.y } : null;
+      };
+
+      arcs.forEach(arc => {
+        if (!arc.endpoints || arc.loop.length < 2) return;
+        const snapA = snap(arc.endpoints[0]);
+        const snapB = snap(arc.endpoints[1]);
+        if (snapA) {
+          arc.endpoints[0] = snapA;
+          arc.loop[0] = { ...snapA };
+        }
+        if (snapB) {
+          arc.endpoints[1] = snapB;
+          arc.loop[arc.loop.length - 1] = { ...snapB };
+        }
+      });
+    };
+
+    // For each open loop from the new marching squares, find matching boundary arc
+    const candidateCanonicals = canonicalLoops.filter(cl => this.aabbsIntersect(cl.aabb, carveRegion));
+    const fullyInside: number[] = [];
+    for (const cl of candidateCanonicals) {
+      const allInside = cl.vertices.every(v => isInsideCarveRegion(v));
+      if (allInside) {
+        fullyInside.push(cl.id);
+      }
+    }
+
+    console.log('[TerrainSurgery] Boundary arc clipping (all pieces)', {
+      carveRegion,
+      canonicalCount: canonicalLoops.length,
+      candidateCanonicals: candidateCanonicals.map(cl => ({
+        id: cl.id,
+        verts: cl.vertices.length,
+        aabb: cl.aabb
+      })),
+      fullyInside
+    });
+
+    for (const canonLoop of candidateCanonicals) {
+      const pieceSummaries: Array<{
+        pieceIdx: number;
+        startCanon: number;
+        endCanon: number;
+        verts: number;
+        length: string;
+        endpoints: [Point, Point];
+        outsideFrac: string;
+      }> = [];
+
+      const allInside = canonLoop.vertices.every(v => isInsideCarveRegion(v));
+      if (allInside) {
+        console.log('[TerrainSurgery] Canonical loop fully inside carve region; no outside pieces', {
+          canonicalLoopId: canonLoop.id,
+          verts: canonLoop.vertices.length
+        });
+        continue;
+      }
+
+      const forcedSplits = buildForcedEdgeSplits(canonLoop);
+
+      const outsidePieces = this.splitArcOutsideRegion(
+        canonLoop.vertices,
+        carveRegion,
+        isInsideCarveRegion,
+        quantStep,
+        forcedSplits
+      );
+
+      outsidePieces.forEach((piece, pieceIdx) => {
+        if (piece.vertices.length < 2) return;
+
+        const pieceAabb = computePieceAabb(piece.vertices);
+        if (!this.aabbsIntersect(pieceAabb, carveRegion)) {
+          console.log('[TerrainSurgery]   Skipping piece outside carve region', { pieceIdx, pieceAabb });
+          return;
+        }
+
+        const endpoints: [Point, Point] = [
+          { ...piece.vertices[0] },
+          { ...piece.vertices[piece.vertices.length - 1] }
+        ];
+
+        boundaryArcs.push({
+          loop: piece.vertices,
+          closed: false,
+          endpoints,
+          sourceCanonicalId: canonLoop.id,
+          canonicalEndpoints: [piece.startIndex, piece.endIndex]
+        });
+
+        pieceSummaries.push({
+          pieceIdx,
+          startCanon: piece.startIndex,
+          endCanon: piece.endIndex,
+          verts: piece.vertices.length,
+          length: arcLength(piece.vertices).toFixed(3),
+          endpoints,
+          outsideFrac: arcOutsideMetrics(piece.vertices).outsideFrac.toFixed(2)
+        });
+
+        console.log('[TerrainSurgery] Boundary arc extracted (clipped piece)', {
+          canonicalLoopId: canonLoop.id,
+          arcLength: arcLength(piece.vertices).toFixed(3),
+          arcVerts: piece.vertices.length,
+          outsideFrac: arcOutsideMetrics(piece.vertices).outsideFrac.toFixed(2),
+          pieceIdx,
+          start: endpoints[0],
+          end: endpoints[1]
+        });
+      });
+
+      if (pieceSummaries.length > 0) {
+        console.log('[TerrainSurgery] Boundary arc summary', {
+          canonicalLoopId: canonLoop.id,
+          pieces: pieceSummaries
+        });
+      }
+    }
+
+    snapBoundaryArcEndpoints(boundaryArcs, newLoopEndpoints);
 
     return boundaryArcs;
   }
@@ -388,12 +667,15 @@ export class TerrainSurgery {
     verts: Point[],
     carveRegion: AABB,
     isInsideCarveRegion: (v: Point) => boolean,
-    quantStep: number
-  ): Point[][] {
-    const result: Point[][] = [];
+    quantStep: number,
+    forcedEdgeSplits?: Map<number, number[]>
+  ): Array<{ vertices: Point[]; startIndex: number; endIndex: number }> {
+    const result: Array<{ vertices: Point[]; startIndex: number; endIndex: number }> = [];
     if (verts.length < 2) return result;
 
-    const edgeIntersections = (p: Point, q: Point): number[] => {
+    const boundaryEps = quantStep * 0.25;
+
+    const edgeIntersections = (p: Point, q: Point, edgeIdx: number): number[] => {
       const ts: number[] = [];
       const dx = q.x - p.x;
       const dy = q.y - p.y;
@@ -424,6 +706,12 @@ export class TerrainSurgery {
 
       if (tEnter > 0 && tEnter < 1) ts.push(tEnter);
       if (tExit > 0 && tExit < 1 && tExit !== tEnter) ts.push(tExit);
+
+      const extraSplits = forcedEdgeSplits?.get(edgeIdx);
+      if (extraSplits && extraSplits.length > 0) {
+        ts.push(...extraSplits);
+      }
+
       ts.sort((a, b) => a - b);
       return ts;
     };
@@ -434,11 +722,16 @@ export class TerrainSurgery {
     });
 
     let current: Point[] = [];
+    let currentStartIndex = 0;
+    let currentEndIndex = 0;
 
-    for (let i = 0; i < verts.length - 1; i++) {
-      const p = verts[i];
-      const q = verts[i + 1];
-      const ts = edgeIntersections(p, q);
+    const edgeCount = verts.length; // include closing edge
+    for (let i = 0; i < edgeCount; i++) {
+      const pIdx = i;
+      const qIdx = (i + 1) % verts.length;
+      const p = verts[pIdx];
+      const q = verts[qIdx];
+      const ts = edgeIntersections(p, q, pIdx);
       const pts: Point[] = [p];
       for (const t of ts) {
         pts.push(pointAt(p, q, t));
@@ -449,25 +742,308 @@ export class TerrainSurgery {
         const a = pts[k];
         const b = pts[k + 1];
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        const segmentOutside = !isInsideCarveRegion(mid);
+        const onBoundary =
+          Math.abs(mid.x - carveRegion.minX) <= boundaryEps ||
+          Math.abs(mid.x - carveRegion.maxX) <= boundaryEps ||
+          Math.abs(mid.y - carveRegion.minY) <= boundaryEps ||
+          Math.abs(mid.y - carveRegion.maxY) <= boundaryEps;
+        const segmentOutside = !isInsideCarveRegion(mid) || onBoundary;
 
         if (segmentOutside) {
-          if (current.length === 0) current.push({ ...a });
+          if (current.length === 0) {
+            current.push({ ...a });
+            currentStartIndex = pIdx;
+          }
           current.push({ ...b });
+          currentEndIndex = qIdx;
         } else {
           if (current.length > 1) {
-            result.push(current);
+            result.push({ vertices: current, startIndex: currentStartIndex, endIndex: currentEndIndex });
           }
           current = [];
+          currentStartIndex = 0;
+          currentEndIndex = 0;
         }
       }
     }
 
     if (current.length > 1) {
-      result.push(current);
+      result.push({ vertices: current, startIndex: currentStartIndex, endIndex: currentEndIndex });
     }
 
     return result;
+  }
+
+  /**
+   * Stitch open carved segments (warm + boundary arcs) into closed canonical loops.
+   * Closed warm loops are included directly without modification.
+   */
+  private stitchCanonicalLoops(
+    carvedLoops: CarvedLoop[],
+    quantKey: (v: Point) => string,
+    isInsideCarveRegion: (v: Point) => boolean,
+    quantStep: number
+  ): StitchedLoop[] {
+    type EndpointRef = {
+      loopId: number;
+      loopIndex: number;
+      endpointIndex: 0 | 1;
+      isNew: boolean;
+      sourceCanonicalId?: number;
+      pos: Point;
+      inside: boolean;
+      canonicalIndex?: number;
+    };
+
+    const stitched: StitchedLoop[] = [];
+    const endpointMap = new Map<string, EndpointRef[]>();
+    const visitedLoops = new Set<number>(); // Track traversed edges by CarvedLoop.id
+
+    const addEndpointRef = (key: string, ref: EndpointRef) => {
+      const arr = endpointMap.get(key);
+      if (arr) {
+        arr.push(ref);
+      } else {
+        endpointMap.set(key, [ref]);
+      }
+    };
+
+    const neighborCandidates = (pos: Point, canonicalIndex?: number): EndpointRef[] => {
+      // Prefer exact canonical index match when available
+      if (canonicalIndex !== undefined) {
+        const exact = Array.from(endpointMap.values()).flat().filter(r =>
+          r.canonicalIndex !== undefined &&
+          r.canonicalIndex === canonicalIndex
+        );
+        if (exact.length > 0) {
+          return exact;
+        }
+      }
+
+      // Fall back to exact quantized position
+      const baseKey = quantKey(pos);
+      const exactKeyRefs = endpointMap.get(baseKey);
+      if (exactKeyRefs && exactKeyRefs.length > 0) {
+        return [...exactKeyRefs];
+      }
+
+      // Final fallback: neighboring keys (no distance filter) to avoid dead-ends from tiny drift
+      const [ix, iy] = baseKey.split(',').map(Number);
+      const result: EndpointRef[] = [];
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const key = `${ix + dx},${iy + dy}`;
+          const arr = endpointMap.get(key);
+          if (!arr) continue;
+          result.push(...arr);
+        }
+      }
+      return result;
+    };
+
+    // Index endpoints for all open loops
+    carvedLoops.forEach((loop, loopIndex) => {
+      if (loop.closed || !loop.endpoints) {
+        return;
+      }
+      const [a, b] = loop.endpoints;
+      const refs: [EndpointRef, EndpointRef] = [
+        {
+          loopId: loop.id,
+          loopIndex,
+          endpointIndex: 0,
+          isNew: loop.isNew,
+          sourceCanonicalId: loop.sourceCanonicalId,
+          pos: a,
+          inside: isInsideCarveRegion(a),
+          canonicalIndex: loop.canonicalEndpoints ? loop.canonicalEndpoints[0] : undefined
+        },
+        {
+          loopId: loop.id,
+          loopIndex,
+          endpointIndex: 1,
+          isNew: loop.isNew,
+          sourceCanonicalId: loop.sourceCanonicalId,
+          pos: b,
+          inside: isInsideCarveRegion(b),
+          canonicalIndex: loop.canonicalEndpoints ? loop.canonicalEndpoints[1] : undefined
+        }
+      ];
+      addEndpointRef(quantKey(a), refs[0]);
+      addEndpointRef(quantKey(b), refs[1]);
+    });
+
+    // Helper to append vertices in correct order (avoids duplicating junction vertex)
+    const appendVertices = (loop: CarvedLoop, startEndpoint: 0 | 1, out: Point[]) => {
+      const verts = startEndpoint === 0 ? loop.loop : [...loop.loop].reverse();
+      if (out.length === 0) {
+        out.push(...verts);
+      } else {
+        out.push(...verts.slice(1)); // skip first to avoid duplicates at joints
+      }
+    };
+
+    const chooseNext = (currentPos: Point, comingFrom: EndpointRef): EndpointRef | null => {
+      let candidates = neighborCandidates(currentPos, comingFrom.canonicalIndex);
+      // Filter out the edge we just traversed
+      let available = candidates.filter(ref => ref.loopId !== comingFrom.loopId || ref.endpointIndex !== comingFrom.endpointIndex);
+
+      // Fallback: if canonical lookup only found ourselves, fall back to positional match
+      if (available.length === 0 && comingFrom.canonicalIndex !== undefined) {
+        candidates = neighborCandidates(currentPos, undefined);
+        available = candidates.filter(ref => ref.loopId !== comingFrom.loopId || ref.endpointIndex !== comingFrom.endpointIndex);
+      }
+
+      const unvisited = available.filter(ref => !visitedLoops.has(ref.loopId));
+
+      // Preference rules
+      if (comingFrom.isNew) {
+        const pref = unvisited.find(ref => !ref.isNew);
+        if (pref) return pref;
+      } else {
+        if (!comingFrom.inside) {
+          const pref = unvisited.find(ref => !ref.isNew && ref.sourceCanonicalId === comingFrom.sourceCanonicalId);
+          if (pref) return pref;
+        } else {
+          const pref = unvisited.find(ref => ref.isNew);
+          if (pref) return pref;
+        }
+      }
+
+      // Fallback: any unvisited neighbor
+      if (unvisited.length > 0) {
+        return unvisited[0];
+      }
+
+      // Dead end
+      console.log('[Stitch] No neighbor found', {
+        pos: currentPos,
+        comingFrom: {
+          loopId: comingFrom.loopId,
+          endpointIndex: comingFrom.endpointIndex,
+          isNew: comingFrom.isNew,
+          sourceCanonicalId: comingFrom.sourceCanonicalId,
+          canonicalIndex: comingFrom.canonicalIndex
+        },
+        available: available.map(r => ({
+          loopId: r.loopId,
+          endpointIndex: r.endpointIndex,
+          isNew: r.isNew,
+          sourceCanonicalId: r.sourceCanonicalId,
+          canonicalIndex: r.canonicalIndex
+        }))
+      });
+      return null;
+    };
+
+    // Seed stitched loops with closed warm loops directly
+    carvedLoops.forEach(loop => {
+      if (loop.isNew && loop.closed) {
+        stitched.push({ id: stitched.length + 1, vertices: [...loop.loop] });
+      }
+    });
+
+    const walkOpenLoops = (loopIndices: number[]) => {
+      loopIndices.forEach(loopIndex => {
+        const loop = carvedLoops[loopIndex];
+        if (loop.closed || !loop.endpoints) return;
+        if (visitedLoops.has(loop.id)) return;
+
+        const startCandidates: (0 | 1)[] = [];
+        const firstIdx: 0 | 1 = isInsideCarveRegion(loop.endpoints[0]) ? 0 : (isInsideCarveRegion(loop.endpoints[1]) ? 1 : 0);
+        startCandidates.push(firstIdx, (firstIdx === 0 ? 1 : 0));
+
+        for (const startIdx of startCandidates) {
+          if (visitedLoops.has(loop.id)) break;
+
+          const startRef: EndpointRef = {
+            loopId: loop.id,
+            loopIndex,
+            endpointIndex: startIdx,
+            isNew: loop.isNew,
+            sourceCanonicalId: loop.sourceCanonicalId,
+            pos: loop.endpoints[startIdx],
+            inside: isInsideCarveRegion(loop.endpoints[startIdx]),
+            canonicalIndex: loop.canonicalEndpoints ? loop.canonicalEndpoints[startIdx] : undefined
+          };
+          const startKey = quantKey(startRef.pos);
+
+          let currentRef = startRef;
+          const stitchedVertices: Point[] = [];
+          let safety = 0;
+          const tempVisited = new Set<number>();
+
+          console.log('[Stitch] Start walk', {
+            startLoopId: loop.id,
+            startIdx,
+            startPos: startRef.pos,
+            canonicalIndex: startRef.canonicalIndex
+          });
+
+          while (safety++ < 10000) { // guard against infinite loops
+            const currentLoop = carvedLoops[currentRef.loopIndex];
+            const otherEndpoint: 0 | 1 = currentRef.endpointIndex === 0 ? 1 : 0;
+            appendVertices(currentLoop, currentRef.endpointIndex, stitchedVertices);
+            tempVisited.add(currentLoop.id);
+
+            const otherPos = currentLoop.endpoints ? currentLoop.endpoints[otherEndpoint] : currentLoop.loop[currentLoop.loop.length - 1];
+            const otherKey = quantKey(otherPos);
+
+            // Completed a loop if we returned to start
+            if (otherKey === startKey && stitchedVertices.length > 1) {
+              const first = stitchedVertices[0];
+              const last = stitchedVertices[stitchedVertices.length - 1];
+              if (Math.hypot(first.x - last.x, first.y - last.y) > 1e-6) {
+                stitchedVertices.push({ ...first });
+              }
+              stitched.push({ id: stitched.length + 1, vertices: stitchedVertices });
+              tempVisited.forEach(id => visitedLoops.add(id));
+              console.log('[Stitch] Completed loop', {
+                stitchedId: stitched.length,
+                vertices: stitchedVertices.length,
+                loopsUsed: Array.from(tempVisited)
+              });
+              break;
+            }
+
+            const currentLoopCanon = carvedLoops[currentRef.loopIndex].canonicalEndpoints;
+            const nextCanonicalIndex = currentLoopCanon ? currentLoopCanon[otherEndpoint] : currentRef.canonicalIndex;
+            const nextRef = chooseNext(otherPos, {
+              ...currentRef,
+              endpointIndex: otherEndpoint,
+              pos: otherPos,
+              inside: isInsideCarveRegion(otherPos),
+              canonicalIndex: nextCanonicalIndex
+            });
+
+            if (!nextRef) {
+              console.log('[Stitch] Dead end', {
+                atPos: otherPos,
+                currentLoopId: currentLoop.id,
+                loopsUsed: Array.from(tempVisited),
+                neighbors: endpointMap.get(quantKey(otherPos))?.map(r => ({ loopId: r.loopId, canon: r.canonicalIndex }))
+              });
+              break;
+            }
+
+            currentRef = nextRef;
+          }
+        }
+      });
+    };
+
+    const boundaryLoopIndices = carvedLoops
+      .map((loop, idx) => (!loop.isNew && !loop.closed && loop.endpoints ? idx : -1))
+      .filter(idx => idx >= 0);
+    const newLoopIndices = carvedLoops
+      .map((loop, idx) => (loop.isNew && !loop.closed && loop.endpoints ? idx : -1))
+      .filter(idx => idx >= 0);
+
+    // Step 1.5: stitch boundary arcs first (outer ring), then stitch new open loops.
+    walkOpenLoops(boundaryLoopIndices);
+    walkOpenLoops(newLoopIndices);
+
+    return stitched;
   }
 
   /**
@@ -480,5 +1056,25 @@ export class TerrainSurgery {
       a.maxY < b.minY ||
       a.minY > b.maxY
     );
+  }
+
+  /**
+   * Compute AABB for a loop (open or closed)
+   */
+  private computeLoopAabb(verts: Point[]): AABB {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const v of verts) {
+      minX = Math.min(minX, v.x);
+      minY = Math.min(minY, v.y);
+      maxX = Math.max(maxX, v.x);
+      maxY = Math.max(maxY, v.y);
+    }
+    if (!Number.isFinite(minX)) {
+      return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    }
+    return { minX, minY, maxX, maxY };
   }
 }
