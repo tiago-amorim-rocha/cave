@@ -54,7 +54,7 @@ export class PipelineConfig {
   readonly perlinLacunarity = 2.0;
 
   /** Solid rock border width in grid cells - prevents open loops at boundaries */
-  readonly borderWidth = 5;
+  readonly borderWidth = 2;
 
   // ============================================================================
   // CAMERA CONFIGURATION
@@ -146,7 +146,7 @@ export class PipelineConfig {
   // ============================================================================
 
   /** Quantization step for vertex snapping (fraction of grid pitch) - prevents float mismatches */
-  readonly marchingSquaresQuantizationFactor = 4;
+  readonly marchingSquaresQuantizationFactor = 8;
 
   /** Maximum steps when tracing contour loops - prevents infinite loops */
   readonly marchingSquaresMaxSteps = 100000;
