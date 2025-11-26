@@ -198,6 +198,9 @@ export class TerrainSurgery {
     // Clear boundary after use
     this.marchingSquares.setBoundaryAABB(null);
 
+    // Snap new loop endpoints onto nearby canonical loops before extracting boundary arcs
+    this.snapNewLoopEndpointsToCanonicalLoops(mergedNewLoops, quantStep);
+
     // Extract matching boundary arcs from existing canonical loops
     const boundaryArcs = this.extractBoundaryArcs(
       cleanedNewLoops,
@@ -336,6 +339,67 @@ export class TerrainSurgery {
   }
 
   /**
+   * Snap new open loop endpoints onto nearby canonical loop edges (prevents tiny gaps)
+   */
+  private snapNewLoopEndpointsToCanonicalLoops(
+    loops: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point] }>,
+    quantStep: number
+  ): void {
+    const snapDist = Math.max(quantStep * 12, 1.0);
+    const canonicalLoops = this.remeshManager.getCanonicalLoops();
+
+    const projectToSegment = (p: Point, q: Point, target: Point): { t: number; dist: number; point: Point } => {
+      const vx = q.x - p.x;
+      const vy = q.y - p.y;
+      const len2 = vx * vx + vy * vy || 1e-6;
+      const t = Math.max(0, Math.min(1, ((target.x - p.x) * vx + (target.y - p.y) * vy) / len2));
+      const projX = p.x + vx * t;
+      const projY = p.y + vy * t;
+      const dx = projX - target.x;
+      const dy = projY - target.y;
+      return { t, dist: Math.hypot(dx, dy), point: { x: projX, y: projY } };
+    };
+
+    loops.forEach(loop => {
+      if (loop.closed || !loop.endpoints) return;
+      const [a, b] = loop.endpoints;
+      const targets: [Point, Point] = [{ ...a }, { ...b }];
+
+      for (let epIdx: 0 | 1 = 0; epIdx < 2; epIdx++) {
+        const ep = loop.endpoints[epIdx];
+        let bestPoint: Point | null = null;
+        let bestDist = Infinity;
+
+        for (const canon of canonicalLoops) {
+          const verts = canon.vertices;
+          for (let i = 0; i < verts.length; i++) {
+            const p = verts[i];
+            const q = verts[(i + 1) % verts.length];
+            const { dist, point } = projectToSegment(p, q, ep);
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestPoint = point;
+            }
+          }
+        }
+
+        if (bestPoint && bestDist <= snapDist) {
+          targets[epIdx] = bestPoint;
+        }
+      }
+
+      if (targets[0].x !== a.x || targets[0].y !== a.y) {
+        loop.endpoints[0] = targets[0];
+        loop.loop[0] = { ...targets[0] };
+      }
+      if (targets[1].x !== b.x || targets[1].y !== b.y) {
+        loop.endpoints[1] = targets[1];
+        loop.loop[loop.loop.length - 1] = { ...targets[1] };
+      }
+    });
+  }
+
+  /**
    * Extract boundary arcs from existing canonical loops
    * Finds portions of existing loops that lie outside the carved region
    */
@@ -451,29 +515,16 @@ export class TerrainSurgery {
       }
     });
 
-    const expandAabb = (aabb: AABB, pad: number): AABB => ({
-      minX: aabb.minX - pad,
-      minY: aabb.minY - pad,
-      maxX: aabb.maxX + pad,
-      maxY: aabb.maxY + pad
-    });
-
-    const pointInAabb = (p: Point, aabb: AABB): boolean =>
-      p.x >= aabb.minX && p.x <= aabb.maxX && p.y >= aabb.minY && p.y <= aabb.maxY;
-
-    const snapDist = quantStep * 4; // generous to catch slight drift between MS endpoints and canonical vertices
+    const snapDist = Math.max(quantStep * 12, 1.0); // generous to bridge AABB-boundary gaps
 
     const buildForcedEdgeSplits = (canonLoop: CanonicalLoop): Map<number, number[]> => {
       const forced = new Map<number, number[]>();
       if (newLoopEndpoints.length === 0) return forced;
 
-      const padded = expandAabb(canonLoop.aabb, snapDist);
-
       const maybeAdd = (edgeIdx: number, t: number) => {
         if (t <= 1e-6 || t >= 1 - 1e-6) return; // avoid duplicating endpoints
         const arr = forced.get(edgeIdx);
         if (arr) {
-          // avoid near-duplicate t values
           if (!arr.some(existing => Math.abs(existing - t) < 1e-6)) {
             arr.push(t);
           }
@@ -495,7 +546,6 @@ export class TerrainSurgery {
       };
 
       for (const ep of newLoopEndpoints) {
-        if (!pointInAabb(ep, padded)) continue;
         let bestEdge = -1;
         let bestT = 0;
         let bestDist = Infinity;
@@ -520,14 +570,16 @@ export class TerrainSurgery {
     };
 
     const snapBoundaryArcEndpoints = (
-      arcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point] }>,
-      targets: Point[]
+      arcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number }>,
+      targets: Point[],
+      snapToBoundary: boolean
     ) => {
-      if (targets.length === 0) return;
-      const snap = (p: Point): Point | null => {
+      if (targets.length === 0 && !snapToBoundary) return;
+
+      const snap = (p: Point, pool: Point[]): Point | null => {
         let best: Point | null = null;
         let bestD = snapDist;
-        for (const t of targets) {
+        for (const t of pool) {
           const d = Math.hypot(t.x - p.x, t.y - p.y);
           if (d < bestD) {
             bestD = d;
@@ -537,10 +589,25 @@ export class TerrainSurgery {
         return best ? { x: best.x, y: best.y } : null;
       };
 
+      // Precompute boundary endpoint pools per canonical id
+      const boundaryPools = new Map<number, Point[]>();
+      if (snapToBoundary) {
+        arcs.forEach(arc => {
+          if (!arc.endpoints || arc.sourceCanonicalId === undefined) return;
+          const pool = boundaryPools.get(arc.sourceCanonicalId) ?? [];
+          pool.push(arc.endpoints[0], arc.endpoints[1]);
+          boundaryPools.set(arc.sourceCanonicalId, pool);
+        });
+      }
+
       arcs.forEach(arc => {
         if (!arc.endpoints || arc.loop.length < 2) return;
-        const snapA = snap(arc.endpoints[0]);
-        const snapB = snap(arc.endpoints[1]);
+        const pools: Point[][] = [targets];
+        if (snapToBoundary && arc.sourceCanonicalId !== undefined) {
+          pools.push(boundaryPools.get(arc.sourceCanonicalId) ?? []);
+        }
+        const snapA = pools.reduce<Point | null>((acc, pool) => acc ?? snap(arc.endpoints![0], pool), null);
+        const snapB = pools.reduce<Point | null>((acc, pool) => acc ?? snap(arc.endpoints![1], pool), null);
         if (snapA) {
           arc.endpoints[0] = snapA;
           arc.loop[0] = { ...snapA };
@@ -654,7 +721,7 @@ export class TerrainSurgery {
       }
     }
 
-    snapBoundaryArcEndpoints(boundaryArcs, newLoopEndpoints);
+    snapBoundaryArcEndpoints(boundaryArcs, newLoopEndpoints, true);
 
     return boundaryArcs;
   }
@@ -732,6 +799,7 @@ export class TerrainSurgery {
       const p = verts[pIdx];
       const q = verts[qIdx];
       const ts = edgeIntersections(p, q, pIdx);
+      const segT: number[] = [0, ...ts, 1];
       const pts: Point[] = [p];
       for (const t of ts) {
         pts.push(pointAt(p, q, t));
@@ -747,7 +815,11 @@ export class TerrainSurgery {
           Math.abs(mid.x - carveRegion.maxX) <= boundaryEps ||
           Math.abs(mid.y - carveRegion.minY) <= boundaryEps ||
           Math.abs(mid.y - carveRegion.maxY) <= boundaryEps;
-        const segmentOutside = !isInsideCarveRegion(mid) || onBoundary;
+        const segStartT = segT[k];
+        const segEndT = segT[k + 1];
+        const hasForced =
+          (forcedEdgeSplits?.get(pIdx) ?? []).some(t => t > segStartT - 1e-9 && t < segEndT + 1e-9);
+        const segmentOutside = !isInsideCarveRegion(mid) || onBoundary || hasForced;
 
         if (segmentOutside) {
           if (current.length === 0) {

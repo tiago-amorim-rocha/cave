@@ -90,7 +90,8 @@ export class Renderer {
   public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
-  public showCanonicalVertices: boolean = false; // Show canonical vertices (cleaned marching squares)
+  public showCanonicalVertices: boolean = true; // Show canonical vertices (cleaned marching squares)
+  public showCanonicalLabels: boolean = true; // Show canonical loop ids / start markers
   public showCanonicalAABBs: boolean = false; // Show canonical loop AABBs
   public showSegmentDebug: boolean = false; // Show physics segment boundaries/ranges
   public showPhysicsBodies: boolean = false; // Disabled for performance testing
@@ -296,6 +297,23 @@ export class Renderer {
   }
 
   /**
+   * Returns true when every vertex of the polyline lies inside the region.
+   * Useful for tagging loops that are fully contained in the dirty AABB.
+   */
+  private polylineFullyInsideRegion(polyline: Vec2[], region: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+    const eps = 1e-6;
+    for (const v of polyline) {
+      if (
+        v.x < region.minX - eps || v.x > region.maxX + eps ||
+        v.y < region.minY - eps || v.y > region.maxY + eps
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
    * Remove polylines that intersect with the given region
    * Returns the number of polylines removed
    */
@@ -415,6 +433,7 @@ export class Renderer {
    * @param playerDirection - Optional player direction in radians (for rendering direction indicator)
    * @param carvedLoops - Optional carved terrain loops to render (for visualization)
    * @param carveRegion - Optional carve region AABB to render
+   * @param stitchedLoops - Optional stitched canonical loops to render as dashed overlays
    */
   render(
     playerPosition?: { x: number; y: number },
@@ -426,7 +445,8 @@ export class Renderer {
     spider?: SpiderRenderData,
     playerDirection?: number,
     carvedLoops?: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }>,
-    carveRegion?: { minX: number; minY: number; maxX: number; maxY: number } | null
+    carveRegion?: { minX: number; minY: number; maxX: number; maxY: number } | null,
+    stitchedLoops?: Array<{ id: number; vertices: { x: number; y: number }[] }>
   ): void {
     try {
       const dpr = window.devicePixelRatio || 1;
@@ -530,6 +550,11 @@ export class Renderer {
         this.drawCarvedLoops(width, height, carvedLoops, carveRegion);
       }
 
+      // Draw stitched canonical loops (dashed overlay)
+      if (stitchedLoops && stitchedLoops.length > 0) {
+        this.drawStitchedCanonicalLoops(width, height, stitchedLoops);
+      }
+
       // Draw virtual joystick (always on top, in screen coordinates)
       if (joystickDraw) {
         joystickDraw(this.ctx);
@@ -595,6 +620,97 @@ export class Renderer {
     this.ctx.beginPath();
     this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
     this.ctx.fill();
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw stitched canonical loops (debug overlay)
+   * Colored by inferred interior: cold for cave boundaries, warm for rock islands.
+   */
+  private drawStitchedCanonicalLoops(
+    canvasWidth: number,
+    canvasHeight: number,
+    stitchedLoops: Array<{ id: number; vertices: { x: number; y: number }[] }>
+  ): void {
+    const warmColors = [
+      '#FF0000',
+      '#FF4500',
+      '#FFA500',
+      '#FFD700',
+      '#FFFF00',
+      '#FF1493',
+      '#FF6347',
+      '#FF8C00',
+    ];
+
+    const coldColors = [
+      '#0000FF',
+      '#00FFFF',
+      '#00FF00',
+      '#00FF7F',
+      '#1E90FF',
+      '#00CED1',
+      '#4169E1',
+      '#00FA9A',
+    ];
+
+    const signedArea = (verts: { x: number; y: number }[]): number => {
+      let area = 0;
+      for (let i = 0; i < verts.length; i++) {
+        const j = (i + 1) % verts.length;
+        area += verts[i].x * verts[j].y - verts[j].x * verts[i].y;
+      }
+      return area * 0.5;
+    };
+
+    let warmIndex = 0;
+    let coldIndex = 0;
+
+    this.ctx.save();
+    this.ctx.lineWidth = 3;
+    this.ctx.globalAlpha = 0.9;
+    this.ctx.font = '12px sans-serif';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'top';
+
+    stitchedLoops.forEach(loop => {
+      if (!loop.vertices || loop.vertices.length < 2) return;
+      const verts = loop.vertices;
+      const area = signedArea(verts);
+      const isIsland = area < 0; // CW assumed rock island; CCW = cave boundary
+      const colors = isIsland ? warmColors : coldColors;
+      const colorIndex = isIsland ? warmIndex++ : coldIndex++;
+      const color = colors[colorIndex % colors.length];
+
+      this.ctx.strokeStyle = color;
+      this.ctx.fillStyle = color;
+
+      const first = this.camera.worldToScreen(verts[0].x, verts[0].y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.moveTo(first.x, first.y);
+      for (let i = 1; i < verts.length; i++) {
+        const v = this.camera.worldToScreen(verts[i].x, verts[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(v.x, v.y);
+      }
+      this.ctx.stroke();
+
+      // Mark start/end points
+      this.ctx.beginPath();
+      this.ctx.arc(first.x, first.y, 5, 0, Math.PI * 2);
+      this.ctx.fill();
+      const last = this.camera.worldToScreen(verts[verts.length - 1].x, verts[verts.length - 1].y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.arc(last.x, last.y, 5, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // Label near starting point with outline for readability
+      this.ctx.lineWidth = 3;
+      this.ctx.strokeStyle = '#000000';
+      this.ctx.strokeText(`${loop.id}`, first.x + 8, first.y + 8);
+      this.ctx.fillText(`${loop.id}`, first.x + 8, first.y + 8);
+      this.ctx.lineWidth = 3;
+    });
 
     this.ctx.restore();
   }
@@ -909,14 +1025,48 @@ export class Renderer {
     if (this.canonicalLoops.length === 0) return;
 
     this.ctx.save();
-    this.ctx.fillStyle = '#ff3333';
+    this.ctx.fillStyle = '#444444';
+    this.ctx.font = '11px monospace';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.textAlign = 'left';
 
     for (const loop of this.canonicalLoops) {
+      const loopLen = loop.vertices.length;
+      if (loopLen === 0) continue;
+
+      // Draw a small direction stub from v0 to v1 to show loop start
+      if (this.showCanonicalLabels && loopLen > 1) {
+        const v0 = loop.vertices[0];
+        const v1 = loop.vertices[1];
+        const s0 = this.camera.worldToScreen(v0.x, v0.y, canvasWidth, canvasHeight);
+        const s1 = this.camera.worldToScreen(v1.x, v1.y, canvasWidth, canvasHeight);
+        this.ctx.strokeStyle = '#666666';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(s0.x, s0.y);
+        this.ctx.lineTo(s1.x, s1.y);
+        this.ctx.stroke();
+      }
+
       for (const vertex of loop.vertices) {
         const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
         this.ctx.beginPath();
         this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
         this.ctx.fill();
+      }
+
+      // Label loop id at the start vertex
+      if (this.showCanonicalLabels) {
+        const start = loop.vertices[0];
+        const s = this.camera.worldToScreen(start.x, start.y, canvasWidth, canvasHeight);
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.strokeStyle = '#000000';
+        this.ctx.lineWidth = 3;
+        const label = `id:${loop.id} len:${loopLen}`;
+        // Outline for readability
+        this.ctx.strokeText(label, s.x + 6, s.y);
+        this.ctx.fillText(label, s.x + 6, s.y);
+        this.ctx.fillStyle = '#444444';
       }
     }
 
@@ -1582,6 +1732,7 @@ export class Renderer {
   /**
    * Draw carved terrain loops for visualization
    * Warm colors for new loops (from dirty region), cold colors for boundary arcs (preserved)
+   * Loops fully contained within the carve region are treated as new for coloring.
    * Shows carve region AABB as yellow dashed rectangle
    */
   private drawCarvedLoops(
@@ -1647,8 +1798,10 @@ export class Renderer {
       // Pick color based on new/boundary and index
       // inside=true means new loop from dirty region (warm colors)
       // inside=false means boundary arc from existing loop (cold colors)
-      const colors = inside ? warmColors : coldColors;
-      const colorIndex = inside ? newLoopIndex++ : boundaryIndex++;
+      // Additionally, loops entirely contained in the carve region are treated as new for coloring.
+      const isWarm = inside || (carveRegion ? this.polylineFullyInsideRegion(loop, carveRegion) : false);
+      const colors = isWarm ? warmColors : coldColors;
+      const colorIndex = isWarm ? newLoopIndex++ : boundaryIndex++;
       const color = colors[colorIndex % colors.length];
 
       // Draw the loop
@@ -1679,7 +1832,7 @@ export class Renderer {
           this.ctx.arc(screen.x, screen.y, 8, 0, Math.PI * 2); // 8px radius dots
 
           // Fill for inside loops, stroke only for outside loops
-          if (inside) {
+          if (isWarm) {
             this.ctx.fillStyle = color;
             this.ctx.fill();
           } else {

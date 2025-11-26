@@ -93,6 +93,14 @@ export class MarchingSquares {
   }
 
   /**
+   * Expose the shared quantization step so downstream systems can snap to the
+   * exact same lattice (avoids tiny mismatches).
+   */
+  getQuantizationStep(): number {
+    return this.quantizationStep;
+  }
+
+  /**
    * Generate contour polylines using topology-driven edge walking
    */
   generateContours(dirtyAABB?: AABB | null, expandCells: number = 1): DebugLoopResult[] {
@@ -160,24 +168,7 @@ export class MarchingSquares {
       }
     }
 
-    if (openCount > 0) {
-      console.warn(`  ⚠️  WARNING: ${openCount} OPEN CONTOURS DETECTED!`);
-      console.warn(`  This usually means loops hit boundaries or density gradients are too sharp`);
-
-      // Log details about open loops
-      results.forEach((result, idx) => {
-        if (!result.closed) {
-          const first = result.loop[0];
-          const last = result.loop[result.loop.length - 1];
-          const dist = Math.sqrt(
-            Math.pow(last.x - first.x, 2) + Math.pow(last.y - first.y, 2)
-          );
-          console.warn(`  Loop ${idx}: ${result.loop.length} vertices, gap=${dist.toFixed(3)}m`);
-          console.warn(`    First: (${first.x.toFixed(2)}, ${first.y.toFixed(2)})`);
-          console.warn(`    Last: (${last.x.toFixed(2)}, ${last.y.toFixed(2)})`);
-        }
-      });
-    }
+    // Open contours are expected when marching inside a clipped dirty region; no warning.
 
     return results;
   }

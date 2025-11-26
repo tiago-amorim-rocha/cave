@@ -170,7 +170,9 @@ class CarvableCaves {
 
   // Carved terrain geometry (for visualization and future stitching)
   private carvedLoops: CarvedLoop[] = [];
+  private stitchedLoops: { id: number; vertices: { x: number; y: number }[] }[] = [];
   private carveRegion: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+  private showStitchedLoops = false;
 
   constructor() {
     try {
@@ -567,13 +569,30 @@ class CarvableCaves {
 
     // Render (simple circle player with direction indicator)
     // Map carved loops to renderer format (isNew → inside for color coding)
-    const carvedLoopsForRender = this.carvedLoops.map(l => ({
-      loop: l.loop,
-      closed: l.closed,
-      endpoints: l.endpoints,
-      inside: l.isNew // New loops (from dirty region) = inside = warm colors
-    }));
-    this.renderer.render(playerPos, this.player.getRadius(), [], physicsDebugDraw, undefined, joystickDraw, undefined, playerDirection, carvedLoopsForRender, this.carveRegion);
+    const carvedLoopsForRender = this.showStitchedLoops
+      ? []
+      : this.carvedLoops.map(l => ({
+          loop: l.loop,
+          closed: l.closed,
+          endpoints: l.endpoints,
+          inside: l.isNew // New loops (from dirty region) = inside = warm colors
+        }));
+    const stitchedToRender = this.showStitchedLoops ? this.stitchedLoops : [];
+    const carveRegionForRender = this.showStitchedLoops ? null : this.carveRegion;
+
+    this.renderer.render(
+      playerPos,
+      this.player.getRadius(),
+      [],
+      physicsDebugDraw,
+      undefined,
+      joystickDraw,
+      undefined,
+      playerDirection,
+      carvedLoopsForRender,
+      carveRegionForRender,
+      stitchedToRender
+    );
   };
 
   private remesh(): void {
@@ -901,7 +920,12 @@ class CarvableCaves {
 
       if (surgeryResult) {
         this.carvedLoops = surgeryResult.loops;
+        this.stitchedLoops = surgeryResult.stitchedLoops.map(l => ({
+          id: l.id,
+          vertices: l.vertices
+        }));
         this.carveRegion = surgeryResult.carveRegion;
+        this.showStitchedLoops = false; // pause before stitching visualization
 
         // Log statistics
         console.log('[Carving] Surgery complete:', {
@@ -910,10 +934,64 @@ class CarvableCaves {
           totalLoops: surgeryResult.loops.length
         });
       }
+    } else {
+      // Clear debug visuals if capture is off
+      this.carvedLoops = [];
+      this.stitchedLoops = [];
+      this.showStitchedLoops = false;
+      this.carveRegion = null;
     }
 
     // TODO: Wire up remeshing after surgery (not yet implemented)
   }
+
+  /**
+   * Enable stitched loop overlay after inspecting raw carve fragments.
+   */
+  enableStitchedDebugOverlay(): void {
+    if (!this.config.debugCaptureEnabled) return;
+    if (this.showStitchedLoops) return;
+    this.showStitchedLoops = true;
+    console.log('[Carving] Debug step: stitched loop overlay enabled', { stitchedCount: this.stitchedLoops.length });
+  }
+}
+
+// Button to advance debug step (show stitched loops after inspecting raw carve)
+function createStitchStepButton(app: CarvableCaves, enabled: boolean) {
+  if (!enabled) return;
+
+  const stitchButton = document.createElement('button');
+  stitchButton.id = 'stitch-button';
+  stitchButton.textContent = '▶️';
+  stitchButton.title = 'Show stitched loops (next debug step)';
+  stitchButton.style.cssText = `
+    position: fixed;
+    right: 16px;
+    bottom: 100px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: #444;
+    color: #fff;
+    font-size: 24px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 1001;
+  `;
+
+  stitchButton.addEventListener('click', () => {
+    app.enableStitchedDebugOverlay();
+  });
+
+  stitchButton.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    stitchButton.style.transform = 'scale(0.95)';
+  });
+  stitchButton.addEventListener('touchend', () => {
+    stitchButton.style.transform = 'scale(1)';
+  });
+
+  document.body.appendChild(stitchButton);
 }
 
 (window as any).APP_LOADED = true;
@@ -1162,7 +1240,7 @@ carveButton.addEventListener('touchend', (e) => {
     app.carveAroundPlayer();
   }
 });
-document.body.appendChild(carveButton);
+  document.body.appendChild(carveButton);
 
 // Test spider math before starting application
 testSpiderMath();
@@ -1182,6 +1260,10 @@ try {
   }
 
   // Note: Character controller UI callbacks are wired up in start() after player is created
+
+  // Stitch step button appears only when debug capture is enabled
+  const appConfig = (app as any).config as PipelineConfig;
+  createStitchStepButton(app, appConfig.debugCaptureEnabled);
 } catch (error) {
   // console.error('Fatal error during initialization:', error);
   debugConsole.showTextLog();

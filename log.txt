@@ -1,208 +1,1455 @@
-[00:21:19] LOG: [LocalUpdate] ⏱️ Optimization: 9.60ms (363 → 251 vertices)
-[00:21:19] LOG: [LocalUpdate]    ↳ cleanLoop: 0.80ms
-[00:21:19] LOG: [LocalUpdate]    ↳ Chaikin smoothing (expand): 0.20ms
-[00:21:19] LOG: [LocalUpdate]    ↳ Post-simplification (reduce): 8.60ms
-[00:21:19] LOG: [LocalUpdate] Built 1 canonical loops (251 verts total)
-[00:21:19] LOG: [Box2DEngine] Loop 16: built 5 segments (verts=251)
-[00:21:19] LOG: [Box2DEngine]  Segment 0 {
-  "id": 51,
-  "startIndex": 0,
-  "endIndex": 46
+[20:34:05] LOG: [Box2DEngine] setCanonicalTerrainLoops called with 6 loops
+[20:34:05] LOG: [Box2DEngine] Building terrain body for loop #0, verts=377, reverse=true
+[20:34:05] LOG: [Box2DEngine] Loop 7: built 22 segments (verts=377)
+[20:34:05] LOG: [Box2DEngine]  Segment 0 {
+  "id": 1,
+  "optStart": 0,
+  "optEnd": 4,
+  "canonRange": [
+    4,
+    22
+  ]
 }
-[00:21:19] LOG: [Box2DEngine]  Segment 1 {
-  "id": 52,
-  "startIndex": 46,
-  "endIndex": 98
+[20:34:05] LOG: [Box2DEngine]  Segment 1 {
+  "id": 2,
+  "optStart": 4,
+  "optEnd": 25,
+  "canonRange": [
+    21,
+    36
+  ]
 }
-[00:21:19] LOG: [Box2DEngine]  Segment 2 {
-  "id": 53,
-  "startIndex": 98,
-  "endIndex": 161
+[20:34:05] LOG: [Box2DEngine]  Segment 2 {
+  "id": 3,
+  "optStart": 25,
+  "optEnd": 44,
+  "canonRange": [
+    35,
+    51
+  ]
 }
-[00:21:19] LOG: [Box2DEngine]  Segment 3 {
-  "id": 54,
-  "startIndex": 161,
-  "endIndex": 222
+[20:34:05] LOG: [Box2DEngine]  Segment 3 {
+  "id": 4,
+  "optStart": 44,
+  "optEnd": 65,
+  "canonRange": [
+    50,
+    66
+  ]
 }
-[00:21:19] LOG: [Box2DEngine]  Segment 4 {
-  "id": 55,
-  "startIndex": 222,
-  "endIndex": 250
+[20:34:05] LOG: [Box2DEngine]  Segment 4 {
+  "id": 5,
+  "optStart": 65,
+  "optEnd": 84,
+  "canonRange": [
+    64,
+    79
+  ]
 }
-[00:21:19] LOG: [LocalUpdate] ⏱️ Box2D colliders: 1.60ms (created 1 bodies)
-[00:21:19] LOG: [LocalUpdate] Canonical registry now has 6 loops
-[00:21:19] LOG: [LocalUpdate] 🎯 TOTAL (physics only): 15.50ms
-[00:21:19] LOG: [Renderer] removePolylinesInRegion: removed 1, kept 5
-[00:21:19] LOG: [LocalUpdate] ⏱️ Remove old polylines: 1
-[00:21:19] LOG: [LocalUpdate] Re-adding 1 canonical loops to renderer
-[00:21:19] LOG: [Renderer] addPolylines: added 1 polylines (total now: 6)
-[00:21:19] LOG: [LocalUpdate] ⏱️ Local visual update: 0.30ms (added 1 polylines)
-[00:21:19] LOG: [LocalUpdate] 🎯 TOTAL (including rendering): 15.90ms
-[00:21:21] LOG: [LocalUpdate] ⏱️ Remove bodies: 0.30ms (removed 2 bodies)
-[00:21:21] LOG: [LocalUpdate] ⏱️ Marching Squares: 1.10ms (generated 1 raw loops)
-[00:21:21] LOG: [LocalUpdate] ⏱️ Clean loops: 0.00ms (451 → 371 vertices, 1 loops)
-[00:21:21] LOG: [LocalUpdate] ⏱️ Classification: 0.10ms (1 valid loops after filtering)
-[00:21:21] LOG: [LocalUpdate] ⏱️ Optimization: 12.60ms (371 → 252 vertices)
-[00:21:21] LOG: [LocalUpdate]    ↳ cleanLoop: 0.00ms
-[00:21:21] LOG: [LocalUpdate]    ↳ Chaikin smoothing (expand): 2.20ms
-[00:21:21] LOG: [LocalUpdate]    ↳ Post-simplification (reduce): 10.30ms
-[00:21:21] LOG: [LocalUpdate] Built 1 canonical loops (252 verts total)
-[00:21:21] LOG: [Box2DEngine] Loop 17: built 5 segments (verts=252)
-[00:21:21] LOG: [Box2DEngine]  Segment 0 {
-  "id": 56,
-  "startIndex": 0,
-  "endIndex": 41
+[20:34:05] LOG: [Box2DEngine]  Segment 5 {
+  "id": 6,
+  "optStart": 84,
+  "optEnd": 103,
+  "canonRange": [
+    78,
+    94
+  ]
 }
-[00:21:21] LOG: [Box2DEngine]  Segment 1 {
-  "id": 57,
-  "startIndex": 41,
-  "endIndex": 90
+[20:34:05] LOG: [Box2DEngine]  Segment 6 {
+  "id": 7,
+  "optStart": 103,
+  "optEnd": 128,
+  "canonRange": [
+    92,
+    136
+  ]
 }
-[00:21:21] LOG: [Box2DEngine]  Segment 2 {
-  "id": 58,
-  "startIndex": 90,
-  "endIndex": 152
+[20:34:05] LOG: [Box2DEngine]  Segment 7 {
+  "id": 8,
+  "optStart": 128,
+  "optEnd": 144,
+  "canonRange": [
+    135,
+    150
+  ]
 }
-[00:21:21] LOG: [Box2DEngine]  Segment 3 {
-  "id": 59,
-  "startIndex": 152,
-  "endIndex": 213
+[20:34:05] LOG: [Box2DEngine]  Segment 8 {
+  "id": 9,
+  "optStart": 144,
+  "optEnd": 163,
+  "canonRange": [
+    149,
+    162
+  ]
 }
-[00:21:21] LOG: [Box2DEngine]  Segment 4 {
-  "id": 60,
-  "startIndex": 213,
-  "endIndex": 251
+[20:34:05] LOG: [Box2DEngine]  Segment 9 {
+  "id": 10,
+  "optStart": 163,
+  "optEnd": 181,
+  "canonRange": [
+    161,
+    175
+  ]
 }
-[00:21:21] LOG: [LocalUpdate] ⏱️ Box2D colliders: 3.40ms (created 1 bodies)
-[00:21:21] LOG: [LocalUpdate] Canonical registry now has 5 loops
-[00:21:21] LOG: [LocalUpdate] 🎯 TOTAL (physics only): 18.40ms
-[00:21:21] LOG: [Renderer] removePolylinesInRegion: removed 2, kept 4
-[00:21:21] LOG: [LocalUpdate] ⏱️ Remove old polylines: 2
-[00:21:21] LOG: [LocalUpdate] Re-adding 1 canonical loops to renderer
-[00:21:21] LOG: [Renderer] addPolylines: added 1 polylines (total now: 5)
-[00:21:21] LOG: [LocalUpdate] ⏱️ Local visual update: 0.30ms (added 1 polylines)
-[00:21:21] LOG: [LocalUpdate] 🎯 TOTAL (including rendering): 18.90ms
-[00:21:27] LOG: [LocalUpdate] ⏱️ Remove bodies: 0.50ms (removed 2 bodies)
-[00:21:27] LOG: [LocalUpdate] ⏱️ Marching Squares: 1.10ms (generated 1 raw loops)
-[00:21:27] LOG: [LocalUpdate] ⏱️ Clean loops: 0.10ms (451 → 378 vertices, 1 loops)
-[00:21:27] LOG: [LocalUpdate] ⏱️ Classification: 0.00ms (1 valid loops after filtering)
-[00:21:27] LOG: [LocalUpdate] ⏱️ Optimization: 13.30ms (378 → 248 vertices)
-[00:21:27] LOG: [LocalUpdate]    ↳ cleanLoop: 0.00ms
-[00:21:27] LOG: [LocalUpdate]    ↳ Chaikin smoothing (expand): 0.20ms
-[00:21:27] LOG: [LocalUpdate]    ↳ Post-simplification (reduce): 13.00ms
-[00:21:27] LOG: [LocalUpdate] Built 1 canonical loops (248 verts total)
-[00:21:27] LOG: [Box2DEngine] Loop 18: built 5 segments (verts=248)
-[00:21:27] LOG: [Box2DEngine]  Segment 0 {
-  "id": 61,
-  "startIndex": 0,
-  "endIndex": 43
+[20:34:05] LOG: [Box2DEngine]  Segment 10 {
+  "id": 11,
+  "optStart": 181,
+  "optEnd": 199,
+  "canonRange": [
+    174,
+    190
+  ]
 }
-[00:21:27] LOG: [Box2DEngine]  Segment 1 {
-  "id": 62,
-  "startIndex": 43,
-  "endIndex": 99
+[20:34:05] LOG: [Box2DEngine]  Segment 11 {
+  "id": 12,
+  "optStart": 199,
+  "optEnd": 219,
+  "canonRange": [
+    188,
+    204
+  ]
 }
-[00:21:27] LOG: [Box2DEngine]  Segment 2 {
-  "id": 63,
-  "startIndex": 99,
-  "endIndex": 155
+[20:34:05] LOG: [Box2DEngine]  Segment 12 {
+  "id": 13,
+  "optStart": 219,
+  "optEnd": 243,
+  "canonRange": [
+    202,
+    216
+  ]
 }
-[00:21:27] LOG: [Box2DEngine]  Segment 3 {
-  "id": 64,
-  "startIndex": 155,
-  "endIndex": 218
+[20:34:05] LOG: [Box2DEngine]  Segment 13 {
+  "id": 14,
+  "optStart": 243,
+  "optEnd": 265,
+  "canonRange": [
+    215,
+    229
+  ]
 }
-[00:21:27] LOG: [Box2DEngine]  Segment 4 {
-  "id": 65,
-  "startIndex": 218,
-  "endIndex": 247
+[20:34:05] LOG: [Box2DEngine]  Segment 14 {
+  "id": 15,
+  "optStart": 265,
+  "optEnd": 283,
+  "canonRange": [
+    227,
+    244
+  ]
 }
-[00:21:27] LOG: [LocalUpdate] ⏱️ Box2D colliders: 0.90ms (created 1 bodies)
-[00:21:27] LOG: [LocalUpdate] Canonical registry now has 4 loops
-[00:21:27] LOG: [LocalUpdate] 🎯 TOTAL (physics only): 17.30ms
-[00:21:27] LOG: [Renderer] removePolylinesInRegion: removed 2, kept 3
-[00:21:27] LOG: [LocalUpdate] ⏱️ Remove old polylines: 2
-[00:21:27] LOG: [LocalUpdate] Re-adding 1 canonical loops to renderer
-[00:21:27] LOG: [Renderer] addPolylines: added 1 polylines (total now: 4)
-[00:21:27] LOG: [LocalUpdate] ⏱️ Local visual update: 0.20ms (added 1 polylines)
-[00:21:27] LOG: [LocalUpdate] 🎯 TOTAL (including rendering): 17.70ms
-[00:21:47] LOG: [LocalUpdate] ⏱️ Remove bodies: 0.30ms (removed 1 bodies)
-[00:21:47] LOG: [LocalUpdate] ⏱️ Marching Squares: 4.70ms (generated 2 raw loops)
-[00:21:47] LOG: [LocalUpdate] ⏱️ Clean loops: 0.10ms (1126 → 921 vertices, 2 loops)
-[00:21:47] LOG: [LocalUpdate] ⏱️ Classification: 0.00ms (2 valid loops after filtering)
-[00:21:47] LOG: [LocalUpdate] ⏱️ Optimization: 37.00ms (921 → 587 vertices)
-[00:21:47] LOG: [LocalUpdate]    ↳ cleanLoop: 0.10ms
-[00:21:47] LOG: [LocalUpdate]    ↳ Chaikin smoothing (expand): 1.50ms
-[00:21:47] LOG: [LocalUpdate]    ↳ Post-simplification (reduce): 35.30ms
-[00:21:47] LOG: [LocalUpdate] Built 2 canonical loops (587 verts total)
-[00:21:47] LOG: [Box2DEngine] Loop 19: built 7 segments (verts=307)
-[00:21:47] LOG: [Box2DEngine]  Segment 0 {
-  "id": 66,
-  "startIndex": 0,
-  "endIndex": 63
+[20:34:05] LOG: [Box2DEngine]  Segment 15 {
+  "id": 16,
+  "optStart": 283,
+  "optEnd": 291,
+  "canonRange": [
+    243,
+    258
+  ]
 }
-[00:21:47] LOG: [Box2DEngine]  Segment 1 {
-  "id": 67,
-  "startIndex": 63,
-  "endIndex": 126
+[20:34:05] LOG: [Box2DEngine]  Segment 16 {
+  "id": 17,
+  "optStart": 291,
+  "optEnd": 303,
+  "canonRange": [
+    257,
+    274
+  ]
 }
-[00:21:47] LOG: [Box2DEngine]  Segment 2 {
-  "id": 68,
-  "startIndex": 126,
-  "endIndex": 168
+[20:34:05] LOG: [Box2DEngine]  Segment 17 {
+  "id": 18,
+  "optStart": 303,
+  "optEnd": 323,
+  "canonRange": [
+    273,
+    288
+  ]
 }
-[00:21:47] LOG: [Box2DEngine]  Segment 3 {
-  "id": 69,
-  "startIndex": 168,
-  "endIndex": 208
+[20:34:05] LOG: [Box2DEngine]  Segment 18 {
+  "id": 19,
+  "optStart": 323,
+  "optEnd": 342,
+  "canonRange": [
+    286,
+    302
+  ]
 }
-[00:21:47] LOG: [Box2DEngine]  Segment 4 {
-  "id": 70,
-  "startIndex": 208,
-  "endIndex": 266
+[20:34:05] LOG: [Box2DEngine]  Segment 19 {
+  "id": 20,
+  "optStart": 342,
+  "optEnd": 356,
+  "canonRange": [
+    300,
+    317
+  ]
 }
-[00:21:47] LOG: [Box2DEngine]  Segment 5 {
-  "id": 71,
-  "startIndex": 266,
-  "endIndex": 277
+[20:34:05] LOG: [Box2DEngine]  Segment 20 {
+  "id": 21,
+  "optStart": 356,
+  "optEnd": 372,
+  "canonRange": [
+    315,
+    332
+  ]
 }
-[00:21:47] LOG: [Box2DEngine]  Segment 6 {
-  "id": 72,
-  "startIndex": 277,
-  "endIndex": 306
+[20:34:05] LOG: [Box2DEngine]  Segment 21 {
+  "id": 22,
+  "optStart": 372,
+  "optEnd": 376,
+  "canonRange": [
+    0,
+    333
+  ]
 }
-[00:21:47] LOG: [Box2DEngine] Loop 20: built 5 segments (verts=280)
-[00:21:47] LOG: [Box2DEngine]  Segment 0 {
-  "id": 73,
-  "startIndex": 0,
-  "endIndex": 55
+[20:34:05] LOG: [Box2D] Created segments {
+  "loopId": 7,
+  "segmentCount": 22,
+  "segments": [
+    {
+      "id": 1,
+      "optRange": [
+        0,
+        4
+      ],
+      "canonRange": [
+        4,
+        22
+      ]
+    },
+    {
+      "id": 2,
+      "optRange": [
+        4,
+        25
+      ],
+      "canonRange": [
+        21,
+        36
+      ]
+    },
+    {
+      "id": 3,
+      "optRange": [
+        25,
+        44
+      ],
+      "canonRange": [
+        35,
+        51
+      ]
+    },
+    {
+      "id": 4,
+      "optRange": [
+        44,
+        65
+      ],
+      "canonRange": [
+        50,
+        66
+      ]
+    },
+    {
+      "id": 5,
+      "optRange": [
+        65,
+        84
+      ],
+      "canonRange": [
+        64,
+        79
+      ]
+    },
+    {
+      "id": 6,
+      "optRange": [
+        84,
+        103
+      ],
+      "canonRange": [
+        78,
+        94
+      ]
+    },
+    {
+      "id": 7,
+      "optRange": [
+        103,
+        128
+      ],
+      "canonRange": [
+        92,
+        136
+      ]
+    },
+    {
+      "id": 8,
+      "optRange": [
+        128,
+        144
+      ],
+      "canonRange": [
+        135,
+        150
+      ]
+    },
+    {
+      "id": 9,
+      "optRange": [
+        144,
+        163
+      ],
+      "canonRange": [
+        149,
+        162
+      ]
+    },
+    {
+      "id": 10,
+      "optRange": [
+        163,
+        181
+      ],
+      "canonRange": [
+        161,
+        175
+      ]
+    },
+    {
+      "id": 11,
+      "optRange": [
+        181,
+        199
+      ],
+      "canonRange": [
+        174,
+        190
+      ]
+    },
+    {
+      "id": 12,
+      "optRange": [
+        199,
+        219
+      ],
+      "canonRange": [
+        188,
+        204
+      ]
+    },
+    {
+      "id": 13,
+      "optRange": [
+        219,
+        243
+      ],
+      "canonRange": [
+        202,
+        216
+      ]
+    },
+    {
+      "id": 14,
+      "optRange": [
+        243,
+        265
+      ],
+      "canonRange": [
+        215,
+        229
+      ]
+    },
+    {
+      "id": 15,
+      "optRange": [
+        265,
+        283
+      ],
+      "canonRange": [
+        227,
+        244
+      ]
+    },
+    {
+      "id": 16,
+      "optRange": [
+        283,
+        291
+      ],
+      "canonRange": [
+        243,
+        258
+      ]
+    },
+    {
+      "id": 17,
+      "optRange": [
+        291,
+        303
+      ],
+      "canonRange": [
+        257,
+        274
+      ]
+    },
+    {
+      "id": 18,
+      "optRange": [
+        303,
+        323
+      ],
+      "canonRange": [
+        273,
+        288
+      ]
+    },
+    {
+      "id": 19,
+      "optRange": [
+        323,
+        342
+      ],
+      "canonRange": [
+        286,
+        302
+      ]
+    },
+    {
+      "id": 20,
+      "optRange": [
+        342,
+        356
+      ],
+      "canonRange": [
+        300,
+        317
+      ]
+    },
+    {
+      "id": 21,
+      "optRange": [
+        356,
+        372
+      ],
+      "canonRange": [
+        315,
+        332
+      ]
+    },
+    {
+      "id": 22,
+      "optRange": [
+        372,
+        376
+      ],
+      "canonRange": [
+        0,
+        333
+      ]
+    }
+  ]
 }
-[00:21:47] LOG: [Box2DEngine]  Segment 1 {
-  "id": 74,
-  "startIndex": 55,
-  "endIndex": 107
+[20:34:05] LOG: [Box2DEngine] Building terrain body for loop #1, verts=23, reverse=false
+[20:34:05] LOG: [Box2DEngine] Loop 8: built 1 segments (verts=23)
+[20:34:05] LOG: [Box2DEngine]  Segment 0 {
+  "id": 23,
+  "optStart": 0,
+  "optEnd": 22,
+  "canonRange": [
+    0,
+    13
+  ]
 }
-[00:21:47] LOG: [Box2DEngine]  Segment 2 {
-  "id": 75,
-  "startIndex": 107,
-  "endIndex": 156
+[20:34:05] LOG: [Box2D] Created segments {
+  "loopId": 8,
+  "segmentCount": 1,
+  "segments": [
+    {
+      "id": 23,
+      "optRange": [
+        0,
+        22
+      ],
+      "canonRange": [
+        0,
+        13
+      ]
+    }
+  ]
 }
-[00:21:47] LOG: [Box2DEngine]  Segment 3 {
-  "id": 76,
-  "startIndex": 156,
-  "endIndex": 218
+[20:34:05] LOG: [Box2DEngine] Building terrain body for loop #2, verts=27, reverse=false
+[20:34:05] LOG: [Box2DEngine] Loop 9: built 2 segments (verts=27)
+[20:34:05] LOG: [Box2DEngine]  Segment 0 {
+  "id": 24,
+  "optStart": 0,
+  "optEnd": 23,
+  "canonRange": [
+    0,
+    17
+  ]
 }
-[00:21:47] LOG: [Box2DEngine]  Segment 4 {
-  "id": 77,
-  "startIndex": 218,
-  "endIndex": 279
+[20:34:05] LOG: [Box2DEngine]  Segment 1 {
+  "id": 25,
+  "optStart": 23,
+  "optEnd": 26,
+  "canonRange": [
+    0,
+    19
+  ]
 }
-[00:21:47] LOG: [LocalUpdate] ⏱️ Box2D colliders: 3.50ms (created 2 bodies)
-[00:21:47] LOG: [LocalUpdate] Canonical registry now has 5 loops
-[00:21:47] LOG: [LocalUpdate] 🎯 TOTAL (physics only): 47.20ms
-[00:21:47] LOG: [Renderer] removePolylinesInRegion: removed 1, kept 3
-[00:21:47] LOG: [LocalUpdate] ⏱️ Remove old polylines: 1
-[00:21:47] LOG: [LocalUpdate] Re-adding 2 canonical loops to renderer
-[00:21:47] LOG: [Renderer] addPolylines: added 2 polylines (total now: 5)
-[00:21:47] LOG: [LocalUpdate] ⏱️ Local visual update: 0.40ms (added 2 polylines)
-[00:21:47] LOG: [LocalUpdate] 🎯 TOTAL (including rendering): 47.80ms
+[20:34:05] LOG: [Box2D] Created segments {
+  "loopId": 9,
+  "segmentCount": 2,
+  "segments": [
+    {
+      "id": 24,
+      "optRange": [
+        0,
+        23
+      ],
+      "canonRange": [
+        0,
+        17
+      ]
+    },
+    {
+      "id": 25,
+      "optRange": [
+        23,
+        26
+      ],
+      "canonRange": [
+        0,
+        19
+      ]
+    }
+  ]
+}
+[20:34:05] LOG: [Box2DEngine] Building terrain body for loop #3, verts=21, reverse=false
+[20:34:05] LOG: [Box2DEngine] Loop 10: built 1 segments (verts=21)
+[20:34:05] LOG: [Box2DEngine]  Segment 0 {
+  "id": 26,
+  "optStart": 0,
+  "optEnd": 20,
+  "canonRange": [
+    0,
+    11
+  ]
+}
+[20:34:05] LOG: [Box2D] Created segments {
+  "loopId": 10,
+  "segmentCount": 1,
+  "segments": [
+    {
+      "id": 26,
+      "optRange": [
+        0,
+        20
+      ],
+      "canonRange": [
+        0,
+        11
+      ]
+    }
+  ]
+}
+[20:34:05] LOG: [Box2DEngine] Building terrain body for loop #4, verts=30, reverse=false
+[20:34:05] LOG: [Box2DEngine] Loop 11: built 2 segments (verts=30)
+[20:34:05] LOG: [Box2DEngine]  Segment 0 {
+  "id": 27,
+  "optStart": 0,
+  "optEnd": 23,
+  "canonRange": [
+    1,
+    16
+  ]
+}
+[20:34:05] LOG: [Box2DEngine]  Segment 1 {
+  "id": 28,
+  "optStart": 23,
+  "optEnd": 29,
+  "canonRange": [
+    0,
+    19
+  ]
+}
+[20:34:05] LOG: [Box2D] Created segments {
+  "loopId": 11,
+  "segmentCount": 2,
+  "segments": [
+    {
+      "id": 27,
+      "optRange": [
+        0,
+        23
+      ],
+      "canonRange": [
+        1,
+        16
+      ]
+    },
+    {
+      "id": 28,
+      "optRange": [
+        23,
+        29
+      ],
+      "canonRange": [
+        0,
+        19
+      ]
+    }
+  ]
+}
+[20:34:05] LOG: [Box2DEngine] Building terrain body for loop #5, verts=30, reverse=true
+[20:34:05] LOG: [Box2DEngine] Loop 12: built 2 segments (verts=30)
+[20:34:05] LOG: [Box2DEngine]  Segment 0 {
+  "id": 29,
+  "optStart": 0,
+  "optEnd": 24,
+  "canonRange": [
+    0,
+    16
+  ]
+}
+[20:34:05] LOG: [Box2DEngine]  Segment 1 {
+  "id": 30,
+  "optStart": 24,
+  "optEnd": 29,
+  "canonRange": [
+    0,
+    19
+  ]
+}
+[20:34:05] LOG: [Box2D] Created segments {
+  "loopId": 12,
+  "segmentCount": 2,
+  "segments": [
+    {
+      "id": 29,
+      "optRange": [
+        0,
+        24
+      ],
+      "canonRange": [
+        0,
+        16
+      ]
+    },
+    {
+      "id": 30,
+      "optRange": [
+        24,
+        29
+      ],
+      "canonRange": [
+        0,
+        19
+      ]
+    }
+  ]
+}
+[20:34:05] LOG: [Box2DEngine] setCanonicalTerrainLoops finished; terrainBodies=6
+[20:34:05] LOG: [FullHeal] physicsEngine.setCanonicalTerrainLoops completed
+[20:34:05] LOG: [FullHeal] ⏱️ Box2D colliders: 8.70ms (created 6 bodies)
+[20:34:05] LOG: [FullHeal] 🎯 TOTAL (physics only): 25.90ms
+[20:34:05] LOG: [FullHeal] Updating renderer polylines with 6 loops
+[20:34:05] LOG: [Renderer] updatePolylines: 6 polylines
+[20:34:05] LOG: [Renderer] first polyline length=377
+[20:34:05] LOG: [FullHeal] Render polylines: 6, first lengths=377,23,27,21,30,30
+[20:34:05] LOG: [FullHeal] ⏱️ Re-render walls: 0.40ms
+[20:34:05] LOG: [FullHeal] 🎯 TOTAL (including rendering): 26.30ms
+[20:34:08] LOG: Module loaded successfully!
+[20:34:16] LOG: [TerrainSurgery] New marching squares results {
+  "total": 3,
+  "open": 3,
+  "closed": 0,
+  "carveAABB": {
+    "minX": 6,
+    "minY": 8.5,
+    "maxX": 12,
+    "maxY": 14.5
+  }
+}
+[20:34:16] LOG: [TerrainSurgery]   Open#0 endpoints {
+  "a": {
+    "x": 7.75,
+    "y": 8.5
+  },
+  "b": {
+    "x": 6,
+    "y": 11.5
+  },
+  "length": "3.630",
+  "aabb": {
+    "minX": 6,
+    "minY": 8.5,
+    "maxX": 7.75,
+    "maxY": 11.5
+  }
+}
+[20:34:16] LOG: [TerrainSurgery]   Open#1 endpoints {
+  "a": {
+    "x": 9.6875,
+    "y": 8.5
+  },
+  "b": {
+    "x": 12,
+    "y": 12.125
+  },
+  "length": "4.504",
+  "aabb": {
+    "minX": 9.6875,
+    "minY": 8.5,
+    "maxX": 12,
+    "maxY": 12.125
+  }
+}
+[20:34:16] LOG: [TerrainSurgery]   Open#2 endpoints {
+  "a": {
+    "x": 8.1875,
+    "y": 14.5
+  },
+  "b": {
+    "x": 6.5,
+    "y": 14.5
+  },
+  "length": "3.415",
+  "aabb": {
+    "minX": 6.5,
+    "minY": 13.5,
+    "maxX": 8.5,
+    "maxY": 14.5
+  }
+}
+[20:34:16] LOG: [TerrainSurgery] Boundary arc clipping (all pieces) {
+  "carveRegion": {
+    "minX": 6,
+    "minY": 8.5,
+    "maxX": 12,
+    "maxY": 14.5
+  },
+  "canonicalCount": 6,
+  "candidateCanonicals": [
+    {
+      "id": 1,
+      "verts": 334,
+      "aabb": {
+        "minX": 2.375,
+        "minY": 2.4375,
+        "maxX": 29.5625,
+        "maxY": 29.625
+      }
+    },
+    {
+      "id": 3,
+      "verts": 20,
+      "aabb": {
+        "minX": 5,
+        "minY": 7.75,
+        "maxX": 7.75,
+        "maxY": 11.5
+      }
+    },
+    {
+      "id": 4,
+      "verts": 12,
+      "aabb": {
+        "minX": 6.5,
+        "minY": 13.5,
+        "maxX": 8.5,
+        "maxY": 15
+      }
+    }
+  ],
+  "fullyInside": []
+}
+[20:34:16] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
+  "canonicalLoopId": 1,
+  "arcLength": "20.085",
+  "arcVerts": 42,
+  "outsideFrac": "0.98",
+  "pieceIdx": 0,
+  "start": {
+    "id": 1,
+    "x": 2.5,
+    "y": 2.4375,
+    "segmentA": null,
+    "segmentB": null
+  },
+  "end": {
+    "id": 42,
+    "x": 9.6875,
+    "y": 8.5,
+    "segmentA": null,
+    "segmentB": null
+  }
+}
+[20:34:16] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
+  "canonicalLoopId": 1,
+  "arcLength": "141.308",
+  "arcVerts": 284,
+  "outsideFrac": "1.00",
+  "pieceIdx": 1,
+  "start": {
+    "id": 52,
+    "x": 12,
+    "y": 12.125,
+    "segmentA": null,
+    "segmentB": null
+  },
+  "end": {
+    "id": 1,
+    "x": 2.5,
+    "y": 2.4375,
+    "segmentA": null,
+    "segmentB": null
+  }
+}
+[20:34:16] LOG: [TerrainSurgery] Boundary arc summary {
+  "canonicalLoopId": 1,
+  "pieces": [
+    {
+      "pieceIdx": 0,
+      "startCanon": 0,
+      "endCanon": 41,
+      "verts": 42,
+      "length": "20.085",
+      "endpoints": [
+        {
+          "id": 1,
+          "x": 2.5,
+          "y": 2.4375,
+          "segmentA": null,
+          "segmentB": null
+        },
+        {
+          "id": 42,
+          "x": 9.6875,
+          "y": 8.5,
+          "segmentA": null,
+          "segmentB": null
+        }
+      ],
+      "outsideFrac": "0.98"
+    },
+    {
+      "pieceIdx": 1,
+      "startCanon": 51,
+      "endCanon": 0,
+      "verts": 284,
+      "length": "141.308",
+      "endpoints": [
+        {
+          "id": 52,
+          "x": 12,
+          "y": 12.125,
+          "segmentA": null,
+          "segmentB": null
+        },
+        {
+          "id": 1,
+          "x": 2.5,
+          "y": 2.4375,
+          "segmentA": null,
+          "segmentB": null
+        }
+      ],
+      "outsideFrac": "1.00"
+    }
+  ]
+}
+[20:34:16] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
+  "canonicalLoopId": 3,
+  "arcLength": "1.677",
+  "arcVerts": 4,
+  "outsideFrac": "0.67",
+  "pieceIdx": 0,
+  "start": {
+    "id": 349,
+    "x": 6.5,
+    "y": 8,
+    "segmentA": null,
+    "segmentB": null
+  },
+  "end": {
+    "id": 352,
+    "x": 7.75,
+    "y": 8.5,
+    "segmentA": null,
+    "segmentB": null
+  }
+}
+[20:34:16] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
+  "canonicalLoopId": 3,
+  "arcLength": "4.946",
+  "arcVerts": 11,
+  "outsideFrac": "0.40",
+  "pieceIdx": 1,
+  "start": {
+    "id": 359,
+    "x": 6,
+    "y": 11,
+    "segmentA": null,
+    "segmentB": null
+  },
+  "end": {
+    "id": 349,
+    "x": 6.5,
+    "y": 8,
+    "segmentA": null,
+    "segmentB": null
+  }
+}
+[20:34:16] LOG: [TerrainSurgery] Boundary arc summary {
+  "canonicalLoopId": 3,
+  "pieces": [
+    {
+      "pieceIdx": 0,
+      "startCanon": 0,
+      "endCanon": 3,
+      "verts": 4,
+      "length": "1.677",
+      "endpoints": [
+        {
+          "id": 349,
+          "x": 6.5,
+          "y": 8,
+          "segmentA": null,
+          "segmentB": null
+        },
+        {
+          "id": 352,
+          "x": 7.75,
+          "y": 8.5,
+          "segmentA": null,
+          "segmentB": null
+        }
+      ],
+      "outsideFrac": "0.67"
+    },
+    {
+      "pieceIdx": 1,
+      "startCanon": 10,
+      "endCanon": 0,
+      "verts": 11,
+      "length": "4.946",
+      "endpoints": [
+        {
+          "id": 359,
+          "x": 6,
+          "y": 11,
+          "segmentA": null,
+          "segmentB": null
+        },
+        {
+          "id": 349,
+          "x": 6.5,
+          "y": 8,
+          "segmentA": null,
+          "segmentB": null
+        }
+      ],
+      "outsideFrac": "0.40"
+    }
+  ]
+}
+[20:34:16] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
+  "canonicalLoopId": 4,
+  "arcLength": "2.372",
+  "arcVerts": 6,
+  "outsideFrac": "0.66",
+  "pieceIdx": 0,
+  "start": {
+    "id": 371,
+    "x": 8.1875,
+    "y": 14.5,
+    "segmentA": null,
+    "segmentB": null
+  },
+  "end": {
+    "id": 376,
+    "x": 6.5,
+    "y": 14.5,
+    "segmentA": null,
+    "segmentB": null
+  }
+}
+[20:34:16] LOG: [TerrainSurgery] Boundary arc summary {
+  "canonicalLoopId": 4,
+  "pieces": [
+    {
+      "pieceIdx": 0,
+      "startCanon": 2,
+      "endCanon": 7,
+      "verts": 6,
+      "length": "2.372",
+      "endpoints": [
+        {
+          "id": 371,
+          "x": 8.1875,
+          "y": 14.5,
+          "segmentA": null,
+          "segmentB": null
+        },
+        {
+          "id": 376,
+          "x": 6.5,
+          "y": 14.5,
+          "segmentA": null,
+          "segmentB": null
+        }
+      ],
+      "outsideFrac": "0.66"
+    }
+  ]
+}
+[20:34:16] LOG: [TerrainSurgery] Step1 loop snapshot {
+  "total": 8,
+  "loops": [
+    {
+      "id": 1,
+      "type": "new-open",
+      "closed": false,
+      "verts": 11,
+      "length": "3.630",
+      "endpoints": [
+        {
+          "x": 7.75,
+          "y": 8.5
+        },
+        {
+          "x": 6,
+          "y": 11.5
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "new-open",
+      "closed": false,
+      "verts": 13,
+      "length": "4.504",
+      "endpoints": [
+        {
+          "x": 9.6875,
+          "y": 8.5
+        },
+        {
+          "x": 12,
+          "y": 12.125
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "new-open",
+      "closed": false,
+      "verts": 12,
+      "length": "3.415",
+      "endpoints": [
+        {
+          "x": 8.1875,
+          "y": 14.5
+        },
+        {
+          "x": 6.5,
+          "y": 14.5
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "boundary-arc",
+      "closed": false,
+      "verts": 42,
+      "length": "20.085",
+      "endpoints": [
+        {
+          "x": 2.5,
+          "y": 2.4375
+        },
+        {
+          "x": 9.6875,
+          "y": 8.5
+        }
+      ],
+      "canonicalEndpoints": [
+        0,
+        41
+      ],
+      "sourceCanonicalId": 1
+    },
+    {
+      "id": 5,
+      "type": "boundary-arc",
+      "closed": false,
+      "verts": 284,
+      "length": "141.308",
+      "endpoints": [
+        {
+          "x": 12,
+          "y": 12.125
+        },
+        {
+          "x": 2.5,
+          "y": 2.4375
+        }
+      ],
+      "canonicalEndpoints": [
+        51,
+        0
+      ],
+      "sourceCanonicalId": 1
+    },
+    {
+      "id": 6,
+      "type": "boundary-arc",
+      "closed": false,
+      "verts": 4,
+      "length": "1.677",
+      "endpoints": [
+        {
+          "x": 6.5,
+          "y": 8
+        },
+        {
+          "x": 7.75,
+          "y": 8.5
+        }
+      ],
+      "canonicalEndpoints": [
+        0,
+        3
+      ],
+      "sourceCanonicalId": 3
+    },
+    {
+      "id": 7,
+      "type": "boundary-arc",
+      "closed": false,
+      "verts": 11,
+      "length": "4.946",
+      "endpoints": [
+        {
+          "x": 6,
+          "y": 11
+        },
+        {
+          "x": 6.5,
+          "y": 8
+        }
+      ],
+      "canonicalEndpoints": [
+        10,
+        0
+      ],
+      "sourceCanonicalId": 3
+    },
+    {
+      "id": 8,
+      "type": "boundary-arc",
+      "closed": false,
+      "verts": 6,
+      "length": "2.372",
+      "endpoints": [
+        {
+          "x": 8.1875,
+          "y": 14.5
+        },
+        {
+          "x": 6.5,
+          "y": 14.5
+        }
+      ],
+      "canonicalEndpoints": [
+        2,
+        7
+      ],
+      "sourceCanonicalId": 4
+    }
+  ]
+}
+[20:34:16] LOG: [Stitch] Start walk {
+  "startLoopId": 4,
+  "startIdx": 1,
+  "startPos": {
+    "x": 9.6875,
+    "y": 8.5
+  },
+  "canonicalIndex": 41
+}
+[20:34:16] LOG: [Stitch] Completed loop {
+  "stitchedId": 1,
+  "vertices": 337,
+  "loopsUsed": [
+    4,
+    5,
+    2
+  ]
+}
+[20:34:16] LOG: [Stitch] Start walk {
+  "startLoopId": 6,
+  "startIdx": 1,
+  "startPos": {
+    "x": 7.75,
+    "y": 8.5
+  },
+  "canonicalIndex": 3
+}
+[20:34:16] LOG: [Stitch] No neighbor found {
+  "pos": {
+    "x": 6,
+    "y": 11
+  },
+  "comingFrom": {
+    "loopId": 7,
+    "endpointIndex": 0,
+    "isNew": false,
+    "sourceCanonicalId": 3,
+    "canonicalIndex": 10
+  },
+  "available": []
+}
+[20:34:16] LOG: [Stitch] Dead end {
+  "atPos": {
+    "x": 6,
+    "y": 11
+  },
+  "currentLoopId": 7,
+  "loopsUsed": [
+    6,
+    7
+  ],
+  "neighbors": [
+    {
+      "loopId": 7,
+      "canon": 10
+    }
+  ]
+}
+[20:34:16] LOG: [Stitch] Start walk {
+  "startLoopId": 6,
+  "startIdx": 0,
+  "startPos": {
+    "x": 6.5,
+    "y": 8
+  },
+  "canonicalIndex": 0
+}
+[20:34:16] LOG: [Stitch] No neighbor found {
+  "pos": {
+    "x": 6,
+    "y": 11.5
+  },
+  "comingFrom": {
+    "loopId": 1,
+    "endpointIndex": 1,
+    "isNew": true
+  },
+  "available": []
+}
+[20:34:16] LOG: [Stitch] Dead end {
+  "atPos": {
+    "x": 6,
+    "y": 11.5
+  },
+  "currentLoopId": 1,
+  "loopsUsed": [
+    6,
+    1
+  ],
+  "neighbors": [
+    {
+      "loopId": 1
+    }
+  ]
+}
+[20:34:16] LOG: [Stitch] Start walk {
+  "startLoopId": 7,
+  "startIdx": 0,
+  "startPos": {
+    "x": 6,
+    "y": 11
+  },
+  "canonicalIndex": 10
+}
+[20:34:16] LOG: [Stitch] No neighbor found {
+  "pos": {
+    "x": 6,
+    "y": 11.5
+  },
+  "comingFrom": {
+    "loopId": 1,
+    "endpointIndex": 1,
+    "isNew": true
+  },
+  "available": []
+}
+[20:34:16] LOG: [Stitch] Dead end {
+  "atPos": {
+    "x": 6,
+    "y": 11.5
+  },
+  "currentLoopId": 1,
+  "loopsUsed": [
+    7,
+    6,
+    1
+  ],
+  "neighbors": [
+    {
+      "loopId": 1
+    }
+  ]
+}
+[20:34:16] LOG: [Stitch] Start walk {
+  "startLoopId": 7,
+  "startIdx": 1,
+  "startPos": {
+    "x": 6.5,
+    "y": 8
+  },
+  "canonicalIndex": 0
+}
+[20:34:16] LOG: [Stitch] No neighbor found {
+  "pos": {
+    "x": 6,
+    "y": 11
+  },
+  "comingFrom": {
+    "loopId": 7,
+    "endpointIndex": 0,
+    "isNew": false,
+    "sourceCanonicalId": 3,
+    "canonicalIndex": 10
+  },
+  "available": []
+}
+[20:34:16] LOG: [Stitch] Dead end {
+  "atPos": {
+    "x": 6,
+    "y": 11
+  },
+  "currentLoopId": 7,
+  "loopsUsed": [
+    7
+  ],
+  "neighbors": [
+    {
+      "loopId": 7,
+      "canon": 10
+    }
+  ]
+}
+[20:34:16] LOG: [Stitch] Start walk {
+  "startLoopId": 8,
+  "startIdx": 0,
+  "startPos": {
+    "x": 8.1875,
+    "y": 14.5
+  },
+  "canonicalIndex": 2
+}
+[20:34:16] LOG: [Stitch] Completed loop {
+  "stitchedId": 2,
+  "vertices": 17,
+  "loopsUsed": [
+    8,
+    3
+  ]
+}
+[20:34:16] LOG: [Stitch] Start walk {
+  "startLoopId": 1,
+  "startIdx": 0,
+  "startPos": {
+    "x": 7.75,
+    "y": 8.5
+  }
+}
+[20:34:16] LOG: [Stitch] No neighbor found {
+  "pos": {
+    "x": 6,
+    "y": 11.5
+  },
+  "comingFrom": {
+    "loopId": 1,
+    "endpointIndex": 1,
+    "isNew": true
+  },
+  "available": []
+}
+[20:34:16] LOG: [Stitch] Dead end {
+  "atPos": {
+    "x": 6,
+    "y": 11.5
+  },
+  "currentLoopId": 1,
+  "loopsUsed": [
+    1
+  ],
+  "neighbors": [
+    {
+      "loopId": 1
+    }
+  ]
+}
+[20:34:16] LOG: [Stitch] Start walk {
+  "startLoopId": 1,
+  "startIdx": 1,
+  "startPos": {
+    "x": 6,
+    "y": 11.5
+  }
+}
+[20:34:16] LOG: [Stitch] No neighbor found {
+  "pos": {
+    "x": 6,
+    "y": 11
+  },
+  "comingFrom": {
+    "loopId": 7,
+    "endpointIndex": 0,
+    "isNew": false,
+    "sourceCanonicalId": 3,
+    "canonicalIndex": 10
+  },
+  "available": []
+}
+[20:34:16] LOG: [Stitch] Dead end {
+  "atPos": {
+    "x": 6,
+    "y": 11
+  },
+  "currentLoopId": 7,
+  "loopsUsed": [
+    1,
+    6,
+    7
+  ],
+  "neighbors": [
+    {
+      "loopId": 7,
+      "canon": 10
+    }
+  ]
+}
+[20:34:16] LOG: [TerrainSurgery] Extracted carved loops {
+  "newLoops": 3,
+  "boundaryArcs": 5,
+  "totalLoops": 8,
+  "mergedPairs": 0
+}
+[20:34:16] LOG: [Stitch] Result {
+  "stitchedCount": 2,
+  "stitchedLengths": [
+    337,
+    17
+  ]
+}
+[20:34:16] LOG: [Carving] Surgery complete: {
+  "newLoops": 3,
+  "boundaryArcs": 5,
+  "totalLoops": 8
+}
+[20:34:38] LOG: [Carving] Debug step: stitched loop overlay enabled {
+  "stitchedCount": 2
+}

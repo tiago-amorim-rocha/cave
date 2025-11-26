@@ -246,7 +246,50 @@ export class RemeshManager {
    * Find canonical loops whose AABB intersects the dirty region
    */
   private findAffectedCanonicalLoops(region: { minX: number; minY: number; maxX: number; maxY: number }): CanonicalLoop[] {
-    return this.canonicalLoops.filter(loop => this.aabbsIntersect(loop.aabb, region));
+    const pointInRegion = (p: Point): boolean =>
+      p.x >= region.minX && p.x <= region.maxX &&
+      p.y >= region.minY && p.y <= region.maxY;
+
+    const segmentAabbIntersectsRegion = (p: Point, q: Point): boolean => {
+      const minX = Math.min(p.x, q.x);
+      const minY = Math.min(p.y, q.y);
+      const maxX = Math.max(p.x, q.x);
+      const maxY = Math.max(p.y, q.y);
+      const segAabb = { minX, minY, maxX, maxY };
+      return this.aabbsIntersect(segAabb, region);
+    };
+
+    return this.canonicalLoops.filter(loop => {
+      if (!this.aabbsIntersect(loop.aabb, region)) {
+        return false;
+      }
+
+      const verts = loop.vertices;
+      const n = verts.length;
+      if (n === 0) {
+        return false;
+      }
+
+      // Quick check: any vertex actually inside the region?
+      for (let i = 0; i < n; i++) {
+        const v = verts[i];
+        if (pointInRegion(v)) {
+          return true;
+        }
+      }
+
+      // Fallback: check if any edge's AABB intersects the region
+      for (let i = 0; i < n; i++) {
+        const p = verts[i];
+        const q = verts[(i + 1) % n];
+        if (segmentAabbIntersectsRegion(p, q)) {
+          return true;
+        }
+      }
+
+      // Loop's AABB overlapped, but no vertices or edges touch region => ignore
+      return false;
+    });
   }
 
   /**
