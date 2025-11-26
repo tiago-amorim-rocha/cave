@@ -28,7 +28,7 @@ export class PipelineConfig {
   readonly worldHeight = 32;
 
   /** Grid pitch (h) in metres - resolution of density field sampling */
-  readonly gridPitch = 1;
+  readonly gridPitch = 0.5;
 
   /** ISO value for marching squares (0-255) - density threshold between rock and cave */
   readonly isoValue = 128;
