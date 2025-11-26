@@ -131,7 +131,8 @@ export class DensityField {
 
     // Add solid rock border to ensure all caves are enclosed
     // This prevents open loops at boundaries
-    const borderWidth = 5; // cells
+    // Note: Border width is now configurable via PipelineConfig (default: 5 cells)
+    const borderWidth = 5; // cells - TODO: Pass from PipelineConfig if needed
 
     let borderCellsSet = 0;
 
@@ -188,7 +189,8 @@ export class DensityField {
     this.data.set(bubbleData);
 
     // Add solid rock border (same as Perlin generation)
-    const borderWidth = 5;
+    // Note: Border width is now configurable via PipelineConfig (default: 5 cells)
+    const borderWidth = 5; // cells - TODO: Pass from PipelineConfig if needed
 
     let borderCellsSet = 0;
 

@@ -1,9 +1,12 @@
 import type { DensityField } from './DensityField';
 import type { AABB, Vec2 } from './types';
+import { DEFAULT_CONFIG, type PipelineConfig } from './PipelineConfig';
 
 /**
  * Marching Squares with topology-driven edge walking
  * Guarantees closed contours by walking cell-to-cell instead of stitching segments
+ *
+ * Configurable via PipelineConfig for quantization and loop tracing limits.
  */
 
 /**
@@ -52,6 +55,7 @@ export class MarchingSquares {
   isoValue: number;
   debug: boolean = false;
   private quantizationStep: number;
+  private maxSteps: number; // Maximum steps when tracing loops
 
   // Topology tracking
   private cellInfo: Map<string, CellInfo> = new Map();
@@ -60,12 +64,20 @@ export class MarchingSquares {
   // Optional boundary for confined marching (for debug visualization)
   private boundaryAABB: AABB | null = null;
 
-  constructor(field: DensityField, isoValue: number) {
+  constructor(
+    field: DensityField,
+    isoValue: number,
+    config: PipelineConfig = DEFAULT_CONFIG
+  ) {
     this.field = field;
     this.isoValue = isoValue;
+
     // Snap all marching-squares vertices onto a small lattice for stable matching.
-    // Use quarter-cell resolution to keep detail while avoiding epsilon comparisons.
-    this.quantizationStep = this.field.config.gridPitch / 4;
+    // Quantization step is now configurable via PipelineConfig
+    this.quantizationStep = config.getMarchingSquaresQuantizationStep();
+
+    // Maximum loop tracing steps (prevents infinite loops)
+    this.maxSteps = config.marchingSquaresMaxSteps;
   }
 
   /**
@@ -302,10 +314,9 @@ export class MarchingSquares {
     let closed = false;
     let hitBoundary = false;
     let steps = 0;
-    const maxSteps = 100000;
     let lastVertex: Vec2 | undefined;
 
-    while (steps < maxSteps) {
+    while (steps < this.maxSteps) {
       const key = this.edgeKey(gx, gy, pairIdx);
 
       // Check if we've returned to start (after at least one step)
@@ -388,8 +399,8 @@ export class MarchingSquares {
       steps++;
     }
 
-    if (steps >= maxSteps) {
-      console.error(`[MarchingSquares] Walk exceeded max steps`);
+    if (steps >= this.maxSteps) {
+      console.error(`[MarchingSquares] Walk exceeded max steps (${this.maxSteps})`);
       return null;
     }
 
