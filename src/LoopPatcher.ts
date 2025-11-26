@@ -1,12 +1,15 @@
 /**
- * LoopPatcher
+ * LoopPatcher (DEPRECATED - use TerrainSurgery instead)
  *
- * Handles local arc replacement for efficient loop updates during carving.
- * Instead of rebuilding entire loops, this module:
- * 1. Identifies which existing loops intersect the dirty region
- * 2. Finds the arc (continuous vertex range) that needs replacement
- * 3. Stitches in the new arc from local marching squares
- * 4. Returns the patched loop for physics update
+ * This class implemented an arc-based patching approach for carving operations.
+ * It has been superseded by the TerrainSurgery class which uses a different approach:
+ * - Extracts complete new loops from dirty region (marching squares)
+ * - Extracts matching boundary arcs from existing canonical loops
+ * - Prepares geometry for stitching (not yet implemented)
+ *
+ * This file is kept for reference only and should not be used in new code.
+ *
+ * @deprecated Use TerrainSurgery for carving operations
  */
 
 import type { Point, AABB, Vec2 } from './types';

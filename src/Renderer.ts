@@ -413,8 +413,8 @@ export class Renderer {
    * @param joystickDraw - Optional callback to draw virtual joystick
    * @param spider - Optional spider rendering data
    * @param playerDirection - Optional player direction in radians (for rendering direction indicator)
-   * @param debugLoops - Optional debug loops to render (for carving experiments)
-   * @param debugAABB - Optional AABB boundary to render
+   * @param carvedLoops - Optional carved terrain loops to render (for visualization)
+   * @param carveRegion - Optional carve region AABB to render
    */
   render(
     playerPosition?: { x: number; y: number },
@@ -425,8 +425,8 @@ export class Renderer {
     joystickDraw?: (ctx: CanvasRenderingContext2D) => void,
     spider?: SpiderRenderData,
     playerDirection?: number,
-    debugLoops?: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }>,
-    debugAABB?: { minX: number; minY: number; maxX: number; maxY: number } | null
+    carvedLoops?: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }>,
+    carveRegion?: { minX: number; minY: number; maxX: number; maxY: number } | null
   ): void {
     try {
       const dpr = window.devicePixelRatio || 1;
@@ -525,9 +525,9 @@ export class Renderer {
         playerDebugDraw(this.ctx, width, height);
       }
 
-      // Draw debug loops (carving experiment)
-      if (debugLoops && debugLoops.length > 0) {
-        this.drawDebugLoops(width, height, debugLoops, debugAABB);
+      // Draw carved terrain loops (for visualization)
+      if (carvedLoops && carvedLoops.length > 0) {
+        this.drawCarvedLoops(width, height, carvedLoops, carveRegion);
       }
 
       // Draw virtual joystick (always on top, in screen coordinates)
@@ -1580,19 +1580,19 @@ export class Renderer {
   }
 
   /**
-   * Draw debug loops from carving experiment
-   * Warm colors for inside loops, cold colors for outside loops
-   * Shows AABB boundary as unfilled rectangle
+   * Draw carved terrain loops for visualization
+   * Warm colors for new loops (from dirty region), cold colors for boundary arcs (preserved)
+   * Shows carve region AABB as yellow dashed rectangle
    */
-  private drawDebugLoops(
+  private drawCarvedLoops(
     canvasWidth: number,
     canvasHeight: number,
-    debugLoops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }>,
-    debugAABB?: { minX: number; minY: number; maxX: number; maxY: number } | null
+    carvedLoops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }>,
+    carveRegion?: { minX: number; minY: number; maxX: number; maxY: number } | null
   ): void {
     this.ctx.save();
 
-    // Warm colors for inside loops (reds, oranges, yellows)
+    // Warm colors for new loops from dirty region (reds, oranges, yellows)
     const warmColors = [
       '#FF0000', // red
       '#FF4500', // orange red
@@ -1604,7 +1604,7 @@ export class Renderer {
       '#FF8C00', // dark orange
     ];
 
-    // Cold colors for outside loops (blues, greens, cyans)
+    // Cold colors for boundary arcs from existing loops (blues, greens, cyans)
     const coldColors = [
       '#0000FF', // blue
       '#00FFFF', // cyan
@@ -1616,15 +1616,15 @@ export class Renderer {
       '#00FA9A', // medium spring green
     ];
 
-    // Draw AABB boundary as yellow dashed rectangle
-    if (debugAABB) {
+    // Draw carve region AABB as yellow dashed rectangle
+    if (carveRegion) {
       this.ctx.strokeStyle = '#FFFF00'; // Yellow
       this.ctx.lineWidth = 2;
       this.ctx.setLineDash([5, 5]); // Dashed line
       this.ctx.globalAlpha = 0.8;
 
-      const topLeft = this.camera.worldToScreen(debugAABB.minX, debugAABB.minY, canvasWidth, canvasHeight);
-      const bottomRight = this.camera.worldToScreen(debugAABB.maxX, debugAABB.maxY, canvasWidth, canvasHeight);
+      const topLeft = this.camera.worldToScreen(carveRegion.minX, carveRegion.minY, canvasWidth, canvasHeight);
+      const bottomRight = this.camera.worldToScreen(carveRegion.maxX, carveRegion.maxY, canvasWidth, canvasHeight);
 
       this.ctx.strokeRect(
         topLeft.x,
@@ -1636,17 +1636,19 @@ export class Renderer {
       this.ctx.setLineDash([]); // Reset to solid line
     }
 
-    // Count inside and outside loops for color indexing
-    let insideIndex = 0;
-    let outsideIndex = 0;
+    // Count new and boundary loops for color indexing
+    let newLoopIndex = 0;
+    let boundaryIndex = 0;
 
-    debugLoops.forEach((loopResult) => {
+    carvedLoops.forEach((loopResult) => {
       const { loop, closed, endpoints, inside } = loopResult;
       if (loop.length < 2) return;
 
-      // Pick color based on inside/outside and index
+      // Pick color based on new/boundary and index
+      // inside=true means new loop from dirty region (warm colors)
+      // inside=false means boundary arc from existing loop (cold colors)
       const colors = inside ? warmColors : coldColors;
-      const colorIndex = inside ? insideIndex++ : outsideIndex++;
+      const colorIndex = inside ? newLoopIndex++ : boundaryIndex++;
       const color = colors[colorIndex % colors.length];
 
       // Draw the loop

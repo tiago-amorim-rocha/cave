@@ -715,8 +715,13 @@ export class RemeshManager {
   }
 
   /**
-   * Local patch update - legacy arc patching path.
-   * Currently unused in the carve flow; kept for reference.
+   * Local patch update - DEPRECATED arc patching path.
+   *
+   * This method uses the LoopPatcher class for arc-based surgery, which has been
+   * superseded by the TerrainSurgery approach. Use TerrainSurgery.extractCarvedLoops()
+   * for new carving operations.
+   *
+   * @deprecated Use TerrainSurgery for carving operations
    */
   localPatchUpdate(expandCells: number = 2): RemeshStats | null {
     const startTime = performance.now();
