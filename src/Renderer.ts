@@ -545,12 +545,13 @@ export class Renderer {
         playerDebugDraw(this.ctx, width, height);
       }
 
-      // Draw carved terrain loops (for visualization)
-      if (carvedLoops && carvedLoops.length > 0) {
+      // Draw carved terrain loops (step 1 - only if step 2 not active)
+      // When stitched loops are shown (step 2), hide raw carved loops
+      if (carvedLoops && carvedLoops.length > 0 && (!stitchedLoops || stitchedLoops.length === 0)) {
         this.drawCarvedLoops(width, height, carvedLoops, carveRegion);
       }
 
-      // Draw stitched canonical loops (dashed overlay)
+      // Draw stitched canonical loops (step 2 - replaces step 1 visualization)
       if (stitchedLoops && stitchedLoops.length > 0) {
         this.drawStitchedCanonicalLoops(width, height, stitchedLoops);
       }
@@ -626,66 +627,46 @@ export class Renderer {
 
   /**
    * Draw stitched canonical loops (debug overlay)
-   * Colored by inferred interior: cold for cave boundaries, warm for rock islands.
+   * Each loop gets a unique color and ID label.
    */
   private drawStitchedCanonicalLoops(
     canvasWidth: number,
     canvasHeight: number,
     stitchedLoops: Array<{ id: number; vertices: { x: number; y: number }[] }>
   ): void {
-    const warmColors = [
-      '#FF0000',
-      '#FF4500',
-      '#FFA500',
-      '#FFD700',
-      '#FFFF00',
-      '#FF1493',
-      '#FF6347',
-      '#FF8C00',
+    // Vibrant color palette - each loop gets a distinct color
+    const loopColors = [
+      '#FF0000', // Red
+      '#00FF00', // Green
+      '#0000FF', // Blue
+      '#FFFF00', // Yellow
+      '#FF00FF', // Magenta
+      '#00FFFF', // Cyan
+      '#FF8800', // Orange
+      '#8800FF', // Purple
+      '#FF0088', // Pink
+      '#00FF88', // Spring Green
+      '#FF8888', // Light Red
+      '#88FF88', // Light Green
+      '#8888FF', // Light Blue
+      '#FFFF88', // Light Yellow
+      '#FF88FF', // Light Magenta
+      '#88FFFF', // Light Cyan
     ];
-
-    const coldColors = [
-      '#0000FF',
-      '#00FFFF',
-      '#00FF00',
-      '#00FF7F',
-      '#1E90FF',
-      '#00CED1',
-      '#4169E1',
-      '#00FA9A',
-    ];
-
-    const signedArea = (verts: { x: number; y: number }[]): number => {
-      let area = 0;
-      for (let i = 0; i < verts.length; i++) {
-        const j = (i + 1) % verts.length;
-        area += verts[i].x * verts[j].y - verts[j].x * verts[i].y;
-      }
-      return area * 0.5;
-    };
-
-    let warmIndex = 0;
-    let coldIndex = 0;
 
     this.ctx.save();
-    this.ctx.lineWidth = 3;
-    this.ctx.globalAlpha = 0.9;
-    this.ctx.font = '12px sans-serif';
-    this.ctx.textAlign = 'left';
-    this.ctx.textBaseline = 'top';
+    this.ctx.lineWidth = 4;
+    this.ctx.globalAlpha = 1.0;
 
-    stitchedLoops.forEach(loop => {
+    stitchedLoops.forEach((loop, index) => {
       if (!loop.vertices || loop.vertices.length < 2) return;
       const verts = loop.vertices;
-      const area = signedArea(verts);
-      const isIsland = area < 0; // CW assumed rock island; CCW = cave boundary
-      const colors = isIsland ? warmColors : coldColors;
-      const colorIndex = isIsland ? warmIndex++ : coldIndex++;
-      const color = colors[colorIndex % colors.length];
+      const color = loopColors[index % loopColors.length];
 
       this.ctx.strokeStyle = color;
       this.ctx.fillStyle = color;
 
+      // Draw loop outline
       const first = this.camera.worldToScreen(verts[0].x, verts[0].y, canvasWidth, canvasHeight);
       this.ctx.beginPath();
       this.ctx.moveTo(first.x, first.y);
@@ -695,21 +676,32 @@ export class Renderer {
       }
       this.ctx.stroke();
 
-      // Mark start/end points
+      // Mark starting point with larger circle
       this.ctx.beginPath();
-      this.ctx.arc(first.x, first.y, 5, 0, Math.PI * 2);
-      this.ctx.fill();
-      const last = this.camera.worldToScreen(verts[verts.length - 1].x, verts[verts.length - 1].y, canvasWidth, canvasHeight);
-      this.ctx.beginPath();
-      this.ctx.arc(last.x, last.y, 5, 0, Math.PI * 2);
+      this.ctx.arc(first.x, first.y, 6, 0, Math.PI * 2);
       this.ctx.fill();
 
-      // Label near starting point with outline for readability
-      this.ctx.lineWidth = 3;
+      // White outline for starting point
+      this.ctx.strokeStyle = '#FFFFFF';
+      this.ctx.lineWidth = 2;
+      this.ctx.stroke();
+
+      // Draw ID label near starting point
+      this.ctx.font = 'bold 16px monospace';
+      this.ctx.textAlign = 'left';
+      this.ctx.textBaseline = 'top';
+
+      // Black outline for text readability
+      this.ctx.lineWidth = 4;
       this.ctx.strokeStyle = '#000000';
-      this.ctx.strokeText(`${loop.id}`, first.x + 8, first.y + 8);
-      this.ctx.fillText(`${loop.id}`, first.x + 8, first.y + 8);
-      this.ctx.lineWidth = 3;
+      this.ctx.strokeText(`#${loop.id}`, first.x + 12, first.y - 8);
+
+      // Colored text
+      this.ctx.fillStyle = color;
+      this.ctx.fillText(`#${loop.id}`, first.x + 12, first.y - 8);
+
+      // Reset line width
+      this.ctx.lineWidth = 4;
     });
 
     this.ctx.restore();
