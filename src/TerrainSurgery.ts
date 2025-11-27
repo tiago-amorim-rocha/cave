@@ -1041,6 +1041,8 @@ export class TerrainSurgery {
 
   /**
    * Stitch open carved segments (warm + boundary arcs) into closed canonical loops.
+   * Simple algorithm: join segments whose endpoints meet in quantized space.
+   *
    * Closed warm loops are included directly without modification.
    */
   private stitchCanonicalLoops(
@@ -1049,264 +1051,232 @@ export class TerrainSurgery {
     isInsideCarveRegion: (v: Point) => boolean,
     quantStep: number
   ): StitchedLoop[] {
-    type EndpointRef = {
+    console.log('[Stitch] Starting simple endpoint-matching stitcher');
+
+    type SegmentEndpoint = {
       loopId: number;
       loopIndex: number;
-      endpointIndex: 0 | 1;
-      isNew: boolean;
-      sourceCanonicalId?: number;
+      endpointIndex: 0 | 1; // which endpoint (0=start, 1=end)
       pos: Point;
-      inside: boolean;
-      canonicalIndex?: number;
+      loop: CarvedLoop;
     };
 
     const stitched: StitchedLoop[] = [];
-    const endpointMap = new Map<string, EndpointRef[]>();
-    const visitedLoops = new Set<number>(); // Track traversed edges by CarvedLoop.id
+    const endpointMap = new Map<string, SegmentEndpoint[]>();
+    const visitedLoops = new Set<number>();
 
-    const addEndpointRef = (key: string, ref: EndpointRef) => {
-      const arr = endpointMap.get(key);
-      if (arr) {
-        arr.push(ref);
-      } else {
-        endpointMap.set(key, [ref]);
-      }
-    };
-
-    const neighborCandidates = (pos: Point, canonicalIndex?: number): EndpointRef[] => {
-      // Prefer exact canonical index match when available
-      if (canonicalIndex !== undefined) {
-        const exact = Array.from(endpointMap.values()).flat().filter(r =>
-          r.canonicalIndex !== undefined &&
-          r.canonicalIndex === canonicalIndex
-        );
-        if (exact.length > 0) {
-          return exact;
-        }
-      }
-
-      // Fall back to exact quantized position
-      const baseKey = quantKey(pos);
-      const exactKeyRefs = endpointMap.get(baseKey);
-      if (exactKeyRefs && exactKeyRefs.length > 0) {
-        return [...exactKeyRefs];
-      }
-
-      // Final fallback: neighboring keys (no distance filter) to avoid dead-ends from tiny drift
-      const [ix, iy] = baseKey.split(',').map(Number);
-      const result: EndpointRef[] = [];
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          const key = `${ix + dx},${iy + dy}`;
-          const arr = endpointMap.get(key);
-          if (!arr) continue;
-          result.push(...arr);
-        }
-      }
-      return result;
-    };
-
-    // Index endpoints for all open loops
+    // First, add all closed loops directly to output
     carvedLoops.forEach((loop, loopIndex) => {
-      if (loop.closed || !loop.endpoints) {
-        return;
+      if (loop.closed) {
+        stitched.push({ id: stitched.length + 1, vertices: [...loop.loop] });
+        visitedLoops.add(loop.id);
+        console.log('[Stitch] Added closed loop directly', {
+          id: stitched.length,
+          loopId: loop.id,
+          vertices: loop.loop.length,
+          type: loop.isNew ? 'warm' : 'cold'
+        });
       }
-      const [a, b] = loop.endpoints;
-      const refs: [EndpointRef, EndpointRef] = [
-        {
-          loopId: loop.id,
-          loopIndex,
-          endpointIndex: 0,
-          isNew: loop.isNew,
-          sourceCanonicalId: loop.sourceCanonicalId,
-          pos: a,
-          inside: isInsideCarveRegion(a),
-          canonicalIndex: loop.canonicalEndpoints ? loop.canonicalEndpoints[0] : undefined
-        },
-        {
-          loopId: loop.id,
-          loopIndex,
-          endpointIndex: 1,
-          isNew: loop.isNew,
-          sourceCanonicalId: loop.sourceCanonicalId,
-          pos: b,
-          inside: isInsideCarveRegion(b),
-          canonicalIndex: loop.canonicalEndpoints ? loop.canonicalEndpoints[1] : undefined
-        }
-      ];
-      addEndpointRef(quantKey(a), refs[0]);
-      addEndpointRef(quantKey(b), refs[1]);
     });
 
-    // Helper to append vertices in correct order (avoids duplicating junction vertex)
-    const appendVertices = (loop: CarvedLoop, startEndpoint: 0 | 1, out: Point[]) => {
-      const verts = startEndpoint === 0 ? loop.loop : [...loop.loop].reverse();
-      if (out.length === 0) {
-        out.push(...verts);
-      } else {
-        out.push(...verts.slice(1)); // skip first to avoid duplicates at joints
-      }
-    };
+    // Index all open segment endpoints by quantized position
+    carvedLoops.forEach((loop, loopIndex) => {
+      if (loop.closed || !loop.endpoints) return;
 
-    const chooseNext = (currentPos: Point, comingFrom: EndpointRef): EndpointRef | null => {
-      let candidates = neighborCandidates(currentPos, comingFrom.canonicalIndex);
-      // Filter out the edge we just traversed
-      let available = candidates.filter(ref => ref.loopId !== comingFrom.loopId || ref.endpointIndex !== comingFrom.endpointIndex);
+      const [start, end] = loop.endpoints;
+      const startKey = quantKey(start);
+      const endKey = quantKey(end);
 
-      // Fallback: if canonical lookup only found ourselves, fall back to positional match
-      if (available.length === 0 && comingFrom.canonicalIndex !== undefined) {
-        candidates = neighborCandidates(currentPos, undefined);
-        available = candidates.filter(ref => ref.loopId !== comingFrom.loopId || ref.endpointIndex !== comingFrom.endpointIndex);
-      }
+      const startRef: SegmentEndpoint = {
+        loopId: loop.id,
+        loopIndex,
+        endpointIndex: 0,
+        pos: start,
+        loop
+      };
 
-      const unvisited = available.filter(ref => !visitedLoops.has(ref.loopId));
+      const endRef: SegmentEndpoint = {
+        loopId: loop.id,
+        loopIndex,
+        endpointIndex: 1,
+        pos: end,
+        loop
+      };
 
-      // Preference rules
-      if (comingFrom.isNew) {
-        const pref = unvisited.find(ref => !ref.isNew);
-        if (pref) return pref;
-      } else {
-        if (!comingFrom.inside) {
-          const pref = unvisited.find(ref => !ref.isNew && ref.sourceCanonicalId === comingFrom.sourceCanonicalId);
-          if (pref) return pref;
-        } else {
-          const pref = unvisited.find(ref => ref.isNew);
-          if (pref) return pref;
-        }
-      }
+      if (!endpointMap.has(startKey)) endpointMap.set(startKey, []);
+      if (!endpointMap.has(endKey)) endpointMap.set(endKey, []);
 
-      // Fallback: any unvisited neighbor
-      if (unvisited.length > 0) {
-        return unvisited[0];
-      }
+      endpointMap.get(startKey)!.push(startRef);
+      endpointMap.get(endKey)!.push(endRef);
+    });
 
-      // Dead end
-      console.log('[Stitch] No neighbor found', {
-        pos: currentPos,
-        comingFrom: {
-          loopId: comingFrom.loopId,
-          endpointIndex: comingFrom.endpointIndex,
-          isNew: comingFrom.isNew,
-          sourceCanonicalId: comingFrom.sourceCanonicalId,
-          canonicalIndex: comingFrom.canonicalIndex
-        },
-        available: available.map(r => ({
+    // Log endpoint statistics
+    console.log('[Stitch] Endpoint index built', {
+      totalSegments: carvedLoops.filter(l => !l.closed).length,
+      uniquePositions: endpointMap.size,
+      endpointDetails: Array.from(endpointMap.entries()).map(([key, refs]) => ({
+        key,
+        count: refs.length,
+        segments: refs.map(r => ({
           loopId: r.loopId,
           endpointIndex: r.endpointIndex,
-          isNew: r.isNew,
-          sourceCanonicalId: r.sourceCanonicalId,
-          canonicalIndex: r.canonicalIndex
+          type: r.loop.isNew ? 'warm' : 'cold'
         }))
-      });
+      }))
+    });
+
+    // Helper: find next unvisited segment at this position
+    const findNextSegment = (posKey: string, excludeLoopId: number): SegmentEndpoint | null => {
+      const candidates = endpointMap.get(posKey) || [];
+      for (const candidate of candidates) {
+        if (candidate.loopId !== excludeLoopId && !visitedLoops.has(candidate.loopId)) {
+          return candidate;
+        }
+      }
       return null;
     };
 
-    // Seed stitched loops with closed warm loops directly
-    carvedLoops.forEach(loop => {
-      if (loop.isNew && loop.closed) {
-        stitched.push({ id: stitched.length + 1, vertices: [...loop.loop] });
+    // Walk graph to form closed loops
+    carvedLoops.forEach((startLoop, startLoopIndex) => {
+      if (startLoop.closed || !startLoop.endpoints) return;
+      if (visitedLoops.has(startLoop.id)) return;
+
+      // Try starting from both endpoints
+      for (let startEndpointIndex = 0; startEndpointIndex <= 1; startEndpointIndex++) {
+        if (visitedLoops.has(startLoop.id)) break;
+
+        const startPos = startLoop.endpoints[startEndpointIndex as 0 | 1];
+        const startKey = quantKey(startPos);
+        const path: Point[] = [];
+        const segmentsInPath: Array<{ id: number; type: string }> = [];
+
+        let currentSegment: SegmentEndpoint = {
+          loopId: startLoop.id,
+          loopIndex: startLoopIndex,
+          endpointIndex: startEndpointIndex as 0 | 1,
+          pos: startPos,
+          loop: startLoop
+        };
+
+        let steps = 0;
+        const maxSteps = 10000;
+        const tempVisited = new Set<number>();
+
+        console.log('[Stitch] Starting walk', {
+          startLoopId: startLoop.id,
+          startEndpointIndex,
+          startPos,
+          startKey,
+          type: startLoop.isNew ? 'warm' : 'cold'
+        });
+
+        while (steps++ < maxSteps) {
+          const loop = currentSegment.loop;
+          const enteringAtEndpoint = currentSegment.endpointIndex;
+          const exitingAtEndpoint: 0 | 1 = enteringAtEndpoint === 0 ? 1 : 0;
+
+          tempVisited.add(loop.id);
+          segmentsInPath.push({ id: loop.id, type: loop.isNew ? 'warm' : 'cold' });
+
+          // Append vertices in correct direction
+          if (enteringAtEndpoint === 0) {
+            // Entering at start, exiting at end - traverse forward
+            if (path.length === 0) {
+              path.push(...loop.loop);
+            } else {
+              path.push(...loop.loop.slice(1)); // skip first to avoid duplicate
+            }
+          } else {
+            // Entering at end, exiting at start - traverse backward
+            const reversed = [...loop.loop].reverse();
+            if (path.length === 0) {
+              path.push(...reversed);
+            } else {
+              path.push(...reversed.slice(1)); // skip first to avoid duplicate
+            }
+          }
+
+          // Get exit position
+          const exitPos = loop.endpoints![exitingAtEndpoint];
+          const exitKey = quantKey(exitPos);
+
+          // Check if we've closed the loop
+          if (exitKey === startKey && tempVisited.size > 1) {
+            // Successfully closed!
+            stitched.push({ id: stitched.length + 1, vertices: path });
+            tempVisited.forEach(id => visitedLoops.add(id));
+            console.log('[Stitch] ✓ Closed loop formed', {
+              stitchedId: stitched.length,
+              segments: segmentsInPath.length,
+              vertices: path.length,
+              segmentIds: segmentsInPath
+            });
+            break;
+          }
+
+          // Find next segment at exit position
+          const nextSegment = findNextSegment(exitKey, loop.id);
+          if (!nextSegment) {
+            // Dead end - could not close loop
+            console.warn('[Stitch] ✗ OPEN SEGMENT - Failed to close loop', {
+              startLoopId: startLoop.id,
+              startKey,
+              startPos,
+              exitKey,
+              exitPos,
+              segmentsInPath: segmentsInPath.length,
+              segmentIds: segmentsInPath,
+              vertices: path.length,
+              endpointsAtExitPos: (endpointMap.get(exitKey) || []).map(e => ({
+                loopId: e.loopId,
+                endpointIndex: e.endpointIndex,
+                type: e.loop.isNew ? 'warm' : 'cold',
+                visited: visitedLoops.has(e.loopId) || tempVisited.has(e.loopId)
+              })),
+              reason: (endpointMap.get(exitKey) || []).length === 0
+                ? 'No endpoints at this position'
+                : 'All segments at this position already visited'
+            });
+            break;
+          }
+
+          currentSegment = nextSegment;
+        }
+
+        if (steps >= maxSteps) {
+          console.error('[Stitch] Safety limit reached - infinite loop detected', {
+            startLoopId: startLoop.id,
+            segmentsInPath: segmentsInPath.length
+          });
+        }
       }
     });
 
-    const walkOpenLoops = (loopIndices: number[]) => {
-      loopIndices.forEach(loopIndex => {
-        const loop = carvedLoops[loopIndex];
-        if (loop.closed || !loop.endpoints) return;
-        if (visitedLoops.has(loop.id)) return;
-
-        const startCandidates: (0 | 1)[] = [];
-        const firstIdx: 0 | 1 = isInsideCarveRegion(loop.endpoints[0]) ? 0 : (isInsideCarveRegion(loop.endpoints[1]) ? 1 : 0);
-        startCandidates.push(firstIdx, (firstIdx === 0 ? 1 : 0));
-
-        for (const startIdx of startCandidates) {
-          if (visitedLoops.has(loop.id)) break;
-
-          const startRef: EndpointRef = {
-            loopId: loop.id,
-            loopIndex,
-            endpointIndex: startIdx,
-            isNew: loop.isNew,
-            sourceCanonicalId: loop.sourceCanonicalId,
-            pos: loop.endpoints[startIdx],
-            inside: isInsideCarveRegion(loop.endpoints[startIdx]),
-            canonicalIndex: loop.canonicalEndpoints ? loop.canonicalEndpoints[startIdx] : undefined
-          };
-          const startKey = quantKey(startRef.pos);
-
-          let currentRef = startRef;
-          const stitchedVertices: Point[] = [];
-          let safety = 0;
-          const tempVisited = new Set<number>();
-
-          console.log('[Stitch] Start walk', {
-            startLoopId: loop.id,
-            startIdx,
-            startPos: startRef.pos,
-            canonicalIndex: startRef.canonicalIndex
-          });
-
-          while (safety++ < 10000) { // guard against infinite loops
-            const currentLoop = carvedLoops[currentRef.loopIndex];
-            const otherEndpoint: 0 | 1 = currentRef.endpointIndex === 0 ? 1 : 0;
-            appendVertices(currentLoop, currentRef.endpointIndex, stitchedVertices);
-            tempVisited.add(currentLoop.id);
-
-            const otherPos = currentLoop.endpoints ? currentLoop.endpoints[otherEndpoint] : currentLoop.loop[currentLoop.loop.length - 1];
-            const otherKey = quantKey(otherPos);
-
-            // Completed a loop if we returned to start
-            if (otherKey === startKey && stitchedVertices.length > 1) {
-              const first = stitchedVertices[0];
-              const last = stitchedVertices[stitchedVertices.length - 1];
-              if (Math.hypot(first.x - last.x, first.y - last.y) > 1e-6) {
-                stitchedVertices.push({ ...first });
-              }
-              stitched.push({ id: stitched.length + 1, vertices: stitchedVertices });
-              tempVisited.forEach(id => visitedLoops.add(id));
-              console.log('[Stitch] Completed loop', {
-                stitchedId: stitched.length,
-                vertices: stitchedVertices.length,
-                loopsUsed: Array.from(tempVisited)
-              });
-              break;
-            }
-
-            const currentLoopCanon = carvedLoops[currentRef.loopIndex].canonicalEndpoints;
-            const nextCanonicalIndex = currentLoopCanon ? currentLoopCanon[otherEndpoint] : currentRef.canonicalIndex;
-            const nextRef = chooseNext(otherPos, {
-              ...currentRef,
-              endpointIndex: otherEndpoint,
-              pos: otherPos,
-              inside: isInsideCarveRegion(otherPos),
-              canonicalIndex: nextCanonicalIndex
-            });
-
-            if (!nextRef) {
-              console.log('[Stitch] Dead end', {
-                atPos: otherPos,
-                currentLoopId: currentLoop.id,
-                loopsUsed: Array.from(tempVisited),
-                neighbors: endpointMap.get(quantKey(otherPos))?.map(r => ({ loopId: r.loopId, canon: r.canonicalIndex }))
-              });
-              break;
-            }
-
-            currentRef = nextRef;
-          }
-        }
+    // Report any segments that were never visited (orphaned)
+    const orphanedSegments = carvedLoops.filter(
+      loop => !loop.closed && !visitedLoops.has(loop.id)
+    );
+    if (orphanedSegments.length > 0) {
+      console.warn('[Stitch] Orphaned segments (never visited during walk)', {
+        count: orphanedSegments.length,
+        segments: orphanedSegments.map(loop => ({
+          loopId: loop.id,
+          type: loop.isNew ? 'warm' : 'cold',
+          endpoints: loop.endpoints,
+          quantizedEndpoints: loop.endpoints
+            ? [quantKey(loop.endpoints[0]), quantKey(loop.endpoints[1])]
+            : null,
+          vertices: loop.loop.length
+        }))
       });
-    };
+    }
 
-    const boundaryLoopIndices = carvedLoops
-      .map((loop, idx) => (!loop.isNew && !loop.closed && loop.endpoints ? idx : -1))
-      .filter(idx => idx >= 0);
-    const newLoopIndices = carvedLoops
-      .map((loop, idx) => (loop.isNew && !loop.closed && loop.endpoints ? idx : -1))
-      .filter(idx => idx >= 0);
-
-    // Step 3: stitch merged boundary arcs (outer ring) first, then connect to new warm loops.
-    walkOpenLoops(boundaryLoopIndices);
-    walkOpenLoops(newLoopIndices);
+    console.log('[Stitch] Summary', {
+      inputLoops: carvedLoops.length,
+      outputStitched: stitched.length,
+      visitedSegments: visitedLoops.size,
+      orphanedSegments: orphanedSegments.length
+    });
 
     return stitched;
   }
