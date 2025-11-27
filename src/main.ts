@@ -950,10 +950,33 @@ class CarvableCaves {
    * Enable stitched loop overlay after inspecting raw carve fragments.
    */
   enableStitchedDebugOverlay(): void {
-    if (!this.config.debugCaptureEnabled) return;
-    if (this.showStitchedLoops) return;
+    console.log('[Carving] Debug step button clicked', {
+      debugCaptureEnabled: this.config.debugCaptureEnabled,
+      currentShowStitchedLoops: this.showStitchedLoops,
+      stitchedLoopsCount: this.stitchedLoops.length,
+      carvedLoopsCount: this.carvedLoops.length
+    });
+
+    if (!this.config.debugCaptureEnabled) {
+      console.warn('[Carving] Debug capture is disabled - cannot show stitched loops');
+      return;
+    }
+
+    if (this.showStitchedLoops) {
+      console.log('[Carving] Stitched loops already visible');
+      return;
+    }
+
+    if (this.stitchedLoops.length === 0) {
+      console.warn('[Carving] No stitched loops to display - perform a carve operation first');
+      return;
+    }
+
     this.showStitchedLoops = true;
-    console.log('[Carving] Debug step: stitched loop overlay enabled', { stitchedCount: this.stitchedLoops.length });
+    console.log('[Carving] ✓ Step 2 enabled: showing stitched loops', {
+      stitchedCount: this.stitchedLoops.length,
+      loops: this.stitchedLoops.map(l => ({ id: l.id, vertices: l.vertices.length }))
+    });
   }
 }
 
