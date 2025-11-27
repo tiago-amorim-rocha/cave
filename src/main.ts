@@ -1055,21 +1055,79 @@ class CarvableCaves {
     }
 
     if (closestLoop && closestSegmentIndex >= 0) {
+      const segment = closestLoop.segments[closestSegmentIndex];
+
+      // For cold (boundary) segments, find related optimized vertices from canonical loop
+      let relatedOptVertices: Array<{ index: number; vertex: any }> | undefined;
+      if (!segment.isNew && segment.sourceCanonicalId !== undefined && segment.canonicalEndpoints) {
+        relatedOptVertices = this.findRelatedOptVertices(
+          segment.sourceCanonicalId,
+          segment.canonicalEndpoints
+        );
+      }
+
       // Show ancestry modal
       this.ancestryModal.show({
         stitchedLoopId: closestLoop.id,
         segmentIndex: closestSegmentIndex,
-        ancestry: closestLoop.segments[closestSegmentIndex],
-        stitchedVertexCount: closestLoop.vertices.length
+        ancestry: segment,
+        stitchedVertexCount: closestLoop.vertices.length,
+        relatedOptVertices
       });
 
       console.log('[Ancestry] Showing segment ancestry', {
         loopId: closestLoop.id,
         segmentIndex: closestSegmentIndex,
-        sourceLoopId: closestLoop.segments[closestSegmentIndex].sourceLoopId,
-        isNew: closestLoop.segments[closestSegmentIndex].isNew
+        sourceLoopId: segment.sourceLoopId,
+        isNew: segment.isNew,
+        relatedOptVerticesCount: relatedOptVertices?.length ?? 0
       });
     }
+  }
+
+  /**
+   * Find optimized vertices from a canonical loop that relate to a given canonical vertex range.
+   * Returns all optimized vertices whose ancestry overlaps with the specified range.
+   */
+  private findRelatedOptVertices(
+    canonicalLoopId: number,
+    canonicalRange: [number, number]
+  ): Array<{ index: number; vertex: any }> {
+    const result: Array<{ index: number; vertex: any }> = [];
+
+    // Look up the canonical loop from remesh manager
+    const canonicalLoop = this.remeshManager.getCanonicalLoops().find(
+      loop => loop.id === canonicalLoopId
+    );
+
+    if (!canonicalLoop || !canonicalLoop.optVertices) {
+      console.warn('[Ancestry] Could not find canonical loop or optimized vertices', {
+        canonicalLoopId,
+        found: !!canonicalLoop,
+        hasOptVertices: !!canonicalLoop?.optVertices
+      });
+      return result;
+    }
+
+    const [rangeStart, rangeEnd] = canonicalRange;
+
+    // Find all optimized vertices whose ancestry overlaps with our range
+    canonicalLoop.optVertices.forEach((optVertex, index) => {
+      // Check if ancestry ranges overlap
+      // Overlapping condition: optVertex.canonStart <= rangeEnd && optVertex.canonEnd >= rangeStart
+      if (optVertex.canonStart <= rangeEnd && optVertex.canonEnd >= rangeStart) {
+        result.push({ index, vertex: optVertex });
+      }
+    });
+
+    console.log('[Ancestry] Found related optimized vertices', {
+      canonicalLoopId,
+      canonicalRange,
+      totalOptVertices: canonicalLoop.optVertices.length,
+      relatedCount: result.length
+    });
+
+    return result;
   }
 
   /**
