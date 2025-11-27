@@ -1198,6 +1198,95 @@ class CarvableCaves {
       };
 
       console.log('[ReuseDebug] Dirty vs clean optVertices', dirtyCleanSummary);
+
+      // === Dirty Block Detection ===
+      // Group contiguous dirty opt vertices into blocks
+      interface DirtyBlock {
+        optStartIndex: number;
+        optEndIndex: number;
+        runCanonStartId: number;
+        runCanonEndId: number;
+      }
+
+      const blocks: DirtyBlock[] = [];
+
+      if (dirtyOptVertices.length > 0) {
+        // Sort dirty indices ascending
+        const sortedDirtyIndices = dirtyOptVertices
+          .map(dv => dv.index)
+          .sort((a, b) => a - b);
+
+        // Group into contiguous runs
+        let blockStart = sortedDirtyIndices[0];
+        let blockEnd = sortedDirtyIndices[0];
+
+        for (let i = 1; i < sortedDirtyIndices.length; i++) {
+          const currentIndex = sortedDirtyIndices[i];
+          const prevIndex = sortedDirtyIndices[i - 1];
+
+          if (currentIndex === prevIndex + 1) {
+            // Extend current block
+            blockEnd = currentIndex;
+          } else {
+            // Finish current block and start new one
+            // Compute runCanonStartId and runCanonEndId for the block
+            let runCanonStartId = Infinity;
+            let runCanonEndId = -Infinity;
+
+            for (let idx = blockStart; idx <= blockEnd; idx++) {
+              const optVertex = canonicalLoop.optVertices[idx];
+              runCanonStartId = Math.min(runCanonStartId, optVertex.canonStartId);
+              runCanonEndId = Math.max(runCanonEndId, optVertex.canonEndId);
+            }
+
+            blocks.push({
+              optStartIndex: blockStart,
+              optEndIndex: blockEnd,
+              runCanonStartId,
+              runCanonEndId
+            });
+
+            // Start new block
+            blockStart = currentIndex;
+            blockEnd = currentIndex;
+          }
+        }
+
+        // Add the last block
+        let runCanonStartId = Infinity;
+        let runCanonEndId = -Infinity;
+
+        for (let idx = blockStart; idx <= blockEnd; idx++) {
+          const optVertex = canonicalLoop.optVertices[idx];
+          runCanonStartId = Math.min(runCanonStartId, optVertex.canonStartId);
+          runCanonEndId = Math.max(runCanonEndId, optVertex.canonEndId);
+        }
+
+        blocks.push({
+          optStartIndex: blockStart,
+          optEndIndex: blockEnd,
+          runCanonStartId,
+          runCanonEndId
+        });
+      }
+
+      // Log dirty blocks
+      const dirtyBlocksSummary = {
+        stitchedLoopId: stitchedLoop.id,
+        sourceCanonicalId: coldSegment.sourceCanonicalId,
+        canonicalEndpointIds: coldSegment.canonicalEndpointIds,
+        canonicalPathLength: canonicalPath.length,
+        blockCount: blocks.length,
+        blocks: blocks.map(block => ({
+          optStartIndex: block.optStartIndex,
+          optEndIndex: block.optEndIndex,
+          optLength: block.optEndIndex - block.optStartIndex + 1,
+          runCanonStartId: block.runCanonStartId,
+          runCanonEndId: block.runCanonEndId
+        }))
+      };
+
+      console.log('[ReuseDebug] Dirty opt blocks', dirtyBlocksSummary);
     }
   }
 
