@@ -931,7 +931,8 @@ class CarvableCaves {
         console.log('[Carving] Surgery complete:', {
           newLoops: surgeryResult.stats.newLoopCount,
           boundaryArcs: surgeryResult.stats.boundaryArcCount,
-          totalLoops: surgeryResult.loops.length
+          totalLoops: surgeryResult.loops.length,
+          boundaryMergedPairs: surgeryResult.stats.boundaryMergePairs
         });
       }
     } else {

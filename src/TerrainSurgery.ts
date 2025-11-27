@@ -17,6 +17,7 @@ import type { MarchingSquares } from './MarchingSquares';
 import type { RemeshManager } from './RemeshManager';
 import type { CanonicalLoop } from './terrain/CanonicalGeometry';
 import type { Point, AABB } from './types';
+import { cleanLoop } from './physics/shapeUtils';
 
 /**
  * Result from loop extraction in carved region
@@ -66,6 +67,7 @@ export interface CarveSurgeryResult {
     newLoopCount: number;
     boundaryArcCount: number;
     mergedLoopPairs: number;
+    boundaryMergePairs: number;
   };
 }
 
@@ -106,22 +108,33 @@ export class TerrainSurgery {
     }
 
     const h = this.densityField.config.gridPitch;
+    const innerOpenOverlapCells = 0; // keep inner open loops confined to the dirty AABB
+    const outerBoundaryOverlapVertices = 0; // no extra overlap for outer boundary arcs (experiment disabled)
 
     // Convert world AABB to grid AABB with expanded padding
-    const gridAABB = {
+    const baseGridAABB = {
       minX: Math.max(0, Math.floor(dirtyWorldAABB.minX / h) - expandCells),
       minY: Math.max(0, Math.floor(dirtyWorldAABB.minY / h) - expandCells),
       maxX: Math.min(this.densityField.gridWidth - 2, Math.ceil(dirtyWorldAABB.maxX / h) + expandCells),
       maxY: Math.min(this.densityField.gridHeight - 2, Math.ceil(dirtyWorldAABB.maxY / h) + expandCells)
     };
 
+    // Marching squares gets extra padding so open loops can step past the dirty AABB
+    const marchingExpandCells = expandCells + innerOpenOverlapCells;
+    const marchingGridAABB = {
+      minX: Math.max(0, Math.floor(dirtyWorldAABB.minX / h) - marchingExpandCells),
+      minY: Math.max(0, Math.floor(dirtyWorldAABB.minY / h) - marchingExpandCells),
+      maxX: Math.min(this.densityField.gridWidth - 2, Math.ceil(dirtyWorldAABB.maxX / h) + marchingExpandCells),
+      maxY: Math.min(this.densityField.gridHeight - 2, Math.ceil(dirtyWorldAABB.maxY / h) + marchingExpandCells)
+    };
+
     // Use the same quantization lattice everywhere (marching squares + boundary stitching)
     const quantStep = this.marchingSquares.getQuantizationStep();
 
-    const worldMinX = gridAABB.minX * h;
-    const worldMinY = gridAABB.minY * h;
-    const worldMaxX = (gridAABB.maxX + 1) * h;
-    const worldMaxY = (gridAABB.maxY + 1) * h;
+    const worldMinX = baseGridAABB.minX * h;
+    const worldMinY = baseGridAABB.minY * h;
+    const worldMaxX = (baseGridAABB.maxX + 1) * h;
+    const worldMaxY = (baseGridAABB.maxY + 1) * h;
 
     const quantKey = (v: Point): string =>
       `${Math.round(v.x / quantStep)},${Math.round(v.y / quantStep)}`;
@@ -141,13 +154,37 @@ export class TerrainSurgery {
     );
 
     // Set boundary for marching squares (confined to dirty region)
-    this.marchingSquares.setBoundaryAABB(gridAABB);
+    this.marchingSquares.setBoundaryAABB(marchingGridAABB);
 
     // Generate contours in dirty region
-    const newLoopResults = this.marchingSquares.generateContours(dirtyWorldAABB, expandCells);
+    const newLoopResults = this.marchingSquares.generateContours(dirtyWorldAABB, marchingExpandCells);
+
+    // Basic dedupe for warm (new) loops directly after marching squares (match full-heal cleanup behavior)
+    const warmDedupeDistance = quantStep * 0.75; // treat endpoints within 0.75 lattice steps as duplicates
+    const dedupedNewLoops = this.dedupeWarmLoops(newLoopResults, warmDedupeDistance);
+    const warmDedupePairs = newLoopResults.length - dedupedNewLoops.length;
+    if (warmDedupePairs > 0) {
+      console.log('[TerrainSurgery] Warm loop dedupe (inner arcs)', {
+        dedupeDistance: warmDedupeDistance.toFixed(4),
+        before: newLoopResults.length,
+        after: dedupedNewLoops.length,
+        duplicatesRemoved: warmDedupePairs
+      });
+    }
+
+    // Apply the same cleanup pass as full-heal: dedupe tiny edges and ensure CCW on warm loops
+    const cleanedWarmLoops = this.cleanWarmLoops(dedupedNewLoops, h);
+    const warmCleanupDropped = dedupedNewLoops.length - cleanedWarmLoops.length;
+    if (warmCleanupDropped > 0) {
+      console.log('[TerrainSurgery] Warm loop cleanup (full-heal hygiene)', {
+        before: dedupedNewLoops.length,
+        after: cleanedWarmLoops.length,
+        dropped: warmCleanupDropped
+      });
+    }
 
     // Merge adjacent open loops that touch at quantized endpoints
-    const mergedNewLoops = this.mergeAdjacentOpenLoops(newLoopResults, quantKey);
+    const mergedNewLoops = this.mergeAdjacentOpenLoops(cleanedWarmLoops, quantKey);
 
     const loopLength = (verts: Point[]): number => {
       let len = 0;
@@ -159,10 +196,10 @@ export class TerrainSurgery {
       return len;
     };
 
-    const openLoops = newLoopResults.filter(l => l && !l.closed);
-    const closedLoops = newLoopResults.filter(l => l && l.closed);
-    console.log('[TerrainSurgery] New marching squares results', {
-      total: newLoopResults.length,
+    const openLoops = cleanedWarmLoops.filter(l => l && !l.closed);
+    const closedLoops = cleanedWarmLoops.filter(l => l && l.closed);
+    console.log('[TerrainSurgery] New marching squares results (post-warm-cleanup)', {
+      total: cleanedWarmLoops.length,
       open: openLoops.length,
       closed: closedLoops.length,
       carveAABB: expandedWorldAABB
@@ -207,18 +244,30 @@ export class TerrainSurgery {
       expandedWorldAABB,
       isInsideCarveRegion,
       quantKey,
-      quantStep
+      quantStep,
+      outerBoundaryOverlapVertices
     );
+
+    // Step 2: merge outer (cold) boundary arcs that nearly touch to reduce fragmentation
+    const boundaryMergeDistance = quantStep * 1.5; // treat endpoints within ~1.5 lattice steps as connected
+    const mergedBoundaryArcs = this.mergeBoundaryArcs(boundaryArcs, boundaryMergeDistance);
+    const boundaryMergePairs = boundaryArcs.length - mergedBoundaryArcs.length;
+    console.log('[TerrainSurgery] Step2 boundary merge (outer arcs)', {
+      mergeDistance: boundaryMergeDistance.toFixed(4),
+      before: boundaryArcs.length,
+      after: mergedBoundaryArcs.length,
+      mergedPairs: boundaryMergePairs
+    });
 
     // Combine results
     let nextId = 1;
     const allLoops: CarvedLoop[] = [
       ...cleanedNewLoops.map(r => ({ ...r, isNew: true, id: nextId++ })),
-      ...boundaryArcs.map(r => ({ ...r, isNew: false, id: nextId++ }))
+      ...mergedBoundaryArcs.map(r => ({ ...r, isNew: false, id: nextId++ }))
     ];
 
-    // Snapshot of what we have after step 1 (raw carve + boundary arcs)
-    console.log('[TerrainSurgery] Step1 loop snapshot', {
+    // Snapshot of what we have after step 2 (raw carve + merged outer arcs)
+    console.log('[TerrainSurgery] Step2 loop snapshot', {
       total: allLoops.length,
       loops: allLoops.map(l => ({
         id: l.id,
@@ -242,15 +291,17 @@ export class TerrainSurgery {
 
     const stats = {
       newLoopCount: mergedNewLoops.length,
-      boundaryArcCount: boundaryArcs.length,
-      mergedLoopPairs: mergedNewLoops.filter(l => !l.closed).length - newLoopResults.filter(r => r && !r.closed).length
+      boundaryArcCount: mergedBoundaryArcs.length,
+      mergedLoopPairs: mergedNewLoops.filter(l => !l.closed).length - cleanedWarmLoops.filter(r => r && !r.closed).length,
+      boundaryMergePairs
     };
 
     console.log(`[TerrainSurgery] Extracted carved loops`, {
       newLoops: stats.newLoopCount,
       boundaryArcs: stats.boundaryArcCount,
       totalLoops: allLoops.length,
-      mergedPairs: stats.mergedLoopPairs
+      mergedPairs: stats.mergedLoopPairs,
+      boundaryMergedPairs: stats.boundaryMergePairs
     });
     console.log('[Stitch] Result', {
       stitchedCount: stitchedLoops.length,
@@ -263,6 +314,99 @@ export class TerrainSurgery {
       carveRegion: expandedWorldAABB,
       stats
     };
+  }
+
+  /**
+   * Basic dedupe for warm (new) loops straight from marching squares.
+   * Removes duplicate open arcs that share nearly identical endpoints, keeping the longer arc.
+   */
+  private dedupeWarmLoops(
+    loops: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point] }>,
+    mergeDistance: number
+  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point] }> {
+    const close = (a: Point, b: Point): boolean =>
+      Math.hypot(a.x - b.x, a.y - b.y) <= mergeDistance;
+
+    const length = (verts: Point[]): number => {
+      let len = 0;
+      for (let i = 1; i < verts.length; i++) {
+        const dx = verts[i].x - verts[i - 1].x;
+        const dy = verts[i].y - verts[i - 1].y;
+        len += Math.hypot(dx, dy);
+      }
+      return len;
+    };
+
+    const result: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point] }> = [];
+
+    for (const loop of loops) {
+      if (!loop) continue;
+      // Only dedupe open loops; keep closed loops as-is to avoid false positives.
+      if (loop.closed || !loop.endpoints) {
+        result.push(loop);
+        continue;
+      }
+
+      const [a, b] = loop.endpoints;
+      let merged = false;
+
+      for (let i = 0; i < result.length; i++) {
+        const other = result[i];
+        if (!other || other.closed || !other.endpoints) continue;
+        const [oa, ob] = other.endpoints;
+
+        const sameOrder = close(a, oa) && close(b, ob);
+        const swapped = close(a, ob) && close(b, oa);
+        if (sameOrder || swapped) {
+          // Keep the longer arc
+          if (length(loop.loop) > length(other.loop)) {
+            result[i] = loop;
+          }
+          merged = true;
+          break;
+        }
+      }
+
+      if (!merged) {
+        result.push(loop);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Apply the same cleanup pass used in full-heal to warm loops: dedupe small moves,
+   * cull tiny edges, ensure CCW, and re-sync endpoints for open loops.
+   */
+  private cleanWarmLoops(
+    loops: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point] }>,
+    gridPitch: number
+  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point] }> {
+    const cleaned: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point] }> = [];
+
+    for (const l of loops) {
+      if (!l || !l.loop || l.loop.length === 0) continue;
+      const loopClean = cleanLoop(l.loop, gridPitch);
+      if (loopClean.length < (l.closed ? 3 : 2)) {
+        continue; // drop degenerate after cleanup
+      }
+
+      if (l.closed || !l.endpoints) {
+        cleaned.push({ ...l, loop: loopClean, closed: l.closed });
+      } else {
+        const start = loopClean[0];
+        const end = loopClean[loopClean.length - 1];
+        cleaned.push({
+          ...l,
+          loop: loopClean,
+          closed: false,
+          endpoints: [{ ...start }, { ...end }]
+        });
+      }
+    }
+
+    return cleaned;
   }
 
   /**
@@ -339,64 +483,163 @@ export class TerrainSurgery {
   }
 
   /**
+   * Merge boundary (cold) arcs from the same canonical loop when their open endpoints are very close.
+   * This reduces fragmentation before stitching outer arcs with inner (warm) loops.
+   */
+  private mergeBoundaryArcs(
+    boundaryArcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }>,
+    mergeDistance: number
+  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }> {
+    const close = (a: Point, b: Point): boolean =>
+      Math.hypot(a.x - b.x, a.y - b.y) <= mergeDistance;
+
+    const arcLength = (verts: Point[]): number => {
+      let len = 0;
+      for (let i = 1; i < verts.length; i++) {
+        const dx = verts[i].x - verts[i - 1].x;
+        const dy = verts[i].y - verts[i - 1].y;
+        len += Math.hypot(dx, dy);
+      }
+      return len;
+    };
+
+    const orientArc = (
+      arc: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] },
+      reverse: boolean
+    ) => {
+      if (!reverse) return arc;
+      return {
+        ...arc,
+        loop: [...arc.loop].reverse(),
+        endpoints: arc.endpoints ? [arc.endpoints[1], arc.endpoints[0]] as [Point, Point] : arc.endpoints,
+        canonicalEndpoints: arc.canonicalEndpoints ? [arc.canonicalEndpoints[1], arc.canonicalEndpoints[0]] as [number, number] : arc.canonicalEndpoints
+      };
+    };
+
+    const tryMerge = (
+      a: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] },
+      b: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }
+    ):
+      | { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }
+      | null => {
+      if (a.closed || b.closed) return null;
+      if (!a.endpoints || !b.endpoints) return null;
+      if (a.sourceCanonicalId === undefined || b.sourceCanonicalId === undefined) return null;
+      if (a.sourceCanonicalId !== b.sourceCanonicalId) return null;
+
+      const orientations = [
+        { revA: false, revB: false },
+        { revA: false, revB: true },
+        { revA: true, revB: false },
+        { revA: true, revB: true }
+      ];
+
+      for (const { revA, revB } of orientations) {
+        const oa = orientArc(a, revA);
+        const ob = orientArc(b, revB);
+        if (!oa.endpoints || !ob.endpoints) continue;
+
+        const startsClose = close(oa.endpoints[0], ob.endpoints[0]) && close(oa.endpoints[1], ob.endpoints[1]);
+        const reversedClose = close(oa.endpoints[0], ob.endpoints[1]) && close(oa.endpoints[1], ob.endpoints[0]);
+        if (startsClose || reversedClose) {
+          const keep = arcLength(oa.loop) >= arcLength(ob.loop) ? oa : ob;
+          return {
+            loop: [...keep.loop],
+            closed: false,
+            endpoints: keep.endpoints ? [{ ...keep.endpoints[0] }, { ...keep.endpoints[1] }] : keep.endpoints,
+            sourceCanonicalId: keep.sourceCanonicalId,
+            canonicalEndpoints: keep.canonicalEndpoints ? [...keep.canonicalEndpoints] as [number, number] : keep.canonicalEndpoints
+          };
+        }
+
+        if (!close(oa.endpoints[1], ob.endpoints[0])) continue;
+
+        const join = {
+          x: (oa.endpoints[1].x + ob.endpoints[0].x) * 0.5,
+          y: (oa.endpoints[1].y + ob.endpoints[0].y) * 0.5
+        };
+
+        const mergedLoop = [
+          ...oa.loop.slice(0, -1),
+          join,
+          ...ob.loop.slice(1)
+        ];
+
+        if (mergedLoop.length < 2) continue;
+
+        const mergedEndpoints: [Point, Point] = [
+          { ...mergedLoop[0] },
+          { ...mergedLoop[mergedLoop.length - 1] }
+        ];
+
+        const mergedCanonical: [number, number] | undefined =
+          oa.canonicalEndpoints && ob.canonicalEndpoints
+            ? [oa.canonicalEndpoints[0], ob.canonicalEndpoints[1]]
+            : oa.canonicalEndpoints ?? ob.canonicalEndpoints;
+
+        return {
+          loop: mergedLoop,
+          closed: false,
+          endpoints: mergedEndpoints,
+          sourceCanonicalId: a.sourceCanonicalId,
+          canonicalEndpoints: mergedCanonical
+        };
+      }
+
+      return null;
+    };
+
+    const grouped = new Map<number, Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }>>();
+    const result: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }> = [];
+
+    // Group arcs by their canonical source id
+    boundaryArcs.forEach(arc => {
+      if (arc.sourceCanonicalId === undefined) {
+        result.push(arc);
+        return;
+      }
+      const arr = grouped.get(arc.sourceCanonicalId);
+      if (arr) {
+        arr.push(arc);
+      } else {
+        grouped.set(arc.sourceCanonicalId, [arc]);
+      }
+    });
+
+    // Merge within each canonical loop group
+    grouped.forEach((group) => {
+      const working = [...group];
+      let changed = true;
+      while (changed) {
+        changed = false;
+        outer: for (let i = 0; i < working.length; i++) {
+          for (let j = i + 1; j < working.length; j++) {
+            const merged = tryMerge(working[i], working[j]);
+            if (merged) {
+              working.splice(j, 1);
+              working.splice(i, 1);
+              working.push(merged);
+              changed = true;
+              break outer;
+            }
+          }
+        }
+      }
+      result.push(...working);
+    });
+
+    return result;
+  }
+
+  /**
    * Snap new open loop endpoints onto nearby canonical loop edges (prevents tiny gaps)
    */
   private snapNewLoopEndpointsToCanonicalLoops(
     loops: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point] }>,
     quantStep: number
   ): void {
-    const snapDist = Math.max(quantStep * 12, 1.0);
-    const canonicalLoops = this.remeshManager.getCanonicalLoops();
-
-    const projectToSegment = (p: Point, q: Point, target: Point): { t: number; dist: number; point: Point } => {
-      const vx = q.x - p.x;
-      const vy = q.y - p.y;
-      const len2 = vx * vx + vy * vy || 1e-6;
-      const t = Math.max(0, Math.min(1, ((target.x - p.x) * vx + (target.y - p.y) * vy) / len2));
-      const projX = p.x + vx * t;
-      const projY = p.y + vy * t;
-      const dx = projX - target.x;
-      const dy = projY - target.y;
-      return { t, dist: Math.hypot(dx, dy), point: { x: projX, y: projY } };
-    };
-
-    loops.forEach(loop => {
-      if (loop.closed || !loop.endpoints) return;
-      const [a, b] = loop.endpoints;
-      const targets: [Point, Point] = [{ ...a }, { ...b }];
-
-      for (let epIdx: 0 | 1 = 0; epIdx < 2; epIdx++) {
-        const ep = loop.endpoints[epIdx];
-        let bestPoint: Point | null = null;
-        let bestDist = Infinity;
-
-        for (const canon of canonicalLoops) {
-          const verts = canon.vertices;
-          for (let i = 0; i < verts.length; i++) {
-            const p = verts[i];
-            const q = verts[(i + 1) % verts.length];
-            const { dist, point } = projectToSegment(p, q, ep);
-            if (dist < bestDist) {
-              bestDist = dist;
-              bestPoint = point;
-            }
-          }
-        }
-
-        if (bestPoint && bestDist <= snapDist) {
-          targets[epIdx] = bestPoint;
-        }
-      }
-
-      if (targets[0].x !== a.x || targets[0].y !== a.y) {
-        loop.endpoints[0] = targets[0];
-        loop.loop[0] = { ...targets[0] };
-      }
-      if (targets[1].x !== b.x || targets[1].y !== b.y) {
-        loop.endpoints[1] = targets[1];
-        loop.loop[loop.loop.length - 1] = { ...targets[1] };
-      }
-    });
+    // Snapping disabled for this experiment; endpoints remain at their raw positions.
+    return;
   }
 
   /**
@@ -408,7 +651,8 @@ export class TerrainSurgery {
     carveRegion: AABB,
     isInsideCarveRegion: (v: Point) => boolean,
     quantKey: (v: Point) => string,
-    quantStep: number
+    quantStep: number,
+    overlapInsideVertices: number
   ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }> {
     const canonicalLoops = this.remeshManager.getCanonicalLoops();
     const boundaryArcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }> = [];
@@ -507,6 +751,40 @@ export class TerrainSurgery {
       return result;
     };
 
+    const extendPieceWithOverlap = (
+      piece: { vertices: Point[]; startIndex: number; endIndex: number },
+      canonVerts: Point[],
+      overlap: number
+    ): { vertices: Point[]; startIndex: number; endIndex: number } => {
+      if (overlap <= 0 || canonVerts.length === 0) {
+        return piece;
+      }
+
+      const n = canonVerts.length;
+      const count = Math.min(overlap, Math.max(1, n - 1));
+
+      const prepend: Point[] = [];
+      let idx = piece.startIndex;
+      for (let i = 0; i < count; i++) {
+        idx = (idx - 1 + n) % n;
+        prepend.push({ ...canonVerts[idx] });
+      }
+      prepend.reverse();
+
+      const append: Point[] = [];
+      idx = piece.endIndex;
+      for (let i = 0; i < count; i++) {
+        idx = (idx + 1) % n;
+        append.push({ ...canonVerts[idx] });
+      }
+
+      return {
+        vertices: [...prepend, ...piece.vertices, ...append],
+        startIndex: (piece.startIndex - count + n) % n,
+        endIndex: (piece.endIndex + count) % n
+      };
+    };
+
     // Gather all endpoints from new open loops for snapping boundary arcs
     const newLoopEndpoints: Point[] = [];
     newLoops.forEach(l => {
@@ -518,55 +796,8 @@ export class TerrainSurgery {
     const snapDist = Math.max(quantStep * 12, 1.0); // generous to bridge AABB-boundary gaps
 
     const buildForcedEdgeSplits = (canonLoop: CanonicalLoop): Map<number, number[]> => {
-      const forced = new Map<number, number[]>();
-      if (newLoopEndpoints.length === 0) return forced;
-
-      const maybeAdd = (edgeIdx: number, t: number) => {
-        if (t <= 1e-6 || t >= 1 - 1e-6) return; // avoid duplicating endpoints
-        const arr = forced.get(edgeIdx);
-        if (arr) {
-          if (!arr.some(existing => Math.abs(existing - t) < 1e-6)) {
-            arr.push(t);
-          }
-        } else {
-          forced.set(edgeIdx, [t]);
-        }
-      };
-
-      const projectToSegment = (p: Point, q: Point, target: Point): { t: number; dist: number } => {
-        const vx = q.x - p.x;
-        const vy = q.y - p.y;
-        const len2 = vx * vx + vy * vy || 1e-6;
-        const t = Math.max(0, Math.min(1, ((target.x - p.x) * vx + (target.y - p.y) * vy) / len2));
-        const projX = p.x + vx * t;
-        const projY = p.y + vy * t;
-        const dx = projX - target.x;
-        const dy = projY - target.y;
-        return { t, dist: Math.hypot(dx, dy) };
-      };
-
-      for (const ep of newLoopEndpoints) {
-        let bestEdge = -1;
-        let bestT = 0;
-        let bestDist = Infinity;
-
-        for (let i = 0; i < canonLoop.vertices.length; i++) {
-          const p = canonLoop.vertices[i];
-          const q = canonLoop.vertices[(i + 1) % canonLoop.vertices.length];
-          const { t, dist } = projectToSegment(p, q, ep);
-          if (dist < bestDist) {
-            bestDist = dist;
-            bestT = t;
-            bestEdge = i;
-          }
-        }
-
-        if (bestEdge >= 0 && bestDist <= snapDist) {
-          maybeAdd(bestEdge, bestT);
-        }
-      }
-
-      return forced;
+      // Snapping is disabled; no forced edge splits.
+      return new Map<number, number[]>();
     };
 
     const snapBoundaryArcEndpoints = (
@@ -574,49 +805,8 @@ export class TerrainSurgery {
       targets: Point[],
       snapToBoundary: boolean
     ) => {
-      if (targets.length === 0 && !snapToBoundary) return;
-
-      const snap = (p: Point, pool: Point[]): Point | null => {
-        let best: Point | null = null;
-        let bestD = snapDist;
-        for (const t of pool) {
-          const d = Math.hypot(t.x - p.x, t.y - p.y);
-          if (d < bestD) {
-            bestD = d;
-            best = t;
-          }
-        }
-        return best ? { x: best.x, y: best.y } : null;
-      };
-
-      // Precompute boundary endpoint pools per canonical id
-      const boundaryPools = new Map<number, Point[]>();
-      if (snapToBoundary) {
-        arcs.forEach(arc => {
-          if (!arc.endpoints || arc.sourceCanonicalId === undefined) return;
-          const pool = boundaryPools.get(arc.sourceCanonicalId) ?? [];
-          pool.push(arc.endpoints[0], arc.endpoints[1]);
-          boundaryPools.set(arc.sourceCanonicalId, pool);
-        });
-      }
-
-      arcs.forEach(arc => {
-        if (!arc.endpoints || arc.loop.length < 2) return;
-        const pools: Point[][] = [targets];
-        if (snapToBoundary && arc.sourceCanonicalId !== undefined) {
-          pools.push(boundaryPools.get(arc.sourceCanonicalId) ?? []);
-        }
-        const snapA = pools.reduce<Point | null>((acc, pool) => acc ?? snap(arc.endpoints![0], pool), null);
-        const snapB = pools.reduce<Point | null>((acc, pool) => acc ?? snap(arc.endpoints![1], pool), null);
-        if (snapA) {
-          arc.endpoints[0] = snapA;
-          arc.loop[0] = { ...snapA };
-        }
-        if (snapB) {
-          arc.endpoints[1] = snapB;
-          arc.loop[arc.loop.length - 1] = { ...snapB };
-        }
-      });
+      // Snapping disabled; boundary arc endpoints remain unchanged.
+      return;
     };
 
     // For each open loop from the new marching squares, find matching boundary arc
@@ -673,40 +863,43 @@ export class TerrainSurgery {
       outsidePieces.forEach((piece, pieceIdx) => {
         if (piece.vertices.length < 2) return;
 
-        const pieceAabb = computePieceAabb(piece.vertices);
+        const extendedPiece = extendPieceWithOverlap(piece, canonLoop.vertices, overlapInsideVertices);
+        if (extendedPiece.vertices.length < 2) return;
+
+        const pieceAabb = computePieceAabb(extendedPiece.vertices);
         if (!this.aabbsIntersect(pieceAabb, carveRegion)) {
           console.log('[TerrainSurgery]   Skipping piece outside carve region', { pieceIdx, pieceAabb });
           return;
         }
 
         const endpoints: [Point, Point] = [
-          { ...piece.vertices[0] },
-          { ...piece.vertices[piece.vertices.length - 1] }
+          { ...extendedPiece.vertices[0] },
+          { ...extendedPiece.vertices[extendedPiece.vertices.length - 1] }
         ];
 
         boundaryArcs.push({
-          loop: piece.vertices,
+          loop: extendedPiece.vertices,
           closed: false,
           endpoints,
           sourceCanonicalId: canonLoop.id,
-          canonicalEndpoints: [piece.startIndex, piece.endIndex]
+          canonicalEndpoints: [extendedPiece.startIndex, extendedPiece.endIndex]
         });
 
         pieceSummaries.push({
           pieceIdx,
-          startCanon: piece.startIndex,
-          endCanon: piece.endIndex,
-          verts: piece.vertices.length,
-          length: arcLength(piece.vertices).toFixed(3),
+          startCanon: extendedPiece.startIndex,
+          endCanon: extendedPiece.endIndex,
+          verts: extendedPiece.vertices.length,
+          length: arcLength(extendedPiece.vertices).toFixed(3),
           endpoints,
-          outsideFrac: arcOutsideMetrics(piece.vertices).outsideFrac.toFixed(2)
+          outsideFrac: arcOutsideMetrics(extendedPiece.vertices).outsideFrac.toFixed(2)
         });
 
         console.log('[TerrainSurgery] Boundary arc extracted (clipped piece)', {
           canonicalLoopId: canonLoop.id,
-          arcLength: arcLength(piece.vertices).toFixed(3),
-          arcVerts: piece.vertices.length,
-          outsideFrac: arcOutsideMetrics(piece.vertices).outsideFrac.toFixed(2),
+          arcLength: arcLength(extendedPiece.vertices).toFixed(3),
+          arcVerts: extendedPiece.vertices.length,
+          outsideFrac: arcOutsideMetrics(extendedPiece.vertices).outsideFrac.toFixed(2),
           pieceIdx,
           start: endpoints[0],
           end: endpoints[1]
@@ -1111,7 +1304,7 @@ export class TerrainSurgery {
       .map((loop, idx) => (loop.isNew && !loop.closed && loop.endpoints ? idx : -1))
       .filter(idx => idx >= 0);
 
-    // Step 1.5: stitch boundary arcs first (outer ring), then stitch new open loops.
+    // Step 3: stitch merged boundary arcs (outer ring) first, then connect to new warm loops.
     walkOpenLoops(boundaryLoopIndices);
     walkOpenLoops(newLoopIndices);
 

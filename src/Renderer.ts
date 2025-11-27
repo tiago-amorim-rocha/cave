@@ -1806,7 +1806,7 @@ export class Renderer {
 
       // Draw the loop
       this.ctx.strokeStyle = color;
-      this.ctx.lineWidth = 3; // Thick for visibility
+      this.ctx.lineWidth = isWarm ? 4 : 3; // Warm (new) loops slightly thicker so they stand out behind
       this.ctx.globalAlpha = 0.8;
 
       this.ctx.beginPath();
