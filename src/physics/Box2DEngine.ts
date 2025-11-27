@@ -109,7 +109,7 @@ export class Box2DEngine {
 
     const canonicalLoops = loops.map(createCanonicalLoop);
     const optLoops: OptVertex[][] = loops.map(loop =>
-      loop.map((p, i) => ({ x: p.x, y: p.y, canonStart: i, canonEnd: i }))
+      loop.map((p, i) => ({ x: p.x, y: p.y, canonStartId: i as import('../terrain/CanonicalGeometry').VertexId, canonEndId: i as import('../terrain/CanonicalGeometry').VertexId }))
     );
     this.setCanonicalTerrainLoops(canonicalLoops, optLoops, shouldReverse);
   }
@@ -479,8 +479,8 @@ export class Box2DEngine {
       const optLoop = optimizedLoops ? optimizedLoops[i] : loop.vertices.map((v, idx) => ({
         x: v.x,
         y: v.y,
-        canonStart: idx,
-        canonEnd: idx,
+        canonStartId: v.id,
+        canonEndId: v.id,
       }));
       if (loop.vertices.length < 2) {
         console.warn('[Box2DEngine] Skipping canonical loop with <2 verts', loop);
@@ -511,8 +511,8 @@ export class Box2DEngine {
       const optLoop = optimizedLoops ? optimizedLoops[i] : loop.vertices.map((v, idx) => ({
         x: v.x,
         y: v.y,
-        canonStart: idx,
-        canonEnd: idx,
+        canonStartId: v.id,
+        canonEndId: v.id,
       }));
       const bodyInfo = this.buildTerrainBodyFromCanonical(loop, optLoop, reverse);
       this.terrainBodies.push(bodyInfo);

@@ -34,8 +34,8 @@ export interface CarvedLoop {
 
   /** For open loops, the two endpoints */
   endpoints?: [Point, Point];
-  /** Canonical vertex indices (for boundary arcs) */
-  canonicalEndpoints?: [number, number];
+  /** Canonical vertex IDs (for boundary arcs) */
+  canonicalEndpointIds?: [number, number];
 
   /** True if extracted from dirty region (new), false if from existing boundary (preserved) */
   isNew: boolean;
@@ -57,8 +57,8 @@ export interface SegmentAncestry {
   /** For boundary arcs: the canonical loop this originally came from */
   sourceCanonicalId?: number;
 
-  /** For boundary arcs: the canonical vertex range in the original loop */
-  canonicalEndpoints?: [number, number];
+  /** For boundary arcs: the canonical vertex ID range in the original loop */
+  canonicalEndpointIds?: [number, number];
 
   /** Vertex range within the stitched loop (inclusive) */
   vertexRange: [number, number];
@@ -302,7 +302,7 @@ export class TerrainSurgery {
         verts: l.loop.length,
         length: loopLength(l.loop).toFixed(3),
         endpoints: l.endpoints,
-        canonicalEndpoints: l.canonicalEndpoints,
+        canonicalEndpointIds: l.canonicalEndpointIds,
         sourceCanonicalId: l.sourceCanonicalId
       }))
     });
@@ -513,9 +513,9 @@ export class TerrainSurgery {
    * This reduces fragmentation before stitching outer arcs with inner (warm) loops.
    */
   private mergeBoundaryArcs(
-    boundaryArcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }>,
+    boundaryArcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }>,
     mergeDistance: number
-  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }> {
+  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }> {
     const close = (a: Point, b: Point): boolean =>
       Math.hypot(a.x - b.x, a.y - b.y) <= mergeDistance;
 
@@ -530,7 +530,7 @@ export class TerrainSurgery {
     };
 
     const orientArc = (
-      arc: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] },
+      arc: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] },
       reverse: boolean
     ) => {
       if (!reverse) return arc;
@@ -538,15 +538,15 @@ export class TerrainSurgery {
         ...arc,
         loop: [...arc.loop].reverse(),
         endpoints: arc.endpoints ? [arc.endpoints[1], arc.endpoints[0]] as [Point, Point] : arc.endpoints,
-        canonicalEndpoints: arc.canonicalEndpoints ? [arc.canonicalEndpoints[1], arc.canonicalEndpoints[0]] as [number, number] : arc.canonicalEndpoints
+        canonicalEndpointIds: arc.canonicalEndpointIds ? [arc.canonicalEndpointIds[1], arc.canonicalEndpointIds[0]] as [number, number] : arc.canonicalEndpointIds
       };
     };
 
     const tryMerge = (
-      a: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] },
-      b: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }
+      a: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] },
+      b: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }
     ):
-      | { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }
+      | { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }
       | null => {
       if (a.closed || b.closed) return null;
       if (!a.endpoints || !b.endpoints) return null;
@@ -574,7 +574,7 @@ export class TerrainSurgery {
             closed: false,
             endpoints: keep.endpoints ? [{ ...keep.endpoints[0] }, { ...keep.endpoints[1] }] : keep.endpoints,
             sourceCanonicalId: keep.sourceCanonicalId,
-            canonicalEndpoints: keep.canonicalEndpoints ? [...keep.canonicalEndpoints] as [number, number] : keep.canonicalEndpoints
+            canonicalEndpointIds: keep.canonicalEndpointIds ? [...keep.canonicalEndpointIds] as [number, number] : keep.canonicalEndpointIds
           };
         }
 
@@ -599,24 +599,24 @@ export class TerrainSurgery {
         ];
 
         const mergedCanonical: [number, number] | undefined =
-          oa.canonicalEndpoints && ob.canonicalEndpoints
-            ? [oa.canonicalEndpoints[0], ob.canonicalEndpoints[1]]
-            : oa.canonicalEndpoints ?? ob.canonicalEndpoints;
+          oa.canonicalEndpointIds && ob.canonicalEndpointIds
+            ? [oa.canonicalEndpointIds[0], ob.canonicalEndpointIds[1]]
+            : oa.canonicalEndpointIds ?? ob.canonicalEndpointIds;
 
         return {
           loop: mergedLoop,
           closed: false,
           endpoints: mergedEndpoints,
           sourceCanonicalId: a.sourceCanonicalId,
-          canonicalEndpoints: mergedCanonical
+          canonicalEndpointIds: mergedCanonical
         };
       }
 
       return null;
     };
 
-    const grouped = new Map<number, Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }>>();
-    const result: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }> = [];
+    const grouped = new Map<number, Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }>>();
+    const result: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }> = [];
 
     // Group arcs by their canonical source id
     boundaryArcs.forEach(arc => {
@@ -679,9 +679,9 @@ export class TerrainSurgery {
     quantKey: (v: Point) => string,
     quantStep: number,
     overlapInsideVertices: number
-  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }> {
+  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }> {
     const canonicalLoops = this.remeshManager.getCanonicalLoops();
-    const boundaryArcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpoints?: [number, number] }> = [];
+    const boundaryArcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }> = [];
     const fracEps = 1e-6;
     const lenEps = 1e-6;
 
@@ -908,7 +908,10 @@ export class TerrainSurgery {
           closed: false,
           endpoints,
           sourceCanonicalId: canonLoop.id,
-          canonicalEndpoints: [extendedPiece.startIndex, extendedPiece.endIndex]
+          canonicalEndpointIds: [
+            canonLoop.vertices[extendedPiece.startIndex].id,
+            canonLoop.vertices[extendedPiece.endIndex].id
+          ]
         });
 
         pieceSummaries.push({
@@ -1098,7 +1101,7 @@ export class TerrainSurgery {
           sourceLoopId: loop.id,
           isNew: loop.isNew,
           sourceCanonicalId: loop.sourceCanonicalId,
-          canonicalEndpoints: loop.canonicalEndpoints,
+          canonicalEndpointIds: loop.canonicalEndpointIds,
           vertexRange: [0, loop.loop.length - 1],
           originalVertices: [...loop.loop]
         };
@@ -1251,7 +1254,7 @@ export class TerrainSurgery {
             sourceLoopId: loop.id,
             isNew: loop.isNew,
             sourceCanonicalId: loop.sourceCanonicalId,
-            canonicalEndpoints: loop.canonicalEndpoints,
+            canonicalEndpointIds: loop.canonicalEndpointIds,
             vertexRange: [segmentStartInPath, segmentEndInPath],
             originalVertices: [...loop.loop]
           });

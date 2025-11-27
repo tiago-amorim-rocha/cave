@@ -27,8 +27,8 @@ export interface CanonicalVertex extends CanonVertex {
 export interface OptVertex {
   x: number;
   y: number;
-  canonStart: number;
-  canonEnd: number;
+  canonStartId: VertexId;
+  canonEndId: VertexId;
 }
 
 export interface CanonicalLoop {
@@ -210,8 +210,8 @@ export function buildSegmentsForLoop(
     let canonStart = Infinity;
     let canonEnd = -Infinity;
     for (let i = startIndex; i <= endIndex; i++) {
-      canonStart = Math.min(canonStart, verts[i].canonStart);
-      canonEnd = Math.max(canonEnd, verts[i].canonEnd);
+      canonStart = Math.min(canonStart, verts[i].canonStartId);
+      canonEnd = Math.max(canonEnd, verts[i].canonEndId);
     }
 
     const seg: PhysicsSegment = {
