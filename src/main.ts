@@ -1287,6 +1287,72 @@ class CarvableCaves {
       };
 
       console.log('[ReuseDebug] Dirty opt blocks', dirtyBlocksSummary);
+
+      // === Reuse Plan Computation ===
+      // Identify clean head (before first dirty block) and clean tail (after last dirty block)
+
+      if (blocks.length === 0) {
+        // No dirty blocks - entire loop is clean (unusual case)
+        console.log('[ReuseDebug] Reuse plan', {
+          stitchedLoopId: stitchedLoop.id,
+          sourceCanonicalId: coldSegment.sourceCanonicalId,
+          canonicalEndpointIds: coldSegment.canonicalEndpointIds,
+          optVertexCountTotal: canonicalLoop.optVertices.length,
+          blockCount: 0,
+          dirtyBlocks: [],
+          reuseHead: null,
+          reuseTail: null
+        });
+      } else {
+        // Compute head and tail regions
+        const firstBlock = blocks[0];
+        const lastBlock = blocks[blocks.length - 1];
+
+        const firstDirtyStart = firstBlock.optStartIndex;
+        const lastDirtyEnd = lastBlock.optEndIndex;
+
+        const headStartOpt = 0;
+        const headEndOpt = firstDirtyStart - 1;
+
+        const tailStartOpt = lastDirtyEnd + 1;
+        const tailEndOpt = canonicalLoop.optVertices.length - 1;
+
+        // Only include head/tail if valid (start <= end)
+        const reuseHead =
+          headEndOpt >= headStartOpt
+            ? {
+                startOpt: headStartOpt,
+                endOpt: headEndOpt,
+                length: headEndOpt - headStartOpt + 1
+              }
+            : null;
+
+        const reuseTail =
+          tailEndOpt >= tailStartOpt
+            ? {
+                startOpt: tailStartOpt,
+                endOpt: tailEndOpt,
+                length: tailEndOpt - tailStartOpt + 1
+              }
+            : null;
+
+        console.log('[ReuseDebug] Reuse plan', {
+          stitchedLoopId: stitchedLoop.id,
+          sourceCanonicalId: coldSegment.sourceCanonicalId,
+          canonicalEndpointIds: coldSegment.canonicalEndpointIds,
+          optVertexCountTotal: canonicalLoop.optVertices.length,
+          blockCount: blocks.length,
+          dirtyBlocks: blocks.map(b => ({
+            optStartIndex: b.optStartIndex,
+            optEndIndex: b.optEndIndex,
+            optLength: b.optLength,
+            runCanonStartId: b.runCanonStartId,
+            runCanonEndId: b.runCanonEndId
+          })),
+          reuseHead,
+          reuseTail
+        });
+      }
     }
   }
 
