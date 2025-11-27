@@ -198,8 +198,28 @@ export class AncestryModal {
       ], '#ff00ff');
       this.modal.appendChild(canonicalInfo);
 
-      // Show related optimized vertices (if available)
+      // Show optimization summary (if available)
       if (this.currentData.relatedOptVertices && this.currentData.relatedOptVertices.length > 0) {
+        const relatedOpts = this.currentData.relatedOptVertices;
+        const optIndices = relatedOpts.map(v => v.index);
+        const minOptIdx = Math.min(...optIndices);
+        const maxOptIdx = Math.max(...optIndices);
+
+        // Calculate canonical vertex count in range
+        const canonicalRange = ancestry.canonicalEndpoints!;
+        const canonicalCount = canonicalRange[1] - canonicalRange[0] + 1;
+        const optCount = relatedOpts.length;
+        const changePercent = ((optCount - canonicalCount) / canonicalCount * 100).toFixed(1);
+        const changeSign = optCount > canonicalCount ? '+' : '';
+
+        const optimizationSummary = this.createSection('Optimization Pipeline Result', [
+          { label: 'Optimized Vertex Range', value: `[${minOptIdx}, ${maxOptIdx}]` },
+          { label: 'Optimized Vertex Count', value: `${optCount}` },
+          { label: 'Canonical Vertex Count', value: `${canonicalCount}` },
+          { label: 'Change', value: `${changeSign}${changePercent}% (${changeSign}${optCount - canonicalCount} vertices)` }
+        ], '#ffa500');
+        this.modal.appendChild(optimizationSummary);
+
         const optVerticesSection = this.createExpandableOptVerticesList(
           this.currentData.relatedOptVertices
         );
