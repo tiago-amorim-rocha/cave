@@ -7,12 +7,19 @@
  */
 
 import type { SegmentAncestry } from './TerrainSurgery';
+import type { OptVertex } from './terrain/CanonicalGeometry';
 
 export interface AncestryModalData {
   stitchedLoopId: number;
   segmentIndex: number;
   ancestry: SegmentAncestry;
   stitchedVertexCount: number;
+
+  /** For cold (boundary) segments: the related optimized vertices from the canonical loop */
+  relatedOptVertices?: Array<{
+    index: number;
+    vertex: OptVertex;
+  }>;
 }
 
 export class AncestryModal {
@@ -190,6 +197,14 @@ export class AncestryModal {
         }
       ], '#ff00ff');
       this.modal.appendChild(canonicalInfo);
+
+      // Show related optimized vertices (if available)
+      if (this.currentData.relatedOptVertices && this.currentData.relatedOptVertices.length > 0) {
+        const optVerticesSection = this.createExpandableOptVerticesList(
+          this.currentData.relatedOptVertices
+        );
+        this.modal.appendChild(optVerticesSection);
+      }
     }
 
     // Expandable vertex list
@@ -330,6 +345,135 @@ export class AncestryModal {
 
       vertexRow.appendChild(index);
       vertexRow.appendChild(coords);
+      content.appendChild(vertexRow);
+    });
+
+    // Toggle functionality
+    let isExpanded = true;
+    const toggle = () => {
+      isExpanded = !isExpanded;
+      content.style.display = isExpanded ? 'block' : 'none';
+      toggleIcon.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+    };
+
+    header.onclick = toggle;
+
+    container.appendChild(header);
+    container.appendChild(content);
+
+    return container;
+  }
+
+  /**
+   * Create an expandable list of optimized vertices with ancestry info
+   */
+  private createExpandableOptVerticesList(
+    optVertices: Array<{ index: number; vertex: OptVertex }>
+  ): HTMLDivElement {
+    const container = document.createElement('div');
+    container.style.cssText = `
+      margin-bottom: 20px;
+      padding: 16px;
+      background: #2a2a2a;
+      border-left: 4px solid #ffa500;
+      border-radius: 4px;
+    `;
+
+    const header = document.createElement('div');
+    header.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      margin-bottom: 12px;
+    `;
+
+    const title = document.createElement('h3');
+    title.textContent = `Related Optimized Vertices (${optVertices.length})`;
+    title.style.cssText = `
+      margin: 0;
+      font-size: 18px;
+      color: #ffa500;
+      font-weight: bold;
+    `;
+
+    const toggleIcon = document.createElement('span');
+    toggleIcon.textContent = '▼';
+    toggleIcon.style.cssText = `
+      font-size: 16px;
+      color: #ffa500;
+      transition: transform 0.2s;
+    `;
+
+    header.appendChild(title);
+    header.appendChild(toggleIcon);
+
+    const content = document.createElement('div');
+    content.style.cssText = `
+      max-height: 300px;
+      overflow-y: auto;
+      padding: 8px;
+      background: #1a1a1a;
+      border-radius: 4px;
+    `;
+
+    // Populate optimized vertex list
+    optVertices.forEach(({ index, vertex }, i) => {
+      const vertexRow = document.createElement('div');
+      vertexRow.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        padding: 8px;
+        margin-bottom: 4px;
+        background: ${i % 2 === 0 ? '#222' : '#2a2a2a'};
+        border-radius: 2px;
+        font-size: 12px;
+      `;
+
+      // First row: index and coordinates
+      const firstRow = document.createElement('div');
+      firstRow.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 4px;
+      `;
+
+      const indexSpan = document.createElement('span');
+      indexSpan.textContent = `[${index}]`;
+      indexSpan.style.color = '#ffa500';
+      indexSpan.style.fontWeight = 'bold';
+
+      const coords = document.createElement('span');
+      coords.textContent = `(${vertex.x.toFixed(3)}, ${vertex.y.toFixed(3)})`;
+      coords.style.color = '#fff';
+
+      firstRow.appendChild(indexSpan);
+      firstRow.appendChild(coords);
+
+      // Second row: ancestry range
+      const secondRow = document.createElement('div');
+      secondRow.style.cssText = `
+        display: flex;
+        justify-content: flex-start;
+        gap: 8px;
+        font-size: 11px;
+      `;
+
+      const ancestryLabel = document.createElement('span');
+      ancestryLabel.textContent = 'Canon Range:';
+      ancestryLabel.style.color = '#888';
+
+      const ancestryRange = document.createElement('span');
+      ancestryRange.textContent = `[${vertex.canonStart}, ${vertex.canonEnd}]`;
+      ancestryRange.style.color = '#ff00ff';
+      ancestryRange.style.fontWeight = 'bold';
+
+      secondRow.appendChild(ancestryLabel);
+      secondRow.appendChild(ancestryRange);
+
+      vertexRow.appendChild(firstRow);
+      vertexRow.appendChild(secondRow);
       content.appendChild(vertexRow);
     });
 
