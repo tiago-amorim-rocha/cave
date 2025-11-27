@@ -1005,8 +1005,10 @@ function createStitchStepButton(app: CarvableCaves, enabled: boolean) {
     color: #fff;
     font-size: 24px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    z-index: 1001;
+    z-index: 9999;
     cursor: pointer;
+    pointer-events: auto;
+    touch-action: manipulation;
   `;
 
   stitchButton.addEventListener('click', () => {
@@ -1015,11 +1017,20 @@ function createStitchStepButton(app: CarvableCaves, enabled: boolean) {
   });
 
   stitchButton.addEventListener('touchstart', (e) => {
+    console.log('[UI] Stitch button TOUCHSTART!');
     e.preventDefault();
     stitchButton.style.transform = 'scale(0.95)';
   });
-  stitchButton.addEventListener('touchend', () => {
+  stitchButton.addEventListener('touchend', (e) => {
+    console.log('[UI] Stitch button TOUCHEND!');
+    e.preventDefault();
     stitchButton.style.transform = 'scale(1)';
+    // Manually trigger the action on touchend
+    app.enableStitchedDebugOverlay();
+  });
+
+  stitchButton.addEventListener('mousedown', () => {
+    console.log('[UI] Stitch button MOUSEDOWN!');
   });
 
   document.body.appendChild(stitchButton);
