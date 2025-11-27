@@ -40,6 +40,8 @@ export interface CanonicalLoop {
   // Cached optimized/segment ancestry (for local updates)
   optVertices?: OptVertex[];
   segments?: PhysicsSegment[];
+  // Debug-only preview for reuse plan visualization
+  debugPreviewOptVertices?: OptVertex[];
 }
 
 export interface PhysicsSegment {
