@@ -1007,6 +1007,193 @@ class CarvableCaves {
       stitchedCount: this.stitchedLoops.length,
       loops: this.stitchedLoops.map(l => ({ id: l.id, vertices: l.vertices.length }))
     });
+
+    // Run ancestry probe for boundary arcs
+    this.probeStitchedLoopAncestry();
+  }
+
+  /**
+   * Debug-only ancestry probe for stitched loops.
+   * For each stitched loop with a cold (boundary-arc) segment,
+   * walks the canonical loop to build the ID path and finds overlapping OptVertices.
+   */
+  private probeStitchedLoopAncestry(): void {
+    if (!this.config.debugCaptureEnabled) {
+      return;
+    }
+
+    for (const stitchedLoop of this.stitchedLoops) {
+      // Find the cold segment (boundary-arc piece)
+      const coldSegment = stitchedLoop.segments.find(seg =>
+        !seg.isNew &&
+        seg.sourceCanonicalId !== undefined &&
+        seg.canonicalEndpointIds !== undefined
+      );
+
+      if (!coldSegment || !coldSegment.sourceCanonicalId || !coldSegment.canonicalEndpointIds) {
+        // Skip loops without a clear cold segment
+        console.log('[ReuseDebug] Skipping stitched loop without cold segment', {
+          stitchedLoopId: stitchedLoop.id,
+          segmentCount: stitchedLoop.segments.length
+        });
+        continue;
+      }
+
+      // Look up the canonical loop
+      const canonicalLoop = this.remeshManager.getCanonicalLoops().find(
+        loop => loop.id === coldSegment.sourceCanonicalId
+      );
+
+      if (!canonicalLoop) {
+        console.warn('[ReuseDebug] Could not find canonical loop', {
+          sourceCanonicalId: coldSegment.sourceCanonicalId
+        });
+        continue;
+      }
+
+      if (!canonicalLoop.optVertices || canonicalLoop.optVertices.length === 0) {
+        console.warn('[ReuseDebug] Canonical loop has no optVertices', {
+          sourceCanonicalId: coldSegment.sourceCanonicalId
+        });
+        continue;
+      }
+
+      const [startId, endId] = coldSegment.canonicalEndpointIds;
+
+      // Build canonical ID path from startId to endId
+      const canonicalPath = this.buildCanonicalIdPath(
+        canonicalLoop,
+        startId,
+        endId
+      );
+
+      if (canonicalPath.length === 0) {
+        console.warn('[ReuseDebug] Could not build canonical ID path', {
+          startId,
+          endId,
+          canonicalLoopId: canonicalLoop.id
+        });
+        continue;
+      }
+
+      // Find overlapping OptVertices
+      const overlappingOptVertices: Array<{
+        index: number;
+        canonStartId: number;
+        canonEndId: number;
+      }> = [];
+
+      const pathIdSet = new Set(canonicalPath);
+
+      canonicalLoop.optVertices.forEach((optVertex, index) => {
+        // Check if ancestry ID ranges overlap with the path
+        // Overlap if:
+        // 1. canonStartId is in the path
+        // 2. canonEndId is in the path
+        // 3. any path ID is between canonStartId and canonEndId
+        const startInPath = pathIdSet.has(optVertex.canonStartId);
+        const endInPath = pathIdSet.has(optVertex.canonEndId);
+
+        // Check if any path ID is between start and end
+        let pathIdInRange = false;
+        for (const pathId of canonicalPath) {
+          if (pathId >= optVertex.canonStartId && pathId <= optVertex.canonEndId) {
+            pathIdInRange = true;
+            break;
+          }
+        }
+
+        if (startInPath || endInPath || pathIdInRange) {
+          overlappingOptVertices.push({
+            index,
+            canonStartId: optVertex.canonStartId,
+            canonEndId: optVertex.canonEndId
+          });
+        }
+      });
+
+      // Log compact summary
+      const summary = {
+        stitchedLoopId: stitchedLoop.id,
+        sourceCanonicalId: coldSegment.sourceCanonicalId,
+        canonicalEndpointIds: coldSegment.canonicalEndpointIds,
+        canonicalPathLength: canonicalPath.length,
+        canonicalPathIdSamples: canonicalPath.slice(0, 10), // first 10 IDs
+        optVertexCountTotal: canonicalLoop.optVertices.length,
+        optVertexCountOverlapping: overlappingOptVertices.length,
+        overlappingOptVertexSamples: overlappingOptVertices.slice(0, 10) // first 10
+      };
+
+      console.log('[ReuseDebug] Boundary arc ancestry', summary);
+    }
+  }
+
+  /**
+   * Build a canonical ID path by walking from startId to endId in a canonical loop.
+   * Handles cyclic wrapping for closed loops.
+   */
+  private buildCanonicalIdPath(
+    canonicalLoop: { vertices: { id: number }[]; isClosed: boolean },
+    startId: number,
+    endId: number
+  ): number[] {
+    const vertices = canonicalLoop.vertices;
+
+    // Find indices of start and end vertices
+    const startIndex = vertices.findIndex(v => v.id === startId);
+    const endIndex = vertices.findIndex(v => v.id === endId);
+
+    if (startIndex === -1 || endIndex === -1) {
+      console.warn('[ReuseDebug] Could not find start or end vertex', {
+        startId,
+        endId,
+        startIndex,
+        endIndex
+      });
+      return [];
+    }
+
+    const path: number[] = [];
+
+    // Walk from startIndex to endIndex
+    // For closed loops, respect cyclic nature
+    if (canonicalLoop.isClosed) {
+      let currentIndex = startIndex;
+      path.push(vertices[currentIndex].id);
+
+      // Determine direction: forward or backward
+      // Use the shorter path
+      const forwardDistance = (endIndex - startIndex + vertices.length) % vertices.length;
+      const backwardDistance = (startIndex - endIndex + vertices.length) % vertices.length;
+
+      if (forwardDistance <= backwardDistance) {
+        // Walk forward
+        while (currentIndex !== endIndex) {
+          currentIndex = (currentIndex + 1) % vertices.length;
+          path.push(vertices[currentIndex].id);
+        }
+      } else {
+        // Walk backward
+        while (currentIndex !== endIndex) {
+          currentIndex = (currentIndex - 1 + vertices.length) % vertices.length;
+          path.push(vertices[currentIndex].id);
+        }
+      }
+    } else {
+      // Open loop: walk from startIndex to endIndex
+      if (startIndex <= endIndex) {
+        for (let i = startIndex; i <= endIndex; i++) {
+          path.push(vertices[i].id);
+        }
+      } else {
+        // Walk backward
+        for (let i = startIndex; i >= endIndex; i--) {
+          path.push(vertices[i].id);
+        }
+      }
+    }
+
+    return path;
   }
 
   /**
