@@ -20,7 +20,8 @@ import { CapsuleController } from './controllers/CapsuleController';
 import type { IPlayerController } from './controllers/IPlayerController';
 import { BrushGenerator, type Brush } from './BrushGenerator';
 import { PipelineConfig, DEFAULT_CONFIG } from './PipelineConfig';
-import { TerrainSurgery, type CarvedLoop, type CarveSurgeryResult } from './TerrainSurgery';
+import { TerrainSurgery, type CarvedLoop, type CarveSurgeryResult, type StitchedLoop } from './TerrainSurgery';
+import { AncestryModal } from './AncestryModal';
 
 /**
  * Test spider math functions (Phase 1 verification)
@@ -170,9 +171,12 @@ class CarvableCaves {
 
   // Carved terrain geometry (for visualization and future stitching)
   private carvedLoops: CarvedLoop[] = [];
-  private stitchedLoops: { id: number; vertices: { x: number; y: number }[] }[] = [];
+  private stitchedLoops: StitchedLoop[] = [];
   private carveRegion: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
   private showStitchedLoops = false;
+
+  // Ancestry visualization modal
+  private ancestryModal: AncestryModal;
 
   constructor() {
     try {
@@ -247,6 +251,9 @@ class CarvableCaves {
       // Initialize virtual joystick for mobile controls
       this.joystick = new VirtualJoystick();
 
+      // Initialize ancestry modal for segment visualization
+      this.ancestryModal = new AncestryModal();
+
       // Setup UI
       this.setupUI();
 
@@ -288,6 +295,31 @@ class CarvableCaves {
 
   private setupUI(): void {
     // UI elements removed - all debug functionality now in debug console
+
+    // Add canvas tap/click listeners for ancestry debugging
+    // Only handle clicks when stitched loops are visible
+    this.canvas.addEventListener('click', (e: MouseEvent) => {
+      if (this.ancestryModal.isVisible()) {
+        return; // Don't handle clicks when modal is open
+      }
+      const rect = this.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      this.handleStitchedLoopTap(x, y);
+    });
+
+    this.canvas.addEventListener('touchend', (e: TouchEvent) => {
+      if (this.ancestryModal.isVisible()) {
+        return; // Don't handle touches when modal is open
+      }
+      if (e.changedTouches.length > 0) {
+        const touch = e.changedTouches[0];
+        const rect = this.canvas.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+        this.handleStitchedLoopTap(x, y);
+      }
+    });
   }
 
   /**
@@ -920,10 +952,8 @@ class CarvableCaves {
 
       if (surgeryResult) {
         this.carvedLoops = surgeryResult.loops;
-        this.stitchedLoops = surgeryResult.stitchedLoops.map(l => ({
-          id: l.id,
-          vertices: l.vertices
-        }));
+        // Keep full stitched loops with ancestry data
+        this.stitchedLoops = surgeryResult.stitchedLoops;
         this.carveRegion = surgeryResult.carveRegion;
         this.showStitchedLoops = false; // pause before stitching visualization
 
@@ -977,6 +1007,98 @@ class CarvableCaves {
       stitchedCount: this.stitchedLoops.length,
       loops: this.stitchedLoops.map(l => ({ id: l.id, vertices: l.vertices.length }))
     });
+  }
+
+  /**
+   * Handle tap on stitched loop segment.
+   * Called when user taps on a stitched loop to view ancestry information.
+   *
+   * @param screenX - Screen X coordinate of tap
+   * @param screenY - Screen Y coordinate of tap
+   */
+  handleStitchedLoopTap(screenX: number, screenY: number): void {
+    if (!this.showStitchedLoops || this.stitchedLoops.length === 0) {
+      return;
+    }
+
+    // Convert screen coordinates to world coordinates
+    const canvasWidth = this.canvas.width / (window.devicePixelRatio || 1);
+    const canvasHeight = this.canvas.height / (window.devicePixelRatio || 1);
+    const worldPos = this.camera.screenToWorld(screenX, screenY, canvasWidth, canvasHeight);
+
+    // Find closest segment to tap position
+    let closestLoop: StitchedLoop | null = null;
+    let closestSegmentIndex = -1;
+    let closestDistance = Infinity;
+    const tapThreshold = 20 / this.camera.zoom; // 20 pixels in world units
+
+    for (const loop of this.stitchedLoops) {
+      for (let i = 0; i < loop.segments.length; i++) {
+        const segment = loop.segments[i];
+        const [startIdx, endIdx] = segment.vertexRange;
+
+        // Check distance to all edges in this segment
+        for (let vi = startIdx; vi < endIdx; vi++) {
+          const v1 = loop.vertices[vi];
+          const v2 = loop.vertices[vi + 1];
+
+          // Point-to-line-segment distance
+          const dist = this.pointToSegmentDistance(worldPos, v1, v2);
+
+          if (dist < closestDistance && dist < tapThreshold) {
+            closestDistance = dist;
+            closestLoop = loop;
+            closestSegmentIndex = i;
+          }
+        }
+      }
+    }
+
+    if (closestLoop && closestSegmentIndex >= 0) {
+      // Show ancestry modal
+      this.ancestryModal.show({
+        stitchedLoopId: closestLoop.id,
+        segmentIndex: closestSegmentIndex,
+        ancestry: closestLoop.segments[closestSegmentIndex],
+        stitchedVertexCount: closestLoop.vertices.length
+      });
+
+      console.log('[Ancestry] Showing segment ancestry', {
+        loopId: closestLoop.id,
+        segmentIndex: closestSegmentIndex,
+        sourceLoopId: closestLoop.segments[closestSegmentIndex].sourceLoopId,
+        isNew: closestLoop.segments[closestSegmentIndex].isNew
+      });
+    }
+  }
+
+  /**
+   * Calculate distance from point to line segment
+   */
+  private pointToSegmentDistance(
+    p: { x: number; y: number },
+    v1: { x: number; y: number },
+    v2: { x: number; y: number }
+  ): number {
+    const dx = v2.x - v1.x;
+    const dy = v2.y - v1.y;
+    const lengthSq = dx * dx + dy * dy;
+
+    if (lengthSq === 0) {
+      // v1 and v2 are the same point
+      const pdx = p.x - v1.x;
+      const pdy = p.y - v1.y;
+      return Math.sqrt(pdx * pdx + pdy * pdy);
+    }
+
+    // Project point onto line segment
+    const t = Math.max(0, Math.min(1, ((p.x - v1.x) * dx + (p.y - v1.y) * dy) / lengthSq));
+    const projX = v1.x + t * dx;
+    const projY = v1.y + t * dy;
+
+    const pdx = p.x - projX;
+    const pdy = p.y - projY;
+    return Math.sqrt(pdx * pdx + pdy * pdy);
   }
 }
 

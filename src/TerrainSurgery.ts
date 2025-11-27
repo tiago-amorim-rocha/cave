@@ -44,9 +44,35 @@ export interface CarvedLoop {
   sourceCanonicalId?: number;
 }
 
+/**
+ * Ancestry information for a segment within a stitched loop
+ */
+export interface SegmentAncestry {
+  /** Source CarvedLoop ID this segment came from */
+  sourceLoopId: number;
+
+  /** True if from new marching squares (warm), false if from boundary arc (cold) */
+  isNew: boolean;
+
+  /** For boundary arcs: the canonical loop this originally came from */
+  sourceCanonicalId?: number;
+
+  /** For boundary arcs: the canonical vertex range in the original loop */
+  canonicalEndpoints?: [number, number];
+
+  /** Vertex range within the stitched loop (inclusive) */
+  vertexRange: [number, number];
+
+  /** Original vertices from the source CarvedLoop */
+  originalVertices: Point[];
+}
+
 export interface StitchedLoop {
   id: number;
   vertices: Point[];
+
+  /** Segment ancestry tracking - each entry describes a contiguous range of vertices */
+  segments: SegmentAncestry[];
 }
 
 /**
@@ -1068,7 +1094,19 @@ export class TerrainSurgery {
     // First, add all closed loops directly to output
     carvedLoops.forEach((loop, loopIndex) => {
       if (loop.closed) {
-        stitched.push({ id: stitched.length + 1, vertices: [...loop.loop] });
+        const ancestry: SegmentAncestry = {
+          sourceLoopId: loop.id,
+          isNew: loop.isNew,
+          sourceCanonicalId: loop.sourceCanonicalId,
+          canonicalEndpoints: loop.canonicalEndpoints,
+          vertexRange: [0, loop.loop.length - 1],
+          originalVertices: [...loop.loop]
+        };
+        stitched.push({
+          id: stitched.length + 1,
+          vertices: [...loop.loop],
+          segments: [ancestry]
+        });
         visitedLoops.add(loop.id);
         console.log('[Stitch] Added closed loop directly', {
           id: stitched.length,
@@ -1149,6 +1187,7 @@ export class TerrainSurgery {
         const startKey = quantKey(startPos);
         const path: Point[] = [];
         const segmentsInPath: Array<{ id: number; type: string }> = [];
+        const ancestrySegments: SegmentAncestry[] = [];
 
         let currentSegment: SegmentEndpoint = {
           loopId: startLoop.id,
@@ -1178,23 +1217,44 @@ export class TerrainSurgery {
           tempVisited.add(loop.id);
           segmentsInPath.push({ id: loop.id, type: loop.isNew ? 'warm' : 'cold' });
 
+          // Track starting position in the stitched path
+          const segmentStartInPath = path.length;
+
           // Append vertices in correct direction
+          const verticesForThisSegment: Point[] = [];
           if (enteringAtEndpoint === 0) {
             // Entering at start, exiting at end - traverse forward
             if (path.length === 0) {
               path.push(...loop.loop);
+              verticesForThisSegment.push(...loop.loop);
             } else {
               path.push(...loop.loop.slice(1)); // skip first to avoid duplicate
+              verticesForThisSegment.push(...loop.loop.slice(1));
             }
           } else {
             // Entering at end, exiting at start - traverse backward
             const reversed = [...loop.loop].reverse();
             if (path.length === 0) {
               path.push(...reversed);
+              verticesForThisSegment.push(...reversed);
             } else {
               path.push(...reversed.slice(1)); // skip first to avoid duplicate
+              verticesForThisSegment.push(...reversed.slice(1));
             }
           }
+
+          // Track ending position in the stitched path
+          const segmentEndInPath = path.length - 1;
+
+          // Record ancestry for this segment
+          ancestrySegments.push({
+            sourceLoopId: loop.id,
+            isNew: loop.isNew,
+            sourceCanonicalId: loop.sourceCanonicalId,
+            canonicalEndpoints: loop.canonicalEndpoints,
+            vertexRange: [segmentStartInPath, segmentEndInPath],
+            originalVertices: [...loop.loop]
+          });
 
           // Get exit position
           const exitPos = loop.endpoints![exitingAtEndpoint];
@@ -1203,13 +1263,18 @@ export class TerrainSurgery {
           // Check if we've closed the loop
           if (exitKey === startKey && tempVisited.size > 1) {
             // Successfully closed!
-            stitched.push({ id: stitched.length + 1, vertices: path });
+            stitched.push({
+              id: stitched.length + 1,
+              vertices: path,
+              segments: ancestrySegments
+            });
             tempVisited.forEach(id => visitedLoops.add(id));
-            console.log('[Stitch] ✓ Closed loop formed', {
+            console.log('[Stitch] ✓ Closed loop formed with ancestry', {
               stitchedId: stitched.length,
               segments: segmentsInPath.length,
               vertices: path.length,
-              segmentIds: segmentsInPath
+              segmentIds: segmentsInPath,
+              ancestrySegments: ancestrySegments.length
             });
             break;
           }
