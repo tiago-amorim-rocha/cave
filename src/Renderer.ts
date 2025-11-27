@@ -100,6 +100,7 @@ export class Renderer {
   public showDirtyAABB: boolean = true; // Enabled by default for local update debugging
   public showRebuiltChains: boolean = true; // Enabled by default for local update debugging
   public showLoopPatching: boolean = false; // Legacy loop patching debug visualization (disabled by default)
+  public showReusePreview: boolean = true; // Show reuse plan preview overlay (enabled by default)
   private debugHoverWorld: { x: number; y: number } | null = null; // For hover labels
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
@@ -469,6 +470,11 @@ export class Renderer {
 
       // Draw polylines
       this.drawPolylines(width, height);
+
+      // Draw reuse preview overlay (debugging)
+      if (this.showReusePreview) {
+        this.drawReusePreview(width, height);
+      }
 
       // Draw physics bodies (debugging) - use custom debug draw
       if (this.showPhysicsBodies && physicsDebugDraw) {
@@ -903,6 +909,52 @@ export class Renderer {
 
       this.ctx.closePath();
       this.ctx.stroke();
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw reuse preview overlay for canonical loops with debugPreviewOptVertices
+   */
+  private drawReusePreview(canvasWidth: number, canvasHeight: number): void {
+    if (!this.showReusePreview || this.canonicalLoops.length === 0) {
+      return;
+    }
+
+    this.ctx.save();
+
+    // Find canonical loops with preview vertices
+    for (const loop of this.canonicalLoops) {
+      if (!loop.debugPreviewOptVertices || loop.debugPreviewOptVertices.length === 0) {
+        continue;
+      }
+
+      const preview = loop.debugPreviewOptVertices;
+
+      // Draw preview as a thicker, distinctive colored line
+      this.ctx.strokeStyle = '#ff00ff'; // Magenta for high visibility
+      this.ctx.lineWidth = 4; // Thicker than normal walls
+      this.ctx.lineCap = 'round';
+      this.ctx.lineJoin = 'round';
+      this.ctx.setLineDash([10, 5]); // Dashed line pattern
+
+      this.ctx.beginPath();
+      const firstScreen = this.camera.worldToScreen(preview[0].x, preview[0].y, canvasWidth, canvasHeight);
+      this.ctx.moveTo(firstScreen.x, firstScreen.y);
+
+      for (let i = 1; i < preview.length; i++) {
+        const screen = this.camera.worldToScreen(preview[i].x, preview[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(screen.x, screen.y);
+      }
+
+      // Close if needed
+      if (loop.isClosed) {
+        this.ctx.closePath();
+      }
+
+      this.ctx.stroke();
+      this.ctx.setLineDash([]); // Reset dash pattern
     }
 
     this.ctx.restore();

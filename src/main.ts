@@ -22,6 +22,7 @@ import { BrushGenerator, type Brush } from './BrushGenerator';
 import { PipelineConfig, DEFAULT_CONFIG } from './PipelineConfig';
 import { TerrainSurgery, type CarvedLoop, type CarveSurgeryResult, type StitchedLoop } from './TerrainSurgery';
 import { AncestryModal } from './AncestryModal';
+import type { CanonicalLoop, OptVertex } from './terrain/CanonicalGeometry';
 
 /**
  * Test spider math functions (Phase 1 verification)
@@ -1336,7 +1337,7 @@ class CarvableCaves {
               }
             : null;
 
-        console.log('[ReuseDebug] Reuse plan', {
+        const reusePlan = {
           stitchedLoopId: stitchedLoop.id,
           sourceCanonicalId: coldSegment.sourceCanonicalId,
           canonicalEndpointIds: coldSegment.canonicalEndpointIds,
@@ -1351,9 +1352,85 @@ class CarvableCaves {
           })),
           reuseHead,
           reuseTail
+        };
+
+        console.log('[ReuseDebug] Reuse plan', reusePlan);
+
+        // === Build Debug Preview ===
+        // Convert stitched loop vertices to OptVertex[] (simple conversion with placeholder ancestry)
+        const stitchedOpt: OptVertex[] = stitchedLoop.vertices.map((v, i) => ({
+          x: v.x,
+          y: v.y,
+          canonStartId: -1, // Placeholder - not used in preview
+          canonEndId: -1
+        }));
+
+        // Build reuse preview
+        const preview = this.buildReusePreview(canonicalLoop, stitchedOpt, reusePlan);
+
+        // Store on canonical loop for renderer
+        canonicalLoop.debugPreviewOptVertices = preview;
+
+        console.log('[ReuseDebug] Preview built', {
+          sourceCanonicalId: reusePlan.sourceCanonicalId,
+          originalOptCount: canonicalLoop.optVertices.length,
+          previewOptCount: preview.length,
+          reuseHead: reusePlan.reuseHead,
+          dirtyBlock: reusePlan.dirtyBlocks[0],
+          reuseTail: reusePlan.reuseTail
         });
       }
     }
+  }
+
+  /**
+   * Build a debug preview of reused optimized vertices with stitched middle section.
+   * This is for visualization only - does not affect physics.
+   */
+  private buildReusePreview(
+    canonicalLoop: CanonicalLoop,
+    stitchedOpt: OptVertex[],
+    reusePlan: {
+      blockCount: number;
+      dirtyBlocks: Array<{
+        optStartIndex: number;
+        optEndIndex: number;
+        optLength: number;
+        runCanonStartId: number;
+        runCanonEndId: number;
+      }>;
+      reuseHead: { startOpt: number; endOpt: number; length: number } | null;
+      reuseTail: { startOpt: number; endOpt: number; length: number } | null;
+    }
+  ): OptVertex[] {
+    // If no dirty blocks, just return original optVertices
+    if (reusePlan.blockCount === 0 || !canonicalLoop.optVertices) {
+      return canonicalLoop.optVertices || [];
+    }
+
+    // For now, assume single dirty block (first entry)
+    const oldOpt = canonicalLoop.optVertices;
+    const { reuseHead, reuseTail } = reusePlan;
+
+    // Build preview: head + stitched + tail
+    const preview: OptVertex[] = [];
+
+    // Add head if valid
+    if (reuseHead && reuseHead.length > 0) {
+      const head = oldOpt.slice(reuseHead.startOpt, reuseHead.endOpt + 1);
+      preview.push(...head);
+    }
+
+    // Add stitched middle section (entire stitchedOpt array)
+    preview.push(...stitchedOpt);
+
+    // Add tail if valid
+    if (reuseTail && reuseTail.length > 0) {
+      const tail = oldOpt.slice(reuseTail.startOpt, reuseTail.endOpt + 1);
+      preview.push(...tail);
+    }
+
+    return preview;
   }
 
   /**
