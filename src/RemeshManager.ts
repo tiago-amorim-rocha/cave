@@ -17,7 +17,7 @@ import { VertexOptimizationPipeline, type OptimizationOptions } from './VertexOp
 import type { Point } from './types';
 import { cleanLoop } from './physics/shapeUtils';
 import { LoopPatcher } from './LoopPatcher';
-import { createCanonicalLoop, replaceCanonicalRange, buildSegmentsForLoop, type CanonicalLoop, type OptVertex, type PhysicsSegment } from './terrain/CanonicalGeometry';
+import { createCanonicalLoop, replaceCanonicalRange, buildSegmentsForLoop, type CanonicalLoop, type CanonicalVertex, type OptVertex, type PhysicsSegment } from './terrain/CanonicalGeometry';
 
 // Debug flag for loop classification - set to false to silence logs
 const DEBUG_LOOP_CLASSIFICATION = true;
@@ -346,17 +346,17 @@ export class RemeshManager {
     if (end - start < 1) {
       return [];
     }
-    const slice: Point[] = [];
+    // IMPORTANT: Preserve canonical vertices with their stable IDs for ancestry tracking
+    const slice: CanonicalVertex[] = [];
     for (let i = start; i <= end; i++) {
-      const v = canon.vertices[i];
-      slice.push({ x: v.x, y: v.y });
+      slice.push(canon.vertices[i]);
     }
     // Ensure closure
     if (slice.length > 0) {
       const first = slice[0];
       const last = slice[slice.length - 1];
       if (Math.abs(first.x - last.x) > 1e-6 || Math.abs(first.y - last.y) > 1e-6) {
-        slice.push({ x: first.x, y: first.y });
+        slice.push({ ...first });
       }
     }
     const opt = this.optimizationPipeline.optimize([slice], this.optimizationOptions);
@@ -547,7 +547,10 @@ export class RemeshManager {
     this.renderer.setLoopDebugInfo(loopMetadata);
 
     // Run vertex optimization pipeline
-    const optimizationResult = this.optimizationPipeline.optimize(validLoops, this.optimizationOptions);
+    // IMPORTANT: Pass canonical vertices (with stable IDs) instead of plain points
+    // so that Chaikin smoothing uses global vertex IDs instead of array indices
+    const canonicalVerticesForOpt = canonicalLoops.map(loop => loop.vertices);
+    const optimizationResult = this.optimizationPipeline.optimize(canonicalVerticesForOpt, this.optimizationOptions);
     const finalVertexCount = optimizationResult.finalLoops.reduce((sum, loop) => sum + loop.length, 0);
     console.log(`[FullHeal] ⏱️ Optimization: ${optimizationResult.timing.totalMs.toFixed(2)}ms (${cleanedVertexCount} → ${finalVertexCount} vertices)`);
     console.log(`[FullHeal]    ↳ cleanLoop: ${optimizationResult.timing.cleanLoopMs.toFixed(2)}ms`);
@@ -582,6 +585,19 @@ export class RemeshManager {
       count: canonicalLoops.length,
       withOptVertices: canonicalLoops.filter(l => l.optVertices).length
     });
+
+    // Debug: Verify ancestry tracking uses global IDs for canonical loop 2
+    if (canonicalLoops.length > 2 && canonicalLoops[2].optVertices) {
+      const loop2 = canonicalLoops[2];
+      console.log('[ReuseDebug] Canonical vs Opt IDs for sourceCanonicalId: 2', {
+        sourceCanonicalId: 2,
+        canonicalVertexIdSamples: loop2.vertices.slice(0, 10).map(v => v.id),
+        optAncestryIdSamples: loop2.optVertices.slice(0, 10).map(v => ({
+          canonStartId: v.canonStartId,
+          canonEndId: v.canonEndId
+        }))
+      });
+    }
 
     // Use final loops for both physics and rendering (canonical representation)
     const t6 = performance.now();
@@ -697,7 +713,8 @@ export class RemeshManager {
     const newSegmentsDebug: PhysicsSegment[][] = [];
     for (const repl of replacements) {
       const dirtyRange = this.canonicalDirtyRange(repl, paddedAABB);
-      const optResult = this.optimizationPipeline.optimize([repl.vertices.map(v => ({ x: v.x, y: v.y }))], this.optimizationOptions);
+      // IMPORTANT: Pass canonical vertices directly (with stable IDs) to preserve ancestry
+      const optResult = this.optimizationPipeline.optimize([repl.vertices], this.optimizationOptions);
       const optLoop = optResult.finalOptLoops?.[0];
       if (optLoop) {
         newOptLoopsDebug.push(optLoop);
