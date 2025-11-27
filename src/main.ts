@@ -1131,7 +1131,7 @@ class CarvableCaves {
       const dirtyIds = new Set(canonicalPath);
 
       // Add buffer IDs (1 ID before start and 1 ID after end)
-      const [startId, endId] = coldSegment.canonicalEndpointIds;
+      // Reuse startId and endId already extracted above
       const startIndex = canonicalLoop.vertices.findIndex(v => v.id === startId);
       const endIndex = canonicalLoop.vertices.findIndex(v => v.id === endId);
 
