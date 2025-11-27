@@ -573,16 +573,22 @@ export class RemeshManager {
       return !isRock;
     });
 
+    // Store optVertices on the canonical loops (single source of truth for ancestry)
+    // This ensures TerrainSurgery and ancestry lookups can find optVertices by canonical loop ID
+    for (let i = 0; i < canonicalLoops.length; i++) {
+      canonicalLoops[i].optVertices = optimizationResult.finalOptLoops[i];
+    }
+    console.log('[FullHeal] Stored optVertices on canonical loops for ancestry', {
+      count: canonicalLoops.length,
+      withOptVertices: canonicalLoops.filter(l => l.optVertices).length
+    });
+
     // Use final loops for both physics and rendering (canonical representation)
     const t6 = performance.now();
     const canonicalPhysicsLoops = optimizationResult.finalLoops.map(loop => createCanonicalLoop(loop));
     const totalCanonicalVerts = canonicalPhysicsLoops.reduce((sum, cl) => sum + cl.vertices.length, 0);
     console.log(`[FullHeal] Canonical loops: ${canonicalPhysicsLoops.length} (${totalCanonicalVerts} verts total)`);
     this.canonicalPhysicsLoops = canonicalPhysicsLoops.map((loop, index) => ({ loop, shouldReverse: shouldReverse[index] ?? true }));
-    // Cache optimized/segment debug on canonical loops
-    for (let i = 0; i < canonicalPhysicsLoops.length; i++) {
-      canonicalPhysicsLoops[i].optVertices = optimizationResult.finalOptLoops[i];
-    }
     const physicsEngine = this.physics.getEngine();
     console.log('[FullHeal] Calling physicsEngine.setCanonicalTerrainLoops');
     try {
