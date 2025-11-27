@@ -1345,7 +1345,7 @@ class CarvableCaves {
           dirtyBlocks: blocks.map(b => ({
             optStartIndex: b.optStartIndex,
             optEndIndex: b.optEndIndex,
-            optLength: b.optLength,
+            optLength: b.optEndIndex - b.optStartIndex + 1,
             runCanonStartId: b.runCanonStartId,
             runCanonEndId: b.runCanonEndId
           })),
