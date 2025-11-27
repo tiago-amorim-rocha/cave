@@ -587,16 +587,18 @@ export class RemeshManager {
     });
 
     // Debug: Verify ancestry tracking uses global IDs for canonical loop 2
-    if (canonicalLoops.length > 2 && canonicalLoops[2].optVertices) {
+    if (canonicalLoops.length > 2) {
       const loop2 = canonicalLoops[2];
-      console.log('[ReuseDebug] Canonical vs Opt IDs for sourceCanonicalId: 2', {
-        sourceCanonicalId: 2,
-        canonicalVertexIdSamples: loop2.vertices.slice(0, 10).map(v => v.id),
-        optAncestryIdSamples: loop2.optVertices.slice(0, 10).map(v => ({
-          canonStartId: v.canonStartId,
-          canonEndId: v.canonEndId
-        }))
-      });
+      if (loop2.optVertices) {
+        console.log('[ReuseDebug] Canonical vs Opt IDs for sourceCanonicalId: 2', {
+          sourceCanonicalId: 2,
+          canonicalVertexIdSamples: loop2.vertices.slice(0, 10).map(v => v.id),
+          optAncestryIdSamples: loop2.optVertices.slice(0, 10).map(v => ({
+            canonStartId: v.canonStartId,
+            canonEndId: v.canonEndId
+          }))
+        });
+      }
     }
 
     // Use final loops for both physics and rendering (canonical representation)
