@@ -1125,6 +1125,79 @@ class CarvableCaves {
       };
 
       console.log('[ReuseDebug] Boundary arc ancestry', summary);
+
+      // === Dirty vs Clean Classification ===
+      // Build dirty ID set from canonical path with 1-ID buffer on each side
+      const dirtyIds = new Set(canonicalPath);
+
+      // Add buffer IDs (1 ID before start and 1 ID after end)
+      const [startId, endId] = coldSegment.canonicalEndpointIds;
+      const startIndex = canonicalLoop.vertices.findIndex(v => v.id === startId);
+      const endIndex = canonicalLoop.vertices.findIndex(v => v.id === endId);
+
+      if (startIndex !== -1) {
+        // Add ID before start (with cyclic wrap for closed loops)
+        const prevIndex = canonicalLoop.isClosed
+          ? (startIndex - 1 + canonicalLoop.vertices.length) % canonicalLoop.vertices.length
+          : Math.max(0, startIndex - 1);
+        dirtyIds.add(canonicalLoop.vertices[prevIndex].id);
+      }
+
+      if (endIndex !== -1) {
+        // Add ID after end (with cyclic wrap for closed loops)
+        const nextIndex = canonicalLoop.isClosed
+          ? (endIndex + 1) % canonicalLoop.vertices.length
+          : Math.min(canonicalLoop.vertices.length - 1, endIndex + 1);
+        dirtyIds.add(canonicalLoop.vertices[nextIndex].id);
+      }
+
+      // Classify all optVertices as dirty or clean
+      const dirtyOptVertices: Array<{
+        index: number;
+        canonStartId: number;
+        canonEndId: number;
+      }> = [];
+
+      const cleanOptVertices: Array<{
+        index: number;
+        canonStartId: number;
+        canonEndId: number;
+      }> = [];
+
+      canonicalLoop.optVertices.forEach((optVertex, index) => {
+        // Classify as dirty if either endpoint is in dirtyIds
+        const isDirty = dirtyIds.has(optVertex.canonStartId) || dirtyIds.has(optVertex.canonEndId);
+
+        if (isDirty) {
+          dirtyOptVertices.push({
+            index,
+            canonStartId: optVertex.canonStartId,
+            canonEndId: optVertex.canonEndId
+          });
+        } else {
+          cleanOptVertices.push({
+            index,
+            canonStartId: optVertex.canonStartId,
+            canonEndId: optVertex.canonEndId
+          });
+        }
+      });
+
+      // Log dirty vs clean summary
+      const dirtyCleanSummary = {
+        stitchedLoopId: stitchedLoop.id,
+        sourceCanonicalId: coldSegment.sourceCanonicalId,
+        canonicalEndpointIds: coldSegment.canonicalEndpointIds,
+        canonicalPathLength: canonicalPath.length,
+        dirtyIdCount: dirtyIds.size,
+        optVertexCountTotal: canonicalLoop.optVertices.length,
+        dirtyOptCount: dirtyOptVertices.length,
+        cleanOptCount: cleanOptVertices.length,
+        dirtyOptSamples: dirtyOptVertices.slice(0, 10),
+        cleanOptSamples: cleanOptVertices.slice(0, 10)
+      };
+
+      console.log('[ReuseDebug] Dirty vs clean optVertices', dirtyCleanSummary);
     }
   }
 
