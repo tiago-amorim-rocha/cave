@@ -982,7 +982,12 @@ class CarvableCaves {
 
 // Button to advance debug step (show stitched loops after inspecting raw carve)
 function createStitchStepButton(app: CarvableCaves, enabled: boolean) {
-  if (!enabled) return;
+  console.log('[UI] createStitchStepButton called', { enabled });
+
+  if (!enabled) {
+    console.log('[UI] Stitch button NOT created - debug capture disabled');
+    return;
+  }
 
   const stitchButton = document.createElement('button');
   stitchButton.id = 'stitch-button';
@@ -1001,9 +1006,11 @@ function createStitchStepButton(app: CarvableCaves, enabled: boolean) {
     font-size: 24px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     z-index: 1001;
+    cursor: pointer;
   `;
 
   stitchButton.addEventListener('click', () => {
+    console.log('[UI] Stitch button CLICKED!');
     app.enableStitchedDebugOverlay();
   });
 
@@ -1016,6 +1023,10 @@ function createStitchStepButton(app: CarvableCaves, enabled: boolean) {
   });
 
   document.body.appendChild(stitchButton);
+  console.log('[UI] Stitch button created and added to DOM', {
+    id: stitchButton.id,
+    parent: stitchButton.parentElement?.tagName
+  });
 }
 
 (window as any).APP_LOADED = true;
