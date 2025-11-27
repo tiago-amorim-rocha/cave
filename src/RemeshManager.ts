@@ -327,7 +327,7 @@ export class RemeshManager {
     let removeEnd = -1;
     for (let i = 0; i < optLoop.length; i++) {
       const v = optLoop[i];
-      const overlaps = v.canonStart <= dirtyEnd && v.canonEnd >= dirtyStart;
+      const overlaps = v.canonStartId <= dirtyEnd && v.canonEndId >= dirtyStart;
       if (overlaps) {
         if (removeStart === -1) removeStart = i;
         removeEnd = i;
@@ -715,7 +715,7 @@ export class RemeshManager {
           canonRange: [dirtyRange.start, dirtyRange.end],
           removedOptVerts: 0,
           newOptVerts: optLoop.length,
-          ancestryCoverage: optLoop.every(v => v.canonStart !== undefined && v.canonEnd !== undefined)
+          ancestryCoverage: optLoop.every(v => v.canonStartId !== undefined && v.canonEndId !== undefined)
         });
         repl.optVertices = optLoop;
         repl.segments = segments;

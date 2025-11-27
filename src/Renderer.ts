@@ -926,11 +926,11 @@ export class Renderer {
         if (loop.length === 0) continue;
 
         // Use a slow-changing gradient based on overall canonical span for this loop
-        const maxCanon = loop.reduce((m, v) => Math.max(m, v.canonEnd), 1);
+        const maxCanon = loop.reduce((m, v) => Math.max(m, v.canonEndId), 1);
         for (let i = 0; i < loop.length; i++) {
           const v = loop[i];
           const screen = this.camera.worldToScreen(v.x, v.y, canvasWidth, canvasHeight);
-          const mid = (v.canonStart + v.canonEnd) * 0.5;
+          const mid = (v.canonStartId + v.canonEndId) * 0.5;
           const t = maxCanon > 0 ? mid / maxCanon : 0;
           const hue = (t * 300 + 20) % 360; // smooth sweep across loop
           this.ctx.fillStyle = `hsl(${hue}, 80%, 60%)`;
@@ -944,7 +944,7 @@ export class Renderer {
             const dy = screen.y - hover.y;
             if (dx * dx + dy * dy <= labelRadiusPx * labelRadiusPx) {
               this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-              this.ctx.fillText(`${v.canonStart}-${v.canonEnd}`, screen.x + 6, screen.y);
+              this.ctx.fillText(`${v.canonStartId}-${v.canonEndId}`, screen.x + 6, screen.y);
             }
           }
         }

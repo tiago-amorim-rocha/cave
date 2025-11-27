@@ -12,7 +12,7 @@ import { simplifyPolylines } from './PolylineSimplifier';
 import { chaikinSmoothMultiple } from './ChaikinSmoothing';
 import { cleanLoop } from './physics/shapeUtils';
 import type { Point } from './types';
-import type { OptVertex } from './terrain/CanonicalGeometry';
+import type { OptVertex, CanonicalLoop, CanonicalVertex, VertexId } from './terrain/CanonicalGeometry';
 
 export interface OptimizationOptions {
   gridPitch: number;
@@ -130,7 +130,7 @@ export class VertexOptimizationPipeline {
           before,
           after,
           reduction: ((before - after) / before * 100).toFixed(1) + '%',
-          ancestryPreserved: simplifiedOpt.every(loop => loop.every(v => v.canonStart !== undefined))
+          ancestryPreserved: simplifiedOpt.every(loop => loop.every(v => v.canonStartId !== undefined))
         });
         workingOptLoops = simplifiedOpt;
         finalLoops = workingOptLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
@@ -151,7 +151,7 @@ export class VertexOptimizationPipeline {
 
     finalOptLoops = workingOptLoops
       ? workingOptLoops
-      : finalLoops.map(loop => loop.map((p, i) => ({ x: p.x, y: p.y, canonStart: i, canonEnd: i })));
+      : finalLoops.map(loop => loop.map((p, i) => ({ x: p.x, y: p.y, canonStartId: i as VertexId, canonEndId: i as VertexId })));
 
     const finalVertexCount = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
     const tEnd = performance.now();

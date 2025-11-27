@@ -190,9 +190,9 @@ export class AncestryModal {
       const canonicalInfo = this.createSection('Canonical Loop (Original)', [
         { label: 'Canonical Loop ID', value: `${ancestry.sourceCanonicalId}` },
         {
-          label: 'Canonical Vertex Range',
-          value: ancestry.canonicalEndpoints
-            ? `[${ancestry.canonicalEndpoints[0]}, ${ancestry.canonicalEndpoints[1]}]`
+          label: 'Canonical Vertex ID Range',
+          value: ancestry.canonicalEndpointIds
+            ? `[${ancestry.canonicalEndpointIds[0]}, ${ancestry.canonicalEndpointIds[1]}]`
             : 'N/A'
         }
       ], '#ff00ff');
@@ -205,9 +205,9 @@ export class AncestryModal {
         const minOptIdx = Math.min(...optIndices);
         const maxOptIdx = Math.max(...optIndices);
 
-        // Calculate canonical vertex count in range
-        const canonicalRange = ancestry.canonicalEndpoints!;
-        const canonicalCount = canonicalRange[1] - canonicalRange[0] + 1;
+        // Calculate canonical vertex count in ID range
+        const canonicalIdRange = ancestry.canonicalEndpointIds!;
+        const canonicalCount = canonicalIdRange[1] - canonicalIdRange[0] + 1;
         const optCount = relatedOpts.length;
         const changePercent = ((optCount - canonicalCount) / canonicalCount * 100).toFixed(1);
         const changeSign = optCount > canonicalCount ? '+' : '';
@@ -481,11 +481,11 @@ export class AncestryModal {
       `;
 
       const ancestryLabel = document.createElement('span');
-      ancestryLabel.textContent = 'Canon Range:';
+      ancestryLabel.textContent = 'Canon ID Range:';
       ancestryLabel.style.color = '#888';
 
       const ancestryRange = document.createElement('span');
-      ancestryRange.textContent = `[${vertex.canonStart}, ${vertex.canonEnd}]`;
+      ancestryRange.textContent = `[${vertex.canonStartId}, ${vertex.canonEndId}]`;
       ancestryRange.style.color = '#ff00ff';
       ancestryRange.style.fontWeight = 'bold';
 

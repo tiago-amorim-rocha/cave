@@ -1059,10 +1059,10 @@ class CarvableCaves {
 
       // For cold (boundary) segments, find related optimized vertices from canonical loop
       let relatedOptVertices: Array<{ index: number; vertex: any }> | undefined;
-      if (!segment.isNew && segment.sourceCanonicalId !== undefined && segment.canonicalEndpoints) {
+      if (!segment.isNew && segment.sourceCanonicalId !== undefined && segment.canonicalEndpointIds) {
         relatedOptVertices = this.findRelatedOptVertices(
           segment.sourceCanonicalId,
-          segment.canonicalEndpoints
+          segment.canonicalEndpointIds
         );
       }
 
@@ -1086,12 +1086,12 @@ class CarvableCaves {
   }
 
   /**
-   * Find optimized vertices from a canonical loop that relate to a given canonical vertex range.
-   * Returns all optimized vertices whose ancestry overlaps with the specified range.
+   * Find optimized vertices from a canonical loop that relate to a given canonical vertex ID range.
+   * Returns all optimized vertices whose ancestry overlaps with the specified ID range.
    */
   private findRelatedOptVertices(
     canonicalLoopId: number,
-    canonicalRange: [number, number]
+    canonicalIdRange: [number, number]
   ): Array<{ index: number; vertex: any }> {
     const result: Array<{ index: number; vertex: any }> = [];
 
@@ -1109,20 +1109,20 @@ class CarvableCaves {
       return result;
     }
 
-    const [rangeStart, rangeEnd] = canonicalRange;
+    const [rangeStartId, rangeEndId] = canonicalIdRange;
 
-    // Find all optimized vertices whose ancestry overlaps with our range
+    // Find all optimized vertices whose ancestry overlaps with our ID range
     canonicalLoop.optVertices.forEach((optVertex, index) => {
-      // Check if ancestry ranges overlap
-      // Overlapping condition: optVertex.canonStart <= rangeEnd && optVertex.canonEnd >= rangeStart
-      if (optVertex.canonStart <= rangeEnd && optVertex.canonEnd >= rangeStart) {
+      // Check if ancestry ID ranges overlap
+      // Overlapping condition: optVertex.canonStartId <= rangeEndId && optVertex.canonEndId >= rangeStartId
+      if (optVertex.canonStartId <= rangeEndId && optVertex.canonEndId >= rangeStartId) {
         result.push({ index, vertex: optVertex });
       }
     });
 
     console.log('[Ancestry] Found related optimized vertices', {
       canonicalLoopId,
-      canonicalRange,
+      canonicalIdRange,
       totalOptVertices: canonicalLoop.optVertices.length,
       relatedCount: result.length
     });

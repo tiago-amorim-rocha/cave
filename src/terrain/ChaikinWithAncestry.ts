@@ -1,8 +1,8 @@
 import type { OptVertex } from './CanonicalGeometry';
 
 /**
- * Chaikin smoothing that preserves ancestry ranges across generated vertices.
- * canonStart = min of endpoints, canonEnd = max of endpoints.
+ * Chaikin smoothing that preserves ancestry ID ranges across generated vertices.
+ * canonStartId = min of endpoints, canonEndId = max of endpoints.
  */
 export function chaikinWithAncestry(
   vertices: OptVertex[],
@@ -24,27 +24,27 @@ export function chaikinWithAncestry(
       const a = working[i];
       const b = working[(i + 1) % working.length];
 
-      const canonStart = Math.min(a.canonStart, b.canonStart);
-      const canonEnd = Math.max(a.canonEnd, b.canonEnd);
+      const canonStartId = Math.min(a.canonStartId, b.canonStartId);
+      const canonEndId = Math.max(a.canonEndId, b.canonEndId);
 
       console.assert(
-        canonStart <= canonEnd,
+        canonStartId <= canonEndId,
         '[Chaikin] Invalid ancestry range',
-        { canonStart, canonEnd }
+        { canonStartId, canonEndId }
       );
 
       const q: OptVertex = {
         x: a.x * (1 - ratio) + b.x * ratio,
         y: a.y * (1 - ratio) + b.y * ratio,
-        canonStart,
-        canonEnd,
+        canonStartId,
+        canonEndId,
       };
 
       const r: OptVertex = {
         x: a.x * ratio + b.x * (1 - ratio),
         y: a.y * ratio + b.y * (1 - ratio),
-        canonStart,
-        canonEnd,
+        canonStartId,
+        canonEndId,
       };
 
       result.push(q, r);
@@ -57,7 +57,7 @@ export function chaikinWithAncestry(
     console.log(`[Chaikin] Iteration ${iter}`, {
       before: working.length,
       after: result.length,
-      sampleAncestry: result.slice(0, 5).map(v => [v.canonStart, v.canonEnd])
+      sampleAncestry: result.slice(0, 5).map(v => [v.canonStartId, v.canonEndId])
     });
 
     working = result;
