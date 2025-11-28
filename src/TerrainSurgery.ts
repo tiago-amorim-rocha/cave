@@ -34,8 +34,11 @@ export interface CarvedLoop {
 
   /** For open loops, the two endpoints */
   endpoints?: [Point, Point];
-  /** Canonical vertex IDs (for boundary arcs) */
+  /** Canonical vertex IDs (for boundary arcs) - global IDs */
   canonicalEndpointIds?: [number, number];
+
+  /** Canonical vertex indices (for boundary arcs) - loop-local indices (0..n-1) */
+  canonicalEndpointIndices?: [number, number];
 
   /** True if extracted from dirty region (new), false if from existing boundary (preserved) */
   isNew: boolean;
@@ -57,8 +60,11 @@ export interface SegmentAncestry {
   /** For boundary arcs: the canonical loop this originally came from */
   sourceCanonicalId?: number;
 
-  /** For boundary arcs: the canonical vertex ID range in the original loop */
+  /** For boundary arcs: the canonical vertex ID range in the original loop (global IDs) */
   canonicalEndpointIds?: [number, number];
+
+  /** For boundary arcs: loop-local indices (0..n-1) for opt vertex lookup */
+  canonicalEndpointIndices?: [number, number];
 
   /** Vertex range within the stitched loop (inclusive) */
   vertexRange: [number, number];
@@ -911,6 +917,10 @@ export class TerrainSurgery {
           canonicalEndpointIds: [
             canonLoop.vertices[extendedPiece.startIndex].id,
             canonLoop.vertices[extendedPiece.endIndex].id
+          ],
+          canonicalEndpointIndices: [
+            extendedPiece.startIndex,
+            extendedPiece.endIndex
           ]
         });
 
@@ -1102,6 +1112,7 @@ export class TerrainSurgery {
           isNew: loop.isNew,
           sourceCanonicalId: loop.sourceCanonicalId,
           canonicalEndpointIds: loop.canonicalEndpointIds,
+          canonicalEndpointIndices: loop.canonicalEndpointIndices,
           vertexRange: [0, loop.loop.length - 1],
           originalVertices: [...loop.loop]
         };
@@ -1255,6 +1266,7 @@ export class TerrainSurgery {
             isNew: loop.isNew,
             sourceCanonicalId: loop.sourceCanonicalId,
             canonicalEndpointIds: loop.canonicalEndpointIds,
+            canonicalEndpointIndices: loop.canonicalEndpointIndices,
             vertexRange: [segmentStartInPath, segmentEndInPath],
             originalVertices: [...loop.loop]
           });
