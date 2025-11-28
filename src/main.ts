@@ -27,7 +27,7 @@ import { allocateVertexId } from './terrain/CanonicalGeometry';
 import { VertexOptimizationPipeline } from './VertexOptimizationPipeline';
 
 /**
- * Per-segment OptVertex data for Step 3 visualization
+ * Per-segment OptVertex data for Step 4 visualization (actual optimization)
  */
 interface SegmentOptVertices {
   stitchedLoopId: number;
@@ -35,6 +35,22 @@ interface SegmentOptVertices {
   optVertices: OptVertex[];
   isWarm: boolean; // true = rebuilt from warm segment, false = reused from cold segment
   sourceCanonicalId?: number; // for cold segments only
+}
+
+/**
+ * Step 3: Segment classification in stitched canonical space
+ */
+type SegmentKind = 'warm' | 'cold';
+
+interface StitchedSegment {
+  kind: SegmentKind;      // 'warm' for DIRTY (rebuilt), 'cold' for CLEAN (reused)
+  startIndex: number;     // inclusive index into stitchedLoop.vertices
+  endIndex: number;       // inclusive index into stitchedLoop.vertices
+}
+
+interface StitchedLoopSegmentation {
+  stitchedLoopId: number;
+  segments: StitchedSegment[];
 }
 
 /**
@@ -190,7 +206,8 @@ class CarvableCaves {
   private showStitchedLoops = false;
   private showReusePlan = false;
   private reusePlanDebug: ReusePlanDebug[] = [];
-  private segmentOptVertices: SegmentOptVertices[] = []; // Step 3: per-segment OptVertex arrays
+  private stitchedSegmentations: StitchedLoopSegmentation[] = []; // Step 3: segment classification
+  private segmentOptVertices: SegmentOptVertices[] = []; // Step 4: per-segment OptVertex arrays (future)
 
   // Ancestry visualization modal
   private ancestryModal: AncestryModal;
@@ -1048,14 +1065,14 @@ class CarvableCaves {
   }
 
   /**
-   * Enable reuse plan overlay (step 3) - Build OptVertex arrays for each segment.
-   * This is the actual implementation that builds warm (rebuilt) and cold (reused) OptVertex arrays.
+   * Step 3: Classify stitched canonical vertices as DIRTY/CLEAN and visualize segments.
+   * This operates entirely in stitched canonical space, not on OptVertices.
    */
   enableReusePlanDebugOverlay(): void {
-    console.log('[Carving] Step 3: Building per-segment OptVertex arrays');
+    console.log('[Carving] Step 3: Classifying stitched canonical vertices');
 
     if (!this.config.debugCaptureEnabled) {
-      console.warn('[Carving] Debug capture is disabled - cannot build segment OptVertices');
+      console.warn('[Carving] Debug capture is disabled - cannot classify segments');
       return;
     }
 
@@ -1064,11 +1081,40 @@ class CarvableCaves {
       return;
     }
 
-    // Build OptVertex arrays for each segment
-    this.buildSegmentOptVertices();
+    // Step 3.1: Compute dirty canonical IDs from all stitched loops
+    const dirtyCanonicalIds = this.computeDirtyCanonicalIds();
 
-    // Pass to renderer for visualization
-    this.renderer.setSegmentOptVertices(this.segmentOptVertices);
+    // Step 3.2: Classify vertices and compress into segments
+    this.stitchedSegmentations = [];
+
+    for (const stitchedLoop of this.stitchedLoops) {
+      // Classify each vertex as DIRTY or CLEAN
+      const dirtyFlags = this.classifyStitchedVertices(stitchedLoop, dirtyCanonicalIds);
+
+      // Compress into warm/cold segments
+      const segments = this.compressToSegments(dirtyFlags);
+
+      this.stitchedSegmentations.push({
+        stitchedLoopId: stitchedLoop.id,
+        segments
+      });
+
+      console.log('[Step3] Classified stitched loop', {
+        loopId: stitchedLoop.id,
+        totalVertices: stitchedLoop.vertices.length,
+        dirtyVertices: dirtyFlags.filter(d => d).length,
+        cleanVertices: dirtyFlags.filter(d => !d).length,
+        segments: segments.map(s => ({
+          kind: s.kind,
+          startIndex: s.startIndex,
+          endIndex: s.endIndex,
+          length: s.endIndex - s.startIndex + 1
+        }))
+      });
+    }
+
+    // Pass segmentations to renderer for visualization
+    this.renderer.setStitchedSegmentations(this.stitchedSegmentations, this.stitchedLoops);
 
     // Update visualization flags
     this.showStitchedLoops = false;
@@ -1076,10 +1122,20 @@ class CarvableCaves {
     this.renderer.showReusePlan = true;
     this.renderer.showReusePreview = false;
 
-    console.log('[Carving] ✓ Step 3 complete: Built OptVertex arrays', {
-      totalSegments: this.segmentOptVertices.length,
-      warmSegments: this.segmentOptVertices.filter(s => s.isWarm).length,
-      coldSegments: this.segmentOptVertices.filter(s => !s.isWarm).length
+    const totalSegments = this.stitchedSegmentations.reduce((sum, s) => sum + s.segments.length, 0);
+    const warmSegments = this.stitchedSegmentations.reduce(
+      (sum, s) => sum + s.segments.filter(seg => seg.kind === 'warm').length,
+      0
+    );
+    const coldSegments = this.stitchedSegmentations.reduce(
+      (sum, s) => sum + s.segments.filter(seg => seg.kind === 'cold').length,
+      0
+    );
+
+    console.log('[Carving] ✓ Step 3 complete: Classified stitched segments', {
+      totalSegments,
+      warmSegments,
+      coldSegments
     });
   }
 
@@ -1521,8 +1577,222 @@ class CarvableCaves {
   }
 
   /**
+   * Step 3: Compute dirty canonical IDs for all stitched loops.
+   * Returns a map of sourceCanonicalId → Set of dirty canonical vertex IDs.
+   *
+   * Dirty canonical IDs are determined by the boundary between warm and cold segments.
+   * When a carve operation creates new marching squares segments (warm), they touch
+   * the existing canonical loops (cold) at specific canonical vertex IDs. Those IDs
+   * and everything between them (within the carved region) are dirty.
+   */
+  private computeDirtyCanonicalIds(): Map<number, Set<number>> {
+    const dirtyMap = new Map<number, Set<number>>();
+
+    for (const stitchedLoop of this.stitchedLoops) {
+      for (const segment of stitchedLoop.segments) {
+        // Only process cold (boundary arc) segments
+        if (segment.isNew || !segment.sourceCanonicalId || !segment.canonicalEndpointIds) {
+          continue;
+        }
+
+        const sourceCanonicalId = segment.sourceCanonicalId;
+        const [startCanonId, endCanonId] = segment.canonicalEndpointIds;
+
+        // Find the canonical loop
+        const canonicalLoop = this.remeshManager.getCanonicalLoops().find(
+          loop => loop.id === sourceCanonicalId
+        );
+
+        if (!canonicalLoop) {
+          console.warn('[Step3] Could not find canonical loop', { sourceCanonicalId });
+          continue;
+        }
+
+        // Build the canonical ID path from start to end
+        const canonicalIdPath = this.buildCanonicalIdPath(
+          canonicalLoop,
+          startCanonId,
+          endCanonId
+        );
+
+        if (canonicalIdPath.length === 0) {
+          console.warn('[Step3] Could not build canonical ID path', {
+            sourceCanonicalId,
+            startCanonId,
+            endCanonId
+          });
+          continue;
+        }
+
+        // Add all IDs in the path to the dirty set for this canonical loop
+        if (!dirtyMap.has(sourceCanonicalId)) {
+          dirtyMap.set(sourceCanonicalId, new Set());
+        }
+
+        const dirtySet = dirtyMap.get(sourceCanonicalId)!;
+        for (const canonId of canonicalIdPath) {
+          dirtySet.add(canonId);
+        }
+      }
+    }
+
+    // Log summary
+    console.log('[Step3] Computed dirty canonical IDs', {
+      canonicalLoopsAffected: dirtyMap.size,
+      details: Array.from(dirtyMap.entries()).map(([canonId, dirtySet]) => ({
+        sourceCanonicalId: canonId,
+        dirtyIdCount: dirtySet.size,
+        dirtyIdSamples: Array.from(dirtySet).slice(0, 10)
+      }))
+    });
+
+    return dirtyMap;
+  }
+
+  /**
+   * Step 3: Get ancestry information for a stitched vertex.
+   * Returns either { isNew: true } for warm segments, or
+   * { isNew: false, sourceCanonicalId, sourceCanonicalVertexId } for cold segments.
+   */
+  private getStitchedVertexAncestry(
+    stitchedLoop: StitchedLoop,
+    stitchedIndex: number
+  ): { isNew: true } | { isNew: false; sourceCanonicalId: number; sourceCanonicalVertexId: number } {
+    // Find which segment contains this index
+    for (const segment of stitchedLoop.segments) {
+      const [startIdx, endIdx] = segment.vertexRange;
+
+      if (stitchedIndex >= startIdx && stitchedIndex <= endIdx) {
+        // Found the segment
+        if (segment.isNew) {
+          return { isNew: true };
+        }
+
+        // Cold segment - map stitched index to canonical vertex ID
+        if (!segment.sourceCanonicalId || !segment.canonicalEndpointIds) {
+          console.warn('[Step3] Cold segment missing ancestry data', { segment });
+          return { isNew: true }; // treat as dirty if ancestry is missing
+        }
+
+        const sourceCanonicalId = segment.sourceCanonicalId;
+        const [startCanonId, endCanonId] = segment.canonicalEndpointIds;
+
+        // Find the canonical loop
+        const canonicalLoop = this.remeshManager.getCanonicalLoops().find(
+          loop => loop.id === sourceCanonicalId
+        );
+
+        if (!canonicalLoop) {
+          console.warn('[Step3] Canonical loop not found', { sourceCanonicalId });
+          return { isNew: true }; // treat as dirty if canonical loop not found
+        }
+
+        // Build canonical ID path
+        const canonicalIdPath = this.buildCanonicalIdPath(
+          canonicalLoop,
+          startCanonId,
+          endCanonId
+        );
+
+        if (canonicalIdPath.length === 0) {
+          console.warn('[Step3] Empty canonical path', { startCanonId, endCanonId });
+          return { isNew: true }; // treat as dirty if path is empty
+        }
+
+        // Linear mapping from stitched index to canonical ID
+        // Assume forward traversal as per user's clarification
+        const segmentLength = endIdx - startIdx;
+        const relativeIndex = stitchedIndex - startIdx;
+        const pathIndex = segmentLength > 0
+          ? Math.round((relativeIndex / segmentLength) * (canonicalIdPath.length - 1))
+          : 0;
+
+        const sourceCanonicalVertexId = canonicalIdPath[Math.min(pathIndex, canonicalIdPath.length - 1)];
+
+        return {
+          isNew: false,
+          sourceCanonicalId,
+          sourceCanonicalVertexId
+        };
+      }
+    }
+
+    // Vertex not found in any segment - treat as dirty
+    console.warn('[Step3] Stitched vertex not found in any segment', { stitchedIndex });
+    return { isNew: true };
+  }
+
+  /**
+   * Step 3: Classify each vertex in a stitched loop as DIRTY or CLEAN.
+   * Returns a boolean array where true = DIRTY, false = CLEAN.
+   */
+  private classifyStitchedVertices(
+    stitchedLoop: StitchedLoop,
+    dirtyCanonicalIds: Map<number, Set<number>>
+  ): boolean[] {
+    const vertexCount = stitchedLoop.vertices.length;
+    const dirtyFlags: boolean[] = new Array(vertexCount);
+
+    for (let i = 0; i < vertexCount; i++) {
+      const ancestry = this.getStitchedVertexAncestry(stitchedLoop, i);
+
+      if (ancestry.isNew) {
+        // Warm segment - always dirty
+        dirtyFlags[i] = true;
+      } else {
+        // Cold segment - check if canonical ID is in dirty set
+        const dirtySet = dirtyCanonicalIds.get(ancestry.sourceCanonicalId);
+        const isDirty = dirtySet ? dirtySet.has(ancestry.sourceCanonicalVertexId) : false;
+        dirtyFlags[i] = isDirty;
+      }
+    }
+
+    return dirtyFlags;
+  }
+
+  /**
+   * Step 3: Compress per-vertex dirty flags into contiguous segments.
+   * Returns an array of StitchedSegment describing warm/cold runs.
+   */
+  private compressToSegments(dirtyFlags: boolean[]): StitchedSegment[] {
+    if (dirtyFlags.length === 0) {
+      return [];
+    }
+
+    const segments: StitchedSegment[] = [];
+    let currentKind: SegmentKind = dirtyFlags[0] ? 'warm' : 'cold';
+    let startIndex = 0;
+
+    for (let i = 1; i < dirtyFlags.length; i++) {
+      const kind: SegmentKind = dirtyFlags[i] ? 'warm' : 'cold';
+
+      if (kind !== currentKind) {
+        // Finish current segment
+        segments.push({
+          kind: currentKind,
+          startIndex,
+          endIndex: i - 1
+        });
+
+        // Start new segment
+        currentKind = kind;
+        startIndex = i;
+      }
+    }
+
+    // Add final segment
+    segments.push({
+      kind: currentKind,
+      startIndex,
+      endIndex: dirtyFlags.length - 1
+    });
+
+    return segments;
+  }
+
+  /**
    * Build OptVertex arrays for each segment in all stitched loops.
-   * This is Step 3: preparing warm (rebuilt) and cold (reused) OptVertex arrays.
+   * This is Step 4 (future): preparing warm (rebuilt) and cold (reused) OptVertex arrays.
    */
   private buildSegmentOptVertices(): void {
     console.log('[Step3] Building OptVertex arrays for all segments');
