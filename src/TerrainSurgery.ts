@@ -519,9 +519,9 @@ export class TerrainSurgery {
    * This reduces fragmentation before stitching outer arcs with inner (warm) loops.
    */
   private mergeBoundaryArcs(
-    boundaryArcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }>,
+    boundaryArcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number]; canonicalEndpointIndices?: [number, number] }>,
     mergeDistance: number
-  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }> {
+  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number]; canonicalEndpointIndices?: [number, number] }> {
     const close = (a: Point, b: Point): boolean =>
       Math.hypot(a.x - b.x, a.y - b.y) <= mergeDistance;
 
@@ -536,7 +536,7 @@ export class TerrainSurgery {
     };
 
     const orientArc = (
-      arc: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] },
+      arc: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number]; canonicalEndpointIndices?: [number, number] },
       reverse: boolean
     ) => {
       if (!reverse) return arc;
@@ -544,15 +544,16 @@ export class TerrainSurgery {
         ...arc,
         loop: [...arc.loop].reverse(),
         endpoints: arc.endpoints ? [arc.endpoints[1], arc.endpoints[0]] as [Point, Point] : arc.endpoints,
-        canonicalEndpointIds: arc.canonicalEndpointIds ? [arc.canonicalEndpointIds[1], arc.canonicalEndpointIds[0]] as [number, number] : arc.canonicalEndpointIds
+        canonicalEndpointIds: arc.canonicalEndpointIds ? [arc.canonicalEndpointIds[1], arc.canonicalEndpointIds[0]] as [number, number] : arc.canonicalEndpointIds,
+        canonicalEndpointIndices: arc.canonicalEndpointIndices ? [arc.canonicalEndpointIndices[1], arc.canonicalEndpointIndices[0]] as [number, number] : arc.canonicalEndpointIndices
       };
     };
 
     const tryMerge = (
-      a: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] },
-      b: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }
+      a: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number]; canonicalEndpointIndices?: [number, number] },
+      b: { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number]; canonicalEndpointIndices?: [number, number] }
     ):
-      | { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }
+      | { loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number]; canonicalEndpointIndices?: [number, number] }
       | null => {
       if (a.closed || b.closed) return null;
       if (!a.endpoints || !b.endpoints) return null;
@@ -580,7 +581,8 @@ export class TerrainSurgery {
             closed: false,
             endpoints: keep.endpoints ? [{ ...keep.endpoints[0] }, { ...keep.endpoints[1] }] : keep.endpoints,
             sourceCanonicalId: keep.sourceCanonicalId,
-            canonicalEndpointIds: keep.canonicalEndpointIds ? [...keep.canonicalEndpointIds] as [number, number] : keep.canonicalEndpointIds
+            canonicalEndpointIds: keep.canonicalEndpointIds ? [...keep.canonicalEndpointIds] as [number, number] : keep.canonicalEndpointIds,
+            canonicalEndpointIndices: keep.canonicalEndpointIndices ? [...keep.canonicalEndpointIndices] as [number, number] : keep.canonicalEndpointIndices
           };
         }
 
@@ -609,20 +611,26 @@ export class TerrainSurgery {
             ? [oa.canonicalEndpointIds[0], ob.canonicalEndpointIds[1]]
             : oa.canonicalEndpointIds ?? ob.canonicalEndpointIds;
 
+        const mergedIndices: [number, number] | undefined =
+          oa.canonicalEndpointIndices && ob.canonicalEndpointIndices
+            ? [oa.canonicalEndpointIndices[0], ob.canonicalEndpointIndices[1]]
+            : oa.canonicalEndpointIndices ?? ob.canonicalEndpointIndices;
+
         return {
           loop: mergedLoop,
           closed: false,
           endpoints: mergedEndpoints,
           sourceCanonicalId: a.sourceCanonicalId,
-          canonicalEndpointIds: mergedCanonical
+          canonicalEndpointIds: mergedCanonical,
+          canonicalEndpointIndices: mergedIndices
         };
       }
 
       return null;
     };
 
-    const grouped = new Map<number, Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }>>();
-    const result: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }> = [];
+    const grouped = new Map<number, Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number]; canonicalEndpointIndices?: [number, number] }>>();
+    const result: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number]; canonicalEndpointIndices?: [number, number] }> = [];
 
     // Group arcs by their canonical source id
     boundaryArcs.forEach(arc => {
