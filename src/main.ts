@@ -1621,20 +1621,48 @@ class CarvableCaves {
             continue;
           }
 
-          // For closed loops, we might have taken the SHORT path through the dirty region
-          // We want the LONG path that goes around the outside
-          // Check if we need to take the complement path
+          // For closed loops, we might have taken a path through the dirty region
+          // We want the path that goes around the outside (avoids dirty region)
+          // Calculate the complement path
           const pathIdSet = new Set(canonicalIdPath);
           const allCanonicalIds = canonicalLoop.vertices.map(v => v.id);
           const complementPath = allCanonicalIds.filter(id => !pathIdSet.has(id));
 
-          // Use the LONGER path (more vertices = goes around outside, not through dirty region)
-          const finalPath = complementPath.length > canonicalIdPath.length ? complementPath : canonicalIdPath;
-          const finalPathSet = new Set(finalPath);
+          // Check which path intersects the dirty region
+          const pathIntersectsDirty = this.pathIntersectsDirtyRegion(
+            canonicalIdPath,
+            canonicalLoop.vertices
+          );
+          const complementIntersectsDirty = this.pathIntersectsDirtyRegion(
+            complementPath,
+            canonicalLoop.vertices
+          );
+
+          // Choose the path that AVOIDS the dirty region
+          let finalPath: number[];
+          let pathChoice: string;
+
+          if (pathIntersectsDirty && !complementIntersectsDirty) {
+            finalPath = complementPath;
+            pathChoice = 'complement (original intersects dirty)';
+          } else if (!pathIntersectsDirty && complementIntersectsDirty) {
+            finalPath = canonicalIdPath;
+            pathChoice = 'original (complement intersects dirty)';
+          } else if (pathIntersectsDirty && complementIntersectsDirty) {
+            // Both paths intersect - use the one with fewer intersections or longer path
+            console.warn(`[Step3]     ⚠️  Both paths intersect dirty region`);
+            finalPath = complementPath.length > canonicalIdPath.length ? complementPath : canonicalIdPath;
+            pathChoice = 'longer path (both intersect dirty)';
+          } else {
+            // Neither path intersects - use original
+            finalPath = canonicalIdPath;
+            pathChoice = 'original (neither intersects dirty)';
+          }
 
           console.log(`[Step3]     Canonical endpoints: [${startCanonId}, ${endCanonId}]`);
-          console.log(`[Step3]     Short path: ${canonicalIdPath.length} IDs, Long path: ${complementPath.length} IDs`);
-          console.log(`[Step3]     Using ${finalPath.length === canonicalIdPath.length ? 'short' : 'LONG'} path (${finalPath.length} canonical IDs)`);
+          console.log(`[Step3]     Original path: ${canonicalIdPath.length} IDs (intersects dirty: ${pathIntersectsDirty})`);
+          console.log(`[Step3]     Complement path: ${complementPath.length} IDs (intersects dirty: ${complementIntersectsDirty})`);
+          console.log(`[Step3]     Using ${pathChoice} (${finalPath.length} canonical IDs)`);
 
           // Find OptVertices whose ancestry overlaps with the chosen path
           const reusedOptVertices: OptVertex[] = [];
@@ -1736,6 +1764,31 @@ class CarvableCaves {
     }
 
     return path;
+  }
+
+  /**
+   * Check if a canonical ID path intersects the dirty (carved) region.
+   * Returns true if any vertex in the path falls inside the dirty region AABB.
+   */
+  private pathIntersectsDirtyRegion(
+    path: number[],
+    vertices: { id: number; x: number; y: number }[]
+  ): boolean {
+    if (!this.carveRegion) return false;
+
+    const { minX, minY, maxX, maxY } = this.carveRegion;
+
+    for (const canonId of path) {
+      const vertex = vertices.find(v => v.id === canonId);
+      if (!vertex) continue;
+
+      // Check if vertex is inside dirty region AABB
+      if (vertex.x >= minX && vertex.x <= maxX && vertex.y >= minY && vertex.y <= maxY) {
+        return true; // Path goes through dirty region
+      }
+    }
+
+    return false;
   }
 
   /**
