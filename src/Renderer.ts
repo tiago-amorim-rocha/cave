@@ -204,7 +204,28 @@ export class Renderer {
   }
 
   /**
-   * Set per-segment OptVertex arrays for Step 3 visualization
+   * Step 3: Stitched segment classifications (warm/cold in stitched canonical space)
+   */
+  private stitchedSegmentations: Array<{
+    stitchedLoopId: number;
+    segments: Array<{ kind: 'warm' | 'cold'; startIndex: number; endIndex: number }>;
+  }> = [];
+
+  private stitchedLoopsForRendering: Array<{ id: number; vertices: { x: number; y: number }[] }> = [];
+
+  setStitchedSegmentations(
+    segmentations: Array<{
+      stitchedLoopId: number;
+      segments: Array<{ kind: 'warm' | 'cold'; startIndex: number; endIndex: number }>;
+    }>,
+    stitchedLoops: Array<{ id: number; vertices: { x: number; y: number }[] }>
+  ): void {
+    this.stitchedSegmentations = segmentations;
+    this.stitchedLoopsForRendering = stitchedLoops;
+  }
+
+  /**
+   * Step 4: Per-segment OptVertex arrays (future)
    */
   private segmentOptVerticesDebug: Array<{
     stitchedLoopId: number;
@@ -501,8 +522,11 @@ export class Renderer {
       // Draw polylines
       this.drawPolylines(width, height);
 
-      // Draw segment OptVertex arrays (Step 3)
-      if (this.showReusePlan && this.segmentOptVerticesDebug.length > 0) {
+      // Draw stitched segment classifications (Step 3)
+      if (this.showReusePlan && this.stitchedSegmentations.length > 0) {
+        this.drawStitchedSegmentClassifications(width, height);
+      } else if (this.showReusePlan && this.segmentOptVerticesDebug.length > 0) {
+        // Step 4 (future): OptVertex-based visualization
         this.drawSegmentOptVertices(width, height);
       } else if (this.showReusePreview) {
         this.drawReusePreview(width, height);
@@ -998,7 +1022,123 @@ export class Renderer {
   }
 
   /**
-   * Draw segment OptVertex arrays (Step 3) - visualize warm (rebuilt) vs cold (reused) segments
+   * Step 3: Draw stitched segment classifications (warm/cold in stitched canonical space)
+   * Renders directly from stitched loop vertices using segment classifications.
+   */
+  private drawStitchedSegmentClassifications(canvasWidth: number, canvasHeight: number): void {
+    this.ctx.save();
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+
+    // Draw each segmentation
+    for (const segmentation of this.stitchedSegmentations) {
+      // Find the corresponding stitched loop
+      const stitchedLoop = this.stitchedLoopsForRendering.find(
+        loop => loop.id === segmentation.stitchedLoopId
+      );
+
+      if (!stitchedLoop) {
+        console.warn('[Renderer] Stitched loop not found for segmentation', {
+          stitchedLoopId: segmentation.stitchedLoopId
+        });
+        continue;
+      }
+
+      // Draw each segment
+      for (const segment of segmentation.segments) {
+        const { kind, startIndex, endIndex } = segment;
+
+        // Choose color based on segment kind
+        if (kind === 'warm') {
+          this.ctx.strokeStyle = '#ff6b35'; // Warm orange for dirty (rebuilt) segments
+          this.ctx.lineWidth = 5;
+        } else {
+          this.ctx.strokeStyle = '#4ecdc4'; // Cool cyan for clean (reused) segments
+          this.ctx.lineWidth = 5;
+        }
+
+        // Draw the segment from stitched canonical vertices
+        this.ctx.beginPath();
+        let firstPoint = true;
+
+        for (let i = startIndex; i <= endIndex; i++) {
+          const vertex = stitchedLoop.vertices[i];
+          const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
+
+          if (firstPoint) {
+            this.ctx.moveTo(screen.x, screen.y);
+            firstPoint = false;
+          } else {
+            this.ctx.lineTo(screen.x, screen.y);
+          }
+        }
+
+        this.ctx.stroke();
+
+        // Draw small dots at vertices for visibility
+        for (let i = startIndex; i <= endIndex; i++) {
+          const vertex = stitchedLoop.vertices[i];
+          const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
+          this.ctx.fillStyle = kind === 'warm' ? '#ff6b35' : '#4ecdc4';
+          this.ctx.beginPath();
+          this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+      }
+    }
+
+    this.ctx.restore();
+
+    // Draw legend
+    this.drawStitchedSegmentLegend();
+  }
+
+  /**
+   * Draw legend for Step 3 stitched segment classification
+   */
+  private drawStitchedSegmentLegend(): void {
+    this.ctx.save();
+    this.ctx.font = '14px monospace';
+
+    const legendX = 10;
+    const legendY = 150;
+    const lineHeight = 20;
+
+    // Count warm and cold segments
+    const warmCount = this.stitchedSegmentations.reduce(
+      (sum, s) => sum + s.segments.filter(seg => seg.kind === 'warm').length,
+      0
+    );
+    const coldCount = this.stitchedSegmentations.reduce(
+      (sum, s) => sum + s.segments.filter(seg => seg.kind === 'cold').length,
+      0
+    );
+
+    // Background
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.fillRect(legendX, legendY, 320, lineHeight * 4 + 10);
+
+    // Title
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillText('Step 3: Stitched Segment Classification', legendX + 5, legendY + lineHeight);
+
+    // Warm segments
+    this.ctx.fillStyle = '#ff6b35';
+    this.ctx.fillRect(legendX + 10, legendY + lineHeight * 1.5, 30, 10);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillText(`WARM (rebuilt): ${warmCount} segments`, legendX + 50, legendY + lineHeight * 2);
+
+    // Cold segments
+    this.ctx.fillStyle = '#4ecdc4';
+    this.ctx.fillRect(legendX + 10, legendY + lineHeight * 2.5, 30, 10);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillText(`COLD (reused): ${coldCount} segments`, legendX + 50, legendY + lineHeight * 3);
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Step 4 (future): Draw segment OptVertex arrays - visualize warm (rebuilt) vs cold (reused) segments
    */
   private drawSegmentOptVertices(canvasWidth: number, canvasHeight: number): void {
     this.ctx.save();
