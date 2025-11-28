@@ -22,7 +22,20 @@ import { BrushGenerator, type Brush } from './BrushGenerator';
 import { PipelineConfig, DEFAULT_CONFIG } from './PipelineConfig';
 import { TerrainSurgery, type CarvedLoop, type CarveSurgeryResult, type StitchedLoop } from './TerrainSurgery';
 import { AncestryModal } from './AncestryModal';
-import type { CanonicalLoop, OptVertex, ReusePlanDebug } from './terrain/CanonicalGeometry';
+import type { CanonicalLoop, OptVertex, ReusePlanDebug, CanonicalVertex } from './terrain/CanonicalGeometry';
+import { allocateVertexId } from './terrain/CanonicalGeometry';
+import { VertexOptimizationPipeline } from './VertexOptimizationPipeline';
+
+/**
+ * Per-segment OptVertex data for Step 3 visualization
+ */
+interface SegmentOptVertices {
+  stitchedLoopId: number;
+  segmentIndex: number;
+  optVertices: OptVertex[];
+  isWarm: boolean; // true = rebuilt from warm segment, false = reused from cold segment
+  sourceCanonicalId?: number; // for cold segments only
+}
 
 /**
  * Test spider math functions (Phase 1 verification)
@@ -177,6 +190,7 @@ class CarvableCaves {
   private showStitchedLoops = false;
   private showReusePlan = false;
   private reusePlanDebug: ReusePlanDebug[] = [];
+  private segmentOptVertices: SegmentOptVertices[] = []; // Step 3: per-segment OptVertex arrays
 
   // Ancestry visualization modal
   private ancestryModal: AncestryModal;
@@ -1034,38 +1048,38 @@ class CarvableCaves {
   }
 
   /**
-   * Enable reuse plan overlay (step 3) after stitching has run.
-   * Hides stitched loop overlays for a clean view.
+   * Enable reuse plan overlay (step 3) - Build OptVertex arrays for each segment.
+   * This is the actual implementation that builds warm (rebuilt) and cold (reused) OptVertex arrays.
    */
   enableReusePlanDebugOverlay(): void {
-    console.log('[Carving] Reuse plan step requested', {
-      debugCaptureEnabled: this.config.debugCaptureEnabled,
-      stitchedLoopsCount: this.stitchedLoops.length,
-      reusePlans: this.reusePlanDebug.length
-    });
+    console.log('[Carving] Step 3: Building per-segment OptVertex arrays');
 
     if (!this.config.debugCaptureEnabled) {
-      console.warn('[Carving] Debug capture is disabled - cannot show reuse plan');
+      console.warn('[Carving] Debug capture is disabled - cannot build segment OptVertices');
       return;
     }
 
     if (this.stitchedLoops.length === 0) {
-      console.warn('[Carving] No stitched loops to display - perform a carve operation first');
+      console.warn('[Carving] No stitched loops - perform a carve operation first');
       return;
     }
 
-    if (this.reusePlanDebug.length === 0) {
-      console.warn('[Carving] Reuse plan not available - run the stitch step first');
-      return;
-    }
+    // Build OptVertex arrays for each segment
+    this.buildSegmentOptVertices();
 
+    // Pass to renderer for visualization
+    this.renderer.setSegmentOptVertices(this.segmentOptVertices);
+
+    // Update visualization flags
     this.showStitchedLoops = false;
     this.showReusePlan = true;
     this.renderer.showReusePlan = true;
-    this.renderer.showReusePreview = false; // No preview loop in step 3 visualization
-    this.renderer.setReusePlanDebug(this.reusePlanDebug);
-    console.log('[Carving] ✓ Step 3 enabled: showing reuse plan overlay', {
-      reusePlanCount: this.reusePlanDebug.length
+    this.renderer.showReusePreview = false;
+
+    console.log('[Carving] ✓ Step 3 complete: Built OptVertex arrays', {
+      totalSegments: this.segmentOptVertices.length,
+      warmSegments: this.segmentOptVertices.filter(s => s.isWarm).length,
+      coldSegments: this.segmentOptVertices.filter(s => !s.isWarm).length
     });
   }
 
@@ -1507,6 +1521,121 @@ class CarvableCaves {
   }
 
   /**
+   * Build OptVertex arrays for each segment in all stitched loops.
+   * This is Step 3: preparing warm (rebuilt) and cold (reused) OptVertex arrays.
+   */
+  private buildSegmentOptVertices(): void {
+    console.log('[Step3] Building OptVertex arrays for all segments');
+
+    // Clear previous results
+    this.segmentOptVertices = [];
+
+    // Create optimization pipeline instance
+    const optimizationPipeline = new VertexOptimizationPipeline();
+    const optimizationOptions = {
+      gridPitch: this.densityField.config.gridPitch,
+      simplificationEpsilon: this.config.simplificationEpsilon,
+      chaikinEnabled: this.config.chaikinEnabled,
+      chaikinIterations: this.config.chaikinIterations,
+      simplificationEpsilonPost: this.config.simplificationEpsilonPost
+    };
+
+    // Process each stitched loop
+    for (const stitchedLoop of this.stitchedLoops) {
+      console.log(`[Step3] Processing stitched loop ${stitchedLoop.id} with ${stitchedLoop.segments.length} segments`);
+
+      // Process each segment
+      for (let segmentIndex = 0; segmentIndex < stitchedLoop.segments.length; segmentIndex++) {
+        const segment = stitchedLoop.segments[segmentIndex];
+        const [startIdx, endIdx] = segment.vertexRange;
+
+        if (segment.isNew) {
+          // WARM SEGMENT: Build new OptVertices from scratch
+          console.log(`[Step3]   Segment ${segmentIndex}: WARM (new) - vertices [${startIdx}, ${endIdx}]`);
+
+          // Extract vertices for this segment
+          const segmentVertices = stitchedLoop.vertices.slice(startIdx, endIdx + 1);
+
+          // Assign stable canonical IDs to these vertices
+          const canonicalVertices: CanonicalVertex[] = segmentVertices.map(v => ({
+            x: v.x,
+            y: v.y,
+            id: allocateVertexId(),
+            segmentA: null,
+            segmentB: null
+          }));
+
+          console.log(`[Step3]     Assigned canonical IDs: ${canonicalVertices.map(v => v.id).join(', ')}`);
+
+          // Run optimization pipeline on these canonical vertices
+          const optResult = optimizationPipeline.optimize([canonicalVertices], optimizationOptions);
+          const optVertices = optResult.finalOptLoops[0] || [];
+
+          console.log(`[Step3]     Optimization: ${canonicalVertices.length} canonical → ${optVertices.length} optimized`);
+
+          // Store result
+          this.segmentOptVertices.push({
+            stitchedLoopId: stitchedLoop.id,
+            segmentIndex,
+            optVertices,
+            isWarm: true
+          });
+
+        } else {
+          // COLD SEGMENT: Reuse existing OptVertices from canonical loop
+          console.log(`[Step3]   Segment ${segmentIndex}: COLD (reused) - vertices [${startIdx}, ${endIdx}]`);
+
+          if (!segment.sourceCanonicalId || !segment.canonicalEndpointIds) {
+            console.warn(`[Step3]     ⚠️  Missing ancestry data - skipping`);
+            continue;
+          }
+
+          // Look up the source canonical loop
+          const canonicalLoop = this.remeshManager.getCanonicalLoops().find(
+            loop => loop.id === segment.sourceCanonicalId
+          );
+
+          if (!canonicalLoop) {
+            console.warn(`[Step3]     ⚠️  Canonical loop ${segment.sourceCanonicalId} not found`);
+            continue;
+          }
+
+          if (!canonicalLoop.optVertices || canonicalLoop.optVertices.length === 0) {
+            console.warn(`[Step3]     ⚠️  Canonical loop has no optVertices`);
+            continue;
+          }
+
+          // Find OptVertices whose ancestry overlaps with the canonical endpoint range
+          const [startCanonId, endCanonId] = segment.canonicalEndpointIds;
+          const reusedOptVertices: OptVertex[] = [];
+
+          for (const optVertex of canonicalLoop.optVertices) {
+            // Check if this optVertex's ancestry overlaps the canonical ID range
+            const overlaps = optVertex.canonStartId <= endCanonId && optVertex.canonEndId >= startCanonId;
+            if (overlaps) {
+              reusedOptVertices.push({ ...optVertex }); // copy for safety
+            }
+          }
+
+          console.log(`[Step3]     Canonical range: [${startCanonId}, ${endCanonId}]`);
+          console.log(`[Step3]     Reused ${reusedOptVertices.length} OptVertices from canonical loop ${canonicalLoop.id}`);
+
+          // Store result
+          this.segmentOptVertices.push({
+            stitchedLoopId: stitchedLoop.id,
+            segmentIndex,
+            optVertices: reusedOptVertices,
+            isWarm: false,
+            sourceCanonicalId: segment.sourceCanonicalId
+          });
+        }
+      }
+    }
+
+    console.log(`[Step3] ✓ Built ${this.segmentOptVertices.length} segment OptVertex arrays`);
+  }
+
+  /**
    * Build a canonical ID path by walking from startId to endId in a canonical loop.
    * Handles cyclic wrapping for closed loops.
    */
@@ -1698,10 +1827,12 @@ class CarvableCaves {
   private clearReusePlanDebug(): void {
     this.showReusePlan = false;
     this.reusePlanDebug = [];
+    this.segmentOptVertices = []; // Clear Step 3 data
     if (this.renderer) {
       this.renderer.showReusePlan = false;
       this.renderer.showReusePreview = false;
       this.renderer.setReusePlanDebug([]);
+      this.renderer.setSegmentOptVertices([]); // Clear Step 3 visualization
     }
     const canonicalLoops = this.remeshManager?.getCanonicalLoops?.();
     if (canonicalLoops && canonicalLoops.length > 0) {

@@ -204,6 +204,27 @@ export class Renderer {
   }
 
   /**
+   * Set per-segment OptVertex arrays for Step 3 visualization
+   */
+  private segmentOptVerticesDebug: Array<{
+    stitchedLoopId: number;
+    segmentIndex: number;
+    optVertices: Array<{ x: number; y: number; canonStartId: number; canonEndId: number }>;
+    isWarm: boolean;
+    sourceCanonicalId?: number;
+  }> = [];
+
+  setSegmentOptVertices(segments: Array<{
+    stitchedLoopId: number;
+    segmentIndex: number;
+    optVertices: Array<{ x: number; y: number; canonStartId: number; canonEndId: number }>;
+    isWarm: boolean;
+    sourceCanonicalId?: number;
+  }>): void {
+    this.segmentOptVerticesDebug = segments;
+  }
+
+  /**
    * Set a world-space hover position to show ancestry labels near cursor.
    */
   setDebugHoverWorldPosition(pos: { x: number; y: number } | null): void {
@@ -480,9 +501,9 @@ export class Renderer {
       // Draw polylines
       this.drawPolylines(width, height);
 
-      // Draw reuse plan overlay (debugging)
-      if (this.showReusePlan && this.reusePlanDebug.length > 0) {
-        this.drawReusePlanOverlay(width, height, this.reusePlanDebug);
+      // Draw segment OptVertex arrays (Step 3)
+      if (this.showReusePlan && this.segmentOptVerticesDebug.length > 0) {
+        this.drawSegmentOptVertices(width, height);
       } else if (this.showReusePreview) {
         this.drawReusePreview(width, height);
       }
@@ -974,6 +995,119 @@ export class Renderer {
 
     this.ctx.restore();
     this.drawReusePlanLegend();
+  }
+
+  /**
+   * Draw segment OptVertex arrays (Step 3) - visualize warm (rebuilt) vs cold (reused) segments
+   */
+  private drawSegmentOptVertices(canvasWidth: number, canvasHeight: number): void {
+    this.ctx.save();
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+
+    // Group segments by stitched loop ID for organized drawing
+    const loopSegments = new Map<number, typeof this.segmentOptVerticesDebug>();
+    for (const segData of this.segmentOptVerticesDebug) {
+      if (!loopSegments.has(segData.stitchedLoopId)) {
+        loopSegments.set(segData.stitchedLoopId, []);
+      }
+      loopSegments.get(segData.stitchedLoopId)!.push(segData);
+    }
+
+    // Draw each loop's segments
+    for (const [loopId, segments] of loopSegments) {
+      // Sort by segment index to maintain order
+      segments.sort((a, b) => a.segmentIndex - b.segmentIndex);
+
+      for (const segData of segments) {
+        if (segData.optVertices.length < 2) continue;
+
+        // Choose color based on warm (rebuilt) vs cold (reused)
+        if (segData.isWarm) {
+          this.ctx.strokeStyle = '#ff6b35'; // Warm orange for rebuilt segments
+          this.ctx.lineWidth = 5;
+          this.ctx.setLineDash([]);
+        } else {
+          this.ctx.strokeStyle = '#4ecdc4'; // Cool cyan for reused segments
+          this.ctx.lineWidth = 5;
+          this.ctx.setLineDash([]);
+        }
+
+        // Draw the OptVertex polyline
+        this.ctx.beginPath();
+        const firstScreen = this.camera.worldToScreen(
+          segData.optVertices[0].x,
+          segData.optVertices[0].y,
+          canvasWidth,
+          canvasHeight
+        );
+        this.ctx.moveTo(firstScreen.x, firstScreen.y);
+
+        for (let i = 1; i < segData.optVertices.length; i++) {
+          const screen = this.camera.worldToScreen(
+            segData.optVertices[i].x,
+            segData.optVertices[i].y,
+            canvasWidth,
+            canvasHeight
+          );
+          this.ctx.lineTo(screen.x, screen.y);
+        }
+
+        this.ctx.stroke();
+
+        // Draw small dots at vertices for visibility
+        for (const optV of segData.optVertices) {
+          const screen = this.camera.worldToScreen(optV.x, optV.y, canvasWidth, canvasHeight);
+          this.ctx.fillStyle = segData.isWarm ? '#ff6b35' : '#4ecdc4';
+          this.ctx.beginPath();
+          this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+      }
+    }
+
+    this.ctx.restore();
+
+    // Draw legend
+    this.drawSegmentOptVerticesLegend();
+  }
+
+  /**
+   * Draw legend for segment OptVertex visualization
+   */
+  private drawSegmentOptVerticesLegend(): void {
+    this.ctx.save();
+    this.ctx.font = '14px monospace';
+
+    const legendX = 10;
+    const legendY = 150;
+    const lineHeight = 20;
+
+    // Count warm and cold segments
+    const warmCount = this.segmentOptVerticesDebug.filter(s => s.isWarm).length;
+    const coldCount = this.segmentOptVerticesDebug.filter(s => !s.isWarm).length;
+
+    // Background
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.fillRect(legendX, legendY, 320, lineHeight * 4 + 10);
+
+    // Title
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillText('Step 3: Segment OptVertex Arrays', legendX + 5, legendY + lineHeight);
+
+    // Warm segments
+    this.ctx.fillStyle = '#ff6b35';
+    this.ctx.fillRect(legendX + 10, legendY + lineHeight * 1.5, 30, 10);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillText(`WARM (rebuilt): ${warmCount} segments`, legendX + 50, legendY + lineHeight * 2);
+
+    // Cold segments
+    this.ctx.fillStyle = '#4ecdc4';
+    this.ctx.fillRect(legendX + 10, legendY + lineHeight * 2.5, 30, 10);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillText(`COLD (reused): ${coldCount} segments`, legendX + 50, legendY + lineHeight * 3);
+
+    this.ctx.restore();
   }
 
   /**
