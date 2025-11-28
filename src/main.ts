@@ -27,6 +27,7 @@ import { allocateVertexId } from './terrain/CanonicalGeometry';
 import { VertexOptimizationPipeline } from './VertexOptimizationPipeline';
 import { buildOptimizedFromStitchedLoop, type Step4Input, type Step4Output } from './terrain/Step4OptMerging';
 import type { Step4DebugData } from './Renderer';
+import { CarvingDebugMode, nextCarvingDebugMode, getCarvingDebugModeLabel } from './CarvingDebugMode';
 
 /**
  * Per-segment OptVertex data for Step 4 visualization (actual optimization)
@@ -211,9 +212,13 @@ class CarvableCaves {
   private carvedLoops: CarvedLoop[] = [];
   private stitchedLoops: StitchedLoop[] = [];
   private carveRegion: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
-  private showStitchedLoops = false;
-  private showReusePlan = false;
-  private showOptMerging = false;
+
+  /**
+   * Carving debug visualization mode (state machine for step progression)
+   * Replaces individual flags: showStitchedLoops, showReusePlan, showOptMerging
+   */
+  private carvingDebugMode: CarvingDebugMode = CarvingDebugMode.NONE;
+
   private reusePlanDebug: ReusePlanDebug[] = [];
   private stitchedSegmentations: StitchedLoopSegmentation[] = []; // Step 3: segment classification
   private segmentOptVertices: SegmentOptVertices[] = []; // Step 4: per-segment OptVertex arrays (future)
@@ -643,27 +648,32 @@ class CarvableCaves {
     const playerDirection = this.player.getDirection ? this.player.getDirection() : undefined;
 
     // Render (simple circle player with direction indicator)
-    // Map carved loops to renderer format (isNew → inside for color coding)
-    const hideCarveDebug = this.showStitchedLoops || this.showReusePlan;
-    const carvedLoopsForRender = hideCarveDebug
-      ? []
-      : this.carvedLoops.map(l => ({
+    // Prepare debug data based on current carving debug mode
+    const carvedLoopsForRender = (this.carvingDebugMode === CarvingDebugMode.CARVED_LOOPS)
+      ? this.carvedLoops.map(l => ({
           loop: l.loop,
           closed: l.closed,
           endpoints: l.endpoints,
           inside: l.isNew // New loops (from dirty region) = inside = warm colors
-        }));
-    const stitchedToRender = this.showStitchedLoops ? this.stitchedLoops : [];
-    const carveRegionForRender = hideCarveDebug ? null : this.carveRegion;
+        }))
+      : [];
 
-    this.renderer.showReusePlan = this.showReusePlan;
-    this.renderer.showReusePreview = false;
-    if (this.showReusePlan) {
+    const stitchedToRender = (this.carvingDebugMode === CarvingDebugMode.STITCHED_LOOPS)
+      ? this.stitchedLoops
+      : [];
+
+    const carveRegionForRender = (this.carvingDebugMode === CarvingDebugMode.CARVED_LOOPS)
+      ? this.carveRegion
+      : null;
+
+    // Pass reuse plan debug data when in REUSE_PLAN mode
+    if (this.carvingDebugMode === CarvingDebugMode.REUSE_PLAN) {
       this.renderer.setReusePlanDebug(this.reusePlanDebug);
     }
+
     // Hide canonical vertex dots/labels during reuse plan to keep overlay clean
-    this.renderer.showCanonicalVertices = !this.showReusePlan;
-    this.renderer.showCanonicalLabels = !this.showReusePlan;
+    this.renderer.showCanonicalVertices = (this.carvingDebugMode !== CarvingDebugMode.REUSE_PLAN);
+    this.renderer.showCanonicalLabels = (this.carvingDebugMode !== CarvingDebugMode.REUSE_PLAN);
 
     this.renderer.render(
       playerPos,
@@ -1011,7 +1021,6 @@ class CarvableCaves {
         // Keep full stitched loops with ancestry data
         this.stitchedLoops = surgeryResult.stitchedLoops;
         this.carveRegion = surgeryResult.carveRegion;
-        this.showStitchedLoops = false; // pause before stitching visualization
 
         // Log statistics
         console.log('[Carving] Surgery complete:', {
@@ -1025,7 +1034,6 @@ class CarvableCaves {
       // Clear debug visuals if capture is off
       this.carvedLoops = [];
       this.stitchedLoops = [];
-      this.showStitchedLoops = false;
       this.carveRegion = null;
     }
 
@@ -1036,9 +1044,8 @@ class CarvableCaves {
    * Enable stitched loop overlay after inspecting raw carve fragments.
    */
   enableStitchedDebugOverlay(): void {
-    console.log('[Carving] Debug step button clicked', {
+    console.log('[Carving] Step 2: Enabling stitched loops visualization', {
       debugCaptureEnabled: this.config.debugCaptureEnabled,
-      currentShowStitchedLoops: this.showStitchedLoops,
       stitchedLoopsCount: this.stitchedLoops.length,
       carvedLoopsCount: this.carvedLoops.length
     });
@@ -1048,26 +1055,15 @@ class CarvableCaves {
       return;
     }
 
-    if (this.showStitchedLoops) {
-      console.log('[Carving] Stitched loops already visible');
-      return;
-    }
-
     if (this.stitchedLoops.length === 0) {
       console.warn('[Carving] No stitched loops to display - perform a carve operation first');
       return;
     }
 
-    this.showStitchedLoops = true;
     console.log('[Carving] ✓ Step 2 enabled: showing stitched loops', {
       stitchedCount: this.stitchedLoops.length,
       loops: this.stitchedLoops.map(l => ({ id: l.id, vertices: l.vertices.length }))
     });
-
-    // Hide any existing reuse overlay when returning to step 2
-    this.showReusePlan = false;
-    this.renderer.showReusePlan = false;
-    this.renderer.showReusePreview = false;
 
     // Run ancestry probe for boundary arcs
     this.probeStitchedLoopAncestry();
@@ -1153,12 +1149,6 @@ class CarvableCaves {
 
     // Pass segmentations to renderer for visualization
     this.renderer.setStitchedSegmentations(this.stitchedSegmentations, this.stitchedLoops);
-
-    // Update visualization flags
-    this.showStitchedLoops = false;
-    this.showReusePlan = true;
-    this.renderer.showReusePlan = true;
-    this.renderer.showReusePreview = false;
 
     const totalSegments = this.stitchedSegmentations.reduce((sum, s) => sum + s.segments.length, 0);
     const warmSegments = this.stitchedSegmentations.reduce(
@@ -1250,13 +1240,6 @@ class CarvableCaves {
     // Pass to renderer
     this.renderer.setOptMergingDebug(step4DebugData);
 
-    // Update visualization flags
-    this.showStitchedLoops = false;
-    this.showReusePlan = false;
-    this.showOptMerging = true;
-    this.renderer.showOptMerging = true;
-    this.renderer.showReusePlan = false;
-
     console.log('[Carving] ✓ Step 4 enabled: showing opt-space merging overlay', {
       loopCount: step4DebugData.length
     });
@@ -1266,40 +1249,54 @@ class CarvableCaves {
    * Clear Step 4 opt-merging debug data
    */
   private clearOptMergingDebug(): void {
-    this.showOptMerging = false;
-    this.renderer.showOptMerging = false;
     this.renderer.setOptMergingDebug([]);
     console.log('[Carving] Step 4 debug cleared');
   }
 
   /**
    * Advance the carving debug step using a single control:
-   * - Step 1 (default) → Step 2 (stitched loops)
-   * - Step 2 → Step 3 (reuse plan)
-   * - Step 3 → Step 4 (opt-space merging)
-   * - Step 4 → back to Step 1 visuals
+   * - NONE → CARVED_LOOPS (Step 1)
+   * - CARVED_LOOPS → STITCHED_LOOPS (Step 2)
+   * - STITCHED_LOOPS → REUSE_PLAN (Step 3)
+   * - REUSE_PLAN → OPT_MERGING (Step 4)
+   * - OPT_MERGING → NONE (cycles back)
    */
   advanceCarvingDebugStep(): void {
-    if (!this.showStitchedLoops && !this.showReusePlan && !this.showOptMerging) {
-      this.enableStitchedDebugOverlay();
-      return;
-    }
+    // Get the next mode in the cycle
+    const nextMode = nextCarvingDebugMode(this.carvingDebugMode);
+    const previousLabel = getCarvingDebugModeLabel(this.carvingDebugMode);
+    const nextLabel = getCarvingDebugModeLabel(nextMode);
 
-    if (this.showStitchedLoops) {
-      this.enableReusePlanDebugOverlay();
-      return;
-    }
+    console.log('[Carving] Debug step advanced', {
+      from: previousLabel,
+      to: nextLabel
+    });
 
-    if (this.showReusePlan) {
-      this.enableOptMergingDebugOverlay();
-      return;
-    }
+    // Update the mode
+    this.carvingDebugMode = nextMode;
+    this.renderer.setCarvingDebugMode(nextMode);
 
-    if (this.showOptMerging) {
-      console.log('[Carving] Returning to base view from step 4');
-      this.clearOptMergingDebug();
-      this.showStitchedLoops = false;
-      this.showReusePlan = false;
+    // Trigger appropriate data generation for the new mode
+    switch (nextMode) {
+      case CarvingDebugMode.CARVED_LOOPS:
+        // Data already available from carving
+        break;
+
+      case CarvingDebugMode.STITCHED_LOOPS:
+        this.enableStitchedDebugOverlay();
+        break;
+
+      case CarvingDebugMode.REUSE_PLAN:
+        this.enableReusePlanDebugOverlay();
+        break;
+
+      case CarvingDebugMode.OPT_MERGING:
+        this.enableOptMergingDebugOverlay();
+        break;
+
+      case CarvingDebugMode.NONE:
+        this.clearOptMergingDebug();
+        break;
     }
   }
 
@@ -2285,7 +2282,7 @@ class CarvableCaves {
    * @param screenY - Screen Y coordinate of tap
    */
   handleStitchedLoopTap(screenX: number, screenY: number): void {
-    if (!this.showStitchedLoops || this.stitchedLoops.length === 0) {
+    if (this.carvingDebugMode !== CarvingDebugMode.STITCHED_LOOPS || this.stitchedLoops.length === 0) {
       return;
     }
 
@@ -2399,11 +2396,9 @@ class CarvableCaves {
   }
 
   private clearReusePlanDebug(): void {
-    this.showReusePlan = false;
     this.reusePlanDebug = [];
     this.segmentOptVertices = []; // Clear Step 3 data
     if (this.renderer) {
-      this.renderer.showReusePlan = false;
       this.renderer.showReusePreview = false;
       this.renderer.setReusePlanDebug([]);
       this.renderer.setSegmentOptVertices([]); // Clear Step 3 visualization
