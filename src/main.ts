@@ -1605,19 +1605,54 @@ class CarvableCaves {
             continue;
           }
 
-          // Find OptVertices whose ancestry overlaps with the canonical endpoint range
+          // Build the canonical ID path from startCanonId to endCanonId
+          // We need to walk the LONG way around (outside dirty region), not the short way
           const [startCanonId, endCanonId] = segment.canonicalEndpointIds;
+
+          // Build full path of canonical IDs
+          const canonicalIdPath = this.buildCanonicalIdPath(
+            canonicalLoop,
+            startCanonId,
+            endCanonId
+          );
+
+          if (canonicalIdPath.length === 0) {
+            console.warn(`[Step3]     ⚠️  Could not build canonical path from ${startCanonId} to ${endCanonId}`);
+            continue;
+          }
+
+          // For closed loops, we might have taken the SHORT path through the dirty region
+          // We want the LONG path that goes around the outside
+          // Check if we need to take the complement path
+          const pathIdSet = new Set(canonicalIdPath);
+          const allCanonicalIds = canonicalLoop.vertices.map(v => v.id);
+          const complementPath = allCanonicalIds.filter(id => !pathIdSet.has(id));
+
+          // Use the LONGER path (more vertices = goes around outside, not through dirty region)
+          const finalPath = complementPath.length > canonicalIdPath.length ? complementPath : canonicalIdPath;
+          const finalPathSet = new Set(finalPath);
+
+          console.log(`[Step3]     Canonical endpoints: [${startCanonId}, ${endCanonId}]`);
+          console.log(`[Step3]     Short path: ${canonicalIdPath.length} IDs, Long path: ${complementPath.length} IDs`);
+          console.log(`[Step3]     Using ${finalPath.length === canonicalIdPath.length ? 'short' : 'LONG'} path (${finalPath.length} canonical IDs)`);
+
+          // Find OptVertices whose ancestry overlaps with the chosen path
           const reusedOptVertices: OptVertex[] = [];
 
           for (const optVertex of canonicalLoop.optVertices) {
-            // Check if this optVertex's ancestry overlaps the canonical ID range
-            const overlaps = optVertex.canonStartId <= endCanonId && optVertex.canonEndId >= startCanonId;
+            // Check if this optVertex's ancestry overlaps the path
+            let overlaps = false;
+            for (const canonId of finalPath) {
+              if (canonId >= optVertex.canonStartId && canonId <= optVertex.canonEndId) {
+                overlaps = true;
+                break;
+              }
+            }
             if (overlaps) {
               reusedOptVertices.push({ ...optVertex }); // copy for safety
             }
           }
 
-          console.log(`[Step3]     Canonical range: [${startCanonId}, ${endCanonId}]`);
           console.log(`[Step3]     Reused ${reusedOptVertices.length} OptVertices from canonical loop ${canonicalLoop.id}`);
 
           // Store result
