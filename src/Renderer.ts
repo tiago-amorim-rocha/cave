@@ -3,6 +3,7 @@ import type { Vec2 } from './types';
 import type { DensityField } from './DensityField';
 import type { CanonicalLoop, OptVertex, PhysicsSegment, ReusePlanDebug } from './terrain/CanonicalGeometry';
 import type { Step4Output } from './terrain/Step4OptMerging';
+import { CarvingDebugMode } from './CarvingDebugMode';
 
 /**
  * Step 4 debug data (opt-space merging visualization)
@@ -111,8 +112,13 @@ export class Renderer {
   public showRebuiltChains: boolean = true; // Enabled by default for local update debugging
   public showLoopPatching: boolean = false; // Legacy loop patching debug visualization (disabled by default)
   public showReusePreview: boolean = false; // Legacy preview (disabled for step 3)
-  public showReusePlan: boolean = false; // Step 3 visualization toggle
-  public showOptMerging: boolean = false; // Step 4 visualization toggle
+
+  /**
+   * Carving debug visualization mode (state machine for step progression)
+   * Replaces individual boolean flags (showReusePlan, showOptMerging) with single state
+   */
+  private _carvingDebugMode: CarvingDebugMode = CarvingDebugMode.NONE;
+
   private debugHoverWorld: { x: number; y: number } | null = null; // For hover labels
   private reusePlanDebug: ReusePlanDebug[] = [];
   private optMergingDebug: Step4DebugData[] = []; // Step 4: opt-space merging debug data
@@ -163,6 +169,25 @@ export class Renderer {
    */
   resize(): void {
     this.setupCanvas();
+  }
+
+  /**
+   * Get the current carving debug visualization mode
+   */
+  getCarvingDebugMode(): CarvingDebugMode {
+    return this._carvingDebugMode;
+  }
+
+  /**
+   * Set the carving debug visualization mode
+   * This replaces the old boolean flags (showReusePlan, showOptMerging)
+   */
+  setCarvingDebugMode(mode: CarvingDebugMode): void {
+    console.log('[Renderer] Carving debug mode changed', {
+      from: this._carvingDebugMode,
+      to: mode
+    });
+    this._carvingDebugMode = mode;
   }
 
   /**
@@ -548,19 +573,27 @@ export class Renderer {
       // Draw polylines
       this.drawPolylines(width, height);
 
-      // Draw stitched segment classifications (Step 3)
-      if (this.showReusePlan && this.stitchedSegmentations.length > 0) {
-        this.drawStitchedSegmentClassifications(width, height);
-      } else if (this.showReusePlan && this.segmentOptVerticesDebug.length > 0) {
-        // Step 4 (future): OptVertex-based visualization
-        this.drawSegmentOptVertices(width, height);
+      // ========================================
+      // Carving Debug Overlays (State-Based)
+      // ========================================
+      // These render ON TOP of the terrain for additional debug info
+      if (this._carvingDebugMode === CarvingDebugMode.REUSE_PLAN) {
+        // Step 3: Show reuse plan (warm vs cold segments)
+        if (this.stitchedSegmentations.length > 0) {
+          this.drawStitchedSegmentClassifications(width, height);
+        } else if (this.segmentOptVerticesDebug.length > 0) {
+          this.drawSegmentOptVertices(width, height);
+        }
       } else if (this.showReusePreview) {
+        // Legacy preview (deprecated - kept for compatibility)
         this.drawReusePreview(width, height);
       }
 
-      // Draw opt-space merging visualization (Step 4)
-      if (this.showOptMerging && this.optMergingDebug.length > 0) {
-        this.drawOptMergingOverlay(width, height);
+      if (this._carvingDebugMode === CarvingDebugMode.OPT_MERGING) {
+        // Step 4: Show opt-space merging overlay
+        if (this.optMergingDebug.length > 0) {
+          this.drawOptMergingOverlay(width, height);
+        }
       }
 
       // Draw physics bodies (debugging) - use custom debug draw
@@ -638,15 +671,39 @@ export class Renderer {
         playerDebugDraw(this.ctx, width, height);
       }
 
-      // Draw carved terrain loops (step 1 - only if step 2 and step 4 not active)
-      // When stitched loops (step 2) or opt merging (step 4) are shown, hide raw carved loops
-      if (carvedLoops && carvedLoops.length > 0 && (!stitchedLoops || stitchedLoops.length === 0) && !this.showOptMerging) {
-        this.drawCarvedLoops(width, height, carvedLoops, carveRegion);
-      }
+      // ========================================
+      // Carving Debug Visualization (State-Based Rendering)
+      // ========================================
+      // Only one debug mode renders at a time to prevent overlaps
+      switch (this._carvingDebugMode) {
+        case CarvingDebugMode.CARVED_LOOPS:
+          // Step 1: Show raw carved loops from marching squares
+          if (carvedLoops && carvedLoops.length > 0) {
+            this.drawCarvedLoops(width, height, carvedLoops, carveRegion);
+          }
+          break;
 
-      // Draw stitched canonical loops (step 2 - replaces step 1 visualization, hidden by step 4)
-      if (stitchedLoops && stitchedLoops.length > 0 && !this.showOptMerging) {
-        this.drawStitchedCanonicalLoops(width, height, stitchedLoops);
+        case CarvingDebugMode.STITCHED_LOOPS:
+          // Step 2: Show stitched canonical loops (replaces step 1)
+          if (stitchedLoops && stitchedLoops.length > 0) {
+            this.drawStitchedCanonicalLoops(width, height, stitchedLoops);
+          }
+          break;
+
+        case CarvingDebugMode.REUSE_PLAN:
+          // Step 3: Show reuse plan visualization
+          // (Handled by showReusePlan flag for now - to be refactored)
+          break;
+
+        case CarvingDebugMode.OPT_MERGING:
+          // Step 4: Show opt-space merging
+          // (Handled separately below via drawOptMergingOverlay)
+          break;
+
+        case CarvingDebugMode.NONE:
+        default:
+          // No debug visualization - only show final physics-ready terrain
+          break;
       }
 
       // Draw virtual joystick (always on top, in screen coordinates)
