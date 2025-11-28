@@ -638,14 +638,14 @@ export class Renderer {
         playerDebugDraw(this.ctx, width, height);
       }
 
-      // Draw carved terrain loops (step 1 - only if step 2 not active)
-      // When stitched loops are shown (step 2), hide raw carved loops
-      if (carvedLoops && carvedLoops.length > 0 && (!stitchedLoops || stitchedLoops.length === 0)) {
+      // Draw carved terrain loops (step 1 - only if step 2 and step 4 not active)
+      // When stitched loops (step 2) or opt merging (step 4) are shown, hide raw carved loops
+      if (carvedLoops && carvedLoops.length > 0 && (!stitchedLoops || stitchedLoops.length === 0) && !this.showOptMerging) {
         this.drawCarvedLoops(width, height, carvedLoops, carveRegion);
       }
 
-      // Draw stitched canonical loops (step 2 - replaces step 1 visualization)
-      if (stitchedLoops && stitchedLoops.length > 0) {
+      // Draw stitched canonical loops (step 2 - replaces step 1 visualization, hidden by step 4)
+      if (stitchedLoops && stitchedLoops.length > 0 && !this.showOptMerging) {
         this.drawStitchedCanonicalLoops(width, height, stitchedLoops);
       }
 
