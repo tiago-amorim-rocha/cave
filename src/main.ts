@@ -25,6 +25,8 @@ import { AncestryModal } from './AncestryModal';
 import type { CanonicalLoop, OptVertex, ReusePlanDebug, CanonicalVertex } from './terrain/CanonicalGeometry';
 import { allocateVertexId } from './terrain/CanonicalGeometry';
 import { VertexOptimizationPipeline } from './VertexOptimizationPipeline';
+import { buildOptimizedFromStitchedLoop, type Step4Input, type Step4Output } from './terrain/Step4OptMerging';
+import type { Step4DebugData } from './Renderer';
 
 /**
  * Per-segment OptVertex data for Step 4 visualization (actual optimization)
@@ -211,6 +213,7 @@ class CarvableCaves {
   private carveRegion: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
   private showStitchedLoops = false;
   private showReusePlan = false;
+  private showOptMerging = false;
   private reusePlanDebug: ReusePlanDebug[] = [];
   private stitchedSegmentations: StitchedLoopSegmentation[] = []; // Step 3: segment classification
   private segmentOptVertices: SegmentOptVertices[] = []; // Step 4: per-segment OptVertex arrays (future)
@@ -1175,13 +1178,109 @@ class CarvableCaves {
   }
 
   /**
+   * Step 4: Build optimized loops from stitched loops using opt-space merging
+   */
+  enableOptMergingDebugOverlay(): void {
+    console.log('[Carving] Step 4: Building optimized loops from stitched loops');
+
+    if (!this.config.debugCaptureEnabled) {
+      console.warn('[Carving] Debug capture is disabled - cannot run Step 4');
+      return;
+    }
+
+    if (this.stitchedLoops.length === 0) {
+      console.warn('[Carving] No stitched loops - perform a carve operation first');
+      return;
+    }
+
+    // Build canonical loops map
+    const canonicalLoopsMap = new Map<number, CanonicalLoop>();
+    for (const loop of this.remeshManager.getCanonicalLoops()) {
+      canonicalLoopsMap.set(loop.id, loop);
+    }
+
+    // Process each stitched loop through Step 4
+    const step4DebugData: Step4DebugData[] = [];
+
+    for (const stitchedLoop of this.stitchedLoops) {
+      console.log('[Step4] Processing stitched loop', {
+        loopId: stitchedLoop.id,
+        vertexCount: stitchedLoop.vertices.length,
+        segmentCount: stitchedLoop.segments.length
+      });
+
+      // Build Step 4 input
+      const step4Input: Step4Input = {
+        stitchedLoop,
+        canonicalLoopsMap,
+        optimizationOptions: {
+          gridPitch: this.densityField.config.gridPitch,
+          simplificationEpsilon: this.config.simplificationEpsilon,
+          chaikinEnabled: this.config.chaikinEnabled,
+          chaikinIterations: this.config.chaikinIterations,
+          simplificationEpsilonPost: this.config.simplificationEpsilonPost
+        }
+      };
+
+      // Run Step 4
+      try {
+        const step4Output = buildOptimizedFromStitchedLoop(step4Input);
+
+        // Store debug data for visualization
+        step4DebugData.push({
+          stitchedLoopId: stitchedLoop.id,
+          stitchedVertices: stitchedLoop.vertices,
+          step4Output
+        });
+
+        console.log('[Step4] ✓ Processed stitched loop', {
+          loopId: stitchedLoop.id,
+          optVertexCount: step4Output.optVertices.length,
+          anchorCount: step4Output.debugInfo?.anchorCount || 0,
+          segmentCount: step4Output.debugInfo?.processedSegments?.length || 0
+        });
+      } catch (error) {
+        console.error('[Step4] ✗ Failed to process stitched loop', {
+          loopId: stitchedLoop.id,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    // Pass to renderer
+    this.renderer.setOptMergingDebug(step4DebugData);
+
+    // Update visualization flags
+    this.showStitchedLoops = false;
+    this.showReusePlan = false;
+    this.showOptMerging = true;
+    this.renderer.showOptMerging = true;
+    this.renderer.showReusePlan = false;
+
+    console.log('[Carving] ✓ Step 4 enabled: showing opt-space merging overlay', {
+      loopCount: step4DebugData.length
+    });
+  }
+
+  /**
+   * Clear Step 4 opt-merging debug data
+   */
+  private clearOptMergingDebug(): void {
+    this.showOptMerging = false;
+    this.renderer.showOptMerging = false;
+    this.renderer.setOptMergingDebug([]);
+    console.log('[Carving] Step 4 debug cleared');
+  }
+
+  /**
    * Advance the carving debug step using a single control:
    * - Step 1 (default) → Step 2 (stitched loops)
    * - Step 2 → Step 3 (reuse plan)
-   * - Step 3 → back to Step 1 visuals
+   * - Step 3 → Step 4 (opt-space merging)
+   * - Step 4 → back to Step 1 visuals
    */
   advanceCarvingDebugStep(): void {
-    if (!this.showStitchedLoops && !this.showReusePlan) {
+    if (!this.showStitchedLoops && !this.showReusePlan && !this.showOptMerging) {
       this.enableStitchedDebugOverlay();
       return;
     }
@@ -1192,9 +1291,15 @@ class CarvableCaves {
     }
 
     if (this.showReusePlan) {
-      console.log('[Carving] Returning to base view from step 3');
-      this.clearReusePlanDebug();
+      this.enableOptMergingDebugOverlay();
+      return;
+    }
+
+    if (this.showOptMerging) {
+      console.log('[Carving] Returning to base view from step 4');
+      this.clearOptMergingDebug();
       this.showStitchedLoops = false;
+      this.showReusePlan = false;
     }
   }
 
@@ -2343,7 +2448,7 @@ class CarvableCaves {
   }
 }
 
-// Button to advance debug step (Step 2 stitched → Step 3 reuse plan)
+// Button to advance debug step (Step 2 → Step 3 → Step 4)
 function createStitchStepButton(app: CarvableCaves, enabled: boolean): HTMLButtonElement | null {
   console.log('[UI] createStitchStepButton called', { enabled });
 
@@ -2355,7 +2460,7 @@ function createStitchStepButton(app: CarvableCaves, enabled: boolean): HTMLButto
   const stitchButton = document.createElement('button');
   stitchButton.id = 'stitch-button';
   stitchButton.textContent = '▶️';
-  stitchButton.title = 'Advance carving debug (Step 2 → Step 3)';
+  stitchButton.title = 'Advance carving debug (Step 2 → Step 3 → Step 4)';
   stitchButton.style.cssText = `
     position: fixed;
     right: 16px;
