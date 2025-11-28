@@ -1046,9 +1046,44 @@ export class Renderer {
         continue;
       }
 
+      const n = stitchedLoop.vertices.length;
+
+      // Verify segment coverage (debug check)
+      console.log('[Step3Render] Segment coverage check', {
+        loopId: stitchedLoop.id,
+        vertexCount: n,
+        segmentCount: segmentation.segments.length,
+        segments: segmentation.segments.map((seg, idx) => {
+          const next = segmentation.segments[(idx + 1) % segmentation.segments.length];
+          const expectedNextStart = (seg.endIndex + 1) % n;
+          const gapDetected = next.startIndex !== expectedNextStart;
+          return {
+            idx,
+            kind: seg.kind,
+            startIndex: seg.startIndex,
+            endIndex: seg.endIndex,
+            length: seg.endIndex >= seg.startIndex
+              ? seg.endIndex - seg.startIndex + 1
+              : (n - seg.startIndex) + seg.endIndex + 1,
+            nextStartIndex: next.startIndex,
+            expectedNextStart,
+            gapDetected
+          };
+        })
+      });
+
       // Draw each segment
-      for (const segment of segmentation.segments) {
+      for (let segIdx = 0; segIdx < segmentation.segments.length; segIdx++) {
+        const segment = segmentation.segments[segIdx];
         const { kind, startIndex, endIndex } = segment;
+
+        console.log('[Step3Render] Drawing segment', {
+          segIdx,
+          kind,
+          startIndex,
+          endIndex,
+          vertexCount: n
+        });
 
         // Choose color based on segment kind
         if (kind === 'warm') {
@@ -1059,25 +1094,54 @@ export class Renderer {
           this.ctx.lineWidth = 5;
         }
 
-        // Draw the segment from stitched canonical vertices
-        this.ctx.beginPath();
-        let firstPoint = true;
+        // Collect vertices for this segment (inclusive endIndex)
+        // IMPORTANT: We need to draw edges from startIndex to endIndex+1 to avoid gaps
+        const vertices: { x: number; y: number }[] = [];
 
-        for (let i = startIndex; i <= endIndex; i++) {
-          const vertex = stitchedLoop.vertices[i];
-          const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
-
-          if (firstPoint) {
-            this.ctx.moveTo(screen.x, screen.y);
-            firstPoint = false;
-          } else {
-            this.ctx.lineTo(screen.x, screen.y);
+        if (startIndex <= endIndex) {
+          // Normal interval: [startIndex, endIndex]
+          // Draw vertices from startIndex to endIndex, plus one extra to close to next segment
+          for (let i = startIndex; i <= endIndex; i++) {
+            vertices.push(stitchedLoop.vertices[i]);
+          }
+          // Add connecting edge to next segment (or wrap to start for last segment)
+          const nextSegment = segmentation.segments[(segIdx + 1) % segmentation.segments.length];
+          const nextStartIndex = nextSegment.startIndex;
+          if (nextStartIndex === (endIndex + 1) % n) {
+            // Segments are adjacent - draw edge to next segment start
+            vertices.push(stitchedLoop.vertices[nextStartIndex]);
+          }
+        } else {
+          // Wrapped interval: [startIndex, n-1] + [0, endIndex]
+          for (let i = startIndex; i < n; i++) {
+            vertices.push(stitchedLoop.vertices[i]);
+          }
+          for (let i = 0; i <= endIndex; i++) {
+            vertices.push(stitchedLoop.vertices[i]);
+          }
+          // Add connecting edge to next segment
+          const nextSegment = segmentation.segments[(segIdx + 1) % segmentation.segments.length];
+          const nextStartIndex = nextSegment.startIndex;
+          if (nextStartIndex === (endIndex + 1) % n) {
+            vertices.push(stitchedLoop.vertices[nextStartIndex]);
           }
         }
 
-        this.ctx.stroke();
+        // Draw the polyline
+        if (vertices.length >= 2) {
+          this.ctx.beginPath();
+          const firstScreen = this.camera.worldToScreen(vertices[0].x, vertices[0].y, canvasWidth, canvasHeight);
+          this.ctx.moveTo(firstScreen.x, firstScreen.y);
 
-        // Draw small dots at vertices for visibility
+          for (let i = 1; i < vertices.length; i++) {
+            const screen = this.camera.worldToScreen(vertices[i].x, vertices[i].y, canvasWidth, canvasHeight);
+            this.ctx.lineTo(screen.x, screen.y);
+          }
+
+          this.ctx.stroke();
+        }
+
+        // Draw small dots at vertices for visibility (original range only, not the extra edge)
         for (let i = startIndex; i <= endIndex; i++) {
           const vertex = stitchedLoop.vertices[i];
           const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
