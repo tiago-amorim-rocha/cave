@@ -144,6 +144,23 @@ function computeAnchor(
     const canonLoop = canonicalLoopsMap.get(prevSegment.sourceCanonicalId);
     if (canonLoop && canonLoop.optVertices) {
       const canonEndId = prevSegment.canonicalEndpointIds![1];
+
+      // DIAGNOSTIC: Log ID space information
+      const optIdRanges = canonLoop.optVertices.map(ov => `[${ov.canonStartId},${ov.canonEndId}]`);
+      const minOptId = Math.min(...canonLoop.optVertices.map(ov => ov.canonStartId));
+      const maxOptId = Math.max(...canonLoop.optVertices.map(ov => ov.canonEndId));
+
+      console.log('[Step4] 🔍 ID Space Diagnostic (prev cold segment)', {
+        canonicalLoopId: prevSegment.sourceCanonicalId,
+        lookingForCanonId: canonEndId,
+        canonicalEndpointIds: prevSegment.canonicalEndpointIds,
+        optVerticesCount: canonLoop.optVertices.length,
+        optIdRangeMin: minOptId,
+        optIdRangeMax: maxOptId,
+        sampleOptRanges: optIdRanges.slice(0, 5),
+        allOptRanges: optIdRanges.length <= 10 ? optIdRanges : undefined
+      });
+
       const foundOptVertex = findOptVertexByCanonicalId(
         canonLoop.optVertices,
         canonEndId
@@ -152,11 +169,18 @@ function computeAnchor(
         position = { x: foundOptVertex.x, y: foundOptVertex.y };
         source = 'cold-opt';
         optVertex = foundOptVertex;
-        console.log('[Step4] Anchor from prev cold segment (opt)', {
+        console.log('[Step4] ✓ Anchor from prev cold segment (opt)', {
           boundaryIndex,
           stitchedIndex,
           canonEndId,
           position
+        });
+      } else {
+        console.warn('[Step4] ✗ Failed to find opt vertex for canonical ID', {
+          canonEndId,
+          canonicalLoopId: prevSegment.sourceCanonicalId,
+          optIdRangeMin: minOptId,
+          optIdRangeMax: maxOptId
         });
       }
     }
@@ -167,6 +191,23 @@ function computeAnchor(
     const canonLoop = canonicalLoopsMap.get(nextSegment.sourceCanonicalId);
     if (canonLoop && canonLoop.optVertices) {
       const canonStartId = nextSegment.canonicalEndpointIds![0];
+
+      // DIAGNOSTIC: Log ID space information
+      const optIdRanges = canonLoop.optVertices.map(ov => `[${ov.canonStartId},${ov.canonEndId}]`);
+      const minOptId = Math.min(...canonLoop.optVertices.map(ov => ov.canonStartId));
+      const maxOptId = Math.max(...canonLoop.optVertices.map(ov => ov.canonEndId));
+
+      console.log('[Step4] 🔍 ID Space Diagnostic (next cold segment)', {
+        canonicalLoopId: nextSegment.sourceCanonicalId,
+        lookingForCanonId: canonStartId,
+        canonicalEndpointIds: nextSegment.canonicalEndpointIds,
+        optVerticesCount: canonLoop.optVertices.length,
+        optIdRangeMin: minOptId,
+        optIdRangeMax: maxOptId,
+        sampleOptRanges: optIdRanges.slice(0, 5),
+        allOptRanges: optIdRanges.length <= 10 ? optIdRanges : undefined
+      });
+
       const foundOptVertex = findOptVertexByCanonicalId(
         canonLoop.optVertices,
         canonStartId
@@ -175,11 +216,18 @@ function computeAnchor(
         position = { x: foundOptVertex.x, y: foundOptVertex.y };
         source = 'cold-opt';
         optVertex = foundOptVertex;
-        console.log('[Step4] Anchor from next cold segment (opt)', {
+        console.log('[Step4] ✓ Anchor from next cold segment (opt)', {
           boundaryIndex,
           stitchedIndex,
           canonStartId,
           position
+        });
+      } else {
+        console.warn('[Step4] ✗ Failed to find opt vertex for canonical ID', {
+          canonStartId,
+          canonicalLoopId: nextSegment.sourceCanonicalId,
+          optIdRangeMin: minOptId,
+          optIdRangeMax: maxOptId
         });
       }
     }
