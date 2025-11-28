@@ -2,6 +2,16 @@ import type { Camera } from './Camera';
 import type { Vec2 } from './types';
 import type { DensityField } from './DensityField';
 import type { CanonicalLoop, OptVertex, PhysicsSegment, ReusePlanDebug } from './terrain/CanonicalGeometry';
+import type { Step4Output } from './terrain/Step4OptMerging';
+
+/**
+ * Step 4 debug data (opt-space merging visualization)
+ */
+export interface Step4DebugData {
+  stitchedLoopId: number;
+  stitchedVertices: Vec2[]; // Original stitched vertices for comparison
+  step4Output: Step4Output; // Complete Step 4 output with opt vertices and debug info
+}
 
 /**
  * Ball rendering data
@@ -102,8 +112,10 @@ export class Renderer {
   public showLoopPatching: boolean = false; // Legacy loop patching debug visualization (disabled by default)
   public showReusePreview: boolean = false; // Legacy preview (disabled for step 3)
   public showReusePlan: boolean = false; // Step 3 visualization toggle
+  public showOptMerging: boolean = false; // Step 4 visualization toggle
   private debugHoverWorld: { x: number; y: number } | null = null; // For hover labels
   private reusePlanDebug: ReusePlanDebug[] = [];
+  private optMergingDebug: Step4DebugData[] = []; // Step 4: opt-space merging debug data
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -201,6 +213,18 @@ export class Renderer {
    */
   setReusePlanDebug(reusePlan: ReusePlanDebug[]): void {
     this.reusePlanDebug = reusePlan;
+  }
+
+  /**
+   * Step 4: Set opt-space merging debug data
+   */
+  setOptMergingDebug(debugData: Step4DebugData[]): void {
+    this.optMergingDebug = debugData;
+    console.log('[Renderer] Step 4 debug data set', {
+      loopCount: debugData.length,
+      totalOptVertices: debugData.reduce((sum, d) => sum + d.step4Output.optVertices.length, 0),
+      totalAnchors: debugData.reduce((sum, d) => sum + (d.step4Output.debugInfo?.anchorCount || 0), 0)
+    });
   }
 
   /**
@@ -532,6 +556,11 @@ export class Renderer {
         this.drawSegmentOptVertices(width, height);
       } else if (this.showReusePreview) {
         this.drawReusePreview(width, height);
+      }
+
+      // Draw opt-space merging visualization (Step 4)
+      if (this.showOptMerging && this.optMergingDebug.length > 0) {
+        this.drawOptMergingOverlay(width, height);
       }
 
       // Draw physics bodies (debugging) - use custom debug draw
@@ -2351,6 +2380,291 @@ export class Renderer {
         });
       }
     });
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Step 4: Draw opt-space merging overlay
+   * Shows final optimized vertices with anchor markers, segment boundaries, and legend
+   */
+  private drawOptMergingOverlay(canvasWidth: number, canvasHeight: number): void {
+    if (this.optMergingDebug.length === 0) return;
+
+    console.log('[Renderer] Drawing Step 4 opt-merging overlay', {
+      loopCount: this.optMergingDebug.length
+    });
+
+    for (const debugData of this.optMergingDebug) {
+      // Draw stitched vertices underneath (faint for comparison)
+      this.drawOptMergingStitchedComparison(canvasWidth, canvasHeight, debugData);
+
+      // Draw optimized segments
+      this.drawOptMergingSegments(canvasWidth, canvasHeight, debugData);
+
+      // Draw anchors
+      this.drawOptMergingAnchors(canvasWidth, canvasHeight, debugData);
+
+      // Draw segment boundaries
+      this.drawOptMergingBoundaries(canvasWidth, canvasHeight, debugData);
+    }
+
+    // Draw legend (once for all loops)
+    this.drawOptMergingLegend(canvasWidth, canvasHeight);
+  }
+
+  /**
+   * Step 4: Draw stitched vertices underneath for comparison
+   */
+  private drawOptMergingStitchedComparison(
+    canvasWidth: number,
+    canvasHeight: number,
+    debugData: Step4DebugData
+  ): void {
+    const { stitchedVertices } = debugData;
+    if (stitchedVertices.length < 2) return;
+
+    this.ctx.save();
+    this.ctx.strokeStyle = '#444444';
+    this.ctx.lineWidth = 1;
+    this.ctx.globalAlpha = 0.3;
+    this.ctx.setLineDash([2, 2]);
+
+    this.ctx.beginPath();
+    const first = this.camera.worldToScreen(stitchedVertices[0].x, stitchedVertices[0].y, canvasWidth, canvasHeight);
+    this.ctx.moveTo(first.x, first.y);
+
+    for (let i = 1; i < stitchedVertices.length; i++) {
+      const screen = this.camera.worldToScreen(stitchedVertices[i].x, stitchedVertices[i].y, canvasWidth, canvasHeight);
+      this.ctx.lineTo(screen.x, screen.y);
+    }
+
+    this.ctx.stroke();
+    this.ctx.restore();
+  }
+
+  /**
+   * Step 4: Draw optimized segments (warm = orange, cold = cyan)
+   */
+  private drawOptMergingSegments(
+    canvasWidth: number,
+    canvasHeight: number,
+    debugData: Step4DebugData
+  ): void {
+    const { step4Output } = debugData;
+    const { optVertices, debugInfo } = step4Output;
+
+    if (!debugInfo || !debugInfo.processedSegments) return;
+
+    this.ctx.save();
+    this.ctx.lineWidth = 3;
+    this.ctx.globalAlpha = 1.0;
+    this.ctx.setLineDash([]);
+
+    let currentIndex = 0;
+
+    for (const segment of debugInfo.processedSegments) {
+      const color = segment.kind === 'warm' ? '#FF8800' : '#00FFFF'; // Orange for warm, Cyan for cold
+      this.ctx.strokeStyle = color;
+
+      const vertices = segment.optVertices;
+      if (vertices.length < 2) {
+        currentIndex += vertices.length;
+        continue;
+      }
+
+      this.ctx.beginPath();
+      const first = this.camera.worldToScreen(vertices[0].x, vertices[0].y, canvasWidth, canvasHeight);
+      this.ctx.moveTo(first.x, first.y);
+
+      for (let i = 1; i < vertices.length; i++) {
+        const screen = this.camera.worldToScreen(vertices[i].x, vertices[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(screen.x, screen.y);
+      }
+
+      this.ctx.stroke();
+      currentIndex += vertices.length;
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Step 4: Draw anchor markers with colors by source
+   */
+  private drawOptMergingAnchors(
+    canvasWidth: number,
+    canvasHeight: number,
+    debugData: Step4DebugData
+  ): void {
+    const { step4Output } = debugData;
+    const { debugInfo } = step4Output;
+
+    if (!debugInfo || !debugInfo.anchors) return;
+
+    this.ctx.save();
+    this.ctx.lineWidth = 2;
+    this.ctx.globalAlpha = 1.0;
+
+    for (const anchor of debugInfo.anchors) {
+      const screen = this.camera.worldToScreen(anchor.position.x, anchor.position.y, canvasWidth, canvasHeight);
+
+      // Color by source
+      let color: string;
+      switch (anchor.source) {
+        case 'cold-opt':
+          color = '#0088FF'; // Blue
+          break;
+        case 'cold-canonical':
+          color = '#FF8800'; // Orange
+          break;
+        case 'warm-stitched':
+          color = '#00FF00'; // Green
+          break;
+      }
+
+      // Draw outer circle
+      this.ctx.strokeStyle = '#FFFFFF';
+      this.ctx.fillStyle = color;
+      this.ctx.beginPath();
+      this.ctx.arc(screen.x, screen.y, 6, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.stroke();
+
+      // Draw inner dot
+      this.ctx.fillStyle = '#FFFFFF';
+      this.ctx.beginPath();
+      this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // Draw label if hover is nearby
+      if (this.debugHoverWorld) {
+        const dx = this.debugHoverWorld.x - anchor.position.x;
+        const dy = this.debugHoverWorld.y - anchor.position.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < 1.0) { // Within 1m
+          const label = `Anchor #${anchor.segmentBoundaryIndex}\n${anchor.source}`;
+          this.ctx.font = 'bold 12px monospace';
+          this.ctx.textAlign = 'left';
+          this.ctx.textBaseline = 'bottom';
+          this.ctx.strokeStyle = '#000000';
+          this.ctx.lineWidth = 3;
+          this.ctx.strokeText(label, screen.x + 10, screen.y - 10);
+          this.ctx.fillStyle = color;
+          this.ctx.fillText(label, screen.x + 10, screen.y - 10);
+        }
+      }
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Step 4: Draw segment boundary markers
+   */
+  private drawOptMergingBoundaries(
+    canvasWidth: number,
+    canvasHeight: number,
+    debugData: Step4DebugData
+  ): void {
+    const { step4Output } = debugData;
+    const { optVertices, debugInfo } = step4Output;
+
+    if (!debugInfo || !debugInfo.segmentBoundaries) return;
+
+    this.ctx.save();
+    this.ctx.strokeStyle = '#FFFFFF';
+    this.ctx.lineWidth = 2;
+    this.ctx.globalAlpha = 0.6;
+    this.ctx.setLineDash([4, 4]);
+
+    for (let i = 0; i < debugInfo.segmentBoundaries.length; i++) {
+      const boundaryIndex = debugInfo.segmentBoundaries[i];
+      if (boundaryIndex >= optVertices.length) continue;
+
+      const vertex = optVertices[boundaryIndex];
+      const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
+
+      // Draw vertical marker line
+      this.ctx.beginPath();
+      this.ctx.moveTo(screen.x, screen.y - 20);
+      this.ctx.lineTo(screen.x, screen.y + 20);
+      this.ctx.stroke();
+
+      // Draw segment index label
+      this.ctx.font = 'bold 11px monospace';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'bottom';
+      this.ctx.setLineDash([]);
+      this.ctx.strokeStyle = '#000000';
+      this.ctx.lineWidth = 3;
+      this.ctx.strokeText(`S${i}`, screen.x, screen.y - 25);
+      this.ctx.fillStyle = '#FFFF00';
+      this.ctx.fillText(`S${i}`, screen.x, screen.y - 25);
+      this.ctx.setLineDash([4, 4]);
+      this.ctx.lineWidth = 2;
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Step 4: Draw legend explaining colors
+   */
+  private drawOptMergingLegend(canvasWidth: number, canvasHeight: number): void {
+    this.ctx.save();
+
+    const x = 20;
+    const y = canvasHeight - 180;
+    const lineHeight = 22;
+
+    // Background
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.fillRect(x - 10, y - 10, 280, 170);
+
+    // Border
+    this.ctx.strokeStyle = '#00FF00';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(x - 10, y - 10, 280, 170);
+
+    // Title
+    this.ctx.font = 'bold 14px monospace';
+    this.ctx.fillStyle = '#00FF00';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'top';
+    this.ctx.fillText('Step 4: Opt-Space Merging', x, y);
+
+    let currentY = y + lineHeight + 5;
+
+    // Segment colors
+    this.ctx.font = 'bold 12px monospace';
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.fillText('Segments:', x, currentY);
+    currentY += lineHeight;
+
+    this.ctx.fillStyle = '#FF8800';
+    this.ctx.fillText('▬ Warm (new, optimized)', x + 10, currentY);
+    currentY += lineHeight;
+
+    this.ctx.fillStyle = '#00FFFF';
+    this.ctx.fillText('▬ Cold (reused opt)', x + 10, currentY);
+    currentY += lineHeight + 5;
+
+    // Anchor colors
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.fillText('Anchors:', x, currentY);
+    currentY += lineHeight;
+
+    this.ctx.fillStyle = '#0088FF';
+    this.ctx.fillText('● Cold-Opt', x + 10, currentY);
+    currentY += lineHeight;
+
+    this.ctx.fillStyle = '#FF8800';
+    this.ctx.fillText('● Cold-Canonical', x + 10, currentY);
+    currentY += lineHeight;
+
+    this.ctx.fillStyle = '#00FF00';
+    this.ctx.fillText('● Warm-Stitched', x + 10, currentY);
 
     this.ctx.restore();
   }
