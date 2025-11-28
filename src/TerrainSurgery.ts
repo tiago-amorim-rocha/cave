@@ -685,9 +685,9 @@ export class TerrainSurgery {
     quantKey: (v: Point) => string,
     quantStep: number,
     overlapInsideVertices: number
-  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }> {
+  ): Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number]; canonicalEndpointIndices?: [number, number] }> {
     const canonicalLoops = this.remeshManager.getCanonicalLoops();
-    const boundaryArcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number] }> = [];
+    const boundaryArcs: Array<{ loop: Point[]; closed: boolean; endpoints?: [Point, Point]; sourceCanonicalId?: number; canonicalEndpointIds?: [number, number]; canonicalEndpointIndices?: [number, number] }> = [];
     const fracEps = 1e-6;
     const lenEps = 1e-6;
 
