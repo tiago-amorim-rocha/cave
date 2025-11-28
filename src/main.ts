@@ -48,8 +48,14 @@ interface StitchedSegment {
   endIndex: number;       // inclusive index into stitchedLoop.vertices
 }
 
+interface StitchedDirtyRange {
+  startIndex: number;  // inclusive
+  endIndex: number;    // inclusive (wrap-aware for closed loops)
+}
+
 interface StitchedLoopSegmentation {
   stitchedLoopId: number;
+  dirtyRanges: StitchedDirtyRange[];  // Dirty ranges in stitched canonical space
   segments: StitchedSegment[];
 }
 
@@ -1066,7 +1072,7 @@ class CarvableCaves {
 
   /**
    * Step 3: Classify stitched canonical vertices as DIRTY/CLEAN and visualize segments.
-   * This operates entirely in stitched canonical space, not on OptVertices.
+   * This operates entirely in stitched canonical space using dirty ranges from warm segments.
    */
   enableReusePlanDebugOverlay(): void {
     console.log('[Carving] Step 3: Classifying stitched canonical vertices');
@@ -1081,10 +1087,7 @@ class CarvableCaves {
       return;
     }
 
-    // Step 3.1: Compute dirty canonical IDs from all stitched loops
-    const dirtyCanonicalIds = this.computeDirtyCanonicalIds();
-
-    // Step 3.2: Classify vertices and compress into segments
+    // Step 3: Extract dirty ranges from warm segments and classify
     this.stitchedSegmentations = [];
 
     for (const stitchedLoop of this.stitchedLoops) {
@@ -1102,14 +1105,31 @@ class CarvableCaves {
         }))
       });
 
-      // Classify each vertex as DIRTY or CLEAN
-      const dirtyFlags = this.classifyStitchedVertices(stitchedLoop, dirtyCanonicalIds);
+      // Extract dirty ranges from warm (isNew) segments
+      const dirtyRanges: StitchedDirtyRange[] = stitchedLoop.segments
+        .filter(seg => seg.isNew)
+        .map(seg => ({
+          startIndex: seg.vertexRange[0],
+          endIndex: seg.vertexRange[1]
+        }));
+
+      console.log('[Step3] Extracted dirty ranges', {
+        loopId: stitchedLoop.id,
+        dirtyRanges
+      });
+
+      // Classify each vertex as DIRTY or CLEAN using dirty ranges
+      const dirtyFlags = this.classifyStitchedVerticesByRanges(
+        stitchedLoop.vertices.length,
+        dirtyRanges
+      );
 
       // Compress into warm/cold segments
       const segments = this.compressToSegments(dirtyFlags);
 
       this.stitchedSegmentations.push({
         stitchedLoopId: stitchedLoop.id,
+        dirtyRanges,
         segments
       });
 
@@ -1118,6 +1138,7 @@ class CarvableCaves {
         totalVertices: stitchedLoop.vertices.length,
         dirtyVertices: dirtyFlags.filter(d => d).length,
         cleanVertices: dirtyFlags.filter(d => !d).length,
+        dirtyRanges,
         segments: segments.map(s => ({
           kind: s.kind,
           startIndex: s.startIndex,
@@ -1747,8 +1768,50 @@ class CarvableCaves {
   }
 
   /**
-   * Step 3: Classify each vertex in a stitched loop as DIRTY or CLEAN.
+   * Step 3: Classify vertices using stitched-space dirty ranges.
    * Returns a boolean array where true = DIRTY, false = CLEAN.
+   */
+  private classifyStitchedVerticesByRanges(
+    vertexCount: number,
+    dirtyRanges: StitchedDirtyRange[]
+  ): boolean[] {
+    const dirtyFlags: boolean[] = new Array(vertexCount).fill(false);
+
+    for (let i = 0; i < vertexCount; i++) {
+      dirtyFlags[i] = this.isIndexDirty(i, dirtyRanges, vertexCount);
+    }
+
+    return dirtyFlags;
+  }
+
+  /**
+   * Helper: Check if an index falls within any dirty range.
+   * Supports wrapped intervals for closed loops.
+   */
+  private isIndexDirty(
+    index: number,
+    dirtyRanges: StitchedDirtyRange[],
+    vertexCount: number
+  ): boolean {
+    for (const range of dirtyRanges) {
+      if (range.startIndex <= range.endIndex) {
+        // Normal interval
+        if (index >= range.startIndex && index <= range.endIndex) {
+          return true;
+        }
+      } else {
+        // Wrapped interval (e.g., 330..10 in a loop of 340 vertices)
+        if (index >= range.startIndex || index <= range.endIndex) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * DEPRECATED: Old canonical-ID-based classification (kept for reference).
+   * Step 3 now uses stitched-space dirty ranges instead.
    */
   private classifyStitchedVertices(
     stitchedLoop: StitchedLoop,
