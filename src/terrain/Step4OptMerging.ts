@@ -110,6 +110,25 @@ function findOptVertexByCanonicalId(
 }
 
 /**
+ * Find an opt vertex that contains a specific loop-local canonical index.
+ *
+ * An opt vertex "contains" a loop-local index if canonStartId <= loopIndex <= canonEndId.
+ * This assumes that opt vertices use loop-local indices (0..n-1) in their canonStartId/canonEndId fields.
+ *
+ * @param optVertices - Array of optimized vertices from a canonical loop
+ * @param loopIndex - Loop-local index (0..n-1) from canonicalEndpointIndices
+ * @returns The opt vertex containing this index, or undefined if not found
+ */
+function findOptVertexByLoopIndex(
+  optVertices: OptVertex[],
+  loopIndex: number
+): OptVertex | undefined {
+  return optVertices.find(
+    (ov) => ov.canonStartId <= loopIndex && loopIndex <= ov.canonEndId
+  );
+}
+
+/**
  * Compute the anchor point at a segment boundary.
  *
  * Priority order (highest to lowest):
@@ -142,21 +161,37 @@ function computeAnchor(
   // Case 1: Previous segment is cold - use its END opt vertex
   if (!prevSegment.isNew && prevSegment.sourceCanonicalId !== undefined) {
     const canonLoop = canonicalLoopsMap.get(prevSegment.sourceCanonicalId);
-    if (canonLoop && canonLoop.optVertices) {
-      const canonEndId = prevSegment.canonicalEndpointIds![1];
-      const foundOptVertex = findOptVertexByCanonicalId(
+    if (canonLoop && canonLoop.optVertices && prevSegment.canonicalEndpointIndices) {
+      // Use loop-local index (0..n-1) to directly look up opt vertex
+      const endIndex = prevSegment.canonicalEndpointIndices[1];
+
+      console.log('[Step4] Looking up cold-opt anchor (prev segment end)', {
+        canonicalLoopId: prevSegment.sourceCanonicalId,
+        endIndex,
+        optVerticesCount: canonLoop.optVertices.length
+      });
+
+      // Find the opt vertex containing this canonical index
+      const foundOptVertex = findOptVertexByLoopIndex(
         canonLoop.optVertices,
-        canonEndId
+        endIndex
       );
+
       if (foundOptVertex) {
         position = { x: foundOptVertex.x, y: foundOptVertex.y };
         source = 'cold-opt';
         optVertex = foundOptVertex;
-        console.log('[Step4] Anchor from prev cold segment (opt)', {
+        console.log('[Step4] ✓ Anchor from prev cold segment (opt)', {
           boundaryIndex,
           stitchedIndex,
-          canonEndId,
+          endIndex,
           position
+        });
+      } else {
+        console.warn('[Step4] ✗ Failed to find opt vertex for loop index', {
+          endIndex,
+          canonicalLoopId: prevSegment.sourceCanonicalId,
+          optVerticesCount: canonLoop.optVertices.length
         });
       }
     }
@@ -165,21 +200,37 @@ function computeAnchor(
   // Case 2: Next segment is cold - use its START opt vertex (if we don't have one yet)
   if (!optVertex && !nextSegment.isNew && nextSegment.sourceCanonicalId !== undefined) {
     const canonLoop = canonicalLoopsMap.get(nextSegment.sourceCanonicalId);
-    if (canonLoop && canonLoop.optVertices) {
-      const canonStartId = nextSegment.canonicalEndpointIds![0];
-      const foundOptVertex = findOptVertexByCanonicalId(
+    if (canonLoop && canonLoop.optVertices && nextSegment.canonicalEndpointIndices) {
+      // Use loop-local index (0..n-1) to directly look up opt vertex
+      const startIndex = nextSegment.canonicalEndpointIndices[0];
+
+      console.log('[Step4] Looking up cold-opt anchor (next segment start)', {
+        canonicalLoopId: nextSegment.sourceCanonicalId,
+        startIndex,
+        optVerticesCount: canonLoop.optVertices.length
+      });
+
+      // Find the opt vertex containing this canonical index
+      const foundOptVertex = findOptVertexByLoopIndex(
         canonLoop.optVertices,
-        canonStartId
+        startIndex
       );
+
       if (foundOptVertex) {
         position = { x: foundOptVertex.x, y: foundOptVertex.y };
         source = 'cold-opt';
         optVertex = foundOptVertex;
-        console.log('[Step4] Anchor from next cold segment (opt)', {
+        console.log('[Step4] ✓ Anchor from next cold segment (opt)', {
           boundaryIndex,
           stitchedIndex,
-          canonStartId,
+          startIndex,
           position
+        });
+      } else {
+        console.warn('[Step4] ✗ Failed to find opt vertex for loop index', {
+          startIndex,
+          canonicalLoopId: nextSegment.sourceCanonicalId,
+          optVerticesCount: canonLoop.optVertices.length
         });
       }
     }
@@ -256,7 +307,7 @@ function identifyAnchors(
  *
  * Strategy:
  * 1. Look up the canonical loop
- * 2. Find opt vertices that contain the start/end canonical IDs
+ * 2. Find opt vertices that contain the start/end loop-local indices
  * 3. Extract the range of opt vertices between them
  * 4. Handle wrapping for closed loops
  * 5. Snap endpoints to anchors
@@ -290,30 +341,36 @@ function extractColdOptSegment(
     );
   }
 
-  const [startCanonId, endCanonId] = segment.canonicalEndpointIds!;
+  if (!segment.canonicalEndpointIndices) {
+    throw new Error(
+      `[Step4] Cold segment missing canonicalEndpointIndices (loop-local indices)`
+    );
+  }
+
+  const [startLoopIndex, endLoopIndex] = segment.canonicalEndpointIndices;
 
   console.log('[Step4] Extracting cold opt segment', {
     sourceCanonicalId: segment.sourceCanonicalId,
-    canonicalRange: [startCanonId, endCanonId],
+    loopIndexRange: [startLoopIndex, endLoopIndex],
     optVertexCount: canonLoop.optVertices.length
   });
 
-  // Find opt vertex indices that contain the canonical IDs
+  // Find opt vertex indices that contain the loop-local indices
   const startOptIdx = canonLoop.optVertices.findIndex(
-    (ov) => ov.canonStartId <= startCanonId && startCanonId <= ov.canonEndId
+    (ov) => ov.canonStartId <= startLoopIndex && startLoopIndex <= ov.canonEndId
   );
   const endOptIdx = canonLoop.optVertices.findIndex(
-    (ov) => ov.canonStartId <= endCanonId && endCanonId <= ov.canonEndId
+    (ov) => ov.canonStartId <= endLoopIndex && endLoopIndex <= ov.canonEndId
   );
 
   if (startOptIdx === -1) {
     throw new Error(
-      `[Step4] Could not find opt vertex containing canonical ID ${startCanonId}`
+      `[Step4] Could not find opt vertex containing loop index ${startLoopIndex}`
     );
   }
   if (endOptIdx === -1) {
     throw new Error(
-      `[Step4] Could not find opt vertex containing canonical ID ${endCanonId}`
+      `[Step4] Could not find opt vertex containing loop index ${endLoopIndex}`
     );
   }
 
