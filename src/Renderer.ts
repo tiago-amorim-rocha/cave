@@ -208,6 +208,7 @@ export class Renderer {
    */
   private stitchedSegmentations: Array<{
     stitchedLoopId: number;
+    dirtyRanges: Array<{ startIndex: number; endIndex: number }>;
     segments: Array<{ kind: 'warm' | 'cold'; startIndex: number; endIndex: number }>;
   }> = [];
 
@@ -216,6 +217,7 @@ export class Renderer {
   setStitchedSegmentations(
     segmentations: Array<{
       stitchedLoopId: number;
+      dirtyRanges: Array<{ startIndex: number; endIndex: number }>;
       segments: Array<{ kind: 'warm' | 'cold'; startIndex: number; endIndex: number }>;
     }>,
     stitchedLoops: Array<{ id: number; vertices: { x: number; y: number }[] }>
