@@ -1088,6 +1088,20 @@ class CarvableCaves {
     this.stitchedSegmentations = [];
 
     for (const stitchedLoop of this.stitchedLoops) {
+      // Log stitched loop segments BEFORE classification
+      console.log('[Step3] Stitched loop segments (input)', {
+        loopId: stitchedLoop.id,
+        totalVertices: stitchedLoop.vertices.length,
+        segmentCount: stitchedLoop.segments.length,
+        segments: stitchedLoop.segments.map(seg => ({
+          isNew: seg.isNew,
+          vertexRange: seg.vertexRange,
+          rangeLength: seg.vertexRange[1] - seg.vertexRange[0] + 1,
+          sourceCanonicalId: seg.sourceCanonicalId,
+          canonicalEndpointIds: seg.canonicalEndpointIds
+        }))
+      });
+
       // Classify each vertex as DIRTY or CLEAN
       const dirtyFlags = this.classifyStitchedVertices(stitchedLoop, dirtyCanonicalIds);
 
@@ -1659,18 +1673,23 @@ class CarvableCaves {
     stitchedIndex: number
   ): { isNew: true } | { isNew: false; sourceCanonicalId: number; sourceCanonicalVertexId: number } {
     // Find which segment contains this index
-    for (const segment of stitchedLoop.segments) {
+    for (let segIdx = 0; segIdx < stitchedLoop.segments.length; segIdx++) {
+      const segment = stitchedLoop.segments[segIdx];
       const [startIdx, endIdx] = segment.vertexRange;
 
       if (stitchedIndex >= startIdx && stitchedIndex <= endIdx) {
         // Found the segment
         if (segment.isNew) {
+          // Sample debug for first few vertices
+          if (stitchedIndex < 5 || stitchedIndex % 50 === 0) {
+            console.log(`[Step3] Vertex ${stitchedIndex} → NEW (segment ${segIdx}, range [${startIdx}, ${endIdx}])`);
+          }
           return { isNew: true };
         }
 
         // Cold segment - map stitched index to canonical vertex ID
         if (!segment.sourceCanonicalId || !segment.canonicalEndpointIds) {
-          console.warn('[Step3] Cold segment missing ancestry data', { segment });
+          console.warn('[Step3] Cold segment missing ancestry data', { stitchedIndex, segIdx, segment });
           return { isNew: true }; // treat as dirty if ancestry is missing
         }
 
@@ -1683,7 +1702,7 @@ class CarvableCaves {
         );
 
         if (!canonicalLoop) {
-          console.warn('[Step3] Canonical loop not found', { sourceCanonicalId });
+          console.warn('[Step3] Canonical loop not found', { stitchedIndex, sourceCanonicalId });
           return { isNew: true }; // treat as dirty if canonical loop not found
         }
 
@@ -1695,7 +1714,7 @@ class CarvableCaves {
         );
 
         if (canonicalIdPath.length === 0) {
-          console.warn('[Step3] Empty canonical path', { startCanonId, endCanonId });
+          console.warn('[Step3] Empty canonical path', { stitchedIndex, startCanonId, endCanonId });
           return { isNew: true }; // treat as dirty if path is empty
         }
 
@@ -1709,6 +1728,11 @@ class CarvableCaves {
 
         const sourceCanonicalVertexId = canonicalIdPath[Math.min(pathIndex, canonicalIdPath.length - 1)];
 
+        // Sample debug for first few vertices
+        if (stitchedIndex < 5 || stitchedIndex % 50 === 0) {
+          console.log(`[Step3] Vertex ${stitchedIndex} → COLD (segment ${segIdx}, range [${startIdx}, ${endIdx}], canonId ${sourceCanonicalVertexId})`);
+        }
+
         return {
           isNew: false,
           sourceCanonicalId,
@@ -1718,7 +1742,7 @@ class CarvableCaves {
     }
 
     // Vertex not found in any segment - treat as dirty
-    console.warn('[Step3] Stitched vertex not found in any segment', { stitchedIndex });
+    console.warn('[Step3] Stitched vertex not found in any segment', { stitchedIndex, loopId: stitchedLoop.id });
     return { isNew: true };
   }
 
@@ -1733,19 +1757,43 @@ class CarvableCaves {
     const vertexCount = stitchedLoop.vertices.length;
     const dirtyFlags: boolean[] = new Array(vertexCount);
 
+    // Debug counters
+    let newCount = 0;
+    let coldCount = 0;
+    const sourceCanonicalIdCounts = new Map<number, number>();
+
     for (let i = 0; i < vertexCount; i++) {
       const ancestry = this.getStitchedVertexAncestry(stitchedLoop, i);
 
       if (ancestry.isNew) {
         // Warm segment - always dirty
         dirtyFlags[i] = true;
+        newCount++;
       } else {
         // Cold segment - check if canonical ID is in dirty set
+        coldCount++;
+        sourceCanonicalIdCounts.set(
+          ancestry.sourceCanonicalId,
+          (sourceCanonicalIdCounts.get(ancestry.sourceCanonicalId) || 0) + 1
+        );
+
         const dirtySet = dirtyCanonicalIds.get(ancestry.sourceCanonicalId);
         const isDirty = dirtySet ? dirtySet.has(ancestry.sourceCanonicalVertexId) : false;
         dirtyFlags[i] = isDirty;
       }
     }
+
+    // Log ancestry resolution summary
+    console.log('[Step3] Ancestry resolution summary', {
+      loopId: stitchedLoop.id,
+      totalVertices: vertexCount,
+      newVertices: newCount,
+      coldVertices: coldCount,
+      sourceCanonicalIdHistogram: Array.from(sourceCanonicalIdCounts.entries()).map(([id, count]) => ({
+        sourceCanonicalId: id,
+        vertexCount: count
+      }))
+    });
 
     return dirtyFlags;
   }
