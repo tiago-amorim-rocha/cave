@@ -31,6 +31,19 @@ export interface OptVertex {
   canonEndId: VertexId;
 }
 
+export type ReusePlanSegmentKind = 'reuse-head' | 'reuse-tail' | 'dirty';
+
+export interface ReusePlanSegment {
+  kind: ReusePlanSegmentKind;
+  points: Point[];
+}
+
+export interface ReusePlanDebug {
+  sourceCanonicalId: LoopId;
+  stitchedLoopId: number;
+  segments: ReusePlanSegment[];
+}
+
 export interface CanonicalLoop {
   id: LoopId;
   vertices: CanonicalVertex[];
@@ -42,6 +55,7 @@ export interface CanonicalLoop {
   segments?: PhysicsSegment[];
   // Debug-only preview for reuse plan visualization
   debugPreviewOptVertices?: OptVertex[];
+  debugReusePlan?: ReusePlanDebug;
 }
 
 export interface PhysicsSegment {

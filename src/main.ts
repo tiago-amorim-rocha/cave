@@ -12,7 +12,7 @@ import { Box2DPhysics } from './Box2DPhysics';
 import { VirtualJoystick } from './VirtualJoystick';
 import { RemeshManager, type RemeshStats } from './RemeshManager';
 import { VersionChecker } from './VersionChecker';
-import type { WorldConfig, BrushSettings } from './types';
+import type { WorldConfig, BrushSettings, Vec2 } from './types';
 import * as SpiderMath from './controllers/spider/SpiderMath';
 import { SpiderController } from './controllers/spider/SpiderController';
 import { DEFAULT_SPIDER_CONFIG } from './controllers/spider/SpiderTypes';
@@ -22,7 +22,7 @@ import { BrushGenerator, type Brush } from './BrushGenerator';
 import { PipelineConfig, DEFAULT_CONFIG } from './PipelineConfig';
 import { TerrainSurgery, type CarvedLoop, type CarveSurgeryResult, type StitchedLoop } from './TerrainSurgery';
 import { AncestryModal } from './AncestryModal';
-import type { CanonicalLoop, OptVertex } from './terrain/CanonicalGeometry';
+import type { CanonicalLoop, OptVertex, ReusePlanDebug } from './terrain/CanonicalGeometry';
 
 /**
  * Test spider math functions (Phase 1 verification)
@@ -175,6 +175,8 @@ class CarvableCaves {
   private stitchedLoops: StitchedLoop[] = [];
   private carveRegion: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
   private showStitchedLoops = false;
+  private showReusePlan = false;
+  private reusePlanDebug: ReusePlanDebug[] = [];
 
   // Ancestry visualization modal
   private ancestryModal: AncestryModal;
@@ -602,7 +604,8 @@ class CarvableCaves {
 
     // Render (simple circle player with direction indicator)
     // Map carved loops to renderer format (isNew → inside for color coding)
-    const carvedLoopsForRender = this.showStitchedLoops
+    const hideCarveDebug = this.showStitchedLoops || this.showReusePlan;
+    const carvedLoopsForRender = hideCarveDebug
       ? []
       : this.carvedLoops.map(l => ({
           loop: l.loop,
@@ -611,7 +614,16 @@ class CarvableCaves {
           inside: l.isNew // New loops (from dirty region) = inside = warm colors
         }));
     const stitchedToRender = this.showStitchedLoops ? this.stitchedLoops : [];
-    const carveRegionForRender = this.showStitchedLoops ? null : this.carveRegion;
+    const carveRegionForRender = hideCarveDebug ? null : this.carveRegion;
+
+    this.renderer.showReusePlan = this.showReusePlan;
+    this.renderer.showReusePreview = false;
+    if (this.showReusePlan) {
+      this.renderer.setReusePlanDebug(this.reusePlanDebug);
+    }
+    // Hide canonical vertex dots/labels during reuse plan to keep overlay clean
+    this.renderer.showCanonicalVertices = !this.showReusePlan;
+    this.renderer.showCanonicalLabels = !this.showReusePlan;
 
     this.renderer.render(
       playerPos,
@@ -945,6 +957,9 @@ class CarvableCaves {
       false // false = carve (subtract density)
     );
 
+    // Reset reuse debug overlays for the new carve
+    this.clearReusePlanDebug();
+
     // Extract carved loops using terrain surgery (for visualization and future stitching)
     if (this.config.debugCaptureEnabled) {
       // Extract carved loops from dirty region using terrain surgery
@@ -1009,8 +1024,73 @@ class CarvableCaves {
       loops: this.stitchedLoops.map(l => ({ id: l.id, vertices: l.vertices.length }))
     });
 
+    // Hide any existing reuse overlay when returning to step 2
+    this.showReusePlan = false;
+    this.renderer.showReusePlan = false;
+    this.renderer.showReusePreview = false;
+
     // Run ancestry probe for boundary arcs
     this.probeStitchedLoopAncestry();
+  }
+
+  /**
+   * Enable reuse plan overlay (step 3) after stitching has run.
+   * Hides stitched loop overlays for a clean view.
+   */
+  enableReusePlanDebugOverlay(): void {
+    console.log('[Carving] Reuse plan step requested', {
+      debugCaptureEnabled: this.config.debugCaptureEnabled,
+      stitchedLoopsCount: this.stitchedLoops.length,
+      reusePlans: this.reusePlanDebug.length
+    });
+
+    if (!this.config.debugCaptureEnabled) {
+      console.warn('[Carving] Debug capture is disabled - cannot show reuse plan');
+      return;
+    }
+
+    if (this.stitchedLoops.length === 0) {
+      console.warn('[Carving] No stitched loops to display - perform a carve operation first');
+      return;
+    }
+
+    if (this.reusePlanDebug.length === 0) {
+      console.warn('[Carving] Reuse plan not available - run the stitch step first');
+      return;
+    }
+
+    this.showStitchedLoops = false;
+    this.showReusePlan = true;
+    this.renderer.showReusePlan = true;
+    this.renderer.showReusePreview = false; // No preview loop in step 3 visualization
+    this.renderer.setReusePlanDebug(this.reusePlanDebug);
+    console.log('[Carving] ✓ Step 3 enabled: showing reuse plan overlay', {
+      reusePlanCount: this.reusePlanDebug.length
+    });
+  }
+
+  /**
+   * Advance the carving debug step using a single control:
+   * - Step 1 (default) → Step 2 (stitched loops)
+   * - Step 2 → Step 3 (reuse plan)
+   * - Step 3 → back to Step 1 visuals
+   */
+  advanceCarvingDebugStep(): void {
+    if (!this.showStitchedLoops && !this.showReusePlan) {
+      this.enableStitchedDebugOverlay();
+      return;
+    }
+
+    if (this.showStitchedLoops) {
+      this.enableReusePlanDebugOverlay();
+      return;
+    }
+
+    if (this.showReusePlan) {
+      console.log('[Carving] Returning to base view from step 3');
+      this.clearReusePlanDebug();
+      this.showStitchedLoops = false;
+    }
   }
 
   /**
@@ -1022,6 +1102,9 @@ class CarvableCaves {
     if (!this.config.debugCaptureEnabled) {
       return;
     }
+
+    // Reset reuse debug state before rebuilding it from the latest stitch results
+    this.clearReusePlanDebug();
 
     for (const stitchedLoop of this.stitchedLoops) {
       // Find the cold segment (boundary-arc piece)
@@ -1130,27 +1213,6 @@ class CarvableCaves {
       // === Dirty vs Clean Classification ===
       // Build dirty ID set from canonical path with 1-ID buffer on each side
       const dirtyIds = new Set(canonicalPath);
-
-      // Add buffer IDs (1 ID before start and 1 ID after end)
-      // Reuse startId and endId already extracted above
-      const startIndex = canonicalLoop.vertices.findIndex(v => v.id === startId);
-      const endIndex = canonicalLoop.vertices.findIndex(v => v.id === endId);
-
-      if (startIndex !== -1) {
-        // Add ID before start (with cyclic wrap for closed loops)
-        const prevIndex = canonicalLoop.isClosed
-          ? (startIndex - 1 + canonicalLoop.vertices.length) % canonicalLoop.vertices.length
-          : Math.max(0, startIndex - 1);
-        dirtyIds.add(canonicalLoop.vertices[prevIndex].id);
-      }
-
-      if (endIndex !== -1) {
-        // Add ID after end (with cyclic wrap for closed loops)
-        const nextIndex = canonicalLoop.isClosed
-          ? (endIndex + 1) % canonicalLoop.vertices.length
-          : Math.min(canonicalLoop.vertices.length - 1, endIndex + 1);
-        dirtyIds.add(canonicalLoop.vertices[nextIndex].id);
-      }
 
       // Classify all optVertices as dirty or clean
       const dirtyOptVertices: Array<{
@@ -1356,81 +1418,92 @@ class CarvableCaves {
 
         console.log('[ReuseDebug] Reuse plan', reusePlan);
 
-        // === Build Debug Preview ===
-        // Convert stitched loop vertices to OptVertex[] (simple conversion with placeholder ancestry)
-        const stitchedOpt: OptVertex[] = stitchedLoop.vertices.map((v, i) => ({
-          x: v.x,
-          y: v.y,
-          canonStartId: -1, // Placeholder - not used in preview
-          canonEndId: -1
-        }));
+        // === Build Step 3 segments (no preview loop) ===
+        const segments: ReusePlanDebug['segments'] = [];
 
-        // Build reuse preview
-        const preview = this.buildReusePreview(canonicalLoop, stitchedOpt, reusePlan);
+        // Find the stitched loop we are inspecting (new canonical space)
+        const stitchedLoopForPlan = this.stitchedLoops.find(l => l.id === reusePlan.stitchedLoopId);
+        if (!stitchedLoopForPlan) {
+          console.warn('[ReuseDebug] Could not find stitched loop for reuse plan', {
+            stitchedLoopId: reusePlan.stitchedLoopId
+          });
+          continue;
+        }
 
-        // Store on canonical loop for renderer
-        canonicalLoop.debugPreviewOptVertices = preview;
+        // Use the warm segment ancestry (new carved arc) as the dirty span on the stitched loop
+        const stitchedWarmSegment = stitchedLoopForPlan.segments.find(seg => seg.isNew);
+
+        if (!stitchedWarmSegment) {
+          console.warn('[ReuseDebug] Could not find warm segment on stitched loop for dirty block', {
+            stitchedLoopId: stitchedLoopForPlan.id
+          });
+          continue;
+        }
+
+        const [dirtyStartIdx, dirtyEndIdx] = stitchedWarmSegment.vertexRange;
+        const verts = stitchedLoopForPlan.vertices;
+        const loopLength = verts.length;
+
+        // Helper to slice inclusive range (non-wrapping here because stitched vertexRange is contiguous)
+        const sliceRange = (start: number, end: number): Vec2[] => {
+          if (loopLength === 0) return [];
+          const s = Math.max(0, Math.min(start, loopLength - 1));
+          const e = Math.max(0, Math.min(end, loopLength - 1));
+          if (e < s) return [];
+          return verts.slice(s, e + 1);
+        };
+
+        // Dirty block (canonical space of stitched loop)
+        const dirtyPoints = sliceRange(dirtyStartIdx, dirtyEndIdx);
+        if (dirtyPoints.length >= 2) {
+          segments.push({ kind: 'dirty', points: dirtyPoints });
+        }
+
+        // Head: from 0 to just before dirty start
+        const headEnd = dirtyStartIdx - 1;
+        if (headEnd >= 0) {
+          const head = sliceRange(0, headEnd);
+          if (head.length >= 2) {
+            segments.push({ kind: 'reuse-head', points: head });
+          }
+        }
+
+        // Tail: from just after dirty end to end of loop
+        const tailStart = dirtyEndIdx + 1;
+        if (tailStart <= loopLength - 1) {
+          const tail = sliceRange(tailStart, loopLength - 1);
+          if (tail.length >= 2) {
+            segments.push({ kind: 'reuse-tail', points: tail });
+          }
+        }
+
+        console.log('[Step3] Drawing reuse/dirty preview in STITCHED canonical space', {
+          stitchedLoopId: stitchedLoopForPlan.id,
+          canonicalVertexCount: verts.length,
+          dirtyVertexRange: [dirtyStartIdx, dirtyEndIdx]
+        });
+
+        const reusePlanDebug: ReusePlanDebug = {
+          sourceCanonicalId: reusePlan.sourceCanonicalId,
+          stitchedLoopId: reusePlan.stitchedLoopId,
+          // Draw order: dirty under reused spans so cyan stays visible
+          segments
+        };
+
+        canonicalLoop.debugReusePlan = reusePlanDebug;
+        this.reusePlanDebug.push(reusePlanDebug);
 
         console.log('[ReuseDebug] Preview built', {
           sourceCanonicalId: reusePlan.sourceCanonicalId,
           originalOptCount: canonicalLoop.optVertices.length,
-          previewOptCount: preview.length,
           reuseHead: reusePlan.reuseHead,
           dirtyBlock: reusePlan.dirtyBlocks[0],
           reuseTail: reusePlan.reuseTail
         });
       }
     }
-  }
 
-  /**
-   * Build a debug preview of reused optimized vertices with stitched middle section.
-   * This is for visualization only - does not affect physics.
-   */
-  private buildReusePreview(
-    canonicalLoop: CanonicalLoop,
-    stitchedOpt: OptVertex[],
-    reusePlan: {
-      blockCount: number;
-      dirtyBlocks: Array<{
-        optStartIndex: number;
-        optEndIndex: number;
-        optLength: number;
-        runCanonStartId: number;
-        runCanonEndId: number;
-      }>;
-      reuseHead: { startOpt: number; endOpt: number; length: number } | null;
-      reuseTail: { startOpt: number; endOpt: number; length: number } | null;
-    }
-  ): OptVertex[] {
-    // If no dirty blocks, just return original optVertices
-    if (reusePlan.blockCount === 0 || !canonicalLoop.optVertices) {
-      return canonicalLoop.optVertices || [];
-    }
-
-    // For now, assume single dirty block (first entry)
-    const oldOpt = canonicalLoop.optVertices;
-    const { reuseHead, reuseTail } = reusePlan;
-
-    // Build preview: head + stitched + tail
-    const preview: OptVertex[] = [];
-
-    // Add head if valid
-    if (reuseHead && reuseHead.length > 0) {
-      const head = oldOpt.slice(reuseHead.startOpt, reuseHead.endOpt + 1);
-      preview.push(...head);
-    }
-
-    // Add stitched middle section (entire stitchedOpt array)
-    preview.push(...stitchedOpt);
-
-    // Add tail if valid
-    if (reuseTail && reuseTail.length > 0) {
-      const tail = oldOpt.slice(reuseTail.startOpt, reuseTail.endOpt + 1);
-      preview.push(...tail);
-    }
-
-    return preview;
+    this.renderer.setReusePlanDebug(this.reusePlanDebug);
   }
 
   /**
@@ -1622,6 +1695,24 @@ class CarvableCaves {
     return result;
   }
 
+  private clearReusePlanDebug(): void {
+    this.showReusePlan = false;
+    this.reusePlanDebug = [];
+    if (this.renderer) {
+      this.renderer.showReusePlan = false;
+      this.renderer.showReusePreview = false;
+      this.renderer.setReusePlanDebug([]);
+    }
+    const canonicalLoops = this.remeshManager?.getCanonicalLoops?.();
+    if (canonicalLoops && canonicalLoops.length > 0) {
+      for (const loop of canonicalLoops) {
+        loop.debugPreviewOptVertices = undefined;
+        loop.debugReusePlan = undefined;
+      }
+      this.renderer.setCanonicalLoops(canonicalLoops);
+    }
+  }
+
   /**
    * Calculate distance from point to line segment
    */
@@ -1652,19 +1743,19 @@ class CarvableCaves {
   }
 }
 
-// Button to advance debug step (show stitched loops after inspecting raw carve)
-function createStitchStepButton(app: CarvableCaves, enabled: boolean) {
+// Button to advance debug step (Step 2 stitched → Step 3 reuse plan)
+function createStitchStepButton(app: CarvableCaves, enabled: boolean): HTMLButtonElement | null {
   console.log('[UI] createStitchStepButton called', { enabled });
 
   if (!enabled) {
     console.log('[UI] Stitch button NOT created - debug capture disabled');
-    return;
+    return null;
   }
 
   const stitchButton = document.createElement('button');
   stitchButton.id = 'stitch-button';
   stitchButton.textContent = '▶️';
-  stitchButton.title = 'Show stitched loops (next debug step)';
+  stitchButton.title = 'Advance carving debug (Step 2 → Step 3)';
   stitchButton.style.cssText = `
     position: fixed;
     right: 16px;
@@ -1685,7 +1776,7 @@ function createStitchStepButton(app: CarvableCaves, enabled: boolean) {
 
   stitchButton.addEventListener('click', () => {
     console.log('[UI] Stitch button CLICKED!');
-    app.enableStitchedDebugOverlay();
+    app.advanceCarvingDebugStep();
   });
 
   stitchButton.addEventListener('touchstart', (e) => {
@@ -1698,7 +1789,7 @@ function createStitchStepButton(app: CarvableCaves, enabled: boolean) {
     e.preventDefault();
     stitchButton.style.transform = 'scale(1)';
     // Manually trigger the action on touchend
-    app.enableStitchedDebugOverlay();
+    app.advanceCarvingDebugStep();
   });
 
   stitchButton.addEventListener('mousedown', () => {
@@ -1710,6 +1801,8 @@ function createStitchStepButton(app: CarvableCaves, enabled: boolean) {
     id: stitchButton.id,
     parent: stitchButton.parentElement?.tagName
   });
+
+  return stitchButton;
 }
 
 (window as any).APP_LOADED = true;

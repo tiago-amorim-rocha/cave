@@ -1,7 +1,7 @@
 import type { Camera } from './Camera';
 import type { Vec2 } from './types';
 import type { DensityField } from './DensityField';
-import type { CanonicalLoop, OptVertex, PhysicsSegment } from './terrain/CanonicalGeometry';
+import type { CanonicalLoop, OptVertex, PhysicsSegment, ReusePlanDebug } from './terrain/CanonicalGeometry';
 
 /**
  * Ball rendering data
@@ -100,8 +100,10 @@ export class Renderer {
   public showDirtyAABB: boolean = true; // Enabled by default for local update debugging
   public showRebuiltChains: boolean = true; // Enabled by default for local update debugging
   public showLoopPatching: boolean = false; // Legacy loop patching debug visualization (disabled by default)
-  public showReusePreview: boolean = true; // Show reuse plan preview overlay (enabled by default)
+  public showReusePreview: boolean = false; // Legacy preview (disabled for step 3)
+  public showReusePlan: boolean = false; // Step 3 visualization toggle
   private debugHoverWorld: { x: number; y: number } | null = null; // For hover labels
+  private reusePlanDebug: ReusePlanDebug[] = [];
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -192,6 +194,13 @@ export class Renderer {
    */
   setSegmentDebugData(data: Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }>): void {
     this.segmentDebugData = data;
+  }
+
+  /**
+   * Set reuse plan debug data (step 3 overlay)
+   */
+  setReusePlanDebug(reusePlan: ReusePlanDebug[]): void {
+    this.reusePlanDebug = reusePlan;
   }
 
   /**
@@ -471,8 +480,10 @@ export class Renderer {
       // Draw polylines
       this.drawPolylines(width, height);
 
-      // Draw reuse preview overlay (debugging)
-      if (this.showReusePreview) {
+      // Draw reuse plan overlay (debugging)
+      if (this.showReusePlan && this.reusePlanDebug.length > 0) {
+        this.drawReusePlanOverlay(width, height, this.reusePlanDebug);
+      } else if (this.showReusePreview) {
         this.drawReusePreview(width, height);
       }
 
@@ -915,6 +926,57 @@ export class Renderer {
   }
 
   /**
+   * Draw reuse plan overlay (step 3) with distinct styles for dirty vs reused spans
+   */
+  private drawReusePlanOverlay(canvasWidth: number, canvasHeight: number, reusePlan: ReusePlanDebug[]): void {
+    this.ctx.save();
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+
+    for (const plan of reusePlan) {
+      for (const seg of plan.segments) {
+        if (!seg.points || seg.points.length < 2) {
+          continue;
+        }
+
+        this.ctx.setLineDash([]); // reset before styling
+        this.ctx.beginPath();
+        const firstScreen = this.camera.worldToScreen(seg.points[0].x, seg.points[0].y, canvasWidth, canvasHeight);
+        this.ctx.moveTo(firstScreen.x, firstScreen.y);
+
+        for (let i = 1; i < seg.points.length; i++) {
+          const screen = this.camera.worldToScreen(seg.points[i].x, seg.points[i].y, canvasWidth, canvasHeight);
+          this.ctx.lineTo(screen.x, screen.y);
+        }
+
+        switch (seg.kind) {
+          case 'dirty':
+            this.ctx.lineWidth = 4;
+            this.ctx.setLineDash([]); // solid
+            this.ctx.strokeStyle = '#ff00ff'; // magenta for re-optimize span
+            break;
+          case 'reuse-head':
+            this.ctx.lineWidth = 3;
+            this.ctx.setLineDash([]);
+            this.ctx.strokeStyle = '#0066ff'; // blue for head reuse span
+            break;
+          case 'reuse-tail':
+            this.ctx.lineWidth = 3;
+            this.ctx.setLineDash([]);
+            this.ctx.strokeStyle = '#00ffff'; // cyan for tail reuse span
+            break;
+        }
+
+        this.ctx.stroke();
+        this.ctx.setLineDash([]);
+      }
+    }
+
+    this.ctx.restore();
+    this.drawReusePlanLegend();
+  }
+
+  /**
    * Draw reuse preview overlay for canonical loops with debugPreviewOptVertices
    */
   private drawReusePreview(canvasWidth: number, canvasHeight: number): void {
@@ -958,6 +1020,70 @@ export class Renderer {
     }
 
     this.ctx.restore();
+  }
+
+  /**
+   * Legend for reuse plan overlay
+   */
+  private drawReusePlanLegend(): void {
+    this.ctx.save();
+    const padding = 10;
+    const text = 'Step 3: DIRTY = magenta dashed, HEAD = blue, TAIL = cyan';
+    this.ctx.font = '12px monospace';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'top';
+
+    const metrics = this.ctx.measureText(text);
+    const boxWidth = metrics.width + padding * 2;
+    const boxHeight = 24;
+
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    this.ctx.fillRect(padding, padding, boxWidth, boxHeight);
+
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillText(text, padding * 1.2, padding + 6);
+    this.ctx.restore();
+  }
+
+  /**
+   * Compute midpoint (in screen space) along a polyline by arc length
+   */
+  private getPolylineMidpoint(points: Vec2[], canvasWidth: number, canvasHeight: number): { x: number; y: number } | null {
+    if (points.length === 0) return null;
+    if (points.length === 1) {
+      const p = this.camera.worldToScreen(points[0].x, points[0].y, canvasWidth, canvasHeight);
+      return { x: p.x, y: p.y };
+    }
+
+    // Total length
+    let total = 0;
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i].x - points[i - 1].x;
+      const dy = points[i].y - points[i - 1].y;
+      total += Math.hypot(dx, dy);
+    }
+
+    const target = total / 2;
+    let accum = 0;
+
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i].x - points[i - 1].x;
+      const dy = points[i].y - points[i - 1].y;
+      const segLen = Math.hypot(dx, dy);
+      if (accum + segLen >= target) {
+        const t = (target - accum) / segLen;
+        const wx = points[i - 1].x + t * dx;
+        const wy = points[i - 1].y + t * dy;
+        const screen = this.camera.worldToScreen(wx, wy, canvasWidth, canvasHeight);
+        return { x: screen.x, y: screen.y };
+      }
+      accum += segLen;
+    }
+
+    // Fallback to last point
+    const last = points[points.length - 1];
+    const screen = this.camera.worldToScreen(last.x, last.y, canvasWidth, canvasHeight);
+    return { x: screen.x, y: screen.y };
   }
 
   /**

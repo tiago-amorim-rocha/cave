@@ -1,22 +1,41 @@
-[22:14:56] LOG: [RemeshManager] remesh() start
-[22:14:56] LOG: [FullHeal] ⏱️ Marching Squares: 2.90ms (generated 1 raw loops)
-[22:14:56] LOG: [FullHeal] ⏱️ Clean loops: 0.20ms (283 → 242 vertices)
-[22:14:56] LOG: [FullHeal] ⏱️ Classification: 0.30ms (1 valid loops, 0 deleted)
-[22:14:56] LOG: [Phase1] Created canonical loops {
-  "count": 1,
-  "totalVertices": 242,
+[23:24:20] LOG: [UI] createStitchStepButton called {
+  "enabled": true
+}
+[23:24:20] LOG: [UI] Stitch button created and added to DOM {
+  "id": "stitch-button",
+  "parent": "BODY"
+}
+[23:24:20] LOG: [RemeshManager] remesh() start
+[23:24:20] LOG: [FullHeal] ⏱️ Marching Squares: 3.30ms (generated 3 raw loops)
+[23:24:20] LOG: [FullHeal] ⏱️ Clean loops: 0.20ms (299 → 260 vertices)
+[23:24:20] LOG: [FullHeal] ⏱️ Classification: 0.30ms (3 valid loops, 0 deleted)
+[23:24:20] LOG: [Phase1] Created canonical loops {
+  "count": 3,
+  "totalVertices": 260,
   "aabbs": [
     {
       "minX": 2.4375,
-      "minY": 7.125,
-      "maxX": 29.5,
+      "minY": 2.375,
+      "maxX": 29.625,
       "maxY": 29.5625
+    },
+    {
+      "minX": 2.8125,
+      "minY": 7.8125,
+      "maxX": 5.6875,
+      "maxY": 10
+    },
+    {
+      "minX": 20,
+      "minY": 12.6875,
+      "maxX": 21.25,
+      "maxY": 13.75
     }
   ]
 }
-[22:14:56] LOG: [Chaikin] Iteration 0 {
-  "before": 242,
-  "after": 485,
+[23:24:20] LOG: [Chaikin] Iteration 0 {
+  "before": 232,
+  "after": 465,
   "sampleAncestry": [
     [
       0,
@@ -40,9 +59,9 @@
     ]
   ]
 }
-[22:14:56] LOG: [Chaikin] Iteration 1 {
-  "before": 485,
-  "after": 971,
+[23:24:20] LOG: [Chaikin] Iteration 1 {
+  "before": 465,
+  "after": 931,
   "sampleAncestry": [
     [
       0,
@@ -66,1058 +85,1177 @@
     ]
   ]
 }
-[22:14:56] LOG: [Visvalingam] Simplification {
-  "before": 971,
-  "after": 251,
-  "reduction": "74.2%",
+[23:24:20] LOG: [Chaikin] Iteration 0 {
+  "before": 19,
+  "after": 39,
+  "sampleAncestry": [
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      3
+    ]
+  ]
+}
+[23:24:20] LOG: [Chaikin] Iteration 1 {
+  "before": 39,
+  "after": 79,
+  "sampleAncestry": [
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      2
+    ],
+    [
+      0,
+      2
+    ],
+    [
+      1,
+      2
+    ]
+  ]
+}
+[23:24:20] LOG: [Chaikin] Iteration 0 {
+  "before": 9,
+  "after": 19,
+  "sampleAncestry": [
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      3
+    ]
+  ]
+}
+[23:24:20] LOG: [Chaikin] Iteration 1 {
+  "before": 19,
+  "after": 39,
+  "sampleAncestry": [
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      2
+    ],
+    [
+      0,
+      2
+    ],
+    [
+      1,
+      2
+    ]
+  ]
+}
+[23:24:20] LOG: [Visvalingam] Simplification {
+  "before": 1049,
+  "after": 265,
+  "reduction": "74.7%",
   "ancestryPreserved": true
 }
-[22:14:56] LOG: [FullHeal] ⏱️ Optimization: 10.50ms (242 → 251 vertices)
-[22:14:56] LOG: [FullHeal]    ↳ cleanLoop: 0.20ms
-[22:14:56] LOG: [FullHeal]    ↳ Chaikin smoothing (expand): 0.70ms
-[22:14:56] LOG: [FullHeal]    ↳ Post-simplification (reduce): 9.60ms
-[22:14:56] LOG: [FullHeal] Canonical loops: 1 (251 verts total)
-[22:14:56] LOG: [FullHeal] Calling physicsEngine.setCanonicalTerrainLoops
-[22:14:56] LOG: [Box2DEngine] setCanonicalTerrainLoops called with 1 loops
-[22:14:56] LOG: [Box2DEngine] Building terrain body for loop #0, verts=251, reverse=true
-[22:14:56] LOG: [Box2DEngine] Loop 2: built 16 segments (verts=251)
-[22:14:56] LOG: [Box2DEngine]  Segment 0 {
+[23:24:20] LOG: [FullHeal] ⏱️ Optimization: 13.40ms (260 → 265 vertices)
+[23:24:20] LOG: [FullHeal]    ↳ cleanLoop: 0.20ms
+[23:24:20] LOG: [FullHeal]    ↳ Chaikin smoothing (expand): 1.10ms
+[23:24:20] LOG: [FullHeal]    ↳ Post-simplification (reduce): 12.10ms
+[23:24:20] LOG: [FullHeal] Stored optVertices on canonical loops for ancestry {
+  "count": 3,
+  "withOptVertices": 3
+}
+[23:24:20] LOG: [ReuseDebug] Canonical vs Opt IDs for sourceCanonicalId: 2 {
+  "sourceCanonicalId": 2,
+  "canonicalVertexIdSamples": [
+    252,
+    253,
+    254,
+    255,
+    256,
+    257,
+    258,
+    259,
+    260
+  ],
+  "optAncestryIdSamples": [
+    {
+      "canonStartId": 0,
+      "canonEndId": 1
+    },
+    {
+      "canonStartId": 0,
+      "canonEndId": 2
+    },
+    {
+      "canonStartId": 1,
+      "canonEndId": 2
+    },
+    {
+      "canonStartId": 1,
+      "canonEndId": 3
+    },
+    {
+      "canonStartId": 2,
+      "canonEndId": 3
+    },
+    {
+      "canonStartId": 2,
+      "canonEndId": 4
+    },
+    {
+      "canonStartId": 3,
+      "canonEndId": 4
+    },
+    {
+      "canonStartId": 3,
+      "canonEndId": 5
+    },
+    {
+      "canonStartId": 4,
+      "canonEndId": 5
+    },
+    {
+      "canonStartId": 4,
+      "canonEndId": 6
+    }
+  ]
+}
+[23:24:20] LOG: [FullHeal] Canonical loops: 3 (265 verts total)
+[23:24:20] LOG: [FullHeal] Calling physicsEngine.setCanonicalTerrainLoops
+[23:24:20] LOG: [Box2DEngine] setCanonicalTerrainLoops called with 3 loops
+[23:24:20] LOG: [Box2DEngine] Building terrain body for loop #0, verts=220, reverse=true
+[23:24:20] LOG: [Box2DEngine] Loop 4: built 16 segments (verts=220)
+[23:24:20] LOG: [Box2DEngine]  Segment 0 {
   "id": 1,
   "optStart": 0,
-  "optEnd": 19,
+  "optEnd": 1,
   "canonRange": [
-    0,
-    14
+    1,
+    20
   ]
 }
-[22:14:56] LOG: [Box2DEngine]  Segment 1 {
+[23:24:20] LOG: [Box2DEngine]  Segment 1 {
   "id": 2,
-  "optStart": 19,
-  "optEnd": 41,
+  "optStart": 1,
+  "optEnd": 10,
   "canonRange": [
-    13,
-    29
+    19,
+    34
   ]
 }
-[22:14:56] LOG: [Box2DEngine]  Segment 2 {
+[23:24:20] LOG: [Box2DEngine]  Segment 2 {
   "id": 3,
-  "optStart": 41,
-  "optEnd": 61,
+  "optStart": 10,
+  "optEnd": 31,
   "canonRange": [
-    27,
-    41
+    32,
+    47
   ]
 }
-[22:14:56] LOG: [Box2DEngine]  Segment 3 {
+[23:24:20] LOG: [Box2DEngine]  Segment 3 {
   "id": 4,
-  "optStart": 61,
-  "optEnd": 85,
+  "optStart": 31,
+  "optEnd": 50,
   "canonRange": [
-    40,
-    54
+    46,
+    61
   ]
 }
-[22:14:56] LOG: [Box2DEngine]  Segment 4 {
+[23:24:20] LOG: [Box2DEngine]  Segment 4 {
   "id": 5,
-  "optStart": 85,
-  "optEnd": 104,
+  "optStart": 50,
+  "optEnd": 52,
   "canonRange": [
-    52,
-    68
+    59,
+    74
   ]
 }
-[22:14:56] LOG: [Box2DEngine]  Segment 5 {
+[23:24:20] LOG: [Box2DEngine]  Segment 5 {
   "id": 6,
-  "optStart": 104,
-  "optEnd": 125,
+  "optStart": 52,
+  "optEnd": 64,
   "canonRange": [
-    67,
-    82
+    73,
+    90
   ]
 }
-[22:14:56] LOG: [Box2DEngine]  Segment 6 {
+[23:24:20] LOG: [Box2DEngine]  Segment 6 {
   "id": 7,
-  "optStart": 125,
-  "optEnd": 144,
+  "optStart": 64,
+  "optEnd": 76,
   "canonRange": [
-    81,
-    95
+    89,
+    105
   ]
 }
-[22:14:56] LOG: [Box2DEngine]  Segment 7 {
+[23:24:20] LOG: [Box2DEngine]  Segment 7 {
   "id": 8,
-  "optStart": 144,
-  "optEnd": 165,
+  "optStart": 76,
+  "optEnd": 82,
   "canonRange": [
-    93,
-    108
+    104,
+    119
   ]
 }
-[22:14:56] LOG: [Box2DEngine]  Segment 8 {
+[23:24:20] LOG: [Box2DEngine]  Segment 8 {
   "id": 9,
-  "optStart": 165,
-  "optEnd": 187,
+  "optStart": 82,
+  "optEnd": 102,
   "canonRange": [
-    107,
-    123
+    117,
+    133
   ]
 }
-[22:14:56] LOG: [Box2DEngine]  Segment 9 {
+[23:24:20] LOG: [Box2DEngine]  Segment 9 {
   "id": 10,
-  "optStart": 187,
-  "optEnd": 191,
+  "optStart": 102,
+  "optEnd": 119,
   "canonRange": [
-    121,
-    137
+    132,
+    147
   ]
 }
-[22:14:56] LOG: [Box2DEngine]  Segment 10 {
+[23:24:20] LOG: [Box2DEngine]  Segment 10 {
   "id": 11,
-  "optStart": 191,
+  "optStart": 119,
+  "optEnd": 140,
+  "canonRange": [
+    146,
+    160
+  ]
+}
+[23:24:20] LOG: [Box2DEngine]  Segment 11 {
+  "id": 12,
+  "optStart": 140,
+  "optEnd": 159,
+  "canonRange": [
+    159,
+    174
+  ]
+}
+[23:24:20] LOG: [Box2DEngine]  Segment 12 {
+  "id": 13,
+  "optStart": 159,
+  "optEnd": 177,
+  "canonRange": [
+    173,
+    186
+  ]
+}
+[23:24:20] LOG: [Box2DEngine]  Segment 13 {
+  "id": 14,
+  "optStart": 177,
+  "optEnd": 199,
+  "canonRange": [
+    185,
+    200
+  ]
+}
+[23:24:20] LOG: [Box2DEngine]  Segment 14 {
+  "id": 15,
+  "optStart": 199,
   "optEnd": 212,
   "canonRange": [
-    136,
-    151
+    199,
+    221
   ]
 }
-[22:14:56] LOG: [Box2DEngine]  Segment 11 {
-  "id": 12,
-  "optStart": 212,
-  "optEnd": 232,
-  "canonRange": [
-    149,
-    165
-  ]
-}
-[22:14:56] LOG: [Box2DEngine]  Segment 12 {
-  "id": 13,
-  "optStart": 232,
-  "optEnd": 238,
-  "canonRange": [
-    163,
-    178
-  ]
-}
-[22:14:56] LOG: [Box2DEngine]  Segment 13 {
-  "id": 14,
-  "optStart": 238,
-  "optEnd": 242,
-  "canonRange": [
-    177,
-    196
-  ]
-}
-[22:14:56] LOG: [Box2DEngine]  Segment 14 {
-  "id": 15,
-  "optStart": 242,
-  "optEnd": 246,
-  "canonRange": [
-    195,
-    239
-  ]
-}
-[22:14:56] LOG: [Box2DEngine]  Segment 15 {
+[23:24:20] LOG: [Box2DEngine]  Segment 15 {
   "id": 16,
-  "optStart": 246,
-  "optEnd": 250,
+  "optStart": 212,
+  "optEnd": 219,
   "canonRange": [
     0,
-    241
+    231
   ]
 }
-[22:14:56] LOG: [Box2D] Created segments {
-  "loopId": 2,
+[23:24:20] LOG: [Box2D] Created segments {
+  "loopId": 4,
   "segmentCount": 16,
   "segments": [
     {
       "id": 1,
       "optRange": [
         0,
-        19
+        1
       ],
       "canonRange": [
-        0,
-        14
+        1,
+        20
       ]
     },
     {
       "id": 2,
       "optRange": [
-        19,
-        41
+        1,
+        10
       ],
       "canonRange": [
-        13,
-        29
+        19,
+        34
       ]
     },
     {
       "id": 3,
       "optRange": [
-        41,
-        61
+        10,
+        31
       ],
       "canonRange": [
-        27,
-        41
+        32,
+        47
       ]
     },
     {
       "id": 4,
       "optRange": [
-        61,
-        85
+        31,
+        50
       ],
       "canonRange": [
-        40,
-        54
+        46,
+        61
       ]
     },
     {
       "id": 5,
       "optRange": [
-        85,
-        104
+        50,
+        52
       ],
       "canonRange": [
-        52,
-        68
+        59,
+        74
       ]
     },
     {
       "id": 6,
       "optRange": [
-        104,
-        125
+        52,
+        64
       ],
       "canonRange": [
-        67,
-        82
+        73,
+        90
       ]
     },
     {
       "id": 7,
       "optRange": [
-        125,
-        144
+        64,
+        76
       ],
       "canonRange": [
-        81,
-        95
+        89,
+        105
       ]
     },
     {
       "id": 8,
       "optRange": [
-        144,
-        165
+        76,
+        82
       ],
       "canonRange": [
-        93,
-        108
+        104,
+        119
       ]
     },
     {
       "id": 9,
       "optRange": [
-        165,
-        187
+        82,
+        102
       ],
       "canonRange": [
-        107,
-        123
+        117,
+        133
       ]
     },
     {
       "id": 10,
       "optRange": [
-        187,
-        191
+        102,
+        119
       ],
       "canonRange": [
-        121,
-        137
+        132,
+        147
       ]
     },
     {
       "id": 11,
       "optRange": [
-        191,
-        212
+        119,
+        140
       ],
       "canonRange": [
-        136,
-        151
+        146,
+        160
       ]
     },
     {
       "id": 12,
       "optRange": [
-        212,
-        232
+        140,
+        159
       ],
       "canonRange": [
-        149,
-        165
+        159,
+        174
       ]
     },
     {
       "id": 13,
       "optRange": [
-        232,
-        238
+        159,
+        177
       ],
       "canonRange": [
-        163,
-        178
+        173,
+        186
       ]
     },
     {
       "id": 14,
       "optRange": [
-        238,
-        242
+        177,
+        199
       ],
       "canonRange": [
-        177,
-        196
+        185,
+        200
       ]
     },
     {
       "id": 15,
       "optRange": [
-        242,
-        246
+        199,
+        212
       ],
       "canonRange": [
-        195,
-        239
+        199,
+        221
       ]
     },
     {
       "id": 16,
       "optRange": [
-        246,
-        250
+        212,
+        219
       ],
       "canonRange": [
         0,
-        241
+        231
       ]
     }
   ]
 }
-[22:14:56] LOG: [Box2DEngine] setCanonicalTerrainLoops finished; terrainBodies=1
-[22:14:56] LOG: [FullHeal] physicsEngine.setCanonicalTerrainLoops completed
-[22:14:56] LOG: [FullHeal] ⏱️ Box2D colliders: 6.70ms (created 1 bodies)
-[22:14:56] LOG: [FullHeal] 🎯 TOTAL (physics only): 21.90ms
-[22:14:56] LOG: [FullHeal] Updating renderer polylines with 1 loops
-[22:14:56] LOG: [Renderer] updatePolylines: 1 polylines
-[22:14:56] LOG: [Renderer] first polyline length=251
-[22:14:56] LOG: [FullHeal] Render polylines: 1, first lengths=251
-[22:14:56] LOG: [FullHeal] ⏱️ Re-render walls: 0.40ms
-[22:14:56] LOG: [FullHeal] 🎯 TOTAL (including rendering): 22.30ms
-[22:14:59] LOG: Module loaded successfully!
-[22:15:01] LOG: [TerrainSurgery] New marching squares results {
-  "total": 2,
-  "open": 2,
+[23:24:20] LOG: [Box2DEngine] Building terrain body for loop #1, verts=28, reverse=false
+[23:24:20] LOG: [Box2DEngine] Loop 5: built 2 segments (verts=28)
+[23:24:20] LOG: [Box2DEngine]  Segment 0 {
+  "id": 17,
+  "optStart": 0,
+  "optEnd": 23,
+  "canonRange": [
+    0,
+    16
+  ]
+}
+[23:24:20] LOG: [Box2DEngine]  Segment 1 {
+  "id": 18,
+  "optStart": 23,
+  "optEnd": 27,
+  "canonRange": [
+    0,
+    18
+  ]
+}
+[23:24:20] LOG: [Box2D] Created segments {
+  "loopId": 5,
+  "segmentCount": 2,
+  "segments": [
+    {
+      "id": 17,
+      "optRange": [
+        0,
+        23
+      ],
+      "canonRange": [
+        0,
+        16
+      ]
+    },
+    {
+      "id": 18,
+      "optRange": [
+        23,
+        27
+      ],
+      "canonRange": [
+        0,
+        18
+      ]
+    }
+  ]
+}
+[23:24:20] LOG: [Box2DEngine] Building terrain body for loop #2, verts=17, reverse=false
+[23:24:20] LOG: [Box2DEngine] Loop 6: built 1 segments (verts=17)
+[23:24:20] LOG: [Box2DEngine]  Segment 0 {
+  "id": 19,
+  "optStart": 0,
+  "optEnd": 16,
+  "canonRange": [
+    0,
+    8
+  ]
+}
+[23:24:20] LOG: [Box2D] Created segments {
+  "loopId": 6,
+  "segmentCount": 1,
+  "segments": [
+    {
+      "id": 19,
+      "optRange": [
+        0,
+        16
+      ],
+      "canonRange": [
+        0,
+        8
+      ]
+    }
+  ]
+}
+[23:24:20] LOG: [Box2DEngine] setCanonicalTerrainLoops finished; terrainBodies=3
+[23:24:20] LOG: [FullHeal] physicsEngine.setCanonicalTerrainLoops completed
+[23:24:20] LOG: [FullHeal] ⏱️ Box2D colliders: 5.00ms (created 3 bodies)
+[23:24:20] LOG: [FullHeal] 🎯 TOTAL (physics only): 23.90ms
+[23:24:20] LOG: [FullHeal] Updating renderer polylines with 3 loops
+[23:24:20] LOG: [Renderer] updatePolylines: 3 polylines
+[23:24:20] LOG: [Renderer] first polyline length=220
+[23:24:20] LOG: [FullHeal] Render polylines: 3, first lengths=220,28,17
+[23:24:20] LOG: [FullHeal] ⏱️ Re-render walls: 0.30ms
+[23:24:20] LOG: [FullHeal] 🎯 TOTAL (including rendering): 24.30ms
+[23:24:23] LOG: [TerrainSurgery] New marching squares results (post-warm-cleanup) {
+  "total": 1,
+  "open": 1,
   "closed": 0,
   "carveAABB": {
-    "minX": 22,
-    "minY": 17,
-    "maxX": 28,
-    "maxY": 23
+    "minX": 11.5,
+    "minY": 10.5,
+    "maxX": 17.5,
+    "maxY": 16.5
   }
 }
-[22:15:01] LOG: [TerrainSurgery]   Open#0 endpoints {
+[23:24:23] LOG: [TerrainSurgery]   Open#0 endpoints {
   "a": {
-    "x": 22.3125,
-    "y": 16.5
+    "x": 17.5,
+    "y": 16.25
   },
   "b": {
-    "x": 21.5,
-    "y": 19.5
+    "x": 11.5,
+    "y": 13.1875
   },
-  "length": "3.524",
+  "length": "7.950",
   "aabb": {
-    "minX": 21.5,
-    "minY": 16.5,
-    "maxX": 22.3125,
-    "maxY": 19.5
+    "minX": 11.5,
+    "minY": 13.1875,
+    "maxX": 17.5,
+    "maxY": 16.25
   }
 }
-[22:15:01] LOG: [TerrainSurgery]   Open#1 endpoints {
-  "a": {
-    "x": 24.5,
-    "y": 16.5
-  },
-  "b": {
-    "x": 28.5,
-    "y": 19.3125
-  },
-  "length": "5.111",
-  "aabb": {
-    "minX": 24.5,
-    "minY": 16.5,
-    "maxX": 28.5,
-    "maxY": 19.3125
-  }
-}
-[22:15:01] LOG: [TerrainSurgery] Boundary arc clipping (all pieces) {
+[23:24:23] LOG: [TerrainSurgery] Boundary arc clipping (all pieces) {
   "carveRegion": {
-    "minX": 22,
-    "minY": 17,
-    "maxX": 28,
-    "maxY": 23
+    "minX": 11.5,
+    "minY": 10.5,
+    "maxX": 17.5,
+    "maxY": 16.5
   },
-  "canonicalCount": 1,
+  "canonicalCount": 3,
   "candidateCanonicals": [
     {
       "id": 1,
-      "verts": 242,
+      "verts": 232,
       "aabb": {
         "minX": 2.4375,
-        "minY": 7.125,
-        "maxX": 29.5,
+        "minY": 2.375,
+        "maxX": 29.625,
         "maxY": 29.5625
       }
     }
   ],
   "fullyInside": []
 }
-[22:15:01] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
+[23:24:23] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
   "canonicalLoopId": 1,
-  "arcLength": "45.042",
-  "arcVerts": 91,
-  "outsideFrac": "0.98",
+  "arcLength": "84.827",
+  "arcVerts": 170,
+  "outsideFrac": "1.00",
   "pieceIdx": 0,
   "start": {
-    "id": 242,
+    "id": 1,
     "x": 2.5,
-    "y": 7.5,
+    "y": 2.4375,
     "segmentA": null,
     "segmentB": null
   },
   "end": {
-    "id": 90,
-    "x": 22.5,
-    "y": 19.1875,
+    "id": 170,
+    "x": 17.5,
+    "y": 16.25,
     "segmentA": null,
     "segmentB": null
   }
 }
-[22:15:01] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
+[23:24:23] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
   "canonicalLoopId": 1,
-  "arcLength": "5.587",
-  "arcVerts": 13,
-  "outsideFrac": "0.52",
+  "arcLength": "24.494",
+  "arcVerts": 50,
+  "outsideFrac": "0.98",
   "pieceIdx": 1,
   "start": {
-    "id": 100,
-    "x": 22.5,
-    "y": 18,
+    "id": 184,
+    "x": 11.5,
+    "y": 13.1875,
     "segmentA": null,
     "segmentB": null
   },
   "end": {
-    "id": 112,
-    "x": 25,
-    "y": 17.25,
-    "segmentA": null,
-    "segmentB": null
-  }
-}
-[22:15:01] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
-  "canonicalLoopId": 1,
-  "arcLength": "61.800",
-  "arcVerts": 127,
-  "outsideFrac": "0.99",
-  "pieceIdx": 2,
-  "start": {
-    "id": 118,
-    "x": 27.5,
-    "y": 18.5,
-    "segmentA": null,
-    "segmentB": null
-  },
-  "end": {
-    "id": 2,
+    "id": 1,
     "x": 2.5,
-    "y": 7.125,
+    "y": 2.4375,
     "segmentA": null,
     "segmentB": null
   }
 }
-[22:15:01] LOG: [TerrainSurgery] Boundary arc summary {
+[23:24:23] LOG: [TerrainSurgery] Boundary arc summary {
   "canonicalLoopId": 1,
   "pieces": [
     {
       "pieceIdx": 0,
-      "startCanon": 241,
-      "endCanon": 89,
-      "verts": 91,
-      "length": "45.042",
+      "startCanon": 0,
+      "endCanon": 169,
+      "verts": 170,
+      "length": "84.827",
       "endpoints": [
         {
-          "id": 242,
+          "id": 1,
           "x": 2.5,
-          "y": 7.5,
+          "y": 2.4375,
           "segmentA": null,
           "segmentB": null
         },
         {
-          "id": 90,
-          "x": 22.5,
-          "y": 19.1875,
+          "id": 170,
+          "x": 17.5,
+          "y": 16.25,
+          "segmentA": null,
+          "segmentB": null
+        }
+      ],
+      "outsideFrac": "1.00"
+    },
+    {
+      "pieceIdx": 1,
+      "startCanon": 183,
+      "endCanon": 0,
+      "verts": 50,
+      "length": "24.494",
+      "endpoints": [
+        {
+          "id": 184,
+          "x": 11.5,
+          "y": 13.1875,
+          "segmentA": null,
+          "segmentB": null
+        },
+        {
+          "id": 1,
+          "x": 2.5,
+          "y": 2.4375,
           "segmentA": null,
           "segmentB": null
         }
       ],
       "outsideFrac": "0.98"
-    },
-    {
-      "pieceIdx": 1,
-      "startCanon": 99,
-      "endCanon": 111,
-      "verts": 13,
-      "length": "5.587",
-      "endpoints": [
-        {
-          "id": 100,
-          "x": 22.5,
-          "y": 18,
-          "segmentA": null,
-          "segmentB": null
-        },
-        {
-          "id": 112,
-          "x": 25,
-          "y": 17.25,
-          "segmentA": null,
-          "segmentB": null
-        }
-      ],
-      "outsideFrac": "0.52"
-    },
-    {
-      "pieceIdx": 2,
-      "startCanon": 117,
-      "endCanon": 1,
-      "verts": 127,
-      "length": "61.800",
-      "endpoints": [
-        {
-          "id": 118,
-          "x": 27.5,
-          "y": 18.5,
-          "segmentA": null,
-          "segmentB": null
-        },
-        {
-          "id": 2,
-          "x": 2.5,
-          "y": 7.125,
-          "segmentA": null,
-          "segmentB": null
-        }
-      ],
-      "outsideFrac": "0.99"
     }
   ]
 }
-[22:15:01] LOG: [TerrainSurgery] Step1 loop snapshot {
-  "total": 5,
+[23:24:23] LOG: [TerrainSurgery] Step2 boundary merge (outer arcs) {
+  "mergeDistance": "0.0938",
+  "before": 2,
+  "after": 1,
+  "mergedPairs": 1
+}
+[23:24:23] LOG: [TerrainSurgery] Step2 loop snapshot {
+  "total": 2,
   "loops": [
     {
       "id": 1,
       "type": "new-open",
       "closed": false,
-      "verts": 9,
-      "length": "3.524",
+      "verts": 18,
+      "length": "7.950",
       "endpoints": [
         {
-          "x": 22.3125,
-          "y": 16.5
+          "x": 17.5,
+          "y": 16.25
         },
         {
-          "x": 21.5,
-          "y": 19.5
+          "x": 11.5,
+          "y": 13.1875
         }
       ]
     },
     {
       "id": 2,
-      "type": "new-open",
+      "type": "boundary-arc",
       "closed": false,
-      "verts": 15,
-      "length": "5.111",
+      "verts": 219,
+      "length": "109.321",
       "endpoints": [
         {
-          "x": 24.5,
-          "y": 16.5
+          "id": 170,
+          "x": 17.5,
+          "y": 16.25,
+          "segmentA": null,
+          "segmentB": null
         },
         {
-          "x": 28.5,
-          "y": 19.3125
+          "id": 184,
+          "x": 11.5,
+          "y": 13.1875,
+          "segmentA": null,
+          "segmentB": null
+        }
+      ],
+      "canonicalEndpointIds": [
+        170,
+        184
+      ],
+      "sourceCanonicalId": 1
+    }
+  ]
+}
+[23:24:23] LOG: [Stitch] Starting simple endpoint-matching stitcher
+[23:24:23] LOG: [Stitch] Endpoint index built {
+  "totalSegments": 2,
+  "uniquePositions": 2,
+  "endpointDetails": [
+    {
+      "key": "280,260",
+      "count": 2,
+      "segments": [
+        {
+          "loopId": 1,
+          "endpointIndex": 0,
+          "type": "warm"
+        },
+        {
+          "loopId": 2,
+          "endpointIndex": 0,
+          "type": "cold"
         }
       ]
     },
     {
-      "id": 3,
-      "type": "boundary-arc",
-      "closed": false,
-      "verts": 91,
-      "length": "45.042",
-      "endpoints": [
+      "key": "184,211",
+      "count": 2,
+      "segments": [
         {
-          "x": 2.5,
-          "y": 7.5
+          "loopId": 1,
+          "endpointIndex": 1,
+          "type": "warm"
         },
         {
-          "x": 22.5,
-          "y": 19.1875
+          "loopId": 2,
+          "endpointIndex": 1,
+          "type": "cold"
         }
-      ],
-      "canonicalEndpoints": [
-        241,
-        89
-      ],
-      "sourceCanonicalId": 1
+      ]
+    }
+  ]
+}
+[23:24:23] LOG: [Stitch] Starting walk {
+  "startLoopId": 1,
+  "startEndpointIndex": 0,
+  "startPos": {
+    "x": 17.5,
+    "y": 16.25
+  },
+  "startKey": "280,260",
+  "type": "warm"
+}
+[23:24:23] LOG: [Stitch] ✓ Closed loop formed with ancestry {
+  "stitchedId": 1,
+  "segments": 2,
+  "vertices": 236,
+  "segmentIds": [
+    {
+      "id": 1,
+      "type": "warm"
     },
     {
-      "id": 4,
-      "type": "boundary-arc",
-      "closed": false,
-      "verts": 13,
-      "length": "5.793",
-      "endpoints": [
-        {
-          "x": 22.5,
-          "y": 18
-        },
-        {
-          "x": 24.5,
-          "y": 16.5
-        }
-      ],
-      "canonicalEndpoints": [
-        99,
-        111
-      ],
-      "sourceCanonicalId": 1
+      "id": 2,
+      "type": "cold"
+    }
+  ],
+  "ancestrySegments": 2
+}
+[23:24:23] LOG: [Stitch] Summary {
+  "inputLoops": 2,
+  "outputStitched": 1,
+  "visitedSegments": 2,
+  "orphanedSegments": 0
+}
+[23:24:23] LOG: [TerrainSurgery] Extracted carved loops {
+  "newLoops": 1,
+  "boundaryArcs": 1,
+  "totalLoops": 2,
+  "mergedPairs": 0,
+  "boundaryMergedPairs": 1
+}
+[23:24:23] LOG: [Stitch] Result {
+  "stitchedCount": 1,
+  "stitchedLengths": [
+    236
+  ]
+}
+[23:24:23] LOG: [Carving] Surgery complete: {
+  "newLoops": 1,
+  "boundaryArcs": 1,
+  "totalLoops": 2,
+  "boundaryMergedPairs": 1
+}
+[23:24:23] LOG: Module loaded successfully!
+[23:24:25] LOG: [UI] Stitch button MOUSEDOWN!
+[23:24:25] LOG: [UI] Stitch button CLICKED!
+[23:24:25] LOG: [Carving] Debug step button clicked {
+  "debugCaptureEnabled": true,
+  "currentShowStitchedLoops": false,
+  "stitchedLoopsCount": 1,
+  "carvedLoopsCount": 2
+}
+[23:24:25] LOG: [Carving] ✓ Step 2 enabled: showing stitched loops {
+  "stitchedCount": 1,
+  "loops": [
+    {
+      "id": 1,
+      "vertices": 236
+    }
+  ]
+}
+[23:24:25] LOG: [ReuseDebug] Boundary arc ancestry {
+  "stitchedLoopId": 1,
+  "sourceCanonicalId": 1,
+  "canonicalEndpointIds": [
+    170,
+    184
+  ],
+  "canonicalPathLength": 15,
+  "canonicalPathIdSamples": [
+    170,
+    171,
+    172,
+    173,
+    174,
+    175,
+    176,
+    177,
+    178,
+    179
+  ],
+  "optVertexCountTotal": 220,
+  "optVertexCountOverlapping": 26,
+  "overlappingOptVertexSamples": [
+    {
+      "index": 152,
+      "canonStartId": 169,
+      "canonEndId": 170
     },
     {
-      "id": 5,
-      "type": "boundary-arc",
-      "closed": false,
-      "verts": 127,
-      "length": "61.800",
-      "endpoints": [
-        {
-          "x": 27.5,
-          "y": 18.5
-        },
-        {
-          "x": 2.5,
-          "y": 7.125
-        }
-      ],
-      "canonicalEndpoints": [
-        117,
-        1
-      ],
-      "sourceCanonicalId": 1
-    }
-  ]
-}
-[22:15:01] LOG: [Stitch] Start walk {
-  "startLoopId": 3,
-  "startIdx": 1,
-  "startPos": {
-    "x": 22.5,
-    "y": 19.1875
-  },
-  "canonicalIndex": 89
-}
-[22:15:01] LOG: [Stitch] No neighbor found {
-  "pos": {
-    "x": 2.5,
-    "y": 7.5
-  },
-  "comingFrom": {
-    "loopId": 3,
-    "endpointIndex": 0,
-    "isNew": false,
-    "sourceCanonicalId": 1,
-    "canonicalIndex": 241
-  },
-  "available": []
-}
-[22:15:01] LOG: [Stitch] Dead end {
-  "atPos": {
-    "x": 2.5,
-    "y": 7.5
-  },
-  "currentLoopId": 3,
-  "loopsUsed": [
-    3
-  ],
-  "neighbors": [
+      "index": 153,
+      "canonStartId": 170,
+      "canonEndId": 171
+    },
     {
-      "loopId": 3,
-      "canon": 241
-    }
-  ]
-}
-[22:15:01] LOG: [Stitch] Start walk {
-  "startLoopId": 3,
-  "startIdx": 0,
-  "startPos": {
-    "x": 2.5,
-    "y": 7.5
-  },
-  "canonicalIndex": 241
-}
-[22:15:01] LOG: [Stitch] No neighbor found {
-  "pos": {
-    "x": 22.5,
-    "y": 19.1875
-  },
-  "comingFrom": {
-    "loopId": 3,
-    "endpointIndex": 1,
-    "isNew": false,
-    "sourceCanonicalId": 1,
-    "canonicalIndex": 89
-  },
-  "available": []
-}
-[22:15:01] LOG: [Stitch] Dead end {
-  "atPos": {
-    "x": 22.5,
-    "y": 19.1875
-  },
-  "currentLoopId": 3,
-  "loopsUsed": [
-    3
-  ],
-  "neighbors": [
+      "index": 154,
+      "canonStartId": 170,
+      "canonEndId": 172
+    },
     {
-      "loopId": 3,
-      "canon": 89
-    }
-  ]
-}
-[22:15:01] LOG: [Stitch] Start walk {
-  "startLoopId": 4,
-  "startIdx": 0,
-  "startPos": {
-    "x": 22.5,
-    "y": 18
-  },
-  "canonicalIndex": 99
-}
-[22:15:01] LOG: [Stitch] No neighbor found {
-  "pos": {
-    "x": 28.5,
-    "y": 19.3125
-  },
-  "comingFrom": {
-    "loopId": 2,
-    "endpointIndex": 1,
-    "isNew": true
-  },
-  "available": []
-}
-[22:15:01] LOG: [Stitch] Dead end {
-  "atPos": {
-    "x": 28.5,
-    "y": 19.3125
-  },
-  "currentLoopId": 2,
-  "loopsUsed": [
-    4,
-    2
-  ],
-  "neighbors": [
+      "index": 155,
+      "canonStartId": 171,
+      "canonEndId": 172
+    },
     {
-      "loopId": 2
-    }
-  ]
-}
-[22:15:01] LOG: [Stitch] Start walk {
-  "startLoopId": 4,
-  "startIdx": 1,
-  "startPos": {
-    "x": 24.5,
-    "y": 16.5
-  },
-  "canonicalIndex": 111
-}
-[22:15:01] LOG: [Stitch] No neighbor found {
-  "pos": {
-    "x": 22.5,
-    "y": 18
-  },
-  "comingFrom": {
-    "loopId": 4,
-    "endpointIndex": 0,
-    "isNew": false,
-    "sourceCanonicalId": 1,
-    "canonicalIndex": 99
-  },
-  "available": []
-}
-[22:15:01] LOG: [Stitch] Dead end {
-  "atPos": {
-    "x": 22.5,
-    "y": 18
-  },
-  "currentLoopId": 4,
-  "loopsUsed": [
-    4
-  ],
-  "neighbors": [
+      "index": 156,
+      "canonStartId": 171,
+      "canonEndId": 173
+    },
     {
-      "loopId": 4,
-      "canon": 99
-    }
-  ]
-}
-[22:15:01] LOG: [Stitch] Start walk {
-  "startLoopId": 5,
-  "startIdx": 0,
-  "startPos": {
-    "x": 27.5,
-    "y": 18.5
-  },
-  "canonicalIndex": 117
-}
-[22:15:01] LOG: [Stitch] No neighbor found {
-  "pos": {
-    "x": 2.5,
-    "y": 7.125
-  },
-  "comingFrom": {
-    "loopId": 5,
-    "endpointIndex": 1,
-    "isNew": false,
-    "sourceCanonicalId": 1,
-    "canonicalIndex": 1
-  },
-  "available": []
-}
-[22:15:01] LOG: [Stitch] Dead end {
-  "atPos": {
-    "x": 2.5,
-    "y": 7.125
-  },
-  "currentLoopId": 5,
-  "loopsUsed": [
-    5
-  ],
-  "neighbors": [
+      "index": 157,
+      "canonStartId": 172,
+      "canonEndId": 173
+    },
     {
-      "loopId": 5,
-      "canon": 1
-    }
-  ]
-}
-[22:15:01] LOG: [Stitch] Start walk {
-  "startLoopId": 5,
-  "startIdx": 1,
-  "startPos": {
-    "x": 2.5,
-    "y": 7.125
-  },
-  "canonicalIndex": 1
-}
-[22:15:01] LOG: [Stitch] No neighbor found {
-  "pos": {
-    "x": 27.5,
-    "y": 18.5
-  },
-  "comingFrom": {
-    "loopId": 5,
-    "endpointIndex": 0,
-    "isNew": false,
-    "sourceCanonicalId": 1,
-    "canonicalIndex": 117
-  },
-  "available": []
-}
-[22:15:01] LOG: [Stitch] Dead end {
-  "atPos": {
-    "x": 27.5,
-    "y": 18.5
-  },
-  "currentLoopId": 5,
-  "loopsUsed": [
-    5
-  ],
-  "neighbors": [
+      "index": 158,
+      "canonStartId": 172,
+      "canonEndId": 174
+    },
     {
-      "loopId": 5,
-      "canon": 117
+      "index": 159,
+      "canonStartId": 173,
+      "canonEndId": 174
+    },
+    {
+      "index": 160,
+      "canonStartId": 173,
+      "canonEndId": 175
+    },
+    {
+      "index": 161,
+      "canonStartId": 174,
+      "canonEndId": 175
     }
   ]
 }
-[22:15:01] LOG: [Stitch] Start walk {
-  "startLoopId": 1,
-  "startIdx": 0,
-  "startPos": {
-    "x": 22.3125,
-    "y": 16.5
+[23:24:25] LOG: [ReuseDebug] Dirty vs clean optVertices {
+  "stitchedLoopId": 1,
+  "sourceCanonicalId": 1,
+  "canonicalEndpointIds": [
+    170,
+    184
+  ],
+  "canonicalPathLength": 15,
+  "dirtyIdCount": 15,
+  "optVertexCountTotal": 220,
+  "dirtyOptCount": 25,
+  "cleanOptCount": 195,
+  "dirtyOptSamples": [
+    {
+      "index": 152,
+      "canonStartId": 169,
+      "canonEndId": 170
+    },
+    {
+      "index": 153,
+      "canonStartId": 170,
+      "canonEndId": 171
+    },
+    {
+      "index": 154,
+      "canonStartId": 170,
+      "canonEndId": 172
+    },
+    {
+      "index": 155,
+      "canonStartId": 171,
+      "canonEndId": 172
+    },
+    {
+      "index": 156,
+      "canonStartId": 171,
+      "canonEndId": 173
+    },
+    {
+      "index": 157,
+      "canonStartId": 172,
+      "canonEndId": 173
+    },
+    {
+      "index": 158,
+      "canonStartId": 172,
+      "canonEndId": 174
+    },
+    {
+      "index": 159,
+      "canonStartId": 173,
+      "canonEndId": 174
+    },
+    {
+      "index": 160,
+      "canonStartId": 173,
+      "canonEndId": 175
+    },
+    {
+      "index": 161,
+      "canonStartId": 174,
+      "canonEndId": 175
+    }
+  ],
+  "cleanOptSamples": [
+    {
+      "index": 0,
+      "canonStartId": 1,
+      "canonEndId": 2
+    },
+    {
+      "index": 1,
+      "canonStartId": 19,
+      "canonEndId": 20
+    },
+    {
+      "index": 2,
+      "canonStartId": 19,
+      "canonEndId": 21
+    },
+    {
+      "index": 3,
+      "canonStartId": 20,
+      "canonEndId": 22
+    },
+    {
+      "index": 4,
+      "canonStartId": 21,
+      "canonEndId": 22
+    },
+    {
+      "index": 5,
+      "canonStartId": 29,
+      "canonEndId": 30
+    },
+    {
+      "index": 6,
+      "canonStartId": 29,
+      "canonEndId": 31
+    },
+    {
+      "index": 7,
+      "canonStartId": 30,
+      "canonEndId": 32
+    },
+    {
+      "index": 8,
+      "canonStartId": 31,
+      "canonEndId": 32
+    },
+    {
+      "index": 9,
+      "canonStartId": 31,
+      "canonEndId": 33
+    }
+  ]
+}
+[23:24:25] LOG: [ReuseDebug] Dirty opt blocks {
+  "stitchedLoopId": 1,
+  "sourceCanonicalId": 1,
+  "canonicalEndpointIds": [
+    170,
+    184
+  ],
+  "canonicalPathLength": 15,
+  "blockCount": 1,
+  "blocks": [
+    {
+      "optStartIndex": 152,
+      "optEndIndex": 176,
+      "optLength": 25,
+      "runCanonStartId": 169,
+      "runCanonEndId": 185
+    }
+  ]
+}
+[23:24:25] LOG: [ReuseDebug] Reuse plan {
+  "stitchedLoopId": 1,
+  "sourceCanonicalId": 1,
+  "canonicalEndpointIds": [
+    170,
+    184
+  ],
+  "optVertexCountTotal": 220,
+  "blockCount": 1,
+  "dirtyBlocks": [
+    {
+      "optStartIndex": 152,
+      "optEndIndex": 176,
+      "optLength": 25,
+      "runCanonStartId": 169,
+      "runCanonEndId": 185
+    }
+  ],
+  "reuseHead": {
+    "startOpt": 0,
+    "endOpt": 151,
+    "length": 152
+  },
+  "reuseTail": {
+    "startOpt": 177,
+    "endOpt": 219,
+    "length": 43
   }
 }
-[22:15:01] LOG: [Stitch] No neighbor found {
-  "pos": {
-    "x": 21.5,
-    "y": 19.5
+[23:24:25] LOG: [ReuseDebug] Preview built {
+  "sourceCanonicalId": 1,
+  "originalOptCount": 220,
+  "previewOptCount": 431,
+  "reuseHead": {
+    "startOpt": 0,
+    "endOpt": 151,
+    "length": 152
   },
-  "comingFrom": {
-    "loopId": 1,
-    "endpointIndex": 1,
-    "isNew": true
+  "dirtyBlock": {
+    "optStartIndex": 152,
+    "optEndIndex": 176,
+    "optLength": 25,
+    "runCanonStartId": 169,
+    "runCanonEndId": 185
   },
-  "available": []
-}
-[22:15:01] LOG: [Stitch] Dead end {
-  "atPos": {
-    "x": 21.5,
-    "y": 19.5
+  "reuseTail": {
+    "startOpt": 177,
+    "endOpt": 219,
+    "length": 43
   },
-  "currentLoopId": 1,
-  "loopsUsed": [
-    1
-  ],
-  "neighbors": [
-    {
-      "loopId": 1
-    }
-  ]
+  "dirtyStartIndexInPreview": 152,
+  "dirtyEndIndexInPreview": 387
 }
-[22:15:01] LOG: [Stitch] Start walk {
-  "startLoopId": 1,
-  "startIdx": 1,
-  "startPos": {
-    "x": 21.5,
-    "y": 19.5
-  }
+[23:24:26] LOG: [UI] Stitch button MOUSEDOWN!
+[23:24:26] LOG: [UI] Stitch button CLICKED!
+[23:24:26] LOG: [Carving] Reuse plan step requested {
+  "debugCaptureEnabled": true,
+  "stitchedLoopsCount": 1,
+  "reusePlans": 1
 }
-[22:15:01] LOG: [Stitch] No neighbor found {
-  "pos": {
-    "x": 22.3125,
-    "y": 16.5
-  },
-  "comingFrom": {
-    "loopId": 1,
-    "endpointIndex": 0,
-    "isNew": true
-  },
-  "available": []
-}
-[22:15:01] LOG: [Stitch] Dead end {
-  "atPos": {
-    "x": 22.3125,
-    "y": 16.5
-  },
-  "currentLoopId": 1,
-  "loopsUsed": [
-    1
-  ],
-  "neighbors": [
-    {
-      "loopId": 1
-    }
-  ]
-}
-[22:15:01] LOG: [Stitch] Start walk {
-  "startLoopId": 2,
-  "startIdx": 0,
-  "startPos": {
-    "x": 24.5,
-    "y": 16.5
-  }
-}
-[22:15:01] LOG: [Stitch] No neighbor found {
-  "pos": {
-    "x": 28.5,
-    "y": 19.3125
-  },
-  "comingFrom": {
-    "loopId": 2,
-    "endpointIndex": 1,
-    "isNew": true
-  },
-  "available": []
-}
-[22:15:01] LOG: [Stitch] Dead end {
-  "atPos": {
-    "x": 28.5,
-    "y": 19.3125
-  },
-  "currentLoopId": 2,
-  "loopsUsed": [
-    2
-  ],
-  "neighbors": [
-    {
-      "loopId": 2
-    }
-  ]
-}
-[22:15:01] LOG: [Stitch] Start walk {
-  "startLoopId": 2,
-  "startIdx": 1,
-  "startPos": {
-    "x": 28.5,
-    "y": 19.3125
-  }
-}
-[22:15:01] LOG: [Stitch] No neighbor found {
-  "pos": {
-    "x": 22.5,
-    "y": 18
-  },
-  "comingFrom": {
-    "loopId": 4,
-    "endpointIndex": 0,
-    "isNew": false,
-    "sourceCanonicalId": 1,
-    "canonicalIndex": 99
-  },
-  "available": []
-}
-[22:15:01] LOG: [Stitch] Dead end {
-  "atPos": {
-    "x": 22.5,
-    "y": 18
-  },
-  "currentLoopId": 4,
-  "loopsUsed": [
-    2,
-    4
-  ],
-  "neighbors": [
-    {
-      "loopId": 4,
-      "canon": 99
-    }
-  ]
-}
-[22:15:01] LOG: [TerrainSurgery] Extracted carved loops {
-  "newLoops": 2,
-  "boundaryArcs": 3,
-  "totalLoops": 5,
-  "mergedPairs": 0
-}
-[22:15:01] LOG: [Stitch] Result {
-  "stitchedCount": 0,
-  "stitchedLengths": []
-}
-[22:15:01] LOG: [Carving] Surgery complete: {
-  "newLoops": 2,
-  "boundaryArcs": 3,
-  "totalLoops": 5
+[23:24:26] LOG: [Carving] ✓ Step 3 enabled: showing reuse plan overlay {
+  "reusePlanCount": 1
 }
