@@ -384,70 +384,74 @@ function extractColdOptSegment(
     totalOptVertices: canonLoop.optVertices.length
   });
 
-  // ====== DEBUG LOGGING FOR COLD SEGMENT DIRECTION ANALYSIS ======
+  // ====== ARC SELECTION BASED ON STITCHED SEGMENT LENGTH ======
 
-  // 1. Log canonical endpoint IDs (loop-local indices)
-  console.log('[Step4][Cold] canonical endpoints', {
-    startCanonId: startLoopIndex,
-    endCanonId: endLoopIndex
+  // Compute stitched segment length for comparison
+  const stitchedSegmentLength = segment.vertexRange[1] - segment.vertexRange[0];
+
+  // Compute forward arc length (startOptIdx -> endOptIdx in positive direction)
+  const forwardArcLength = (endOptIdx >= startOptIdx)
+    ? (endOptIdx - startOptIdx)
+    : (canonLoop.optVertices.length - startOptIdx + endOptIdx);
+
+  // Compute backward arc length (startOptIdx -> endOptIdx in negative direction)
+  const backwardArcLength = (startOptIdx >= endOptIdx)
+    ? (startOptIdx - endOptIdx)
+    : (canonLoop.optVertices.length - endOptIdx + startOptIdx);
+
+  // Choose arc whose length is closest to stitched segment length
+  const forwardDiff = Math.abs(forwardArcLength - stitchedSegmentLength);
+  const backwardDiff = Math.abs(backwardArcLength - stitchedSegmentLength);
+
+  const useForwardArc = forwardDiff <= backwardDiff;
+
+  console.log('[Step4][Cold] Arc selection', {
+    stitchedSegmentLength,
+    forwardArc: {
+      length: forwardArcLength,
+      diff: forwardDiff
+    },
+    backwardArc: {
+      length: backwardArcLength,
+      diff: backwardDiff
+    },
+    chosen: useForwardArc ? 'forward' : 'backward'
   });
 
-  // 2. Log opt-space indices found for both endpoints
-  console.log('[Step4][Cold] opt endpoint indices', {
-    startOptIdx,
-    endOptIdx,
-    totalOpt: canonLoop.optVertices.length
-  });
-
-  // 3. Compute and log forward/backward arc lengths in opt space
-  const forwardLength = (endOptIdx >= startOptIdx)
-    ? (endOptIdx - startOptIdx + 1)
-    : (canonLoop.optVertices.length - startOptIdx + endOptIdx + 1);
-
-  const backwardLength = (startOptIdx >= endOptIdx)
-    ? (startOptIdx - endOptIdx + 1)
-    : (canonLoop.optVertices.length - endOptIdx + startOptIdx + 1);
-
-  console.log('[Step4][Cold] arc options', {
-    forwardLength,
-    backwardLength
-  });
-
-  // 4. Log stitched cold segment length for comparison
-  const stitchedLength = segment.vertexRange[1] - segment.vertexRange[0] + 1;
-  console.log('[Step4][Cold] stitched segment length', { stitchedLength });
-
-  // 5. Summary of all debug data
-  console.log('[Step4][Cold] debug summary', {
-    startCanonId: startLoopIndex,
-    endCanonId: endLoopIndex,
-    startOptIdx,
-    endOptIdx,
-    forwardLength,
-    backwardLength,
-    stitchedLength
-  });
-
-  // ====== END DEBUG LOGGING ======
-
-  // Extract range (handle wrapping for closed loops)
+  // Extract the chosen arc
   const result: OptVertex[] = [];
 
-  if (endOptIdx >= startOptIdx) {
-    // Simple case: no wrapping
-    // Include start, exclude end (next segment's start will include it)
-    for (let i = startOptIdx; i < endOptIdx; i++) {
-      result.push({ ...canonLoop.optVertices[i] });
+  if (useForwardArc) {
+    // Forward arc: startOptIdx -> endOptIdx (positive direction)
+    if (endOptIdx >= startOptIdx) {
+      // No wrapping
+      for (let i = startOptIdx; i < endOptIdx; i++) {
+        result.push({ ...canonLoop.optVertices[i] });
+      }
+    } else {
+      // Wrapping forward
+      for (let i = startOptIdx; i < canonLoop.optVertices.length; i++) {
+        result.push({ ...canonLoop.optVertices[i] });
+      }
+      for (let i = 0; i < endOptIdx; i++) {
+        result.push({ ...canonLoop.optVertices[i] });
+      }
     }
   } else {
-    // Wrapping case: segment crosses loop boundary
-    // Go from startOptIdx to end of array
-    for (let i = startOptIdx; i < canonLoop.optVertices.length; i++) {
-      result.push({ ...canonLoop.optVertices[i] });
-    }
-    // Then from start of array to endOptIdx (exclusive)
-    for (let i = 0; i < endOptIdx; i++) {
-      result.push({ ...canonLoop.optVertices[i] });
+    // Backward arc: startOptIdx -> endOptIdx (negative direction)
+    if (startOptIdx >= endOptIdx) {
+      // No wrapping
+      for (let i = startOptIdx; i > endOptIdx; i--) {
+        result.push({ ...canonLoop.optVertices[i] });
+      }
+    } else {
+      // Wrapping backward
+      for (let i = startOptIdx; i >= 0; i--) {
+        result.push({ ...canonLoop.optVertices[i] });
+      }
+      for (let i = canonLoop.optVertices.length - 1; i > endOptIdx; i--) {
+        result.push({ ...canonLoop.optVertices[i] });
+      }
     }
   }
 
@@ -464,90 +468,9 @@ function extractColdOptSegment(
   // the "include start, exclude end" convention. The next segment will
   // include the end anchor as its start.
 
-  // ====== DENSE COLD SEGMENT DIAGNOSTICS ======
-
-  // Compute canonical ID paths (forward and backward around the loop)
-  const canonicalLoopSize = canonLoop.vertices.length;
-  const canonicalIdPathForward: number[] = [];
-  const canonicalIdPathBackward: number[] = [];
-
-  // Forward path: startLoopIndex -> endLoopIndex (positive direction)
-  let idx = startLoopIndex;
-  while (true) {
-    canonicalIdPathForward.push(idx);
-    if (idx === endLoopIndex) break;
-    idx = (idx + 1) % canonicalLoopSize;
-    if (canonicalIdPathForward.length > canonicalLoopSize) break; // Safety
-  }
-
-  // Backward path: startLoopIndex -> endLoopIndex (negative direction)
-  idx = startLoopIndex;
-  while (true) {
-    canonicalIdPathBackward.push(idx);
-    if (idx === endLoopIndex) break;
-    idx = (idx - 1 + canonicalLoopSize) % canonicalLoopSize;
-    if (canonicalIdPathBackward.length > canonicalLoopSize) break; // Safety
-  }
-
-  // Compute opt indices for both directions
-  const forwardArcOptIndices: number[] = [];
-  const backwardArcOptIndices: number[] = [];
-
-  // Forward arc in opt space (what the current code does)
-  if (endOptIdx >= startOptIdx) {
-    for (let i = startOptIdx; i < endOptIdx; i++) {
-      forwardArcOptIndices.push(i);
-    }
-  } else {
-    for (let i = startOptIdx; i < canonLoop.optVertices.length; i++) {
-      forwardArcOptIndices.push(i);
-    }
-    for (let i = 0; i < endOptIdx; i++) {
-      forwardArcOptIndices.push(i);
-    }
-  }
-
-  // Backward arc in opt space (going the other way)
-  if (startOptIdx >= endOptIdx) {
-    for (let i = startOptIdx; i > endOptIdx; i--) {
-      backwardArcOptIndices.push(i);
-    }
-  } else {
-    for (let i = startOptIdx; i >= 0; i--) {
-      backwardArcOptIndices.push(i);
-    }
-    for (let i = canonLoop.optVertices.length - 1; i > endOptIdx; i--) {
-      backwardArcOptIndices.push(i);
-    }
-  }
-
-  // Determine which direction was chosen
-  const chosenDirection = (endOptIdx >= startOptIdx) ? 'forward' : 'forward-wrapped';
-  const chosenOptIndicesLength = result.length;
-
-  // Stitched segment length
-  const stitchedSegmentLength = segment.vertexRange[1] - segment.vertexRange[0];
-
-  // Consolidated diagnostic log
-  console.log('[Step4][Cold-Debug]', {
-    stitchedLoopId,
-    segmentIndex,
-    'segment.vertexRange': segment.vertexRange,
-    canonicalEndpointIds: {
-      start: startLoopIndex,
-      end: endLoopIndex
-    },
-    canonicalIdPathForward,
-    canonicalIdPathBackward,
-    'forwardArc.optIndices': forwardArcOptIndices,
-    'forwardArc.length': forwardArcOptIndices.length,
-    'backwardArc.optIndices': backwardArcOptIndices,
-    'backwardArc.length': backwardArcOptIndices.length,
-    'chosen.direction': chosenDirection,
-    'chosen.optIndices.length': chosenOptIndicesLength,
-    stitchedSegmentLength,
-    'startAnchor.position': startAnchor.position,
-    'endAnchor.position': endAnchor.position
+  console.log('[Step4][Cold] Extraction complete', {
+    extractedVertexCount: result.length,
+    expectedLength: useForwardArc ? forwardArcLength : backwardArcLength
   });
 
   return result;
