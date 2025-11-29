@@ -2553,8 +2553,40 @@ export class Renderer {
   first: { x: ${first.x.toFixed(2)}, y: ${first.y.toFixed(2)} },
   last: { x: ${last.x.toFixed(2)}, y: ${last.y.toFixed(2)} }
 }`);
+
+        // EDGE LENGTH DETECTION: Find suspicious long edges (> 1m)
+        console.log(`[Render][Step4][EdgeDetect] Scanning segment ${segIdx} (${segment.kind}) for long edges...`);
+        let longEdgeCount = 0;
+        for (let i = 0; i < vertices.length - 1; i++) {
+          const v1 = vertices[i];
+          const v2 = vertices[i + 1];
+          const dx = v2.x - v1.x;
+          const dy = v2.y - v1.y;
+          const edgeLength = Math.sqrt(dx * dx + dy * dy);
+
+          if (edgeLength > 1.0) {
+            longEdgeCount++;
+            console.warn(`[Render][Step4][EdgeDetect] ⚠️ LONG EDGE DETECTED! {
+  segmentIndex: ${segIdx},
+  segmentKind: '${segment.kind}',
+  edgeIndex: ${i} (vertex ${i} → ${i + 1}),
+  edgeLength: ${edgeLength.toFixed(3)}m,
+  vertex[${i}]: { x: ${v1.x.toFixed(3)}, y: ${v1.y.toFixed(3)} },
+  vertex[${i + 1}]: { x: ${v2.x.toFixed(3)}, y: ${v2.y.toFixed(3)} },
+  delta: { dx: ${dx.toFixed(3)}, dy: ${dy.toFixed(3)} },
+  totalVerticesInSegment: ${vertices.length}
+}`);
+          }
+        }
+
+        if (longEdgeCount > 0) {
+          console.warn(`[Render][Step4][EdgeDetect] Segment ${segIdx} (${segment.kind}) has ${longEdgeCount} long edge(s) > 1m!`);
+        } else {
+          console.log(`[Render][Step4][EdgeDetect] Segment ${segIdx} (${segment.kind}) - all edges OK (< 1m)`);
+        }
       }
 
+      // Draw the segment with normal color
       this.ctx.beginPath();
       const first = this.camera.worldToScreen(vertices[0].x, vertices[0].y, canvasWidth, canvasHeight);
       this.ctx.moveTo(first.x, first.y);
@@ -2581,6 +2613,48 @@ export class Renderer {
 
       // DO NOT call closePath() for open segments
       this.ctx.stroke();
+
+      // VISUAL DEBUG: Highlight long edges (> 1m) in RED
+      for (let i = 0; i < vertices.length - 1; i++) {
+        const v1 = vertices[i];
+        const v2 = vertices[i + 1];
+        const dx = v2.x - v1.x;
+        const dy = v2.y - v1.y;
+        const edgeLength = Math.sqrt(dx * dx + dy * dy);
+
+        if (edgeLength > 1.0) {
+          // Draw this edge in bright red with thick line
+          this.ctx.save();
+          this.ctx.strokeStyle = '#FF0000';
+          this.ctx.lineWidth = 6;
+          this.ctx.globalAlpha = 0.8;
+          this.ctx.setLineDash([]);
+
+          const screen1 = this.camera.worldToScreen(v1.x, v1.y, canvasWidth, canvasHeight);
+          const screen2 = this.camera.worldToScreen(v2.x, v2.y, canvasWidth, canvasHeight);
+
+          this.ctx.beginPath();
+          this.ctx.moveTo(screen1.x, screen1.y);
+          this.ctx.lineTo(screen2.x, screen2.y);
+          this.ctx.stroke();
+
+          // Draw length label
+          const midX = (screen1.x + screen2.x) / 2;
+          const midY = (screen1.y + screen2.y) / 2;
+          this.ctx.font = 'bold 14px monospace';
+          this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          this.ctx.fillStyle = '#FFFFFF';
+          this.ctx.strokeStyle = '#000000';
+          this.ctx.lineWidth = 3;
+          const label = `${edgeLength.toFixed(2)}m`;
+          this.ctx.strokeText(label, midX, midY);
+          this.ctx.fillText(label, midX, midY);
+
+          this.ctx.restore();
+        }
+      }
+
       currentIndex += vertices.length;
     }
 
