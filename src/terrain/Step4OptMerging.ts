@@ -729,7 +729,18 @@ function optimizeWarmSegment(
 
   console.log('[Step4] Processing warm segment (optimization DISABLED)', {
     vertexRange: [startIdx, endIdx],
-    vertexCount: endIdx - startIdx
+    vertexCount: endIdx - startIdx,
+    startAnchor: {
+      stitchedIndex: startAnchor.stitchedIndex,
+      position: startAnchor.position,
+      source: startAnchor.source
+    },
+    endAnchor: {
+      stitchedIndex: endAnchor.stitchedIndex,
+      position: endAnchor.position,
+      source: endAnchor.source
+    },
+    totalStitchedVertices: stitchedVertices.length
   });
 
   // Extract warm vertices from stitched loop
@@ -738,6 +749,12 @@ function optimizeWarmSegment(
   for (let i = startIdx; i < endIdx; i++) {
     warmVerts.push({ ...stitchedVertices[i] });
   }
+
+  console.log('[Step4] Extracted warm vertices', {
+    extractedCount: warmVerts.length,
+    firstVertex: warmVerts[0],
+    lastVertex: warmVerts[warmVerts.length - 1]
+  });
 
   // Convert to OptVertex[] with fresh canonical IDs (no optimization)
   const result: OptVertex[] = warmVerts.map((v) => ({
@@ -749,11 +766,23 @@ function optimizeWarmSegment(
 
   // Snap first vertex to start anchor
   if (result.length > 0) {
+    const beforeSnap = { ...result[0] };
     result[0] = {
       ...result[0],
       x: startAnchor.position.x,
       y: startAnchor.position.y
     };
+
+    const snapDistance = Math.sqrt(
+      Math.pow(result[0].x - beforeSnap.x, 2) +
+      Math.pow(result[0].y - beforeSnap.y, 2)
+    );
+
+    console.log('[Step4] Snapped first vertex to start anchor', {
+      before: beforeSnap,
+      after: result[0],
+      snapDistance: snapDistance.toFixed(3)
+    });
   }
 
   // Note: We do NOT snap the last vertex to endAnchor (see cold extraction comment)
@@ -761,7 +790,11 @@ function optimizeWarmSegment(
   console.log('[Step4] Warm segment processed (no optimization)', {
     vertexCount: result.length,
     firstVertex: result[0],
-    lastVertex: result[result.length - 1]
+    lastVertex: result[result.length - 1],
+    allVertices: result.map((v, i) => ({
+      idx: i,
+      pos: [v.x.toFixed(3), v.y.toFixed(3)]
+    }))
   });
 
   return result;
