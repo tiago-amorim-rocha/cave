@@ -380,6 +380,52 @@ function extractColdOptSegment(
     totalOptVertices: canonLoop.optVertices.length
   });
 
+  // ====== DEBUG LOGGING FOR COLD SEGMENT DIRECTION ANALYSIS ======
+
+  // 1. Log canonical endpoint IDs (loop-local indices)
+  console.log('[Step4][Cold] canonical endpoints', {
+    startCanonId: startLoopIndex,
+    endCanonId: endLoopIndex
+  });
+
+  // 2. Log opt-space indices found for both endpoints
+  console.log('[Step4][Cold] opt endpoint indices', {
+    startOptIdx,
+    endOptIdx,
+    totalOpt: canonLoop.optVertices.length
+  });
+
+  // 3. Compute and log forward/backward arc lengths in opt space
+  const forwardLength = (endOptIdx >= startOptIdx)
+    ? (endOptIdx - startOptIdx + 1)
+    : (canonLoop.optVertices.length - startOptIdx + endOptIdx + 1);
+
+  const backwardLength = (startOptIdx >= endOptIdx)
+    ? (startOptIdx - endOptIdx + 1)
+    : (canonLoop.optVertices.length - endOptIdx + startOptIdx + 1);
+
+  console.log('[Step4][Cold] arc options', {
+    forwardLength,
+    backwardLength
+  });
+
+  // 4. Log stitched cold segment length for comparison
+  const stitchedLength = segment.vertexRange[1] - segment.vertexRange[0] + 1;
+  console.log('[Step4][Cold] stitched segment length', { stitchedLength });
+
+  // 5. Summary of all debug data
+  console.log('[Step4][Cold] debug summary', {
+    startCanonId: startLoopIndex,
+    endCanonId: endLoopIndex,
+    startOptIdx,
+    endOptIdx,
+    forwardLength,
+    backwardLength,
+    stitchedLength
+  });
+
+  // ====== END DEBUG LOGGING ======
+
   // Extract range (handle wrapping for closed loops)
   const result: OptVertex[] = [];
 
