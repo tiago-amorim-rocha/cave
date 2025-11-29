@@ -1,833 +1,400 @@
-[23:24:20] LOG: [UI] createStitchStepButton called {
-  "enabled": true
-}
-[23:24:20] LOG: [UI] Stitch button created and added to DOM {
-  "id": "stitch-button",
-  "parent": "BODY"
-}
-[23:24:20] LOG: [RemeshManager] remesh() start
-[23:24:20] LOG: [FullHeal] ⏱️ Marching Squares: 3.30ms (generated 3 raw loops)
-[23:24:20] LOG: [FullHeal] ⏱️ Clean loops: 0.20ms (299 → 260 vertices)
-[23:24:20] LOG: [FullHeal] ⏱️ Classification: 0.30ms (3 valid loops, 0 deleted)
-[23:24:20] LOG: [Phase1] Created canonical loops {
-  "count": 3,
-  "totalVertices": 260,
-  "aabbs": [
-    {
-      "minX": 2.4375,
-      "minY": 2.375,
-      "maxX": 29.625,
-      "maxY": 29.5625
-    },
-    {
-      "minX": 2.8125,
-      "minY": 7.8125,
-      "maxX": 5.6875,
-      "maxY": 10
-    },
-    {
-      "minX": 20,
-      "minY": 12.6875,
-      "maxX": 21.25,
-      "maxY": 13.75
-    }
-  ]
-}
-[23:24:20] LOG: [Chaikin] Iteration 0 {
-  "before": 232,
-  "after": 465,
-  "sampleAncestry": [
-    [
-      0,
-      1
-    ],
-    [
-      0,
-      1
-    ],
-    [
-      1,
-      2
-    ],
-    [
-      1,
-      2
-    ],
-    [
-      2,
-      3
-    ]
-  ]
-}
-[23:24:20] LOG: [Chaikin] Iteration 1 {
-  "before": 465,
-  "after": 931,
-  "sampleAncestry": [
-    [
-      0,
-      1
-    ],
-    [
-      0,
-      1
-    ],
-    [
-      0,
-      2
-    ],
-    [
-      0,
-      2
-    ],
-    [
-      1,
-      2
-    ]
-  ]
-}
-[23:24:20] LOG: [Chaikin] Iteration 0 {
-  "before": 19,
-  "after": 39,
-  "sampleAncestry": [
-    [
-      0,
-      1
-    ],
-    [
-      0,
-      1
-    ],
-    [
-      1,
-      2
-    ],
-    [
-      1,
-      2
-    ],
-    [
-      2,
-      3
-    ]
-  ]
-}
-[23:24:20] LOG: [Chaikin] Iteration 1 {
-  "before": 39,
-  "after": 79,
-  "sampleAncestry": [
-    [
-      0,
-      1
-    ],
-    [
-      0,
-      1
-    ],
-    [
-      0,
-      2
-    ],
-    [
-      0,
-      2
-    ],
-    [
-      1,
-      2
-    ]
-  ]
-}
-[23:24:20] LOG: [Chaikin] Iteration 0 {
-  "before": 9,
-  "after": 19,
-  "sampleAncestry": [
-    [
-      0,
-      1
-    ],
-    [
-      0,
-      1
-    ],
-    [
-      1,
-      2
-    ],
-    [
-      1,
-      2
-    ],
-    [
-      2,
-      3
-    ]
-  ]
-}
-[23:24:20] LOG: [Chaikin] Iteration 1 {
-  "before": 19,
-  "after": 39,
-  "sampleAncestry": [
-    [
-      0,
-      1
-    ],
-    [
-      0,
-      1
-    ],
-    [
-      0,
-      2
-    ],
-    [
-      0,
-      2
-    ],
-    [
-      1,
-      2
-    ]
-  ]
-}
-[23:24:20] LOG: [Visvalingam] Simplification {
-  "before": 1049,
-  "after": 265,
-  "reduction": "74.7%",
-  "ancestryPreserved": true
-}
-[23:24:20] LOG: [FullHeal] ⏱️ Optimization: 13.40ms (260 → 265 vertices)
-[23:24:20] LOG: [FullHeal]    ↳ cleanLoop: 0.20ms
-[23:24:20] LOG: [FullHeal]    ↳ Chaikin smoothing (expand): 1.10ms
-[23:24:20] LOG: [FullHeal]    ↳ Post-simplification (reduce): 12.10ms
-[23:24:20] LOG: [FullHeal] Stored optVertices on canonical loops for ancestry {
-  "count": 3,
-  "withOptVertices": 3
-}
-[23:24:20] LOG: [ReuseDebug] Canonical vs Opt IDs for sourceCanonicalId: 2 {
-  "sourceCanonicalId": 2,
-  "canonicalVertexIdSamples": [
-    252,
-    253,
-    254,
-    255,
-    256,
-    257,
-    258,
-    259,
-    260
-  ],
-  "optAncestryIdSamples": [
-    {
-      "canonStartId": 0,
-      "canonEndId": 1
-    },
-    {
-      "canonStartId": 0,
-      "canonEndId": 2
-    },
-    {
-      "canonStartId": 1,
-      "canonEndId": 2
-    },
-    {
-      "canonStartId": 1,
-      "canonEndId": 3
-    },
-    {
-      "canonStartId": 2,
-      "canonEndId": 3
-    },
-    {
-      "canonStartId": 2,
-      "canonEndId": 4
-    },
-    {
-      "canonStartId": 3,
-      "canonEndId": 4
-    },
-    {
-      "canonStartId": 3,
-      "canonEndId": 5
-    },
-    {
-      "canonStartId": 4,
-      "canonEndId": 5
-    },
-    {
-      "canonStartId": 4,
-      "canonEndId": 6
-    }
-  ]
-}
-[23:24:20] LOG: [FullHeal] Canonical loops: 3 (265 verts total)
-[23:24:20] LOG: [FullHeal] Calling physicsEngine.setCanonicalTerrainLoops
-[23:24:20] LOG: [Box2DEngine] setCanonicalTerrainLoops called with 3 loops
-[23:24:20] LOG: [Box2DEngine] Building terrain body for loop #0, verts=220, reverse=true
-[23:24:20] LOG: [Box2DEngine] Loop 4: built 16 segments (verts=220)
-[23:24:20] LOG: [Box2DEngine]  Segment 0 {
-  "id": 1,
-  "optStart": 0,
-  "optEnd": 1,
+[18:51:47] LOG: [Box2DEngine]  Segment 10 {
+  "id": 17,
+  "optStart": 171,
+  "optEnd": 193,
   "canonRange": [
-    1,
-    20
+    202,
+    216
   ]
 }
-[23:24:20] LOG: [Box2DEngine]  Segment 1 {
-  "id": 2,
-  "optStart": 1,
-  "optEnd": 10,
+[18:51:47] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 17,
+  optRange: [171, 193],
+  first: { x: 8.31, y: 24.91 },
+  last: { x: 7.09, y: 21.19 }
+}
+[18:51:47] LOG: [Box2DEngine]  Segment 11 {
+  "id": 18,
+  "optStart": 193,
+  "optEnd": 213,
   "canonRange": [
-    19,
-    34
+    215,
+    235
   ]
 }
-[23:24:20] LOG: [Box2DEngine]  Segment 2 {
-  "id": 3,
-  "optStart": 10,
-  "optEnd": 31,
-  "canonRange": [
-    32,
-    47
-  ]
+[18:51:47] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 18,
+  optRange: [193, 213],
+  first: { x: 7.09, y: 21.19 },
+  last: { x: 2.50, y: 14.84 }
 }
-[23:24:20] LOG: [Box2DEngine]  Segment 3 {
-  "id": 4,
-  "optStart": 31,
-  "optEnd": 50,
-  "canonRange": [
-    46,
-    61
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 4 {
-  "id": 5,
-  "optStart": 50,
-  "optEnd": 52,
-  "canonRange": [
-    59,
-    74
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 5 {
-  "id": 6,
-  "optStart": 52,
-  "optEnd": 64,
-  "canonRange": [
-    73,
-    90
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 6 {
-  "id": 7,
-  "optStart": 64,
-  "optEnd": 76,
-  "canonRange": [
-    89,
-    105
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 7 {
-  "id": 8,
-  "optStart": 76,
-  "optEnd": 82,
-  "canonRange": [
-    104,
-    119
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 8 {
-  "id": 9,
-  "optStart": 82,
-  "optEnd": 102,
-  "canonRange": [
-    117,
-    133
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 9 {
-  "id": 10,
-  "optStart": 102,
-  "optEnd": 119,
-  "canonRange": [
-    132,
-    147
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 10 {
-  "id": 11,
-  "optStart": 119,
-  "optEnd": 140,
-  "canonRange": [
-    146,
-    160
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 11 {
-  "id": 12,
-  "optStart": 140,
-  "optEnd": 159,
-  "canonRange": [
-    159,
-    174
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 12 {
-  "id": 13,
-  "optStart": 159,
-  "optEnd": 177,
-  "canonRange": [
-    173,
-    186
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 13 {
-  "id": 14,
-  "optStart": 177,
-  "optEnd": 199,
-  "canonRange": [
-    185,
-    200
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 14 {
-  "id": 15,
-  "optStart": 199,
-  "optEnd": 212,
-  "canonRange": [
-    199,
-    221
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 15 {
-  "id": 16,
-  "optStart": 212,
-  "optEnd": 219,
+[18:51:47] LOG: [Box2DEngine]  Segment 12 {
+  "id": 19,
+  "optStart": 213,
+  "optEnd": 231,
   "canonRange": [
     0,
-    231
+    249
   ]
 }
-[23:24:20] LOG: [Box2D] Created segments {
-  "loopId": 4,
-  "segmentCount": 16,
+[18:51:47] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 19,
+  optRange: [213, 231],
+  first: { x: 2.50, y: 14.84 },
+  last: { x: 7.91, y: 11.88 }
+}
+[18:51:47] LOG: [Box2D] Created segments {
+  "loopId": 9,
+  "segmentCount": 13,
   "segments": [
-    {
-      "id": 1,
-      "optRange": [
-        0,
-        1
-      ],
-      "canonRange": [
-        1,
-        20
-      ]
-    },
-    {
-      "id": 2,
-      "optRange": [
-        1,
-        10
-      ],
-      "canonRange": [
-        19,
-        34
-      ]
-    },
-    {
-      "id": 3,
-      "optRange": [
-        10,
-        31
-      ],
-      "canonRange": [
-        32,
-        47
-      ]
-    },
-    {
-      "id": 4,
-      "optRange": [
-        31,
-        50
-      ],
-      "canonRange": [
-        46,
-        61
-      ]
-    },
-    {
-      "id": 5,
-      "optRange": [
-        50,
-        52
-      ],
-      "canonRange": [
-        59,
-        74
-      ]
-    },
-    {
-      "id": 6,
-      "optRange": [
-        52,
-        64
-      ],
-      "canonRange": [
-        73,
-        90
-      ]
-    },
     {
       "id": 7,
       "optRange": [
-        64,
-        76
+        0,
+        22
       ],
       "canonRange": [
-        89,
-        105
+        0,
+        17
       ]
     },
     {
       "id": 8,
       "optRange": [
-        76,
-        82
+        22,
+        44
       ],
       "canonRange": [
-        104,
-        119
+        15,
+        31
       ]
     },
     {
       "id": 9,
       "optRange": [
-        82,
-        102
+        44,
+        69
       ],
       "canonRange": [
-        117,
-        133
+        30,
+        44
       ]
     },
     {
       "id": 10,
       "optRange": [
-        102,
-        119
+        69,
+        85
       ],
       "canonRange": [
-        132,
-        147
+        43,
+        60
       ]
     },
     {
       "id": 11,
       "optRange": [
-        119,
-        140
+        85,
+        105
       ],
       "canonRange": [
-        146,
-        160
+        58,
+        75
       ]
     },
     {
       "id": 12,
       "optRange": [
-        140,
-        159
+        105,
+        122
       ],
       "canonRange": [
-        159,
-        174
+        74,
+        91
       ]
     },
     {
       "id": 13,
       "optRange": [
-        159,
-        177
+        122,
+        134
       ],
       "canonRange": [
-        173,
-        186
+        90,
+        132
       ]
     },
     {
       "id": 14,
       "optRange": [
-        177,
-        199
+        134,
+        145
       ],
       "canonRange": [
-        185,
-        200
+        130,
+        175
       ]
     },
     {
       "id": 15,
       "optRange": [
-        199,
-        212
+        145,
+        151
       ],
       "canonRange": [
-        199,
-        221
+        174,
+        189
       ]
     },
     {
       "id": 16,
       "optRange": [
-        212,
-        219
+        151,
+        171
       ],
       "canonRange": [
-        0,
-        231
+        187,
+        203
       ]
-    }
-  ]
-}
-[23:24:20] LOG: [Box2DEngine] Building terrain body for loop #1, verts=28, reverse=false
-[23:24:20] LOG: [Box2DEngine] Loop 5: built 2 segments (verts=28)
-[23:24:20] LOG: [Box2DEngine]  Segment 0 {
-  "id": 17,
-  "optStart": 0,
-  "optEnd": 23,
-  "canonRange": [
-    0,
-    16
-  ]
-}
-[23:24:20] LOG: [Box2DEngine]  Segment 1 {
-  "id": 18,
-  "optStart": 23,
-  "optEnd": 27,
-  "canonRange": [
-    0,
-    18
-  ]
-}
-[23:24:20] LOG: [Box2D] Created segments {
-  "loopId": 5,
-  "segmentCount": 2,
-  "segments": [
+    },
     {
       "id": 17,
       "optRange": [
-        0,
-        23
+        171,
+        193
       ],
       "canonRange": [
-        0,
-        16
+        202,
+        216
       ]
     },
     {
       "id": 18,
       "optRange": [
-        23,
-        27
+        193,
+        213
       ],
       "canonRange": [
-        0,
-        18
+        215,
+        235
       ]
-    }
-  ]
-}
-[23:24:20] LOG: [Box2DEngine] Building terrain body for loop #2, verts=17, reverse=false
-[23:24:20] LOG: [Box2DEngine] Loop 6: built 1 segments (verts=17)
-[23:24:20] LOG: [Box2DEngine]  Segment 0 {
-  "id": 19,
-  "optStart": 0,
-  "optEnd": 16,
-  "canonRange": [
-    0,
-    8
-  ]
-}
-[23:24:20] LOG: [Box2D] Created segments {
-  "loopId": 6,
-  "segmentCount": 1,
-  "segments": [
+    },
     {
       "id": 19,
       "optRange": [
-        0,
-        16
+        213,
+        231
       ],
       "canonRange": [
         0,
-        8
+        249
       ]
     }
   ]
 }
-[23:24:20] LOG: [Box2DEngine] setCanonicalTerrainLoops finished; terrainBodies=3
-[23:24:20] LOG: [FullHeal] physicsEngine.setCanonicalTerrainLoops completed
-[23:24:20] LOG: [FullHeal] ⏱️ Box2D colliders: 5.00ms (created 3 bodies)
-[23:24:20] LOG: [FullHeal] 🎯 TOTAL (physics only): 23.90ms
-[23:24:20] LOG: [FullHeal] Updating renderer polylines with 3 loops
-[23:24:20] LOG: [Renderer] updatePolylines: 3 polylines
-[23:24:20] LOG: [Renderer] first polyline length=220
-[23:24:20] LOG: [FullHeal] Render polylines: 3, first lengths=220,28,17
-[23:24:20] LOG: [FullHeal] ⏱️ Re-render walls: 0.30ms
-[23:24:20] LOG: [FullHeal] 🎯 TOTAL (including rendering): 24.30ms
-[23:24:23] LOG: [TerrainSurgery] New marching squares results (post-warm-cleanup) {
+[18:51:47] LOG: [Box2DEngine] Building terrain body for loop #4, verts=22, reverse=false
+[18:51:47] LOG: [Box2DEngine] Loop 10: built 1 segments (verts=22)
+[18:51:47] LOG: [Box2D][FromOpt] {
+  loopId: 10,
+  reverse: false,
+  optVertexCount: 22,
+  segmentCount: 1
+}
+[18:51:47] LOG: [Box2DEngine]  Segment 0 {
+  "id": 20,
+  "optStart": 0,
+  "optEnd": 21,
+  "canonRange": [
+    0,
+    11
+  ]
+}
+[18:51:47] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 20,
+  optRange: [0, 21],
+  first: { x: 12.31, y: 23.00 },
+  last: { x: 12.31, y: 23.00 }
+}
+[18:51:47] LOG: [Box2D] Created segments {
+  "loopId": 10,
+  "segmentCount": 1,
+  "segments": [
+    {
+      "id": 20,
+      "optRange": [
+        0,
+        21
+      ],
+      "canonRange": [
+        0,
+        11
+      ]
+    }
+  ]
+}
+[18:51:47] LOG: [Box2DEngine] setCanonicalTerrainLoops finished; terrainBodies=5
+[18:51:47] LOG: [FullHeal] physicsEngine.setCanonicalTerrainLoops completed
+[18:51:47] LOG: [FullHeal] ⏱️ Box2D colliders: 6.00ms (created 5 bodies)
+[18:51:47] LOG: [FullHeal] 🎯 TOTAL (physics only): 16.00ms
+[18:51:47] LOG: [FullHeal] Updating renderer polylines with 5 loops
+[18:51:47] LOG: [Renderer] updatePolylines: 5 polylines
+[18:51:47] LOG: [Renderer] first polyline length=51
+[18:51:47] LOG: [FullHeal] Render polylines: 5, first lengths=51,32,23,232,22
+[18:51:47] LOG: [FullHeal] ⏱️ Re-render walls: 0.00ms
+[18:51:47] LOG: [FullHeal] 🎯 TOTAL (including rendering): 16.00ms
+[18:51:50] LOG: Module loaded successfully!
+[18:52:14] LOG: [TerrainSurgery] New marching squares results (post-warm-cleanup) {
   "total": 1,
   "open": 1,
   "closed": 0,
   "carveAABB": {
-    "minX": 11.5,
-    "minY": 10.5,
-    "maxX": 17.5,
-    "maxY": 16.5
+    "minX": 22,
+    "minY": 15.5,
+    "maxX": 28,
+    "maxY": 21.5
   }
 }
-[23:24:23] LOG: [TerrainSurgery]   Open#0 endpoints {
+[18:52:14] LOG: [TerrainSurgery]   Open#0 endpoints {
   "a": {
-    "x": 17.5,
-    "y": 16.25
+    "x": 22,
+    "y": 19.875
   },
   "b": {
-    "x": 11.5,
-    "y": 13.1875
+    "x": 27.125,
+    "y": 15.5
   },
-  "length": "7.950",
+  "length": "7.645",
   "aabb": {
-    "minX": 11.5,
-    "minY": 13.1875,
-    "maxX": 17.5,
-    "maxY": 16.25
+    "minX": 22,
+    "minY": 15.5,
+    "maxX": 27.125,
+    "maxY": 19.875
   }
 }
-[23:24:23] LOG: [TerrainSurgery] Boundary arc clipping (all pieces) {
+[18:52:14] LOG: [TerrainSurgery] Boundary arc clipping (all pieces) {
   "carveRegion": {
-    "minX": 11.5,
-    "minY": 10.5,
-    "maxX": 17.5,
-    "maxY": 16.5
+    "minX": 22,
+    "minY": 15.5,
+    "maxX": 28,
+    "maxY": 21.5
   },
-  "canonicalCount": 3,
+  "canonicalCount": 5,
   "candidateCanonicals": [
     {
-      "id": 1,
-      "verts": 232,
+      "id": 4,
+      "verts": 250,
       "aabb": {
         "minX": 2.4375,
-        "minY": 2.375,
-        "maxX": 29.625,
-        "maxY": 29.5625
+        "minY": 11.6875,
+        "maxX": 29.5625,
+        "maxY": 29.625
       }
     }
   ],
   "fullyInside": []
 }
-[23:24:23] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
-  "canonicalLoopId": 1,
-  "arcLength": "84.827",
-  "arcVerts": 170,
-  "outsideFrac": "1.00",
+[18:52:14] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
+  "canonicalLoopId": 4,
+  "arcLength": "29.823",
+  "arcVerts": 64,
+  "outsideFrac": "0.98",
   "pieceIdx": 0,
   "start": {
-    "id": 1,
-    "x": 2.5,
-    "y": 2.4375,
+    "id": 89,
+    "x": 7.75,
+    "y": 12,
     "segmentA": null,
     "segmentB": null
   },
   "end": {
-    "id": 170,
-    "x": 17.5,
-    "y": 16.25,
+    "id": 152,
+    "x": 22,
+    "y": 19.875,
     "segmentA": null,
     "segmentB": null
   }
 }
-[23:24:23] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
-  "canonicalLoopId": 1,
-  "arcLength": "24.494",
-  "arcVerts": 50,
-  "outsideFrac": "0.98",
+[18:52:14] LOG: [TerrainSurgery] Boundary arc extracted (clipped piece) {
+  "canonicalLoopId": 4,
+  "arcLength": "83.667",
+  "arcVerts": 171,
+  "outsideFrac": "0.99",
   "pieceIdx": 1,
   "start": {
-    "id": 184,
-    "x": 11.5,
-    "y": 13.1875,
+    "id": 169,
+    "x": 27.125,
+    "y": 15.5,
     "segmentA": null,
     "segmentB": null
   },
   "end": {
-    "id": 1,
-    "x": 2.5,
-    "y": 2.4375,
+    "id": 89,
+    "x": 7.75,
+    "y": 12,
     "segmentA": null,
     "segmentB": null
   }
 }
-[23:24:23] LOG: [TerrainSurgery] Boundary arc summary {
-  "canonicalLoopId": 1,
+[18:52:14] LOG: [TerrainSurgery] Boundary arc summary {
+  "canonicalLoopId": 4,
   "pieces": [
     {
       "pieceIdx": 0,
       "startCanon": 0,
-      "endCanon": 169,
-      "verts": 170,
-      "length": "84.827",
+      "endCanon": 63,
+      "verts": 64,
+      "length": "29.823",
       "endpoints": [
         {
-          "id": 1,
-          "x": 2.5,
-          "y": 2.4375,
+          "id": 89,
+          "x": 7.75,
+          "y": 12,
           "segmentA": null,
           "segmentB": null
         },
         {
-          "id": 170,
-          "x": 17.5,
-          "y": 16.25,
-          "segmentA": null,
-          "segmentB": null
-        }
-      ],
-      "outsideFrac": "1.00"
-    },
-    {
-      "pieceIdx": 1,
-      "startCanon": 183,
-      "endCanon": 0,
-      "verts": 50,
-      "length": "24.494",
-      "endpoints": [
-        {
-          "id": 184,
-          "x": 11.5,
-          "y": 13.1875,
-          "segmentA": null,
-          "segmentB": null
-        },
-        {
-          "id": 1,
-          "x": 2.5,
-          "y": 2.4375,
+          "id": 152,
+          "x": 22,
+          "y": 19.875,
           "segmentA": null,
           "segmentB": null
         }
       ],
       "outsideFrac": "0.98"
+    },
+    {
+      "pieceIdx": 1,
+      "startCanon": 80,
+      "endCanon": 0,
+      "verts": 171,
+      "length": "83.667",
+      "endpoints": [
+        {
+          "id": 169,
+          "x": 27.125,
+          "y": 15.5,
+          "segmentA": null,
+          "segmentB": null
+        },
+        {
+          "id": 89,
+          "x": 7.75,
+          "y": 12,
+          "segmentA": null,
+          "segmentB": null
+        }
+      ],
+      "outsideFrac": "0.99"
     }
   ]
 }
-[23:24:23] LOG: [TerrainSurgery] Step2 boundary merge (outer arcs) {
+[18:52:14] LOG: [TerrainSurgery] Step2 boundary merge (outer arcs) {
   "mergeDistance": "0.0938",
   "before": 2,
   "after": 1,
   "mergedPairs": 1
 }
-[23:24:23] LOG: [TerrainSurgery] Step2 loop snapshot {
+[18:52:14] LOG: [TerrainSurgery] Step2 loop snapshot {
   "total": 2,
   "loops": [
     {
@@ -835,15 +402,15 @@
       "type": "new-open",
       "closed": false,
       "verts": 18,
-      "length": "7.950",
+      "length": "7.645",
       "endpoints": [
         {
-          "x": 17.5,
-          "y": 16.25
+          "x": 22,
+          "y": 19.875
         },
         {
-          "x": 11.5,
-          "y": 13.1875
+          "x": 27.125,
+          "y": 15.5
         }
       ]
     },
@@ -851,39 +418,39 @@
       "id": 2,
       "type": "boundary-arc",
       "closed": false,
-      "verts": 219,
-      "length": "109.321",
+      "verts": 234,
+      "length": "113.491",
       "endpoints": [
         {
-          "id": 170,
-          "x": 17.5,
-          "y": 16.25,
+          "id": 152,
+          "x": 22,
+          "y": 19.875,
           "segmentA": null,
           "segmentB": null
         },
         {
-          "id": 184,
-          "x": 11.5,
-          "y": 13.1875,
+          "id": 169,
+          "x": 27.125,
+          "y": 15.5,
           "segmentA": null,
           "segmentB": null
         }
       ],
       "canonicalEndpointIds": [
-        170,
-        184
+        152,
+        169
       ],
-      "sourceCanonicalId": 1
+      "sourceCanonicalId": 4
     }
   ]
 }
-[23:24:23] LOG: [Stitch] Starting simple endpoint-matching stitcher
-[23:24:23] LOG: [Stitch] Endpoint index built {
+[18:52:14] LOG: [Stitch] Starting simple endpoint-matching stitcher
+[18:52:14] LOG: [Stitch] Endpoint index built {
   "totalSegments": 2,
   "uniquePositions": 2,
   "endpointDetails": [
     {
-      "key": "280,260",
+      "key": "352,318",
       "count": 2,
       "segments": [
         {
@@ -899,7 +466,7 @@
       ]
     },
     {
-      "key": "184,211",
+      "key": "434,248",
       "count": 2,
       "segments": [
         {
@@ -916,20 +483,20 @@
     }
   ]
 }
-[23:24:23] LOG: [Stitch] Starting walk {
+[18:52:14] LOG: [Stitch] Starting walk {
   "startLoopId": 1,
   "startEndpointIndex": 0,
   "startPos": {
-    "x": 17.5,
-    "y": 16.25
+    "x": 22,
+    "y": 19.875
   },
-  "startKey": "280,260",
+  "startKey": "352,318",
   "type": "warm"
 }
-[23:24:23] LOG: [Stitch] ✓ Closed loop formed with ancestry {
+[18:52:14] LOG: [Stitch] ✓ Closed loop formed with ancestry {
   "stitchedId": 1,
   "segments": 2,
-  "vertices": 236,
+  "vertices": 251,
   "segmentIds": [
     {
       "id": 1,
@@ -942,320 +509,3088 @@
   ],
   "ancestrySegments": 2
 }
-[23:24:23] LOG: [Stitch] Summary {
+[18:52:14] LOG: [Stitch] Summary {
   "inputLoops": 2,
   "outputStitched": 1,
   "visitedSegments": 2,
   "orphanedSegments": 0
 }
-[23:24:23] LOG: [TerrainSurgery] Extracted carved loops {
+[18:52:14] LOG: [TerrainSurgery] Extracted carved loops {
   "newLoops": 1,
   "boundaryArcs": 1,
   "totalLoops": 2,
   "mergedPairs": 0,
   "boundaryMergedPairs": 1
 }
-[23:24:23] LOG: [Stitch] Result {
+[18:52:14] LOG: [Stitch] Result {
   "stitchedCount": 1,
   "stitchedLengths": [
-    236
+    251
   ]
 }
-[23:24:23] LOG: [Carving] Surgery complete: {
+[18:52:14] LOG: [Carving] Surgery complete: {
   "newLoops": 1,
   "boundaryArcs": 1,
   "totalLoops": 2,
   "boundaryMergedPairs": 1
 }
-[23:24:23] LOG: Module loaded successfully!
-[23:24:25] LOG: [UI] Stitch button MOUSEDOWN!
-[23:24:25] LOG: [UI] Stitch button CLICKED!
-[23:24:25] LOG: [Carving] Debug step button clicked {
+[18:52:14] LOG: [Carving] Auto-triggering Step 1 (CARVED_LOOPS) debug visualization
+[18:52:14] LOG: [Renderer] Carving debug mode changed {
+  "from": "none",
+  "to": "carved_loops"
+}
+[18:52:15] LOG: [UI] Stitch button TOUCHSTART!
+[18:52:15] LOG: [UI] Stitch button TOUCHEND!
+[18:52:15] LOG: [Carving] Debug step advanced {
+  "from": "Step 1: Carved Loops",
+  "to": "Step 2: Stitched Loops"
+}
+[18:52:15] LOG: [Renderer] Carving debug mode changed {
+  "from": "carved_loops",
+  "to": "stitched_loops"
+}
+[18:52:15] LOG: [Carving] Step 2: Enabling stitched loops visualization {
   "debugCaptureEnabled": true,
-  "currentShowStitchedLoops": false,
   "stitchedLoopsCount": 1,
   "carvedLoopsCount": 2
 }
-[23:24:25] LOG: [Carving] ✓ Step 2 enabled: showing stitched loops {
+[18:52:15] LOG: [Carving] ✓ Step 2 enabled: showing stitched loops {
   "stitchedCount": 1,
   "loops": [
     {
       "id": 1,
-      "vertices": 236
+      "vertices": 251
     }
   ]
 }
-[23:24:25] LOG: [ReuseDebug] Boundary arc ancestry {
+[18:52:15] LOG: [ReuseDebug] Boundary arc ancestry {
   "stitchedLoopId": 1,
-  "sourceCanonicalId": 1,
+  "sourceCanonicalId": 4,
   "canonicalEndpointIds": [
-    170,
-    184
+    152,
+    169
   ],
-  "canonicalPathLength": 15,
+  "canonicalPathLength": 18,
   "canonicalPathIdSamples": [
-    170,
-    171,
-    172,
-    173,
-    174,
-    175,
-    176,
-    177,
-    178,
-    179
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159,
+    160,
+    161
   ],
-  "optVertexCountTotal": 220,
-  "optVertexCountOverlapping": 26,
+  "optVertexCountTotal": 232,
+  "optVertexCountOverlapping": 5,
   "overlappingOptVertexSamples": [
     {
-      "index": 152,
-      "canonStartId": 169,
-      "canonEndId": 170
+      "index": 141,
+      "canonStartId": 161,
+      "canonEndId": 162
     },
     {
-      "index": 153,
-      "canonStartId": 170,
-      "canonEndId": 171
+      "index": 142,
+      "canonStartId": 161,
+      "canonEndId": 163
     },
     {
-      "index": 154,
-      "canonStartId": 170,
-      "canonEndId": 172
+      "index": 143,
+      "canonStartId": 162,
+      "canonEndId": 164
     },
     {
-      "index": 155,
-      "canonStartId": 171,
-      "canonEndId": 172
+      "index": 144,
+      "canonStartId": 163,
+      "canonEndId": 164
     },
     {
-      "index": 156,
-      "canonStartId": 171,
-      "canonEndId": 173
-    },
-    {
-      "index": 157,
-      "canonStartId": 172,
-      "canonEndId": 173
-    },
-    {
-      "index": 158,
-      "canonStartId": 172,
-      "canonEndId": 174
-    },
-    {
-      "index": 159,
-      "canonStartId": 173,
-      "canonEndId": 174
-    },
-    {
-      "index": 160,
-      "canonStartId": 173,
-      "canonEndId": 175
-    },
-    {
-      "index": 161,
-      "canonStartId": 174,
-      "canonEndId": 175
+      "index": 230,
+      "canonStartId": 0,
+      "canonEndId": 249
     }
   ]
 }
-[23:24:25] LOG: [ReuseDebug] Dirty vs clean optVertices {
+[18:52:15] LOG: [ReuseDebug] Dirty vs clean optVertices {
   "stitchedLoopId": 1,
-  "sourceCanonicalId": 1,
+  "sourceCanonicalId": 4,
   "canonicalEndpointIds": [
-    170,
-    184
+    152,
+    169
   ],
-  "canonicalPathLength": 15,
-  "dirtyIdCount": 15,
-  "optVertexCountTotal": 220,
-  "dirtyOptCount": 25,
-  "cleanOptCount": 195,
+  "canonicalPathLength": 18,
+  "dirtyIdCount": 18,
+  "optVertexCountTotal": 232,
+  "dirtyOptCount": 4,
+  "cleanOptCount": 228,
   "dirtyOptSamples": [
     {
-      "index": 152,
-      "canonStartId": 169,
-      "canonEndId": 170
+      "index": 141,
+      "canonStartId": 161,
+      "canonEndId": 162
     },
     {
-      "index": 153,
-      "canonStartId": 170,
-      "canonEndId": 171
+      "index": 142,
+      "canonStartId": 161,
+      "canonEndId": 163
     },
     {
-      "index": 154,
-      "canonStartId": 170,
-      "canonEndId": 172
+      "index": 143,
+      "canonStartId": 162,
+      "canonEndId": 164
     },
     {
-      "index": 155,
-      "canonStartId": 171,
-      "canonEndId": 172
-    },
-    {
-      "index": 156,
-      "canonStartId": 171,
-      "canonEndId": 173
-    },
-    {
-      "index": 157,
-      "canonStartId": 172,
-      "canonEndId": 173
-    },
-    {
-      "index": 158,
-      "canonStartId": 172,
-      "canonEndId": 174
-    },
-    {
-      "index": 159,
-      "canonStartId": 173,
-      "canonEndId": 174
-    },
-    {
-      "index": 160,
-      "canonStartId": 173,
-      "canonEndId": 175
-    },
-    {
-      "index": 161,
-      "canonStartId": 174,
-      "canonEndId": 175
+      "index": 144,
+      "canonStartId": 163,
+      "canonEndId": 164
     }
   ],
   "cleanOptSamples": [
     {
       "index": 0,
+      "canonStartId": 0,
+      "canonEndId": 1
+    },
+    {
+      "index": 1,
+      "canonStartId": 0,
+      "canonEndId": 2
+    },
+    {
+      "index": 2,
       "canonStartId": 1,
       "canonEndId": 2
     },
     {
-      "index": 1,
-      "canonStartId": 19,
-      "canonEndId": 20
-    },
-    {
-      "index": 2,
-      "canonStartId": 19,
-      "canonEndId": 21
-    },
-    {
       "index": 3,
-      "canonStartId": 20,
-      "canonEndId": 22
+      "canonStartId": 1,
+      "canonEndId": 3
     },
     {
       "index": 4,
-      "canonStartId": 21,
-      "canonEndId": 22
+      "canonStartId": 2,
+      "canonEndId": 3
     },
     {
       "index": 5,
-      "canonStartId": 29,
-      "canonEndId": 30
+      "canonStartId": 2,
+      "canonEndId": 4
     },
     {
       "index": 6,
-      "canonStartId": 29,
-      "canonEndId": 31
+      "canonStartId": 3,
+      "canonEndId": 5
     },
     {
       "index": 7,
-      "canonStartId": 30,
-      "canonEndId": 32
+      "canonStartId": 4,
+      "canonEndId": 5
     },
     {
       "index": 8,
-      "canonStartId": 31,
-      "canonEndId": 32
+      "canonStartId": 4,
+      "canonEndId": 6
     },
     {
       "index": 9,
-      "canonStartId": 31,
-      "canonEndId": 33
+      "canonStartId": 5,
+      "canonEndId": 6
     }
   ]
 }
-[23:24:25] LOG: [ReuseDebug] Dirty opt blocks {
+[18:52:15] LOG: [ReuseDebug] Dirty opt blocks {
   "stitchedLoopId": 1,
-  "sourceCanonicalId": 1,
+  "sourceCanonicalId": 4,
   "canonicalEndpointIds": [
-    170,
-    184
+    152,
+    169
   ],
-  "canonicalPathLength": 15,
+  "canonicalPathLength": 18,
   "blockCount": 1,
   "blocks": [
     {
-      "optStartIndex": 152,
-      "optEndIndex": 176,
-      "optLength": 25,
-      "runCanonStartId": 169,
-      "runCanonEndId": 185
+      "optStartIndex": 141,
+      "optEndIndex": 144,
+      "optLength": 4,
+      "runCanonStartId": 161,
+      "runCanonEndId": 164
     }
   ]
 }
-[23:24:25] LOG: [ReuseDebug] Reuse plan {
+[18:52:15] LOG: [ReuseDebug] Reuse plan {
   "stitchedLoopId": 1,
-  "sourceCanonicalId": 1,
+  "sourceCanonicalId": 4,
   "canonicalEndpointIds": [
-    170,
-    184
+    152,
+    169
   ],
-  "optVertexCountTotal": 220,
+  "optVertexCountTotal": 232,
   "blockCount": 1,
   "dirtyBlocks": [
     {
-      "optStartIndex": 152,
-      "optEndIndex": 176,
-      "optLength": 25,
-      "runCanonStartId": 169,
-      "runCanonEndId": 185
+      "optStartIndex": 141,
+      "optEndIndex": 144,
+      "optLength": 4,
+      "runCanonStartId": 161,
+      "runCanonEndId": 164
     }
   ],
   "reuseHead": {
     "startOpt": 0,
-    "endOpt": 151,
-    "length": 152
+    "endOpt": 140,
+    "length": 141
   },
   "reuseTail": {
-    "startOpt": 177,
-    "endOpt": 219,
-    "length": 43
+    "startOpt": 145,
+    "endOpt": 231,
+    "length": 87
   }
 }
-[23:24:25] LOG: [ReuseDebug] Preview built {
-  "sourceCanonicalId": 1,
-  "originalOptCount": 220,
-  "previewOptCount": 431,
+[18:52:15] LOG: [Step3] Drawing reuse/dirty preview in STITCHED canonical space {
+  "stitchedLoopId": 1,
+  "canonicalVertexCount": 251,
+  "dirtyVertexRange": [
+    0,
+    17
+  ]
+}
+[18:52:15] LOG: [ReuseDebug] Preview built {
+  "sourceCanonicalId": 4,
+  "originalOptCount": 232,
   "reuseHead": {
     "startOpt": 0,
-    "endOpt": 151,
-    "length": 152
+    "endOpt": 140,
+    "length": 141
   },
   "dirtyBlock": {
-    "optStartIndex": 152,
-    "optEndIndex": 176,
-    "optLength": 25,
-    "runCanonStartId": 169,
-    "runCanonEndId": 185
+    "optStartIndex": 141,
+    "optEndIndex": 144,
+    "optLength": 4,
+    "runCanonStartId": 161,
+    "runCanonEndId": 164
   },
   "reuseTail": {
-    "startOpt": 177,
-    "endOpt": 219,
-    "length": 43
+    "startOpt": 145,
+    "endOpt": 231,
+    "length": 87
+  }
+}
+[18:52:16] LOG: [UI] Stitch button TOUCHSTART!
+[18:52:16] LOG: [UI] Stitch button TOUCHEND!
+[18:52:16] LOG: [Carving] Debug step advanced {
+  "from": "Step 2: Stitched Loops",
+  "to": "Step 3: Reuse Plan"
+}
+[18:52:16] LOG: [Renderer] Carving debug mode changed {
+  "from": "stitched_loops",
+  "to": "reuse_plan"
+}
+[18:52:16] LOG: [Carving] Step 3: Classifying stitched canonical vertices
+[18:52:16] LOG: [Step3] Stitched loop segments (input) {
+  "loopId": 1,
+  "totalVertices": 251,
+  "segmentCount": 2,
+  "segments": [
+    {
+      "isNew": true,
+      "vertexRange": [
+        0,
+        17
+      ],
+      "rangeLength": 18
+    },
+    {
+      "isNew": false,
+      "vertexRange": [
+        18,
+        250
+      ],
+      "rangeLength": 233,
+      "sourceCanonicalId": 4,
+      "canonicalEndpointIds": [
+        152,
+        169
+      ]
+    }
+  ]
+}
+[18:52:16] LOG: [Step3] Extracted dirty ranges {
+  "loopId": 1,
+  "dirtyRanges": [
+    {
+      "startIndex": 0,
+      "endIndex": 17
+    }
+  ]
+}
+[18:52:16] LOG: [Step3] Classified stitched loop {
+  "loopId": 1,
+  "totalVertices": 251,
+  "dirtyVertices": 18,
+  "cleanVertices": 233,
+  "dirtyRanges": [
+    {
+      "startIndex": 0,
+      "endIndex": 17
+    }
+  ],
+  "segments": [
+    {
+      "kind": "warm",
+      "startIndex": 0,
+      "endIndex": 17,
+      "length": 18
+    },
+    {
+      "kind": "cold",
+      "startIndex": 18,
+      "endIndex": 250,
+      "length": 233
+    }
+  ]
+}
+[18:52:16] LOG: [Carving] ✓ Step 3 complete: Classified stitched segments {
+  "totalSegments": 2,
+  "warmSegments": 1,
+  "coldSegments": 1
+}
+[18:52:17] LOG: [UI] Stitch button TOUCHSTART!
+[18:52:17] LOG: [UI] Stitch button TOUCHEND!
+[18:52:17] LOG: [Carving] Debug step advanced {
+  "from": "Step 3: Reuse Plan",
+  "to": "Step 4: Opt-Space Merging"
+}
+[18:52:17] LOG: [Renderer] Carving debug mode changed {
+  "from": "reuse_plan",
+  "to": "opt_merging"
+}
+[18:52:17] LOG: [Carving] Step 4: Building optimized loops from stitched loops
+[18:52:17] LOG: [Step4] Processing stitched loop {
+  "loopId": 1,
+  "vertexCount": 251,
+  "segmentCount": 2
+}
+[18:52:17] LOG: [Step4] Starting opt-space merging {
+  "stitchedLoopId": 1,
+  "segmentCount": 2,
+  "stitchedVertexCount": 251
+}
+[18:52:17] LOG: [Step4] Identifying anchors {
+  "stitchedLoopId": 1,
+  "segmentCount": 2
+}
+[18:52:17] LOG: [Step4] Looking up cold-opt anchor (next segment start) {
+  "canonicalLoopId": 4,
+  "startIndex": 63,
+  "optVerticesCount": 232
+}
+[18:52:17] LOG: [Step4] ✓ Anchor from next cold segment (opt) {
+  "boundaryIndex": 0,
+  "stitchedIndex": 17,
+  "startIndex": 63,
+  "position": {
+    "x": 21.4375,
+    "y": 20.00390625
+  }
+}
+[18:52:17] LOG: [Step4] Looking up cold-opt anchor (prev segment end) {
+  "canonicalLoopId": 4,
+  "endIndex": 80,
+  "optVerticesCount": 232
+}
+[18:52:17] LOG: [Step4] ✓ Anchor from prev cold segment (opt) {
+  "boundaryIndex": 1,
+  "stitchedIndex": 250,
+  "endIndex": 80,
+  "position": {
+    "x": 27.046875,
+    "y": 15.578125
+  }
+}
+[18:52:17] LOG: [Step4] Anchors identified {
+  "anchorCount": 2,
+  "sources": {
+    "coldOpt": 2,
+    "coldCanonical": 0,
+    "warmStitched": 0
+  }
+}
+[18:52:17] LOG: [Step4] Processing segment {
+  "index": 0,
+  "kind": "warm",
+  "vertexRange": [
+    0,
+    17
+  ],
+  "startAnchor": "cold-opt",
+  "endAnchor": "cold-opt"
+}
+[18:52:17] LOG: [Step4] Processing warm segment (optimization DISABLED) {
+  "vertexRange": [
+    0,
+    17
+  ],
+  "vertexCount": 17
+}
+[18:52:17] LOG: [Step4] Warm segment processed (no optimization) {
+  "vertexCount": 17,
+  "firstVertex": {
+    "x": 27.046875,
+    "y": 15.578125,
+    "canonStartId": 711,
+    "canonEndId": 712
   },
-  "dirtyStartIndexInPreview": 152,
-  "dirtyEndIndexInPreview": 387
+  "lastVertex": {
+    "x": 27,
+    "y": 15.625,
+    "canonStartId": 743,
+    "canonEndId": 744
+  }
 }
-[23:24:26] LOG: [UI] Stitch button MOUSEDOWN!
-[23:24:26] LOG: [UI] Stitch button CLICKED!
-[23:24:26] LOG: [Carving] Reuse plan step requested {
-  "debugCaptureEnabled": true,
-  "stitchedLoopsCount": 1,
-  "reusePlans": 1
+[18:52:17] LOG: [Step4] Processing segment {
+  "index": 1,
+  "kind": "cold",
+  "vertexRange": [
+    18,
+    250
+  ],
+  "startAnchor": "cold-opt",
+  "endAnchor": "cold-opt"
 }
-[23:24:26] LOG: [Carving] ✓ Step 3 enabled: showing reuse plan overlay {
-  "reusePlanCount": 1
+[18:52:17] LOG: [Step4] Extracting cold opt segment {
+  "sourceCanonicalId": 4,
+  "loopIndexRange": [
+    63,
+    80
+  ],
+  "optVertexCount": 232,
+  "firstOptVertices": [
+    {
+      "idx": 0,
+      "canonRange": [
+        0,
+        1
+      ]
+    },
+    {
+      "idx": 1,
+      "canonRange": [
+        0,
+        2
+      ]
+    },
+    {
+      "idx": 2,
+      "canonRange": [
+        1,
+        2
+      ]
+    },
+    {
+      "idx": 3,
+      "canonRange": [
+        1,
+        3
+      ]
+    },
+    {
+      "idx": 4,
+      "canonRange": [
+        2,
+        3
+      ]
+    }
+  ],
+  "lastOptVertices": [
+    {
+      "idx": 227,
+      "canonRange": [
+        245,
+        246
+      ]
+    },
+    {
+      "idx": 228,
+      "canonRange": [
+        246,
+        247
+      ]
+    },
+    {
+      "idx": 229,
+      "canonRange": [
+        247,
+        248
+      ]
+    },
+    {
+      "idx": 230,
+      "canonRange": [
+        0,
+        249
+      ]
+    },
+    {
+      "idx": 231,
+      "canonRange": [
+        0,
+        1
+      ]
+    }
+  ]
+}
+[18:52:17] LOG: [Step4] Found opt indices {
+  "startOptIdx": 89,
+  "endOptIdx": 111,
+  "totalOptVertices": 232,
+  "startOptVertex": {
+    "canonRange": [
+      61,
+      63
+    ],
+    "pos": [
+      "21.438",
+      "20.004"
+    ]
+  },
+  "endOptVertex": {
+    "canonRange": [
+      79,
+      80
+    ],
+    "pos": [
+      "27.047",
+      "15.578"
+    ]
+  }
+}
+[18:52:17] LOG: [Step4][Cold] Arc selection (ancestry-based) {
+  "stitchedSegmentLength": 232,
+  "startOptIdx": 89,
+  "endOptIdx": 111,
+  "totalOptVertices": 232,
+  "startLoopIndex": 63,
+  "endLoopIndex": 80,
+  "forwardArc": {
+    "optIndices": 22,
+    "optIndicesArray": [
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98
+    ],
+    "canonicalPath": 18,
+    "canonicalPathSample": [
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72
+    ],
+    "ancestry": {
+      "matches": 17,
+      "longestRun": 17
+    }
+  },
+  "backwardArc": {
+    "optIndices": 210,
+    "optIndicesArray": [
+      89,
+      88,
+      87,
+      86,
+      85,
+      84,
+      83,
+      82,
+      81,
+      80
+    ],
+    "canonicalPath": 234,
+    "canonicalPathSample": [
+      63,
+      62,
+      61,
+      60,
+      59,
+      58,
+      57,
+      56,
+      55,
+      54
+    ],
+    "ancestry": {
+      "matches": 234,
+      "longestRun": 234
+    }
+  },
+  "chosen": "backward",
+  "method": "ancestry"
+}
+[18:52:17] LOG: [Step4][Cold] Start anchor validated {
+  "anchorCanonicalIndex": 63,
+  "segmentStartIndex": 63,
+  "segmentEndIndex": 80,
+  "distanceToCanonical": "0.577"
+}
+[18:52:17] LOG: [Step4][Cold] Extraction complete {
+  "extractedVertexCount": 210,
+  "expectedLength": 210,
+  "selectionMethod": "ancestry",
+  "ancestryScore": {
+    "matches": 234,
+    "longestRun": 234
+  },
+  "extractedVertices": [
+    {
+      "idx": 0,
+      "canonRange": [
+        63,
+        63
+      ],
+      "pos": [
+        "21.438",
+        "20.004"
+      ]
+    },
+    {
+      "idx": 1,
+      "canonRange": [
+        61,
+        62
+      ],
+      "pos": [
+        "21.188",
+        "20.039"
+      ]
+    },
+    {
+      "idx": 2,
+      "canonRange": [
+        60,
+        61
+      ],
+      "pos": [
+        "20.688",
+        "20.063"
+      ]
+    },
+    {
+      "idx": 3,
+      "canonRange": [
+        59,
+        60
+      ],
+      "pos": [
+        "20.188",
+        "20.023"
+      ]
+    },
+    {
+      "idx": 4,
+      "canonRange": [
+        58,
+        60
+      ],
+      "pos": [
+        "19.938",
+        "19.969"
+      ]
+    },
+    {
+      "idx": 5,
+      "canonRange": [
+        57,
+        59
+      ],
+      "pos": [
+        "19.438",
+        "19.813"
+      ]
+    },
+    {
+      "idx": 6,
+      "canonRange": [
+        57,
+        58
+      ],
+      "pos": [
+        "19.188",
+        "19.773"
+      ]
+    },
+    {
+      "idx": 7,
+      "canonRange": [
+        56,
+        57
+      ],
+      "pos": [
+        "18.688",
+        "19.750"
+      ]
+    },
+    {
+      "idx": 8,
+      "canonRange": [
+        54,
+        56
+      ],
+      "pos": [
+        "18.063",
+        "19.793"
+      ]
+    },
+    {
+      "idx": 9,
+      "canonRange": [
+        54,
+        55
+      ],
+      "pos": [
+        "17.813",
+        "19.766"
+      ]
+    },
+    {
+      "idx": 10,
+      "canonRange": [
+        53,
+        55
+      ],
+      "pos": [
+        "17.438",
+        "19.660"
+      ]
+    },
+    {
+      "idx": 11,
+      "canonRange": [
+        52,
+        54
+      ],
+      "pos": [
+        "17.063",
+        "19.516"
+      ]
+    },
+    {
+      "idx": 12,
+      "canonRange": [
+        52,
+        53
+      ],
+      "pos": [
+        "16.813",
+        "19.383"
+      ]
+    },
+    {
+      "idx": 13,
+      "canonRange": [
+        51,
+        52
+      ],
+      "pos": [
+        "16.406",
+        "19.117"
+      ]
+    },
+    {
+      "idx": 14,
+      "canonRange": [
+        50,
+        51
+      ],
+      "pos": [
+        "16.156",
+        "18.906"
+      ]
+    },
+    {
+      "idx": 15,
+      "canonRange": [
+        48,
+        49
+      ],
+      "pos": [
+        "15.594",
+        "18.344"
+      ]
+    },
+    {
+      "idx": 16,
+      "canonRange": [
+        47,
+        48
+      ],
+      "pos": [
+        "15.453",
+        "18.156"
+      ]
+    },
+    {
+      "idx": 17,
+      "canonRange": [
+        46,
+        47
+      ],
+      "pos": [
+        "15.234",
+        "17.813"
+      ]
+    },
+    {
+      "idx": 18,
+      "canonRange": [
+        45,
+        46
+      ],
+      "pos": [
+        "14.766",
+        "17.188"
+      ]
+    },
+    {
+      "idx": 19,
+      "canonRange": [
+        44,
+        45
+      ],
+      "pos": [
+        "14.547",
+        "16.883"
+      ]
+    },
+    {
+      "idx": 20,
+      "canonRange": [
+        43,
+        44
+      ],
+      "pos": [
+        "14.383",
+        "16.617"
+      ]
+    },
+    {
+      "idx": 21,
+      "canonRange": [
+        42,
+        44
+      ],
+      "pos": [
+        "14.289",
+        "16.426"
+      ]
+    },
+    {
+      "idx": 22,
+      "canonRange": [
+        41,
+        43
+      ],
+      "pos": [
+        "14.113",
+        "15.938"
+      ]
+    },
+    {
+      "idx": 23,
+      "canonRange": [
+        41,
+        42
+      ],
+      "pos": [
+        "14.047",
+        "15.688"
+      ]
+    },
+    {
+      "idx": 24,
+      "canonRange": [
+        40,
+        42
+      ],
+      "pos": [
+        "13.914",
+        "15.438"
+      ]
+    },
+    {
+      "idx": 25,
+      "canonRange": [
+        40,
+        41
+      ],
+      "pos": [
+        "13.688",
+        "15.188"
+      ]
+    },
+    {
+      "idx": 26,
+      "canonRange": [
+        39,
+        41
+      ],
+      "pos": [
+        "13.563",
+        "15.125"
+      ]
+    },
+    {
+      "idx": 27,
+      "canonRange": [
+        39,
+        41
+      ],
+      "pos": [
+        "13.438",
+        "15.125"
+      ]
+    },
+    {
+      "idx": 28,
+      "canonRange": [
+        39,
+        40
+      ],
+      "pos": [
+        "13.313",
+        "15.188"
+      ]
+    },
+    {
+      "idx": 29,
+      "canonRange": [
+        39,
+        40
+      ],
+      "pos": [
+        "13.188",
+        "15.313"
+      ]
+    },
+    {
+      "idx": 30,
+      "canonRange": [
+        38,
+        40
+      ],
+      "pos": [
+        "12.938",
+        "15.516"
+      ]
+    },
+    {
+      "idx": 31,
+      "canonRange": [
+        37,
+        39
+      ],
+      "pos": [
+        "12.484",
+        "15.781"
+      ]
+    },
+    {
+      "idx": 32,
+      "canonRange": [
+        37,
+        38
+      ],
+      "pos": [
+        "12.344",
+        "15.906"
+      ]
+    },
+    {
+      "idx": 33,
+      "canonRange": [
+        36,
+        38
+      ],
+      "pos": [
+        "12.219",
+        "16.078"
+      ]
+    },
+    {
+      "idx": 34,
+      "canonRange": [
+        36,
+        37
+      ],
+      "pos": [
+        "12.094",
+        "16.313"
+      ]
+    },
+    {
+      "idx": 35,
+      "canonRange": [
+        35,
+        37
+      ],
+      "pos": [
+        "12.059",
+        "16.438"
+      ]
+    },
+    {
+      "idx": 36,
+      "canonRange": [
+        35,
+        36
+      ],
+      "pos": [
+        "12.070",
+        "16.688"
+      ]
+    },
+    {
+      "idx": 37,
+      "canonRange": [
+        34,
+        36
+      ],
+      "pos": [
+        "12.199",
+        "17.063"
+      ]
+    },
+    {
+      "idx": 38,
+      "canonRange": [
+        33,
+        35
+      ],
+      "pos": [
+        "12.340",
+        "17.563"
+      ]
+    },
+    {
+      "idx": 39,
+      "canonRange": [
+        33,
+        34
+      ],
+      "pos": [
+        "12.430",
+        "17.813"
+      ]
+    },
+    {
+      "idx": 40,
+      "canonRange": [
+        32,
+        34
+      ],
+      "pos": [
+        "12.449",
+        "17.938"
+      ]
+    },
+    {
+      "idx": 41,
+      "canonRange": [
+        32,
+        33
+      ],
+      "pos": [
+        "12.406",
+        "18.188"
+      ]
+    },
+    {
+      "idx": 42,
+      "canonRange": [
+        31,
+        33
+      ],
+      "pos": [
+        "12.281",
+        "18.422"
+      ]
+    },
+    {
+      "idx": 43,
+      "canonRange": [
+        31,
+        32
+      ],
+      "pos": [
+        "12.156",
+        "18.594"
+      ]
+    },
+    {
+      "idx": 44,
+      "canonRange": [
+        30,
+        32
+      ],
+      "pos": [
+        "12.016",
+        "18.719"
+      ]
+    },
+    {
+      "idx": 45,
+      "canonRange": [
+        30,
+        31
+      ],
+      "pos": [
+        "11.813",
+        "18.844"
+      ]
+    },
+    {
+      "idx": 46,
+      "canonRange": [
+        29,
+        30
+      ],
+      "pos": [
+        "11.188",
+        "19.156"
+      ]
+    },
+    {
+      "idx": 47,
+      "canonRange": [
+        28,
+        29
+      ],
+      "pos": [
+        "10.906",
+        "19.344"
+      ]
+    },
+    {
+      "idx": 48,
+      "canonRange": [
+        27,
+        28
+      ],
+      "pos": [
+        "10.594",
+        "19.617"
+      ]
+    },
+    {
+      "idx": 49,
+      "canonRange": [
+        26,
+        27
+      ],
+      "pos": [
+        "10.188",
+        "19.883"
+      ]
+    },
+    {
+      "idx": 50,
+      "canonRange": [
+        25,
+        26
+      ],
+      "pos": [
+        "9.813",
+        "20.047"
+      ]
+    },
+    {
+      "idx": 51,
+      "canonRange": [
+        24,
+        26
+      ],
+      "pos": [
+        "9.578",
+        "20.094"
+      ]
+    },
+    {
+      "idx": 52,
+      "canonRange": [
+        24,
+        25
+      ],
+      "pos": [
+        "9.406",
+        "20.078"
+      ]
+    },
+    {
+      "idx": 53,
+      "canonRange": [
+        23,
+        25
+      ],
+      "pos": [
+        "9.219",
+        "19.973"
+      ]
+    },
+    {
+      "idx": 54,
+      "canonRange": [
+        22,
+        24
+      ],
+      "pos": [
+        "8.957",
+        "19.766"
+      ]
+    },
+    {
+      "idx": 55,
+      "canonRange": [
+        22,
+        23
+      ],
+      "pos": [
+        "8.805",
+        "19.617"
+      ]
+    },
+    {
+      "idx": 56,
+      "canonRange": [
+        21,
+        23
+      ],
+      "pos": [
+        "8.672",
+        "19.426"
+      ]
+    },
+    {
+      "idx": 57,
+      "canonRange": [
+        21,
+        22
+      ],
+      "pos": [
+        "8.570",
+        "19.188"
+      ]
+    },
+    {
+      "idx": 58,
+      "canonRange": [
+        20,
+        22
+      ],
+      "pos": [
+        "8.512",
+        "18.938"
+      ]
+    },
+    {
+      "idx": 59,
+      "canonRange": [
+        20,
+        21
+      ],
+      "pos": [
+        "8.500",
+        "18.688"
+      ]
+    },
+    {
+      "idx": 60,
+      "canonRange": [
+        19,
+        21
+      ],
+      "pos": [
+        "8.520",
+        "18.563"
+      ]
+    },
+    {
+      "idx": 61,
+      "canonRange": [
+        19,
+        20
+      ],
+      "pos": [
+        "8.617",
+        "18.313"
+      ]
+    },
+    {
+      "idx": 62,
+      "canonRange": [
+        18,
+        20
+      ],
+      "pos": [
+        "8.766",
+        "18.063"
+      ]
+    },
+    {
+      "idx": 63,
+      "canonRange": [
+        18,
+        19
+      ],
+      "pos": [
+        "8.883",
+        "17.813"
+      ]
+    },
+    {
+      "idx": 64,
+      "canonRange": [
+        17,
+        18
+      ],
+      "pos": [
+        "9.117",
+        "17.188"
+      ]
+    },
+    {
+      "idx": 65,
+      "canonRange": [
+        16,
+        18
+      ],
+      "pos": [
+        "9.234",
+        "16.938"
+      ]
+    },
+    {
+      "idx": 66,
+      "canonRange": [
+        16,
+        17
+      ],
+      "pos": [
+        "9.383",
+        "16.688"
+      ]
+    },
+    {
+      "idx": 67,
+      "canonRange": [
+        15,
+        17
+      ],
+      "pos": [
+        "9.574",
+        "16.484"
+      ]
+    },
+    {
+      "idx": 68,
+      "canonRange": [
+        14,
+        16
+      ],
+      "pos": [
+        "10.016",
+        "16.219"
+      ]
+    },
+    {
+      "idx": 69,
+      "canonRange": [
+        14,
+        15
+      ],
+      "pos": [
+        "10.156",
+        "16.094"
+      ]
+    },
+    {
+      "idx": 70,
+      "canonRange": [
+        13,
+        15
+      ],
+      "pos": [
+        "10.281",
+        "15.922"
+      ]
+    },
+    {
+      "idx": 71,
+      "canonRange": [
+        13,
+        14
+      ],
+      "pos": [
+        "10.406",
+        "15.688"
+      ]
+    },
+    {
+      "idx": 72,
+      "canonRange": [
+        12,
+        14
+      ],
+      "pos": [
+        "10.441",
+        "15.563"
+      ]
+    },
+    {
+      "idx": 73,
+      "canonRange": [
+        12,
+        13
+      ],
+      "pos": [
+        "10.430",
+        "15.313"
+      ]
+    },
+    {
+      "idx": 74,
+      "canonRange": [
+        11,
+        12
+      ],
+      "pos": [
+        "10.195",
+        "14.688"
+      ]
+    },
+    {
+      "idx": 75,
+      "canonRange": [
+        10,
+        11
+      ],
+      "pos": [
+        "10.078",
+        "14.430"
+      ]
+    },
+    {
+      "idx": 76,
+      "canonRange": [
+        9,
+        11
+      ],
+      "pos": [
+        "10.004",
+        "14.328"
+      ]
+    },
+    {
+      "idx": 77,
+      "canonRange": [
+        8,
+        9
+      ],
+      "pos": [
+        "9.617",
+        "13.906"
+      ]
+    },
+    {
+      "idx": 78,
+      "canonRange": [
+        7,
+        8
+      ],
+      "pos": [
+        "9.383",
+        "13.594"
+      ]
+    },
+    {
+      "idx": 79,
+      "canonRange": [
+        6,
+        7
+      ],
+      "pos": [
+        "9.313",
+        "13.313"
+      ]
+    },
+    {
+      "idx": 80,
+      "canonRange": [
+        5,
+        6
+      ],
+      "pos": [
+        "9.313",
+        "12.688"
+      ]
+    },
+    {
+      "idx": 81,
+      "canonRange": [
+        4,
+        6
+      ],
+      "pos": [
+        "9.289",
+        "12.438"
+      ]
+    },
+    {
+      "idx": 82,
+      "canonRange": [
+        4,
+        5
+      ],
+      "pos": [
+        "9.234",
+        "12.188"
+      ]
+    },
+    {
+      "idx": 83,
+      "canonRange": [
+        3,
+        5
+      ],
+      "pos": [
+        "9.160",
+        "11.984"
+      ]
+    },
+    {
+      "idx": 84,
+      "canonRange": [
+        2,
+        4
+      ],
+      "pos": [
+        "9.004",
+        "11.793"
+      ]
+    },
+    {
+      "idx": 85,
+      "canonRange": [
+        2,
+        3
+      ],
+      "pos": [
+        "8.813",
+        "11.727"
+      ]
+    },
+    {
+      "idx": 86,
+      "canonRange": [
+        1,
+        3
+      ],
+      "pos": [
+        "8.563",
+        "11.707"
+      ]
+    },
+    {
+      "idx": 87,
+      "canonRange": [
+        1,
+        2
+      ],
+      "pos": [
+        "8.313",
+        "11.734"
+      ]
+    },
+    {
+      "idx": 88,
+      "canonRange": [
+        0,
+        2
+      ],
+      "pos": [
+        "8.078",
+        "11.801"
+      ]
+    },
+    {
+      "idx": 89,
+      "canonRange": [
+        0,
+        1
+      ],
+      "pos": [
+        "7.906",
+        "11.883"
+      ]
+    },
+    {
+      "idx": 90,
+      "canonRange": [
+        0,
+        1
+      ],
+      "pos": [
+        "7.906",
+        "11.883"
+      ]
+    },
+    {
+      "idx": 91,
+      "canonRange": [
+        0,
+        249
+      ],
+      "pos": [
+        "7.750",
+        "12.000"
+      ]
+    },
+    {
+      "idx": 92,
+      "canonRange": [
+        247,
+        248
+      ],
+      "pos": [
+        "7.430",
+        "12.344"
+      ]
+    },
+    {
+      "idx": 93,
+      "canonRange": [
+        246,
+        247
+      ],
+      "pos": [
+        "7.195",
+        "12.688"
+      ]
+    },
+    {
+      "idx": 94,
+      "canonRange": [
+        245,
+        246
+      ],
+      "pos": [
+        "6.805",
+        "13.313"
+      ]
+    },
+    {
+      "idx": 95,
+      "canonRange": [
+        244,
+        245
+      ],
+      "pos": [
+        "6.617",
+        "13.547"
+      ]
+    },
+    {
+      "idx": 96,
+      "canonRange": [
+        243,
+        245
+      ],
+      "pos": [
+        "6.418",
+        "13.664"
+      ]
+    },
+    {
+      "idx": 97,
+      "canonRange": [
+        242,
+        244
+      ],
+      "pos": [
+        "6.063",
+        "13.836"
+      ]
+    },
+    {
+      "idx": 98,
+      "canonRange": [
+        242,
+        243
+      ],
+      "pos": [
+        "5.813",
+        "13.922"
+      ]
+    },
+    {
+      "idx": 99,
+      "canonRange": [
+        240,
+        241
+      ],
+      "pos": [
+        "4.688",
+        "14.203"
+      ]
+    },
+    {
+      "idx": 100,
+      "canonRange": [
+        239,
+        240
+      ],
+      "pos": [
+        "4.383",
+        "14.344"
+      ]
+    },
+    {
+      "idx": 101,
+      "canonRange": [
+        238,
+        239
+      ],
+      "pos": [
+        "4.070",
+        "14.578"
+      ]
+    },
+    {
+      "idx": 102,
+      "canonRange": [
+        237,
+        238
+      ],
+      "pos": [
+        "3.688",
+        "14.781"
+      ]
+    },
+    {
+      "idx": 103,
+      "canonRange": [
+        236,
+        238
+      ],
+      "pos": [
+        "3.438",
+        "14.883"
+      ]
+    },
+    {
+      "idx": 104,
+      "canonRange": [
+        236,
+        237
+      ],
+      "pos": [
+        "3.188",
+        "14.953"
+      ]
+    },
+    {
+      "idx": 105,
+      "canonRange": [
+        235,
+        237
+      ],
+      "pos": [
+        "3.063",
+        "14.961"
+      ]
+    },
+    {
+      "idx": 106,
+      "canonRange": [
+        235,
+        236
+      ],
+      "pos": [
+        "2.813",
+        "14.906"
+      ]
+    },
+    {
+      "idx": 107,
+      "canonRange": [
+        234,
+        236
+      ],
+      "pos": [
+        "2.594",
+        "14.813"
+      ]
+    },
+    {
+      "idx": 108,
+      "canonRange": [
+        234,
+        235
+      ],
+      "pos": [
+        "2.500",
+        "14.844"
+      ]
+    },
+    {
+      "idx": 109,
+      "canonRange": [
+        226,
+        227
+      ],
+      "pos": [
+        "2.500",
+        "18.813"
+      ]
+    },
+    {
+      "idx": 110,
+      "canonRange": [
+        225,
+        227
+      ],
+      "pos": [
+        "2.594",
+        "18.969"
+      ]
+    },
+    {
+      "idx": 111,
+      "canonRange": [
+        225,
+        226
+      ],
+      "pos": [
+        "2.813",
+        "19.000"
+      ]
+    },
+    {
+      "idx": 112,
+      "canonRange": [
+        224,
+        226
+      ],
+      "pos": [
+        "3.063",
+        "18.953"
+      ]
+    },
+    {
+      "idx": 113,
+      "canonRange": [
+        224,
+        225
+      ],
+      "pos": [
+        "3.313",
+        "18.844"
+      ]
+    },
+    {
+      "idx": 114,
+      "canonRange": [
+        223,
+        225
+      ],
+      "pos": [
+        "3.563",
+        "18.766"
+      ]
+    },
+    {
+      "idx": 115,
+      "canonRange": [
+        223,
+        224
+      ],
+      "pos": [
+        "3.813",
+        "18.750"
+      ]
+    },
+    {
+      "idx": 116,
+      "canonRange": [
+        222,
+        224
+      ],
+      "pos": [
+        "4.016",
+        "18.797"
+      ]
+    },
+    {
+      "idx": 117,
+      "canonRange": [
+        222,
+        223
+      ],
+      "pos": [
+        "4.156",
+        "18.906"
+      ]
+    },
+    {
+      "idx": 118,
+      "canonRange": [
+        221,
+        223
+      ],
+      "pos": [
+        "4.281",
+        "19.078"
+      ]
+    },
+    {
+      "idx": 119,
+      "canonRange": [
+        220,
+        222
+      ],
+      "pos": [
+        "4.484",
+        "19.438"
+      ]
+    },
+    {
+      "idx": 120,
+      "canonRange": [
+        220,
+        221
+      ],
+      "pos": [
+        "4.688",
+        "19.688"
+      ]
+    },
+    {
+      "idx": 121,
+      "canonRange": [
+        219,
+        220
+      ],
+      "pos": [
+        "5.313",
+        "20.313"
+      ]
+    },
+    {
+      "idx": 122,
+      "canonRange": [
+        218,
+        220
+      ],
+      "pos": [
+        "5.563",
+        "20.469"
+      ]
+    },
+    {
+      "idx": 123,
+      "canonRange": [
+        217,
+        219
+      ],
+      "pos": [
+        "6.063",
+        "20.535"
+      ]
+    },
+    {
+      "idx": 124,
+      "canonRange": [
+        217,
+        218
+      ],
+      "pos": [
+        "6.313",
+        "20.617"
+      ]
+    },
+    {
+      "idx": 125,
+      "canonRange": [
+        216,
+        218
+      ],
+      "pos": [
+        "6.563",
+        "20.734"
+      ]
+    },
+    {
+      "idx": 126,
+      "canonRange": [
+        216,
+        217
+      ],
+      "pos": [
+        "6.813",
+        "20.883"
+      ]
+    },
+    {
+      "idx": 127,
+      "canonRange": [
+        215,
+        217
+      ],
+      "pos": [
+        "6.922",
+        "20.973"
+      ]
+    },
+    {
+      "idx": 128,
+      "canonRange": [
+        215,
+        216
+      ],
+      "pos": [
+        "7.094",
+        "21.188"
+      ]
+    },
+    {
+      "idx": 129,
+      "canonRange": [
+        214,
+        215
+      ],
+      "pos": [
+        "7.406",
+        "21.813"
+      ]
+    },
+    {
+      "idx": 130,
+      "canonRange": [
+        213,
+        214
+      ],
+      "pos": [
+        "7.617",
+        "22.313"
+      ]
+    },
+    {
+      "idx": 131,
+      "canonRange": [
+        212,
+        213
+      ],
+      "pos": [
+        "7.766",
+        "22.813"
+      ]
+    },
+    {
+      "idx": 132,
+      "canonRange": [
+        211,
+        213
+      ],
+      "pos": [
+        "7.840",
+        "23.016"
+      ]
+    },
+    {
+      "idx": 133,
+      "canonRange": [
+        210,
+        212
+      ],
+      "pos": [
+        "7.996",
+        "23.207"
+      ]
+    },
+    {
+      "idx": 134,
+      "canonRange": [
+        210,
+        211
+      ],
+      "pos": [
+        "8.188",
+        "23.273"
+      ]
+    },
+    {
+      "idx": 135,
+      "canonRange": [
+        209,
+        211
+      ],
+      "pos": [
+        "8.438",
+        "23.293"
+      ]
+    },
+    {
+      "idx": 136,
+      "canonRange": [
+        209,
+        210
+      ],
+      "pos": [
+        "8.688",
+        "23.266"
+      ]
+    },
+    {
+      "idx": 137,
+      "canonRange": [
+        208,
+        210
+      ],
+      "pos": [
+        "9.063",
+        "23.160"
+      ]
+    },
+    {
+      "idx": 138,
+      "canonRange": [
+        208,
+        209
+      ],
+      "pos": [
+        "9.313",
+        "23.070"
+      ]
+    },
+    {
+      "idx": 139,
+      "canonRange": [
+        207,
+        209
+      ],
+      "pos": [
+        "9.438",
+        "23.066"
+      ]
+    },
+    {
+      "idx": 140,
+      "canonRange": [
+        207,
+        209
+      ],
+      "pos": [
+        "9.563",
+        "23.105"
+      ]
+    },
+    {
+      "idx": 141,
+      "canonRange": [
+        207,
+        208
+      ],
+      "pos": [
+        "9.688",
+        "23.188"
+      ]
+    },
+    {
+      "idx": 142,
+      "canonRange": [
+        206,
+        208
+      ],
+      "pos": [
+        "9.906",
+        "23.438"
+      ]
+    },
+    {
+      "idx": 143,
+      "canonRange": [
+        206,
+        207
+      ],
+      "pos": [
+        "10.000",
+        "23.688"
+      ]
+    },
+    {
+      "idx": 144,
+      "canonRange": [
+        205,
+        207
+      ],
+      "pos": [
+        "9.969",
+        "23.938"
+      ]
+    },
+    {
+      "idx": 145,
+      "canonRange": [
+        205,
+        206
+      ],
+      "pos": [
+        "9.813",
+        "24.188"
+      ]
+    },
+    {
+      "idx": 146,
+      "canonRange": [
+        204,
+        205
+      ],
+      "pos": [
+        "9.188",
+        "24.813"
+      ]
+    },
+    {
+      "idx": 147,
+      "canonRange": [
+        203,
+        205
+      ],
+      "pos": [
+        "9.063",
+        "24.906"
+      ]
+    },
+    {
+      "idx": 148,
+      "canonRange": [
+        203,
+        204
+      ],
+      "pos": [
+        "8.813",
+        "25.000"
+      ]
+    },
+    {
+      "idx": 149,
+      "canonRange": [
+        202,
+        204
+      ],
+      "pos": [
+        "8.563",
+        "24.984"
+      ]
+    },
+    {
+      "idx": 150,
+      "canonRange": [
+        202,
+        203
+      ],
+      "pos": [
+        "8.313",
+        "24.906"
+      ]
+    },
+    {
+      "idx": 151,
+      "canonRange": [
+        201,
+        202
+      ],
+      "pos": [
+        "7.688",
+        "24.594"
+      ]
+    },
+    {
+      "idx": 152,
+      "canonRange": [
+        200,
+        202
+      ],
+      "pos": [
+        "7.563",
+        "24.547"
+      ]
+    },
+    {
+      "idx": 153,
+      "canonRange": [
+        200,
+        201
+      ],
+      "pos": [
+        "7.313",
+        "24.500"
+      ]
+    },
+    {
+      "idx": 154,
+      "canonRange": [
+        199,
+        201
+      ],
+      "pos": [
+        "7.063",
+        "24.512"
+      ]
+    },
+    {
+      "idx": 155,
+      "canonRange": [
+        199,
+        200
+      ],
+      "pos": [
+        "6.813",
+        "24.570"
+      ]
+    },
+    {
+      "idx": 156,
+      "canonRange": [
+        198,
+        199
+      ],
+      "pos": [
+        "6.188",
+        "24.805"
+      ]
+    },
+    {
+      "idx": 157,
+      "canonRange": [
+        197,
+        198
+      ],
+      "pos": [
+        "5.688",
+        "24.953"
+      ]
+    },
+    {
+      "idx": 158,
+      "canonRange": [
+        196,
+        198
+      ],
+      "pos": [
+        "5.563",
+        "24.969"
+      ]
+    },
+    {
+      "idx": 159,
+      "canonRange": [
+        196,
+        197
+      ],
+      "pos": [
+        "5.313",
+        "24.953"
+      ]
+    },
+    {
+      "idx": 160,
+      "canonRange": [
+        195,
+        197
+      ],
+      "pos": [
+        "5.063",
+        "24.883"
+      ]
+    },
+    {
+      "idx": 161,
+      "canonRange": [
+        195,
+        196
+      ],
+      "pos": [
+        "4.813",
+        "24.781"
+      ]
+    },
+    {
+      "idx": 162,
+      "canonRange": [
+        194,
+        195
+      ],
+      "pos": [
+        "4.383",
+        "24.547"
+      ]
+    },
+    {
+      "idx": 163,
+      "canonRange": [
+        193,
+        194
+      ],
+      "pos": [
+        "4.195",
+        "24.383"
+      ]
+    },
+    {
+      "idx": 164,
+      "canonRange": [
+        192,
+        193
+      ],
+      "pos": [
+        "3.883",
+        "24.070"
+      ]
+    },
+    {
+      "idx": 165,
+      "canonRange": [
+        191,
+        192
+      ],
+      "pos": [
+        "3.695",
+        "23.930"
+      ]
+    },
+    {
+      "idx": 166,
+      "canonRange": [
+        190,
+        191
+      ],
+      "pos": [
+        "3.188",
+        "23.617"
+      ]
+    },
+    {
+      "idx": 167,
+      "canonRange": [
+        189,
+        190
+      ],
+      "pos": [
+        "2.688",
+        "23.266"
+      ]
+    },
+    {
+      "idx": 168,
+      "canonRange": [
+        188,
+        190
+      ],
+      "pos": [
+        "2.594",
+        "23.219"
+      ]
+    },
+    {
+      "idx": 169,
+      "canonRange": [
+        188,
+        189
+      ],
+      "pos": [
+        "2.500",
+        "23.266"
+      ]
+    },
+    {
+      "idx": 170,
+      "canonRange": [
+        187,
+        189
+      ],
+      "pos": [
+        "2.488",
+        "23.570"
+      ]
+    },
+    {
+      "idx": 171,
+      "canonRange": [
+        186,
+        188
+      ],
+      "pos": [
+        "2.449",
+        "23.938"
+      ]
+    },
+    {
+      "idx": 172,
+      "canonRange": [
+        186,
+        187
+      ],
+      "pos": [
+        "2.438",
+        "24.188"
+      ]
+    },
+    {
+      "idx": 173,
+      "canonRange": [
+        176,
+        177
+      ],
+      "pos": [
+        "2.438",
+        "29.313"
+      ]
+    },
+    {
+      "idx": 174,
+      "canonRange": [
+        175,
+        177
+      ],
+      "pos": [
+        "2.473",
+        "29.410"
+      ]
+    },
+    {
+      "idx": 175,
+      "canonRange": [
+        175,
+        176
+      ],
+      "pos": [
+        "2.648",
+        "29.523"
+      ]
+    },
+    {
+      "idx": 176,
+      "canonRange": [
+        174,
+        175
+      ],
+      "pos": [
+        "3.188",
+        "29.563"
+      ]
+    },
+    {
+      "idx": 177,
+      "canonRange": [
+        163,
+        164
+      ],
+      "pos": [
+        "8.813",
+        "29.563"
+      ]
+    },
+    {
+      "idx": 178,
+      "canonRange": [
+        162,
+        164
+      ],
+      "pos": [
+        "9.063",
+        "29.574"
+      ]
+    },
+    {
+      "idx": 179,
+      "canonRange": [
+        161,
+        163
+      ],
+      "pos": [
+        "9.438",
+        "29.613"
+      ]
+    },
+    {
+      "idx": 180,
+      "canonRange": [
+        161,
+        162
+      ],
+      "pos": [
+        "9.688",
+        "29.625"
+      ]
+    },
+    {
+      "idx": 181,
+      "canonRange": [
+        140,
+        141
+      ],
+      "pos": [
+        "20.313",
+        "29.625"
+      ]
+    },
+    {
+      "idx": 182,
+      "canonRange": [
+        139,
+        141
+      ],
+      "pos": [
+        "20.563",
+        "29.613"
+      ]
+    },
+    {
+      "idx": 183,
+      "canonRange": [
+        138,
+        140
+      ],
+      "pos": [
+        "20.938",
+        "29.574"
+      ]
+    },
+    {
+      "idx": 184,
+      "canonRange": [
+        138,
+        139
+      ],
+      "pos": [
+        "21.188",
+        "29.563"
+      ]
+    },
+    {
+      "idx": 185,
+      "canonRange": [
+        132,
+        133
+      ],
+      "pos": [
+        "24.313",
+        "29.563"
+      ]
+    },
+    {
+      "idx": 186,
+      "canonRange": [
+        131,
+        133
+      ],
+      "pos": [
+        "24.563",
+        "29.574"
+      ]
+    },
+    {
+      "idx": 187,
+      "canonRange": [
+        130,
+        132
+      ],
+      "pos": [
+        "24.938",
+        "29.613"
+      ]
+    },
+    {
+      "idx": 188,
+      "canonRange": [
+        130,
+        131
+      ],
+      "pos": [
+        "25.188",
+        "29.625"
+      ]
+    },
+    {
+      "idx": 189,
+      "canonRange": [
+        124,
+        125
+      ],
+      "pos": [
+        "28.313",
+        "29.625"
+      ]
+    },
+    {
+      "idx": 190,
+      "canonRange": [
+        123,
+        125
+      ],
+      "pos": [
+        "28.563",
+        "29.613"
+      ]
+    },
+    {
+      "idx": 191,
+      "canonRange": [
+        122,
+        124
+      ],
+      "pos": [
+        "29.063",
+        "29.566"
+      ]
+    },
+    {
+      "idx": 192,
+      "canonRange": [
+        122,
+        123
+      ],
+      "pos": [
+        "29.313",
+        "29.563"
+      ]
+    },
+    {
+      "idx": 193,
+      "canonRange": [
+        121,
+        123
+      ],
+      "pos": [
+        "29.410",
+        "29.527"
+      ]
+    },
+    {
+      "idx": 194,
+      "canonRange": [
+        121,
+        122
+      ],
+      "pos": [
+        "29.523",
+        "29.352"
+      ]
+    },
+    {
+      "idx": 195,
+      "canonRange": [
+        120,
+        121
+      ],
+      "pos": [
+        "29.563",
+        "28.813"
+      ]
+    },
+    {
+      "idx": 196,
+      "canonRange": [
+        92,
+        93
+      ],
+      "pos": [
+        "29.563",
+        "14.688"
+      ]
+    },
+    {
+      "idx": 197,
+      "canonRange": [
+        91,
+        93
+      ],
+      "pos": [
+        "29.551",
+        "14.438"
+      ]
+    },
+    {
+      "idx": 198,
+      "canonRange": [
+        90,
+        92
+      ],
+      "pos": [
+        "29.512",
+        "14.063"
+      ]
+    },
+    {
+      "idx": 199,
+      "canonRange": [
+        90,
+        91
+      ],
+      "pos": [
+        "29.500",
+        "13.813"
+      ]
+    },
+    {
+      "idx": 200,
+      "canonRange": [
+        89,
+        90
+      ],
+      "pos": [
+        "29.500",
+        "13.188"
+      ]
+    },
+    {
+      "idx": 201,
+      "canonRange": [
+        88,
+        90
+      ],
+      "pos": [
+        "29.469",
+        "13.113"
+      ]
+    },
+    {
+      "idx": 202,
+      "canonRange": [
+        88,
+        89
+      ],
+      "pos": [
+        "29.313",
+        "13.117"
+      ]
+    },
+    {
+      "idx": 203,
+      "canonRange": [
+        87,
+        88
+      ],
+      "pos": [
+        "28.906",
+        "13.383"
+      ]
+    },
+    {
+      "idx": 204,
+      "canonRange": [
+        86,
+        87
+      ],
+      "pos": [
+        "28.656",
+        "13.594"
+      ]
+    },
+    {
+      "idx": 205,
+      "canonRange": [
+        85,
+        86
+      ],
+      "pos": [
+        "28.344",
+        "13.906"
+      ]
+    },
+    {
+      "idx": 206,
+      "canonRange": [
+        84,
+        85
+      ],
+      "pos": [
+        "28.094",
+        "14.195"
+      ]
+    },
+    {
+      "idx": 207,
+      "canonRange": [
+        83,
+        84
+      ],
+      "pos": [
+        "27.922",
+        "14.430"
+      ]
+    },
+    {
+      "idx": 208,
+      "canonRange": [
+        81,
+        83
+      ],
+      "pos": [
+        "27.664",
+        "14.914"
+      ]
+    },
+    {
+      "idx": 209,
+      "canonRange": [
+        81,
+        82
+      ],
+      "pos": [
+        "27.578",
+        "15.047"
+      ]
+    }
+  ]
+}
+[18:52:17] LOG: [Step4] Merging segments {
+  "segmentCount": 2
+}
+[18:52:17] LOG: [Step4] Adding segment {
+  "kind": "warm",
+  "vertexCount": 17
+}
+[18:52:17] LOG: [Step4] Adding segment {
+  "kind": "cold",
+  "vertexCount": 210
+}
+[18:52:17] LOG: [Step4] Segments merged {
+  "totalOptVertices": 227
+}
+[18:52:17] LOG: [Step4] ✓ Opt-space merging complete {
+  "stitchedLoopId": 1,
+  "finalOptVertexCount": 227,
+  "segmentCount": 2,
+  "warmSegments": 1,
+  "coldSegments": 1
+}
+[18:52:17] LOG: [Step4][OptLoop] {
+  loopId: 1,
+  warmSegments: [
+    { index: 0, vertices: 17 }
+  ],
+  coldSegments: [
+    { index: 1, vertices: 210 }
+  ],
+  totalOptVertices: 227,
+  anchors: [
+    { x: 21.44, y: 20.00 },
+    { x: 27.05, y: 15.58 }
+  ]
+}
+[18:52:17] LOG: [Step4] ✓ Processed stitched loop {
+  "loopId": 1,
+  "optVertexCount": 227,
+  "anchorCount": 2,
+  "segmentCount": 2
+}
+[18:52:17] LOG: [Renderer] Step 4 debug data set {
+  "loopCount": 1,
+  "totalOptVertices": 227,
+  "totalAnchors": 2
+}
+[18:52:17] LOG: [Carving] ✓ Step 4 enabled: showing opt-space merging overlay {
+  "loopCount": 1
+}
+[18:52:17] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 17,
+  first: { x: 27.05, y: 15.58 },
+  last: { x: 27.00, y: 15.63 }
+}
+[18:52:17] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 17,
+  first: { x: 27.05, y: 15.58 },
+  last: { x: 27.00, y: 15.63 },
+  lastScreen: { x: 215, y: 228 },
+  willCallClosePath: false
+}
+[18:52:17] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 210,
+  first: { x: 21.44, y: 20.00 },
+  last: { x: 27.58, y: 15.05 }
+}
+[18:52:17] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 210,
+  first: { x: 21.44, y: 20.00 },
+  last: { x: 27.58, y: 15.05 },
+  lastScreen: { x: 238, y: 205 },
+  willCallClosePath: false
+}
+[18:52:21] LOG: [Step4][TapInspect] {
+  "tap": {
+    "x": 23.825,
+    "y": 18.991
+  },
+  "segmentKind": "warm",
+  "segmentIndex": 0,
+  "edgeIndex": 0,
+  "edgeLength": 6.213212,
+  "v0": {
+    "optIndex": 0,
+    "x": 27.047,
+    "y": 15.578,
+    "canonStartId": 711,
+    "canonEndId": 712
+  },
+  "v1": {
+    "optIndex": 1,
+    "x": 22.5,
+    "y": 19.813,
+    "canonStartId": 713,
+    "canonEndId": 714
+  }
+}
+[18:52:21] LOG: [Step4][TapInspect] {
+  "tap": {
+    "x": 23.6,
+    "y": 18.866
+  },
+  "segmentKind": "warm",
+  "segmentIndex": 0,
+  "edgeIndex": 0,
+  "edgeLength": 6.213212,
+  "v0": {
+    "optIndex": 0,
+    "x": 27.047,
+    "y": 15.578,
+    "canonStartId": 711,
+    "canonEndId": 712
+  },
+  "v1": {
+    "optIndex": 1,
+    "x": 22.5,
+    "y": 19.813,
+    "canonStartId": 713,
+    "canonEndId": 714
+  }
 }
