@@ -253,6 +253,10 @@ export class Renderer {
     });
   }
 
+  getOptMergingDebug(): Step4DebugData[] {
+    return this.optMergingDebug;
+  }
+
   /**
    * Step 3: Stitched segment classifications (warm/cold in stitched canonical space)
    */

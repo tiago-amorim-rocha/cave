@@ -25,7 +25,7 @@ import { AncestryModal } from './AncestryModal';
 import type { CanonicalLoop, OptVertex, ReusePlanDebug, CanonicalVertex } from './terrain/CanonicalGeometry';
 import { allocateVertexId } from './terrain/CanonicalGeometry';
 import { VertexOptimizationPipeline } from './VertexOptimizationPipeline';
-import { buildOptimizedFromStitchedLoop, type Step4Input, type Step4Output } from './terrain/Step4OptMerging';
+import { buildOptimizedFromStitchedLoop, type Step4Input, type Step4Output, type ProcessedSegment } from './terrain/Step4OptMerging';
 import type { Step4DebugData } from './Renderer';
 import { CarvingDebugMode, nextCarvingDebugMode, getCarvingDebugModeLabel } from './CarvingDebugMode';
 
@@ -2294,6 +2294,12 @@ class CarvableCaves {
    * @param screenY - Screen Y coordinate of tap
    */
   handleStitchedLoopTap(screenX: number, screenY: number): void {
+    // Handle Step 4 (OPT_MERGING) mode separately
+    if (this.carvingDebugMode === CarvingDebugMode.OPT_MERGING) {
+      this.handleOptMergingTap(screenX, screenY);
+      return;
+    }
+
     if (this.carvingDebugMode !== CarvingDebugMode.STITCHED_LOOPS || this.stitchedLoops.length === 0) {
       return;
     }
@@ -2360,6 +2366,218 @@ class CarvableCaves {
         relatedOptVerticesCount: relatedOptVertices?.length ?? 0
       });
     }
+  }
+
+  /**
+   * Handle tap events in Step 4 (OPT_MERGING) debug mode.
+   * Finds the closest edge and logs detailed debug information.
+   *
+   * @param screenX - Screen X coordinate of tap
+   * @param screenY - Screen Y coordinate of tap
+   */
+  handleOptMergingTap(screenX: number, screenY: number): void {
+    // Get Step 4 debug data from renderer
+    const step4DebugData = this.renderer.getOptMergingDebug();
+
+    if (!step4DebugData || step4DebugData.length === 0) {
+      console.warn('[Step4][TapInspect] No Step 4 debug data available');
+      return;
+    }
+
+    // Convert screen coordinates to world coordinates
+    const canvasWidth = this.canvas.width / (window.devicePixelRatio || 1);
+    const canvasHeight = this.canvas.height / (window.devicePixelRatio || 1);
+    const worldPos = this.camera.screenToWorld(screenX, screenY, canvasWidth, canvasHeight);
+
+    // Find closest edge across all Step 4 loops and segments
+    let closestDebugData: Step4DebugData | null = null;
+    let closestSegment: ProcessedSegment | null = null;
+    let closestSegmentIndex = -1;
+    let closestEdgeIndex = -1;
+    let closestEdgeV0Index = -1;
+    let closestDistance = Infinity;
+    const tapThreshold = 20 / this.camera.zoom; // 20 pixels in world units
+
+    for (const debugData of step4DebugData) {
+      const processedSegments = debugData.step4Output.debugInfo?.processedSegments;
+      if (!processedSegments) continue;
+
+      for (let segIdx = 0; segIdx < processedSegments.length; segIdx++) {
+        const segment = processedSegments[segIdx];
+        const optVertices = segment.optVertices;
+
+        // Iterate through edges in this segment (v[i] → v[i+1])
+        for (let i = 0; i < optVertices.length; i++) {
+          const v0 = optVertices[i];
+          const v1 = optVertices[(i + 1) % optVertices.length];
+
+          // Calculate distance from tap point to this edge
+          const dist = this.pointToSegmentDistance(worldPos, v0, v1);
+
+          if (dist < closestDistance && dist < tapThreshold) {
+            closestDistance = dist;
+            closestDebugData = debugData;
+            closestSegment = segment;
+            closestSegmentIndex = segIdx;
+            closestEdgeIndex = i;
+            closestEdgeV0Index = i;
+          }
+        }
+      }
+    }
+
+    // If we found a closest edge, log detailed information
+    if (closestDebugData && closestSegment && closestEdgeIndex >= 0) {
+      this.logStep4EdgeDetails(
+        worldPos,
+        closestDebugData,
+        closestSegment,
+        closestSegmentIndex,
+        closestEdgeIndex,
+        closestEdgeV0Index
+      );
+    } else {
+      console.log('[Step4][TapInspect] No edge found within tap threshold', {
+        tap: { x: worldPos.x.toFixed(3), y: worldPos.y.toFixed(3) },
+        tapThreshold: tapThreshold.toFixed(3)
+      });
+    }
+  }
+
+  /**
+   * Log detailed information about a Step 4 edge.
+   */
+  private logStep4EdgeDetails(
+    tapPos: { x: number; y: number },
+    debugData: Step4DebugData,
+    segment: any, // ProcessedSegment type
+    segmentIndex: number,
+    edgeIndex: number,
+    v0Index: number
+  ): void {
+    const optVertices = segment.optVertices;
+    const v0 = optVertices[v0Index];
+    const v1 = optVertices[(v0Index + 1) % optVertices.length];
+
+    // Calculate edge length
+    const dx = v1.x - v0.x;
+    const dy = v1.y - v0.y;
+    const edgeLength = Math.sqrt(dx * dx + dy * dy);
+
+    // Build base log object
+    const logObj: any = {
+      tap: { x: parseFloat(tapPos.x.toFixed(3)), y: parseFloat(tapPos.y.toFixed(3)) },
+      segmentKind: segment.kind,
+      segmentIndex,
+      edgeIndex,
+      edgeLength: parseFloat(edgeLength.toFixed(6)),
+      v0: {
+        optIndex: v0Index,
+        x: parseFloat(v0.x.toFixed(3)),
+        y: parseFloat(v0.y.toFixed(3)),
+        canonStartId: v0.canonStartId,
+        canonEndId: v0.canonEndId
+      },
+      v1: {
+        optIndex: (v0Index + 1) % optVertices.length,
+        x: parseFloat(v1.x.toFixed(3)),
+        y: parseFloat(v1.y.toFixed(3)),
+        canonStartId: v1.canonStartId,
+        canonEndId: v1.canonEndId
+      }
+    };
+
+    // For cold segments, add canonical mapping information
+    if (segment.kind === 'cold') {
+      const coldMappings = this.computeColdSegmentMappings(
+        debugData.stitchedLoopId,
+        segment,
+        v0,
+        v1
+      );
+      if (coldMappings) {
+        logObj.coldMappings = coldMappings;
+      }
+    }
+
+    // Log as formatted JSON
+    console.log('[Step4][TapInspect] ' + JSON.stringify(logObj, null, 2));
+  }
+
+  /**
+   * Compute canonical ID mappings for cold segment vertices.
+   * Returns which canonical IDs each opt vertex overlaps and the distance to the canonical position.
+   */
+  private computeColdSegmentMappings(
+    stitchedLoopId: number,
+    segment: any, // ProcessedSegment
+    v0: OptVertex,
+    v1: OptVertex
+  ): any {
+    // Find the stitched loop to get ancestry information
+    const stitchedLoop = this.stitchedLoops.find(loop => loop.id === stitchedLoopId);
+    if (!stitchedLoop) {
+      console.warn('[Step4][TapInspect] Could not find stitched loop', { stitchedLoopId });
+      return null;
+    }
+
+    // Find the cold segment in the stitched loop
+    const coldSegmentAncestry = stitchedLoop.segments.find(
+      seg => !seg.isNew && seg.sourceCanonicalId !== undefined
+    );
+
+    if (!coldSegmentAncestry || !coldSegmentAncestry.sourceCanonicalId) {
+      console.warn('[Step4][TapInspect] Could not find cold segment ancestry');
+      return null;
+    }
+
+    // Get the canonical loop
+    const canonicalLoop = this.remeshManager.getCanonicalLoops().find(
+      loop => loop.id === coldSegmentAncestry.sourceCanonicalId
+    );
+
+    if (!canonicalLoop) {
+      console.warn('[Step4][TapInspect] Could not find canonical loop', {
+        canonicalLoopId: coldSegmentAncestry.sourceCanonicalId
+      });
+      return null;
+    }
+
+    // Helper to compute canonical mapping for a single opt vertex
+    const computeVertexMapping = (optVertex: OptVertex) => {
+      // Get all canonical IDs this opt vertex covers
+      const mappedCanonicalIds: number[] = [];
+      for (let canonId = optVertex.canonStartId; canonId <= optVertex.canonEndId; canonId++) {
+        mappedCanonicalIds.push(canonId);
+      }
+
+      // Compute distance to canonical position
+      // Use the middle canonical ID as representative
+      const midCanonId = Math.floor((optVertex.canonStartId + optVertex.canonEndId) / 2);
+
+      // Get canonical vertex position (loop-local index)
+      const canonVertex = canonicalLoop.vertices[midCanonId % canonicalLoop.vertices.length];
+      if (!canonVertex) {
+        return {
+          mappedCanonicalIds,
+          distanceToCanonical: null
+        };
+      }
+
+      const dx = optVertex.x - canonVertex.x;
+      const dy = optVertex.y - canonVertex.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      return {
+        mappedCanonicalIds,
+        distanceToCanonical: parseFloat(distance.toFixed(6))
+      };
+    };
+
+    return {
+      v0: computeVertexMapping(v0),
+      v1: computeVertexMapping(v1)
+    };
   }
 
   /**

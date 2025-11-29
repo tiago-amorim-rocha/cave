@@ -50,7 +50,7 @@ interface Anchor {
 /**
  * Processed segment ready for merging
  */
-interface ProcessedSegment {
+export interface ProcessedSegment {
   kind: 'warm' | 'cold';
   /** Opt vertices - INCLUDES start anchor, EXCLUDES end anchor */
   optVertices: OptVertex[];
