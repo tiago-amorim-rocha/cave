@@ -467,7 +467,7 @@ function extractColdOptSegment(
   // ====== DENSE COLD SEGMENT DIAGNOSTICS ======
 
   // Compute canonical ID paths (forward and backward around the loop)
-  const canonicalLoopSize = canonLoop.canonicalVertices?.length ?? canonLoop.optVertices.length;
+  const canonicalLoopSize = canonLoop.vertices.length;
   const canonicalIdPathForward: number[] = [];
   const canonicalIdPathBackward: number[] = [];
 
