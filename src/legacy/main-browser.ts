@@ -364,7 +364,8 @@ class CarvableCaves {
         simplificationEpsilon: this.simplificationEpsilon,
         chaikinEnabled: this.chaikinEnabled,
         chaikinIterations: this.chaikinIterations,
-        simplificationEpsilonPost: this.simplificationEpsilonPost
+        simplificationEpsilonPost: this.simplificationEpsilonPost,
+        closed: true // Full loops are closed (warm segments will override this)
       }
     });
 

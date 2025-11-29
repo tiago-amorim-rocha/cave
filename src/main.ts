@@ -404,7 +404,8 @@ class CarvableCaves {
         simplificationEpsilon: this.config.simplificationEpsilon,
         chaikinEnabled: this.config.chaikinEnabled,
         chaikinIterations: this.config.chaikinIterations,
-        simplificationEpsilonPost: this.config.simplificationEpsilonPost
+        simplificationEpsilonPost: this.config.simplificationEpsilonPost,
+        closed: true // Full loops are closed (warm segments will override this)
       }
     });
 
@@ -1217,7 +1218,8 @@ class CarvableCaves {
           simplificationEpsilon: this.config.simplificationEpsilon,
           chaikinEnabled: this.config.chaikinEnabled,
           chaikinIterations: this.config.chaikinIterations,
-          simplificationEpsilonPost: this.config.simplificationEpsilonPost
+          simplificationEpsilonPost: this.config.simplificationEpsilonPost,
+          closed: true // Default for full loops (Step 4 will override for warm segments)
         }
       };
 
@@ -2029,7 +2031,8 @@ class CarvableCaves {
       simplificationEpsilon: this.config.simplificationEpsilon,
       chaikinEnabled: this.config.chaikinEnabled,
       chaikinIterations: this.config.chaikinIterations,
-      simplificationEpsilonPost: this.config.simplificationEpsilonPost
+      simplificationEpsilonPost: this.config.simplificationEpsilonPost,
+      closed: false // Warm segments are open arcs (debug mode)
     };
 
     // Process each stitched loop

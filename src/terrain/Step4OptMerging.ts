@@ -651,9 +651,10 @@ function optimizeWarmSegment(
     warmVerts.push({ ...stitchedVertices[i] });
   }
 
-  // Run optimization pipeline
+  // Run optimization pipeline with closed=false (warm segments are OPEN arcs)
   const pipeline = new VertexOptimizationPipeline();
-  const optimizationResult = pipeline.optimize([warmVerts], optimizationOptions);
+  const warmSegmentOptions = { ...optimizationOptions, closed: false };
+  const optimizationResult = pipeline.optimize([warmVerts], warmSegmentOptions);
 
   // Extract the first (and only) loop from the result
   let optimized = optimizationResult.finalOptLoops[0];
