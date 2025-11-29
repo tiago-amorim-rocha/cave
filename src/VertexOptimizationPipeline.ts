@@ -20,6 +20,7 @@ export interface OptimizationOptions {
   chaikinEnabled: boolean;
   chaikinIterations: number;
   simplificationEpsilonPost: number; // Post-Chaikin simplification (0 = disabled)
+  closed: boolean; // Whether the input is a closed loop (true) or open arc (false)
 }
 
 export interface OptimizationResult {
@@ -100,7 +101,7 @@ export class VertexOptimizationPipeline {
     if (options.chaikinEnabled) {
       const t5 = performance.now();
       const beforeChaikin = finalLoops.reduce((sum, loop) => sum + loop.length, 0);
-      chaikinOptLoops = finalLoops.map(loop => chaikinSmoothMultiple(loop, options.chaikinIterations, 0.25, true));
+      chaikinOptLoops = finalLoops.map(loop => chaikinSmoothMultiple(loop, options.chaikinIterations, 0.25, options.closed));
       workingOptLoops = chaikinOptLoops;
       finalLoops = workingOptLoops.map(loop => loop.map(p => ({ x: p.x, y: p.y } as Point)));
       const t6 = performance.now();
