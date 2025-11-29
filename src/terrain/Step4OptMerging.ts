@@ -316,13 +316,17 @@ function identifyAnchors(
  * @param canonicalLoopsMap - Map of canonical loops
  * @param startAnchor - Anchor at segment start
  * @param endAnchor - Anchor at segment end
+ * @param stitchedLoopId - ID of the stitched loop (for debugging)
+ * @param segmentIndex - Index of this segment in the stitched loop (for debugging)
  * @returns Opt vertices for this segment (includes start, excludes end)
  */
 function extractColdOptSegment(
   segment: SegmentAncestry,
   canonicalLoopsMap: Map<LoopId, CanonicalLoop>,
   startAnchor: Anchor,
-  endAnchor: Anchor
+  endAnchor: Anchor,
+  stitchedLoopId: LoopId,
+  segmentIndex: number
 ): OptVertex[] {
   if (segment.isNew) {
     throw new Error('[Step4] extractColdOptSegment called on warm segment');
@@ -460,10 +464,90 @@ function extractColdOptSegment(
   // the "include start, exclude end" convention. The next segment will
   // include the end anchor as its start.
 
-  console.log('[Step4] Cold segment extracted', {
-    optVertexCount: result.length,
-    firstVertex: result[0],
-    lastVertex: result[result.length - 1]
+  // ====== DENSE COLD SEGMENT DIAGNOSTICS ======
+
+  // Compute canonical ID paths (forward and backward around the loop)
+  const canonicalLoopSize = canonLoop.canonicalVertices?.length ?? canonLoop.optVertices.length;
+  const canonicalIdPathForward: number[] = [];
+  const canonicalIdPathBackward: number[] = [];
+
+  // Forward path: startLoopIndex -> endLoopIndex (positive direction)
+  let idx = startLoopIndex;
+  while (true) {
+    canonicalIdPathForward.push(idx);
+    if (idx === endLoopIndex) break;
+    idx = (idx + 1) % canonicalLoopSize;
+    if (canonicalIdPathForward.length > canonicalLoopSize) break; // Safety
+  }
+
+  // Backward path: startLoopIndex -> endLoopIndex (negative direction)
+  idx = startLoopIndex;
+  while (true) {
+    canonicalIdPathBackward.push(idx);
+    if (idx === endLoopIndex) break;
+    idx = (idx - 1 + canonicalLoopSize) % canonicalLoopSize;
+    if (canonicalIdPathBackward.length > canonicalLoopSize) break; // Safety
+  }
+
+  // Compute opt indices for both directions
+  const forwardArcOptIndices: number[] = [];
+  const backwardArcOptIndices: number[] = [];
+
+  // Forward arc in opt space (what the current code does)
+  if (endOptIdx >= startOptIdx) {
+    for (let i = startOptIdx; i < endOptIdx; i++) {
+      forwardArcOptIndices.push(i);
+    }
+  } else {
+    for (let i = startOptIdx; i < canonLoop.optVertices.length; i++) {
+      forwardArcOptIndices.push(i);
+    }
+    for (let i = 0; i < endOptIdx; i++) {
+      forwardArcOptIndices.push(i);
+    }
+  }
+
+  // Backward arc in opt space (going the other way)
+  if (startOptIdx >= endOptIdx) {
+    for (let i = startOptIdx; i > endOptIdx; i--) {
+      backwardArcOptIndices.push(i);
+    }
+  } else {
+    for (let i = startOptIdx; i >= 0; i--) {
+      backwardArcOptIndices.push(i);
+    }
+    for (let i = canonLoop.optVertices.length - 1; i > endOptIdx; i--) {
+      backwardArcOptIndices.push(i);
+    }
+  }
+
+  // Determine which direction was chosen
+  const chosenDirection = (endOptIdx >= startOptIdx) ? 'forward' : 'forward-wrapped';
+  const chosenOptIndicesLength = result.length;
+
+  // Stitched segment length
+  const stitchedSegmentLength = segment.vertexRange[1] - segment.vertexRange[0];
+
+  // Consolidated diagnostic log
+  console.log('[Step4][Cold-Debug]', {
+    stitchedLoopId,
+    segmentIndex,
+    'segment.vertexRange': segment.vertexRange,
+    canonicalEndpointIds: {
+      start: startLoopIndex,
+      end: endLoopIndex
+    },
+    canonicalIdPathForward,
+    canonicalIdPathBackward,
+    'forwardArc.optIndices': forwardArcOptIndices,
+    'forwardArc.length': forwardArcOptIndices.length,
+    'backwardArc.optIndices': backwardArcOptIndices,
+    'backwardArc.length': backwardArcOptIndices.length,
+    'chosen.direction': chosenDirection,
+    'chosen.optIndices.length': chosenOptIndicesLength,
+    stitchedSegmentLength,
+    'startAnchor.position': startAnchor.position,
+    'endAnchor.position': endAnchor.position
   });
 
   return result;
@@ -655,7 +739,9 @@ export function buildOptimizedFromStitchedLoop(input: Step4Input): Step4Output {
         segment,
         canonicalLoopsMap,
         startAnchor,
-        endAnchor
+        endAnchor,
+        stitchedLoop.id,
+        i
       );
     }
 
