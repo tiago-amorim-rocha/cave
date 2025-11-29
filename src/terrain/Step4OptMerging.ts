@@ -369,7 +369,16 @@ function extractColdOptSegment(
   console.log('[Step4] Extracting cold opt segment', {
     sourceCanonicalId: segment.sourceCanonicalId,
     loopIndexRange: [startLoopIndex, endLoopIndex],
-    optVertexCount: canonLoop.optVertices.length
+    optVertexCount: canonLoop.optVertices.length,
+    // Log canonical ranges for first/last few opt vertices to see the pattern
+    firstOptVertices: canonLoop.optVertices.slice(0, Math.min(5, canonLoop.optVertices.length)).map((ov, i) => ({
+      idx: i,
+      canonRange: [ov.canonStartId, ov.canonEndId]
+    })),
+    lastOptVertices: canonLoop.optVertices.slice(-Math.min(5, canonLoop.optVertices.length)).map((ov, i) => ({
+      idx: canonLoop.optVertices.length - Math.min(5, canonLoop.optVertices.length) + i,
+      canonRange: [ov.canonStartId, ov.canonEndId]
+    }))
   });
 
   // Find opt vertex indices that contain the loop-local indices
@@ -394,7 +403,15 @@ function extractColdOptSegment(
   console.log('[Step4] Found opt indices', {
     startOptIdx,
     endOptIdx,
-    totalOptVertices: canonLoop.optVertices.length
+    totalOptVertices: canonLoop.optVertices.length,
+    startOptVertex: canonLoop.optVertices[startOptIdx] ? {
+      canonRange: [canonLoop.optVertices[startOptIdx].canonStartId, canonLoop.optVertices[startOptIdx].canonEndId],
+      pos: [canonLoop.optVertices[startOptIdx].x.toFixed(3), canonLoop.optVertices[startOptIdx].y.toFixed(3)]
+    } : null,
+    endOptVertex: canonLoop.optVertices[endOptIdx] ? {
+      canonRange: [canonLoop.optVertices[endOptIdx].canonStartId, canonLoop.optVertices[endOptIdx].canonEndId],
+      pos: [canonLoop.optVertices[endOptIdx].x.toFixed(3), canonLoop.optVertices[endOptIdx].y.toFixed(3)]
+    } : null
   });
 
   // ====== ARC SELECTION BASED ON CANONICAL ANCESTRY ======
@@ -542,14 +559,23 @@ function extractColdOptSegment(
 
   console.log('[Step4][Cold] Arc selection (ancestry-based)', {
     stitchedSegmentLength: segment.vertexRange[1] - segment.vertexRange[0],
+    startOptIdx,
+    endOptIdx,
+    totalOptVertices: canonLoop.optVertices.length,
+    startLoopIndex,
+    endLoopIndex,
     forwardArc: {
       optIndices: forwardArcOptIndices.length,
+      optIndicesArray: forwardArcOptIndices.slice(0, 10), // First 10 for debugging
       canonicalPath: canonicalIdPathForward.length,
+      canonicalPathSample: canonicalIdPathForward.slice(0, 10), // First 10 for debugging
       ancestry: forwardScore
     },
     backwardArc: {
       optIndices: backwardArcOptIndices.length,
+      optIndicesArray: backwardArcOptIndices.slice(0, 10), // First 10 for debugging
       canonicalPath: canonicalIdPathBackward.length,
+      canonicalPathSample: canonicalIdPathBackward.slice(0, 10), // First 10 for debugging
       ancestry: backwardScore
     },
     chosen: useForwardArc ? 'forward' : 'backward',
@@ -656,7 +682,11 @@ function extractColdOptSegment(
       : backwardArcOptIndices.length,
     selectionMethod,
     ancestryScore: useForwardArc ? forwardScore : backwardScore,
-    firstVertexCanonIds: result[0] ? [result[0].canonStartId, result[0].canonEndId] : null
+    extractedVertices: result.map((v, i) => ({
+      idx: i,
+      canonRange: [v.canonStartId, v.canonEndId],
+      pos: [v.x.toFixed(3), v.y.toFixed(3)]
+    }))
   });
 
   return result;
