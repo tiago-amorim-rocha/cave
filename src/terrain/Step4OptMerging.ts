@@ -384,41 +384,166 @@ function extractColdOptSegment(
     totalOptVertices: canonLoop.optVertices.length
   });
 
-  // ====== ARC SELECTION BASED ON STITCHED SEGMENT LENGTH ======
+  // ====== ARC SELECTION BASED ON CANONICAL ANCESTRY ======
 
-  // Compute stitched segment length for comparison
-  const stitchedSegmentLength = segment.vertexRange[1] - segment.vertexRange[0];
+  // 1. Compute canonical ID paths (what the stitched segment actually follows)
+  const canonicalLoopSize = canonLoop.vertices.length;
 
-  // Compute forward arc length (startOptIdx -> endOptIdx in positive direction)
-  const forwardArcLength = (endOptIdx >= startOptIdx)
-    ? (endOptIdx - startOptIdx)
-    : (canonLoop.optVertices.length - startOptIdx + endOptIdx);
+  // Forward path: startLoopIndex -> endLoopIndex (positive direction)
+  const canonicalIdPathForward: number[] = [];
+  let idx = startLoopIndex;
+  while (true) {
+    canonicalIdPathForward.push(idx);
+    if (idx === endLoopIndex) break;
+    idx = (idx + 1) % canonicalLoopSize;
+    if (canonicalIdPathForward.length > canonicalLoopSize) break; // Safety
+  }
 
-  // Compute backward arc length (startOptIdx -> endOptIdx in negative direction)
-  const backwardArcLength = (startOptIdx >= endOptIdx)
-    ? (startOptIdx - endOptIdx)
-    : (canonLoop.optVertices.length - endOptIdx + startOptIdx);
+  // Backward path: startLoopIndex -> endLoopIndex (negative direction)
+  const canonicalIdPathBackward: number[] = [];
+  idx = startLoopIndex;
+  while (true) {
+    canonicalIdPathBackward.push(idx);
+    if (idx === endLoopIndex) break;
+    idx = (idx - 1 + canonicalLoopSize) % canonicalLoopSize;
+    if (canonicalIdPathBackward.length > canonicalLoopSize) break; // Safety
+  }
 
-  // Choose arc whose length is closest to stitched segment length
-  const forwardDiff = Math.abs(forwardArcLength - stitchedSegmentLength);
-  const backwardDiff = Math.abs(backwardArcLength - stitchedSegmentLength);
+  // 2. Compute opt indices for both arc directions
+  const forwardArcOptIndices: number[] = [];
+  if (endOptIdx >= startOptIdx) {
+    // No wrapping
+    for (let i = startOptIdx; i < endOptIdx; i++) {
+      forwardArcOptIndices.push(i);
+    }
+  } else {
+    // Wrapping forward
+    for (let i = startOptIdx; i < canonLoop.optVertices.length; i++) {
+      forwardArcOptIndices.push(i);
+    }
+    for (let i = 0; i < endOptIdx; i++) {
+      forwardArcOptIndices.push(i);
+    }
+  }
 
-  const useForwardArc = forwardDiff <= backwardDiff;
+  const backwardArcOptIndices: number[] = [];
+  if (startOptIdx >= endOptIdx) {
+    // No wrapping
+    for (let i = startOptIdx; i > endOptIdx; i--) {
+      backwardArcOptIndices.push(i);
+    }
+  } else {
+    // Wrapping backward
+    for (let i = startOptIdx; i >= 0; i--) {
+      backwardArcOptIndices.push(i);
+    }
+    for (let i = canonLoop.optVertices.length - 1; i > endOptIdx; i--) {
+      backwardArcOptIndices.push(i);
+    }
+  }
 
-  console.log('[Step4][Cold] Arc selection', {
-    stitchedSegmentLength,
+  // 3. Score both arcs by canonical ancestry matching
+  /**
+   * Score an arc by how well its opt vertices cover the canonical ID path.
+   * Returns matches (total canonical IDs covered) and longestRun (longest
+   * contiguous sequence of covered IDs).
+   */
+  function scoreArcByAncestry(
+    optIndices: number[],
+    canonicalPath: number[],
+    optVertices: OptVertex[]
+  ): { matches: number; longestRun: number } {
+    let matches = 0;
+    let currentRun = 0;
+    let longestRun = 0;
+
+    for (const canonId of canonicalPath) {
+      // Check if any opt vertex in this arc covers this canonical ID
+      const covered = optIndices.some((optIdx) => {
+        const ov = optVertices[optIdx];
+        return ov.canonStartId <= canonId && canonId <= ov.canonEndId;
+      });
+
+      if (covered) {
+        matches++;
+        currentRun++;
+        longestRun = Math.max(longestRun, currentRun);
+      } else {
+        currentRun = 0;
+      }
+    }
+
+    return { matches, longestRun };
+  }
+
+  const forwardScore = scoreArcByAncestry(
+    forwardArcOptIndices,
+    canonicalIdPathForward,
+    canonLoop.optVertices
+  );
+
+  const backwardScore = scoreArcByAncestry(
+    backwardArcOptIndices,
+    canonicalIdPathBackward,
+    canonLoop.optVertices
+  );
+
+  // 4. Choose arc based on ancestry score (longestRun primary, matches secondary)
+  let useForwardArc: boolean;
+  let selectionMethod: 'ancestry' | 'length-fallback';
+
+  const MIN_ANCESTRY_THRESHOLD = 2; // Require at least some ancestry match
+
+  if (
+    forwardScore.longestRun >= MIN_ANCESTRY_THRESHOLD ||
+    backwardScore.longestRun >= MIN_ANCESTRY_THRESHOLD
+  ) {
+    // Use ancestry-based selection
+    selectionMethod = 'ancestry';
+
+    if (forwardScore.longestRun !== backwardScore.longestRun) {
+      // Primary: choose arc with longer contiguous ancestry run
+      useForwardArc = forwardScore.longestRun > backwardScore.longestRun;
+    } else {
+      // Tiebreaker: choose arc with more total matches
+      useForwardArc = forwardScore.matches >= backwardScore.matches;
+    }
+  } else {
+    // Ancestry matching failed, fall back to length heuristic
+    selectionMethod = 'length-fallback';
+
+    const stitchedSegmentLength = segment.vertexRange[1] - segment.vertexRange[0];
+    const forwardDiff = Math.abs(forwardArcOptIndices.length - stitchedSegmentLength);
+    const backwardDiff = Math.abs(backwardArcOptIndices.length - stitchedSegmentLength);
+
+    useForwardArc = forwardDiff <= backwardDiff;
+
+    console.warn('[Step4][Cold] Low ancestry match, using length fallback', {
+      forwardScore,
+      backwardScore,
+      stitchedSegmentLength,
+      forwardDiff,
+      backwardDiff
+    });
+  }
+
+  console.log('[Step4][Cold] Arc selection (ancestry-based)', {
+    stitchedSegmentLength: segment.vertexRange[1] - segment.vertexRange[0],
     forwardArc: {
-      length: forwardArcLength,
-      diff: forwardDiff
+      optIndices: forwardArcOptIndices.length,
+      canonicalPath: canonicalIdPathForward.length,
+      ancestry: forwardScore
     },
     backwardArc: {
-      length: backwardArcLength,
-      diff: backwardDiff
+      optIndices: backwardArcOptIndices.length,
+      canonicalPath: canonicalIdPathBackward.length,
+      ancestry: backwardScore
     },
-    chosen: useForwardArc ? 'forward' : 'backward'
+    chosen: useForwardArc ? 'forward' : 'backward',
+    method: selectionMethod
   });
 
-  // Extract the chosen arc
+  // 5. Extract the chosen arc
   const result: OptVertex[] = [];
 
   if (useForwardArc) {
@@ -470,7 +595,11 @@ function extractColdOptSegment(
 
   console.log('[Step4][Cold] Extraction complete', {
     extractedVertexCount: result.length,
-    expectedLength: useForwardArc ? forwardArcLength : backwardArcLength
+    expectedLength: useForwardArc
+      ? forwardArcOptIndices.length
+      : backwardArcOptIndices.length,
+    selectionMethod,
+    ancestryScore: useForwardArc ? forwardScore : backwardScore
   });
 
   return result;
