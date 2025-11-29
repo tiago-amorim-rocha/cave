@@ -641,13 +641,12 @@ function optimizeWarmSegment(
 
   console.log('[Step4] Optimizing warm segment', {
     vertexRange: [startIdx, endIdx],
-    vertexCount: endIdx - startIdx
+    vertexCount: endIdx - startIdx + 1
   });
 
   // Extract warm vertices from stitched loop
-  // Use "include start, exclude end" convention to match segment merging
   const warmVerts: Point[] = [];
-  for (let i = startIdx; i < endIdx; i++) {
+  for (let i = startIdx; i <= endIdx; i++) {
     warmVerts.push({ ...stitchedVertices[i] });
   }
 
