@@ -487,25 +487,82 @@ function extractColdOptSegment(
     canonLoop.optVertices
   );
 
-  // 4. Choose arc based on ancestry score (longestRun primary, matches secondary)
+  // 4. Choose arc based on ancestry score AND path length constraint
   let useForwardArc: boolean;
-  let selectionMethod: 'ancestry' | 'length-fallback';
+  let selectionMethod: 'ancestry' | 'length-fallback' | 'path-length-constraint';
 
   const MIN_ANCESTRY_THRESHOLD = 2; // Require at least some ancestry match
+
+  // Compute expected canonical path length (shorter of the two directions)
+  const expectedPathLength = Math.min(
+    canonicalIdPathForward.length,
+    canonicalIdPathBackward.length
+  );
+
+  // Path length constraint: reject arcs that are much longer than expected
+  const MAX_PATH_LENGTH_RATIO = 2.0; // Allow up to 2x the expected length
+
+  const forwardPathValid = canonicalIdPathForward.length <= expectedPathLength * MAX_PATH_LENGTH_RATIO;
+  const backwardPathValid = canonicalIdPathBackward.length <= expectedPathLength * MAX_PATH_LENGTH_RATIO;
+
+  // Compute path length deviation (how far from expected)
+  const forwardPathDeviation = Math.abs(canonicalIdPathForward.length - expectedPathLength);
+  const backwardPathDeviation = Math.abs(canonicalIdPathBackward.length - expectedPathLength);
+
+  console.log('[Step4][Cold] Path length analysis', {
+    expectedPathLength,
+    forwardPath: canonicalIdPathForward.length,
+    backwardPath: canonicalIdPathBackward.length,
+    forwardPathValid,
+    backwardPathValid,
+    forwardDeviation: forwardPathDeviation,
+    backwardDeviation: backwardPathDeviation
+  });
 
   if (
     forwardScore.longestRun >= MIN_ANCESTRY_THRESHOLD ||
     backwardScore.longestRun >= MIN_ANCESTRY_THRESHOLD
   ) {
-    // Use ancestry-based selection
+    // Use ancestry-based selection WITH path length constraint
     selectionMethod = 'ancestry';
 
-    if (forwardScore.longestRun !== backwardScore.longestRun) {
-      // Primary: choose arc with longer contiguous ancestry run
-      useForwardArc = forwardScore.longestRun > backwardScore.longestRun;
+    // First, check path length validity
+    if (forwardPathValid && !backwardPathValid) {
+      // Only forward is valid
+      useForwardArc = true;
+      selectionMethod = 'path-length-constraint';
+      console.log('[Step4][Cold] Chose forward arc due to path length constraint (backward invalid)');
+    } else if (!forwardPathValid && backwardPathValid) {
+      // Only backward is valid
+      useForwardArc = false;
+      selectionMethod = 'path-length-constraint';
+      console.log('[Step4][Cold] Chose backward arc due to path length constraint (forward invalid)');
+    } else if (!forwardPathValid && !backwardPathValid) {
+      // Both invalid - choose the one closer to expected length
+      useForwardArc = forwardPathDeviation <= backwardPathDeviation;
+      selectionMethod = 'path-length-constraint';
+      console.warn('[Step4][Cold] Both arcs exceed path length threshold, choosing lesser deviation', {
+        forwardDeviation: forwardPathDeviation,
+        backwardDeviation: backwardPathDeviation
+      });
     } else {
-      // Tiebreaker: choose arc with more total matches
-      useForwardArc = forwardScore.matches >= backwardScore.matches;
+      // Both valid - use ancestry score but prefer path closer to expected
+      // If path deviations differ significantly, prefer the closer one
+      const SIGNIFICANT_DEVIATION_DIFF = expectedPathLength * 0.5;
+      if (Math.abs(forwardPathDeviation - backwardPathDeviation) > SIGNIFICANT_DEVIATION_DIFF) {
+        useForwardArc = forwardPathDeviation < backwardPathDeviation;
+        selectionMethod = 'path-length-constraint';
+        console.log('[Step4][Cold] Chose arc based on path length proximity to expected', {
+          forwardDeviation: forwardPathDeviation,
+          backwardDeviation: backwardPathDeviation
+        });
+      } else if (forwardScore.longestRun !== backwardScore.longestRun) {
+        // Primary: choose arc with longer contiguous ancestry run
+        useForwardArc = forwardScore.longestRun > backwardScore.longestRun;
+      } else {
+        // Tiebreaker: choose arc with more total matches
+        useForwardArc = forwardScore.matches >= backwardScore.matches;
+      }
     }
   } else {
     // Ancestry matching failed, fall back to length heuristic
@@ -579,13 +636,37 @@ function extractColdOptSegment(
     }
   }
 
-  // Snap first vertex to start anchor
+  // Snap first vertex to start anchor AND update canonical mappings
   if (result.length > 0) {
     result[0] = {
       ...result[0],
       x: startAnchor.position.x,
-      y: startAnchor.position.y
+      y: startAnchor.position.y,
+      // Update canonical IDs to match the actual start position
+      canonStartId: startLoopIndex,
+      canonEndId: startLoopIndex
     };
+
+    // Validate that the anchor position is close to the canonical position
+    const canonVertex = canonLoop.vertices[startLoopIndex];
+    const distanceToCanonical = Math.sqrt(
+      Math.pow(startAnchor.position.x - canonVertex.x, 2) +
+      Math.pow(startAnchor.position.y - canonVertex.y, 2)
+    );
+
+    if (distanceToCanonical > 1.0) {
+      console.error('[Step4][Cold] Start anchor far from canonical vertex!', {
+        startLoopIndex,
+        anchorPos: startAnchor.position,
+        canonicalPos: canonVertex,
+        distance: distanceToCanonical.toFixed(3)
+      });
+    } else {
+      console.log('[Step4][Cold] Start anchor validated', {
+        startLoopIndex,
+        distanceToCanonical: distanceToCanonical.toFixed(3)
+      });
+    }
   }
 
   // Note: We do NOT snap the last vertex to endAnchor because we're using
@@ -598,7 +679,8 @@ function extractColdOptSegment(
       ? forwardArcOptIndices.length
       : backwardArcOptIndices.length,
     selectionMethod,
-    ancestryScore: useForwardArc ? forwardScore : backwardScore
+    ancestryScore: useForwardArc ? forwardScore : backwardScore,
+    firstVertexCanonIds: result[0] ? [result[0].canonStartId, result[0].canonEndId] : null
   });
 
   return result;
