@@ -369,16 +369,16 @@ function extractColdOptSegment(
   console.log('[Step4] Extracting cold opt segment', {
     sourceCanonicalId: segment.sourceCanonicalId,
     loopIndexRange: [startLoopIndex, endLoopIndex],
-    optVertexCount: canonLoop.optVertices.length,
+    optVertexCount: canonLoop.optVertices?.length ?? 0,
     // Log canonical ranges for first/last few opt vertices to see the pattern
-    firstOptVertices: canonLoop.optVertices.slice(0, Math.min(5, canonLoop.optVertices.length)).map((ov, i) => ({
+    firstOptVertices: canonLoop.optVertices?.slice(0, Math.min(5, canonLoop.optVertices.length)).map((ov, i) => ({
       idx: i,
       canonRange: [ov.canonStartId, ov.canonEndId]
-    })),
-    lastOptVertices: canonLoop.optVertices.slice(-Math.min(5, canonLoop.optVertices.length)).map((ov, i) => ({
-      idx: canonLoop.optVertices.length - Math.min(5, canonLoop.optVertices.length) + i,
+    })) ?? [],
+    lastOptVertices: canonLoop.optVertices?.slice(-Math.min(5, canonLoop.optVertices.length)).map((ov, i) => ({
+      idx: canonLoop.optVertices!.length - Math.min(5, canonLoop.optVertices!.length) + i,
       canonRange: [ov.canonStartId, ov.canonEndId]
-    }))
+    })) ?? []
   });
 
   // Find opt vertex indices that contain the loop-local indices
