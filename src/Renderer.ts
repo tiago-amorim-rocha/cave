@@ -2418,17 +2418,23 @@ export class Renderer {
     if (this.optMergingDebug.length === 0) return;
 
     for (const debugData of this.optMergingDebug) {
-      // Draw stitched vertices underneath (faint for comparison)
-      this.drawOptMergingStitchedComparison(canvasWidth, canvasHeight, debugData);
+      // SIMPLIFIED DEBUG: Show only warm/cold segments (like Step 1)
+      // Temporarily disabled for clearer debugging:
+      // - No stitched comparison overlay
+      // - No anchors
+      // - No segment boundaries
 
-      // Draw optimized segments
+      // Draw optimized segments ONLY (warm = orange, cold = cyan)
       this.drawOptMergingSegments(canvasWidth, canvasHeight, debugData);
 
-      // Draw anchors
-      this.drawOptMergingAnchors(canvasWidth, canvasHeight, debugData);
+      // DISABLED: Draw stitched vertices underneath (faint for comparison)
+      // this.drawOptMergingStitchedComparison(canvasWidth, canvasHeight, debugData);
 
-      // Draw segment boundaries
-      this.drawOptMergingBoundaries(canvasWidth, canvasHeight, debugData);
+      // DISABLED: Draw anchors
+      // this.drawOptMergingAnchors(canvasWidth, canvasHeight, debugData);
+
+      // DISABLED: Draw segment boundaries
+      // this.drawOptMergingBoundaries(canvasWidth, canvasHeight, debugData);
     }
 
     // Draw legend (once for all loops)
