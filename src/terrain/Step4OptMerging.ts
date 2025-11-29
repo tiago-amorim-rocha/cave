@@ -22,7 +22,6 @@ import type {
 } from './CanonicalGeometry';
 import { allocateVertexId as allocateId } from './CanonicalGeometry';
 import type { OptimizationOptions } from '../VertexOptimizationPipeline';
-import { VertexOptimizationPipeline } from '../VertexOptimizationPipeline';
 
 // ============================================================================
 // Types
@@ -606,24 +605,25 @@ function extractColdOptSegment(
 }
 
 // ============================================================================
-// 3. Warm Segment Optimization
+// 3. Warm Segment Processing
 // ============================================================================
 
 /**
- * Optimize a warm segment and snap its endpoints to anchors.
+ * Process a warm segment and snap its endpoints to anchors.
  *
  * Strategy:
  * 1. Extract warm vertices from stitched loop
- * 2. Run optimization pipeline
- * 3. Assign fresh canonical IDs to maintain ancestry
- * 4. Snap first vertex to start anchor
- * 5. Return vertices (includes start, excludes end)
+ * 2. Assign fresh canonical IDs to maintain ancestry
+ * 3. Snap first vertex to start anchor
+ * 4. Return vertices (includes start, excludes end)
+ *
+ * Note: Optimization is currently DISABLED for warm segments.
  *
  * @param segment - The warm segment ancestry
  * @param stitchedVertices - All vertices from the stitched loop
  * @param startAnchor - Anchor at segment start
  * @param endAnchor - Anchor at segment end
- * @param optimizationOptions - Pipeline options
+ * @param optimizationOptions - Pipeline options (unused, kept for API compatibility)
  * @returns Opt vertices for this segment (includes start, excludes end)
  */
 function optimizeWarmSegment(
@@ -639,7 +639,7 @@ function optimizeWarmSegment(
 
   const [startIdx, endIdx] = segment.vertexRange;
 
-  console.log('[Step4] Optimizing warm segment', {
+  console.log('[Step4] Processing warm segment (optimization DISABLED)', {
     vertexRange: [startIdx, endIdx],
     vertexCount: endIdx - startIdx
   });
@@ -651,30 +651,10 @@ function optimizeWarmSegment(
     warmVerts.push({ ...stitchedVertices[i] });
   }
 
-  // Run optimization pipeline with closed=false (warm segments are OPEN arcs)
-  const pipeline = new VertexOptimizationPipeline();
-  const warmSegmentOptions = { ...optimizationOptions, closed: false };
-  const optimizationResult = pipeline.optimize([warmVerts], warmSegmentOptions);
-
-  // Extract the first (and only) loop from the result
-  let optimized = optimizationResult.finalOptLoops[0];
-
-  if (!optimized || optimized.length === 0) {
-    console.warn('[Step4] Optimization produced empty result, using original vertices');
-    // Fallback: create opt vertices with fresh IDs
-    optimized = warmVerts.map((v) => ({
-      x: v.x,
-      y: v.y,
-      canonStartId: allocateId(),
-      canonEndId: allocateId()
-    }));
-  }
-
-  // Assign fresh canonical IDs to warm vertices (Option A from design)
-  // The pipeline may have assigned temporary IDs, so we reassign them
-  const result: OptVertex[] = optimized.map((ov) => ({
-    x: ov.x,
-    y: ov.y,
+  // Convert to OptVertex[] with fresh canonical IDs (no optimization)
+  const result: OptVertex[] = warmVerts.map((v) => ({
+    x: v.x,
+    y: v.y,
     canonStartId: allocateId(),
     canonEndId: allocateId()
   }));
@@ -690,10 +670,8 @@ function optimizeWarmSegment(
 
   // Note: We do NOT snap the last vertex to endAnchor (see cold extraction comment)
 
-  console.log('[Step4] Warm segment optimized', {
-    originalCount: warmVerts.length,
-    optimizedCount: result.length,
-    reduction: ((warmVerts.length - result.length) / warmVerts.length * 100).toFixed(1) + '%',
+  console.log('[Step4] Warm segment processed (no optimization)', {
+    vertexCount: result.length,
     firstVertex: result[0],
     lastVertex: result[result.length - 1]
   });
