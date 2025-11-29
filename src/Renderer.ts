@@ -1134,42 +1134,10 @@ export class Renderer {
 
       const n = stitchedLoop.vertices.length;
 
-      // Verify segment coverage (debug check)
-      console.log('[Step3Render] Segment coverage check', {
-        loopId: stitchedLoop.id,
-        vertexCount: n,
-        segmentCount: segmentation.segments.length,
-        segments: segmentation.segments.map((seg, idx) => {
-          const next = segmentation.segments[(idx + 1) % segmentation.segments.length];
-          const expectedNextStart = (seg.endIndex + 1) % n;
-          const gapDetected = next.startIndex !== expectedNextStart;
-          return {
-            idx,
-            kind: seg.kind,
-            startIndex: seg.startIndex,
-            endIndex: seg.endIndex,
-            length: seg.endIndex >= seg.startIndex
-              ? seg.endIndex - seg.startIndex + 1
-              : (n - seg.startIndex) + seg.endIndex + 1,
-            nextStartIndex: next.startIndex,
-            expectedNextStart,
-            gapDetected
-          };
-        })
-      });
-
       // Draw each segment
       for (let segIdx = 0; segIdx < segmentation.segments.length; segIdx++) {
         const segment = segmentation.segments[segIdx];
         const { kind, startIndex, endIndex } = segment;
-
-        console.log('[Step3Render] Drawing segment', {
-          segIdx,
-          kind,
-          startIndex,
-          endIndex,
-          vertexCount: n
-        });
 
         // Choose color based on segment kind
         if (kind === 'warm') {
@@ -2447,10 +2415,6 @@ export class Renderer {
    */
   private drawOptMergingOverlay(canvasWidth: number, canvasHeight: number): void {
     if (this.optMergingDebug.length === 0) return;
-
-    console.log('[Renderer] Drawing Step 4 opt-merging overlay', {
-      loopCount: this.optMergingDebug.length
-    });
 
     for (const debugData of this.optMergingDebug) {
       // Draw stitched vertices underneath (faint for comparison)
