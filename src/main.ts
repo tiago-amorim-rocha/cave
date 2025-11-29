@@ -1037,6 +1037,15 @@ class CarvableCaves {
       this.carveRegion = null;
     }
 
+    // Auto-trigger Step 1 (CARVED_LOOPS) if we're currently at NONE and the carve was successful
+    if (this.config.debugCaptureEnabled &&
+        this.carvingDebugMode === CarvingDebugMode.NONE &&
+        this.carvedLoops.length > 0) {
+      console.log('[Carving] Auto-triggering Step 1 (CARVED_LOOPS) debug visualization');
+      this.carvingDebugMode = CarvingDebugMode.CARVED_LOOPS;
+      this.renderer.setCarvingDebugMode(CarvingDebugMode.CARVED_LOOPS);
+    }
+
     // TODO: Wire up remeshing after surgery (not yet implemented)
   }
 
