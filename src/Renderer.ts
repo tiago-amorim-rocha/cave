@@ -2448,14 +2448,16 @@ export class Renderer {
 
     // DETAILED LOGGING: Log stitched comparison (once per debug data)
     const shouldLog = this.lastLoggedOptMergingId !== debugData.stitchedLoopId;
+    const firstVertex = stitchedVertices[0];
+    const lastVertex = stitchedVertices[stitchedVertices.length - 1];
+    const isClosed = (firstVertex.x === lastVertex.x && firstVertex.y === lastVertex.y);
+
     if (shouldLog) {
-      const first = stitchedVertices[0];
-      const last = stitchedVertices[stitchedVertices.length - 1];
       console.log(`[Render][Step4] drawStitchedComparison {
-  closed: false,
+  closed: ${isClosed},
   vertexCount: ${stitchedVertices.length},
-  first: { x: ${first.x.toFixed(2)}, y: ${first.y.toFixed(2)} },
-  last: { x: ${last.x.toFixed(2)}, y: ${last.y.toFixed(2)} }
+  first: { x: ${firstVertex.x.toFixed(2)}, y: ${firstVertex.y.toFixed(2)} },
+  last: { x: ${lastVertex.x.toFixed(2)}, y: ${lastVertex.y.toFixed(2)} }
 }`);
     }
 
@@ -2472,6 +2474,24 @@ export class Renderer {
     for (let i = 1; i < stitchedVertices.length; i++) {
       const screen = this.camera.worldToScreen(stitchedVertices[i].x, stitchedVertices[i].y, canvasWidth, canvasHeight);
       this.ctx.lineTo(screen.x, screen.y);
+    }
+
+    // CANVAS LOGGING: Log right before stroke
+    if (shouldLog) {
+      const lastScreen = this.camera.worldToScreen(lastVertex.x, lastVertex.y, canvasWidth, canvasHeight);
+      console.log(`[Render][Step4][Canvas] About to stroke stitched comparison {
+  closed: ${isClosed},
+  vertexCount: ${stitchedVertices.length},
+  first: { x: ${firstVertex.x.toFixed(2)}, y: ${firstVertex.y.toFixed(2)} },
+  last: { x: ${lastVertex.x.toFixed(2)}, y: ${lastVertex.y.toFixed(2)} },
+  lastScreen: { x: ${lastScreen.x.toFixed(0)}, y: ${lastScreen.y.toFixed(0)} },
+  willCallClosePath: ${isClosed}
+}`);
+    }
+
+    // Only close the path if first == last (truly closed loop)
+    if (isClosed) {
+      this.ctx.closePath();
     }
 
     this.ctx.stroke();
@@ -2516,8 +2536,8 @@ export class Renderer {
       }
 
       // DETAILED LOGGING: Log each segment being drawn
+      const closed = false; // We never close segments in this renderer
       if (shouldLog) {
-        const closed = false; // We never close segments in this renderer
         const first = vertices[0];
         const last = vertices[vertices.length - 1];
         console.log(`[Render][Step4] drawSegment {
@@ -2538,6 +2558,22 @@ export class Renderer {
         this.ctx.lineTo(screen.x, screen.y);
       }
 
+      // CANVAS LOGGING: Log right before stroke to confirm path state
+      if (shouldLog) {
+        const firstVertex = vertices[0];
+        const lastVertex = vertices[vertices.length - 1];
+        const lastScreen = this.camera.worldToScreen(lastVertex.x, lastVertex.y, canvasWidth, canvasHeight);
+        console.log(`[Render][Step4][Canvas] About to stroke path for ${segment.kind} segment {
+  closed: ${closed},
+  vertexCount: ${vertices.length},
+  first: { x: ${firstVertex.x.toFixed(2)}, y: ${firstVertex.y.toFixed(2)} },
+  last: { x: ${lastVertex.x.toFixed(2)}, y: ${lastVertex.y.toFixed(2)} },
+  lastScreen: { x: ${lastScreen.x.toFixed(0)}, y: ${lastScreen.y.toFixed(0)} },
+  willCallClosePath: false
+}`);
+      }
+
+      // DO NOT call closePath() for open segments
       this.ctx.stroke();
       currentIndex += vertices.length;
     }
