@@ -756,6 +756,30 @@ function optimizeWarmSegment(
     lastVertex: warmVerts[warmVerts.length - 1]
   });
 
+  // Check if vertices need to be reversed based on which end is closer to start anchor
+  if (warmVerts.length >= 2) {
+    const distToFirst = Math.sqrt(
+      Math.pow(warmVerts[0].x - startAnchor.position.x, 2) +
+      Math.pow(warmVerts[0].y - startAnchor.position.y, 2)
+    );
+    const distToLast = Math.sqrt(
+      Math.pow(warmVerts[warmVerts.length - 1].x - startAnchor.position.x, 2) +
+      Math.pow(warmVerts[warmVerts.length - 1].y - startAnchor.position.y, 2)
+    );
+
+    console.log('[Step4] Checking vertex order', {
+      distToFirst: distToFirst.toFixed(3),
+      distToLast: distToLast.toFixed(3),
+      shouldReverse: distToLast < distToFirst
+    });
+
+    // If last vertex is closer to start anchor, reverse the vertices
+    if (distToLast < distToFirst) {
+      warmVerts.reverse();
+      console.log('[Step4] ✓ Reversed warm vertices to match anchor direction');
+    }
+  }
+
   // Convert to OptVertex[] with fresh canonical IDs (no optimization)
   const result: OptVertex[] = warmVerts.map((v) => ({
     x: v.x,
