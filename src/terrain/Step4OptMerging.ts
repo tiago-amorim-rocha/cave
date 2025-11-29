@@ -831,8 +831,9 @@ export function buildOptimizedFromStitchedLoop(input: Step4Input): Step4Output {
 
   for (let i = 0; i < stitchedLoop.segments.length; i++) {
     const segment = stitchedLoop.segments[i];
-    const startAnchor = anchors[i];
-    const endAnchor = anchors[(i + 1) % anchors.length];
+    // anchors[i] is the boundary AFTER segment i, so we need to use the previous anchor as the start
+    const startAnchor = anchors[(i + anchors.length - 1) % anchors.length];
+    const endAnchor = anchors[i];
 
     console.log('[Step4] Processing segment', {
       index: i,
