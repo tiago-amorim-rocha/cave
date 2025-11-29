@@ -572,6 +572,14 @@ export class Box2DEngine {
       console.warn('[Box2DEngine] No segments built for loop', { loopId: loop.id, vertices: loop.vertices.length });
     }
 
+    // DETAILED LOGGING: Summary of loop being built
+    console.log(`[Box2D][FromOpt] {
+  loopId: ${loop.id},
+  reverse: ${shouldReverse},
+  optVertexCount: ${optimizedLoop.length},
+  segmentCount: ${segments.length}
+}`);
+
     segments.forEach((seg, idx) => {
       console.log('[Box2DEngine]  Segment', idx, {
         id: seg.id,
@@ -579,6 +587,17 @@ export class Box2DEngine {
         optEnd: seg.optEnd,
         canonRange: [seg.canonicalStart, seg.canonicalEnd],
       });
+
+      // DETAILED LOGGING: Segment endpoints
+      const firstVert = optimizedLoop[seg.optStart];
+      const lastVert = optimizedLoop[seg.optEnd];
+      console.log(`[Box2D][FromOpt] segmentEndpoints {
+  segmentId: ${seg.id},
+  optRange: [${seg.optStart}, ${seg.optEnd}],
+  first: { x: ${firstVert.x.toFixed(2)}, y: ${firstVert.y.toFixed(2)} },
+  last: { x: ${lastVert.x.toFixed(2)}, y: ${lastVert.y.toFixed(2)} }
+}`);
+
       const fixture = createFixtureForSegment(body, optimizedLoop, seg, TERRAIN_FRICTION, TERRAIN_RESTITUTION, shouldReverse);
       if (!fixture) {
         console.warn('[Box2DEngine]  Segment produced no fixture (skipped)');
