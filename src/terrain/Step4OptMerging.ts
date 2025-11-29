@@ -45,6 +45,12 @@ interface Anchor {
 
   /** Index in stitched loop where this boundary occurs */
   stitchedIndex: number;
+
+  /** For cold anchors: the loop-local canonical index this anchor represents */
+  canonicalLoopIndex?: number;
+
+  /** For cold anchors: the canonical loop ID this anchor belongs to */
+  canonicalLoopId?: LoopId;
 }
 
 /**
@@ -156,6 +162,8 @@ function computeAnchor(
   let position: Point = stitchedPos;
   let source: Anchor['source'] = 'warm-stitched';
   let optVertex: OptVertex | undefined;
+  let canonicalLoopIndex: number | undefined;
+  let canonicalLoopId: LoopId | undefined;
 
   // Case 1: Previous segment is cold - use its END opt vertex
   if (!prevSegment.isNew && prevSegment.sourceCanonicalId !== undefined) {
@@ -180,6 +188,8 @@ function computeAnchor(
         position = { x: foundOptVertex.x, y: foundOptVertex.y };
         source = 'cold-opt';
         optVertex = foundOptVertex;
+        canonicalLoopIndex = endIndex;
+        canonicalLoopId = prevSegment.sourceCanonicalId;
         console.log('[Step4] ✓ Anchor from prev cold segment (opt)', {
           boundaryIndex,
           stitchedIndex,
@@ -219,6 +229,8 @@ function computeAnchor(
         position = { x: foundOptVertex.x, y: foundOptVertex.y };
         source = 'cold-opt';
         optVertex = foundOptVertex;
+        canonicalLoopIndex = startIndex;
+        canonicalLoopId = nextSegment.sourceCanonicalId;
         console.log('[Step4] ✓ Anchor from next cold segment (opt)', {
           boundaryIndex,
           stitchedIndex,
@@ -249,7 +261,9 @@ function computeAnchor(
     segmentBoundaryIndex: boundaryIndex,
     source,
     optVertex,
-    stitchedIndex
+    stitchedIndex,
+    canonicalLoopIndex,
+    canonicalLoopId
   };
 }
 
@@ -638,33 +652,52 @@ function extractColdOptSegment(
 
   // Snap first vertex to start anchor AND update canonical mappings
   if (result.length > 0) {
+    // Determine the actual canonical index for this anchor
+    // If the anchor has its own canonical loop index stored, use that
+    // Otherwise fall back to startLoopIndex (for compatibility)
+    const actualCanonicalIndex = startAnchor.canonicalLoopIndex ?? startLoopIndex;
+
     result[0] = {
       ...result[0],
       x: startAnchor.position.x,
       y: startAnchor.position.y,
-      // Update canonical IDs to match the actual start position
-      canonStartId: startLoopIndex,
-      canonEndId: startLoopIndex
+      // Update canonical IDs to match the actual anchor position
+      canonStartId: actualCanonicalIndex,
+      canonEndId: actualCanonicalIndex
     };
 
     // Validate that the anchor position is close to the canonical position
-    const canonVertex = canonLoop.vertices[startLoopIndex];
-    const distanceToCanonical = Math.sqrt(
-      Math.pow(startAnchor.position.x - canonVertex.x, 2) +
-      Math.pow(startAnchor.position.y - canonVertex.y, 2)
-    );
+    // Only validate if anchor belongs to the same canonical loop
+    if (startAnchor.canonicalLoopId === segment.sourceCanonicalId &&
+        startAnchor.canonicalLoopIndex !== undefined) {
+      const canonVertex = canonLoop.vertices[startAnchor.canonicalLoopIndex];
+      const distanceToCanonical = Math.sqrt(
+        Math.pow(startAnchor.position.x - canonVertex.x, 2) +
+        Math.pow(startAnchor.position.y - canonVertex.y, 2)
+      );
 
-    if (distanceToCanonical > 1.0) {
-      console.error('[Step4][Cold] Start anchor far from canonical vertex!', {
-        startLoopIndex,
-        anchorPos: startAnchor.position,
-        canonicalPos: canonVertex,
-        distance: distanceToCanonical.toFixed(3)
-      });
+      if (distanceToCanonical > 1.0) {
+        console.error('[Step4][Cold] Start anchor far from canonical vertex!', {
+          anchorCanonicalIndex: startAnchor.canonicalLoopIndex,
+          segmentStartIndex: startLoopIndex,
+          segmentEndIndex: endLoopIndex,
+          anchorPos: startAnchor.position,
+          canonicalPos: canonVertex,
+          distance: distanceToCanonical.toFixed(3)
+        });
+      } else {
+        console.log('[Step4][Cold] Start anchor validated', {
+          anchorCanonicalIndex: startAnchor.canonicalLoopIndex,
+          segmentStartIndex: startLoopIndex,
+          segmentEndIndex: endLoopIndex,
+          distanceToCanonical: distanceToCanonical.toFixed(3)
+        });
+      }
     } else {
-      console.log('[Step4][Cold] Start anchor validated', {
-        startLoopIndex,
-        distanceToCanonical: distanceToCanonical.toFixed(3)
+      console.log('[Step4][Cold] Start anchor validation skipped (different loop or no canonical index)', {
+        anchorLoopId: startAnchor.canonicalLoopId,
+        segmentLoopId: segment.sourceCanonicalId,
+        anchorCanonicalIndex: startAnchor.canonicalLoopIndex
       });
     }
   }
