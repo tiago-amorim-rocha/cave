@@ -824,6 +824,19 @@ export function buildOptimizedFromStitchedLoop(input: Step4Input): Step4Output {
     coldSegments: processedSegments.filter((s) => s.kind === 'cold').length
   });
 
+  // DETAILED LOGGING: Step 4 complete summary
+  console.log(`[Step4][OptLoop] {
+  loopId: ${stitchedLoop.id},
+  warmSegments: [${processedSegments.filter(s => s.kind === 'warm').map((s, i) => `\n    { index: ${processedSegments.indexOf(s)}, vertices: ${s.optVertices.length} }`).join(',')}
+  ],
+  coldSegments: [${processedSegments.filter(s => s.kind === 'cold').map((s, i) => `\n    { index: ${processedSegments.indexOf(s)}, vertices: ${s.optVertices.length} }`).join(',')}
+  ],
+  totalOptVertices: ${finalOptVertices.length},
+  anchors: [
+    { x: ${anchors[0]?.position.x.toFixed(2)}, y: ${anchors[0]?.position.y.toFixed(2)} }${anchors[1] ? `,\n    { x: ${anchors[1].position.x.toFixed(2)}, y: ${anchors[1].position.y.toFixed(2)} }` : ''}
+  ]
+}`);
+
   return {
     optVertices: finalOptVertices,
     debugInfo: {

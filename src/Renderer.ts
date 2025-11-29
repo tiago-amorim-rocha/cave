@@ -122,6 +122,7 @@ export class Renderer {
   private debugHoverWorld: { x: number; y: number } | null = null; // For hover labels
   private reusePlanDebug: ReusePlanDebug[] = [];
   private optMergingDebug: Step4DebugData[] = []; // Step 4: opt-space merging debug data
+  private lastLoggedOptMergingId: number | null = null; // Track last logged Step 4 data to avoid spam
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -2445,6 +2446,19 @@ export class Renderer {
     const { stitchedVertices } = debugData;
     if (stitchedVertices.length < 2) return;
 
+    // DETAILED LOGGING: Log stitched comparison (once per debug data)
+    const shouldLog = this.lastLoggedOptMergingId !== debugData.stitchedLoopId;
+    if (shouldLog) {
+      const first = stitchedVertices[0];
+      const last = stitchedVertices[stitchedVertices.length - 1];
+      console.log(`[Render][Step4] drawStitchedComparison {
+  closed: false,
+  vertexCount: ${stitchedVertices.length},
+  first: { x: ${first.x.toFixed(2)}, y: ${first.y.toFixed(2)} },
+  last: { x: ${last.x.toFixed(2)}, y: ${last.y.toFixed(2)} }
+}`);
+    }
+
     this.ctx.save();
     this.ctx.strokeStyle = '#444444';
     this.ctx.lineWidth = 1;
@@ -2477,6 +2491,12 @@ export class Renderer {
 
     if (!debugInfo || !debugInfo.processedSegments) return;
 
+    // DETAILED LOGGING: Only log once per debug data set (avoid per-frame spam)
+    const shouldLog = this.lastLoggedOptMergingId !== debugData.stitchedLoopId;
+    if (shouldLog) {
+      this.lastLoggedOptMergingId = debugData.stitchedLoopId;
+    }
+
     this.ctx.save();
     this.ctx.lineWidth = 3;
     this.ctx.globalAlpha = 1.0;
@@ -2484,7 +2504,8 @@ export class Renderer {
 
     let currentIndex = 0;
 
-    for (const segment of debugInfo.processedSegments) {
+    for (let segIdx = 0; segIdx < debugInfo.processedSegments.length; segIdx++) {
+      const segment = debugInfo.processedSegments[segIdx];
       const color = segment.kind === 'warm' ? '#FF8800' : '#00FFFF'; // Orange for warm, Cyan for cold
       this.ctx.strokeStyle = color;
 
@@ -2492,6 +2513,20 @@ export class Renderer {
       if (vertices.length < 2) {
         currentIndex += vertices.length;
         continue;
+      }
+
+      // DETAILED LOGGING: Log each segment being drawn
+      if (shouldLog) {
+        const closed = false; // We never close segments in this renderer
+        const first = vertices[0];
+        const last = vertices[vertices.length - 1];
+        console.log(`[Render][Step4] drawSegment {
+  kind: '${segment.kind}',
+  closed: ${closed},
+  vertexCount: ${vertices.length},
+  first: { x: ${first.x.toFixed(2)}, y: ${first.y.toFixed(2)} },
+  last: { x: ${last.x.toFixed(2)}, y: ${last.y.toFixed(2)} }
+}`);
       }
 
       this.ctx.beginPath();
