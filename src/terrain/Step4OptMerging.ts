@@ -701,10 +701,9 @@ function extractColdOptSegment(
  *
  * Strategy:
  * 1. Extract warm vertices from stitched loop
- * 2. Borrow vertices from adjacent cold segments to bridge gaps
- * 3. Assign fresh canonical IDs to maintain ancestry
- * 4. Snap first vertex to start anchor
- * 5. Return vertices (includes start, excludes end)
+ * 2. Assign fresh canonical IDs to maintain ancestry
+ * 3. Snap first vertex to start anchor
+ * 4. Return vertices (includes start, excludes end)
  *
  * Note: Optimization is currently DISABLED for warm segments.
  *
@@ -713,7 +712,6 @@ function extractColdOptSegment(
  * @param startAnchor - Anchor at segment start
  * @param endAnchor - Anchor at segment end
  * @param optimizationOptions - Pipeline options (unused, kept for API compatibility)
- * @param canonicalLoopsMap - Map of canonical loops (for borrowing vertices)
  * @returns Opt vertices for this segment (includes start, excludes end)
  */
 function optimizeWarmSegment(
@@ -721,8 +719,7 @@ function optimizeWarmSegment(
   stitchedVertices: Point[],
   startAnchor: Anchor,
   endAnchor: Anchor,
-  optimizationOptions: OptimizationOptions,
-  canonicalLoopsMap: Map<LoopId, CanonicalLoop>
+  optimizationOptions: OptimizationOptions
 ): OptVertex[] {
   if (!segment.isNew) {
     throw new Error('[Step4] optimizeWarmSegment called on cold segment');
@@ -736,16 +733,12 @@ function optimizeWarmSegment(
     startAnchor: {
       stitchedIndex: startAnchor.stitchedIndex,
       position: startAnchor.position,
-      source: startAnchor.source,
-      canonicalLoopId: startAnchor.canonicalLoopId,
-      canonicalLoopIndex: startAnchor.canonicalLoopIndex
+      source: startAnchor.source
     },
     endAnchor: {
       stitchedIndex: endAnchor.stitchedIndex,
       position: endAnchor.position,
-      source: endAnchor.source,
-      canonicalLoopId: endAnchor.canonicalLoopId,
-      canonicalLoopIndex: endAnchor.canonicalLoopIndex
+      source: endAnchor.source
     },
     totalStitchedVertices: stitchedVertices.length
   });
@@ -763,99 +756,15 @@ function optimizeWarmSegment(
     lastVertex: warmVerts[warmVerts.length - 1]
   });
 
-  // ===== BORROW VERTICES FROM COLD SEGMENTS =====
-  // To bridge the gap between warm and cold segments, we borrow 2-3 vertices
-  // from the adjacent cold segments at both ends.
-
-  const VERTICES_TO_BORROW = 2;
-  const borrowedFromStart: OptVertex[] = [];
-  const borrowedFromEnd: OptVertex[] = [];
-
-  // Borrow from start anchor (if it comes from a cold segment)
-  if (startAnchor.source === 'cold-opt' &&
-      startAnchor.canonicalLoopId !== undefined &&
-      startAnchor.canonicalLoopIndex !== undefined) {
-    const canonLoop = canonicalLoopsMap.get(startAnchor.canonicalLoopId);
-    if (canonLoop && canonLoop.optVertices) {
-      // Find the opt vertex that contains this anchor
-      const anchorOptIdx = canonLoop.optVertices.findIndex(
-        (ov) => ov.canonStartId <= startAnchor.canonicalLoopIndex! &&
-                startAnchor.canonicalLoopIndex! <= ov.canonEndId
-      );
-
-      if (anchorOptIdx !== -1) {
-        // Borrow VERTICES_TO_BORROW vertices BEFORE the anchor
-        console.log('[Step4] Borrowing vertices from start anchor', {
-          canonicalLoopId: startAnchor.canonicalLoopId,
-          anchorOptIdx,
-          totalOptVertices: canonLoop.optVertices.length
-        });
-
-        for (let i = 0; i < VERTICES_TO_BORROW; i++) {
-          // Go backwards from anchor (wrapping around if needed)
-          const borrowIdx = (anchorOptIdx - VERTICES_TO_BORROW + i + canonLoop.optVertices.length) % canonLoop.optVertices.length;
-          const borrowedVertex = { ...canonLoop.optVertices[borrowIdx] };
-          borrowedFromStart.push(borrowedVertex);
-          console.log(`[Step4]   Borrowed from start [${i}]: optIdx=${borrowIdx}, pos=(${borrowedVertex.x.toFixed(3)}, ${borrowedVertex.y.toFixed(3)})`);
-        }
-      }
-    }
-  }
-
-  // Borrow from end anchor (if it comes from a cold segment)
-  if (endAnchor.source === 'cold-opt' &&
-      endAnchor.canonicalLoopId !== undefined &&
-      endAnchor.canonicalLoopIndex !== undefined) {
-    const canonLoop = canonicalLoopsMap.get(endAnchor.canonicalLoopId);
-    if (canonLoop && canonLoop.optVertices) {
-      // Find the opt vertex that contains this anchor
-      const anchorOptIdx = canonLoop.optVertices.findIndex(
-        (ov) => ov.canonStartId <= endAnchor.canonicalLoopIndex! &&
-                endAnchor.canonicalLoopIndex! <= ov.canonEndId
-      );
-
-      if (anchorOptIdx !== -1) {
-        // Borrow VERTICES_TO_BORROW vertices AFTER the anchor
-        console.log('[Step4] Borrowing vertices from end anchor', {
-          canonicalLoopId: endAnchor.canonicalLoopId,
-          anchorOptIdx,
-          totalOptVertices: canonLoop.optVertices.length
-        });
-
-        for (let i = 1; i <= VERTICES_TO_BORROW; i++) {
-          // Go forwards from anchor (wrapping around if needed)
-          const borrowIdx = (anchorOptIdx + i) % canonLoop.optVertices.length;
-          const borrowedVertex = { ...canonLoop.optVertices[borrowIdx] };
-          borrowedFromEnd.push(borrowedVertex);
-          console.log(`[Step4]   Borrowed from end [${i}]: optIdx=${borrowIdx}, pos=(${borrowedVertex.x.toFixed(3)}, ${borrowedVertex.y.toFixed(3)})`);
-        }
-      }
-    }
-  }
-
-  // Combine: borrowed-start + warm + borrowed-end
-  const combinedVerts: Point[] = [
-    ...borrowedFromStart,
-    ...warmVerts,
-    ...borrowedFromEnd
-  ];
-
-  console.log('[Step4] Combined vertices with borrowed', {
-    borrowedFromStartCount: borrowedFromStart.length,
-    warmCount: warmVerts.length,
-    borrowedFromEndCount: borrowedFromEnd.length,
-    totalCount: combinedVerts.length
-  });
-
   // Check if vertices need to be reversed based on which end is closer to start anchor
-  if (combinedVerts.length >= 2) {
+  if (warmVerts.length >= 2) {
     const distToFirst = Math.sqrt(
-      Math.pow(combinedVerts[0].x - startAnchor.position.x, 2) +
-      Math.pow(combinedVerts[0].y - startAnchor.position.y, 2)
+      Math.pow(warmVerts[0].x - startAnchor.position.x, 2) +
+      Math.pow(warmVerts[0].y - startAnchor.position.y, 2)
     );
     const distToLast = Math.sqrt(
-      Math.pow(combinedVerts[combinedVerts.length - 1].x - startAnchor.position.x, 2) +
-      Math.pow(combinedVerts[combinedVerts.length - 1].y - startAnchor.position.y, 2)
+      Math.pow(warmVerts[warmVerts.length - 1].x - startAnchor.position.x, 2) +
+      Math.pow(warmVerts[warmVerts.length - 1].y - startAnchor.position.y, 2)
     );
 
     console.log('[Step4] Checking vertex order', {
@@ -866,13 +775,13 @@ function optimizeWarmSegment(
 
     // If last vertex is closer to start anchor, reverse the vertices
     if (distToLast < distToFirst) {
-      combinedVerts.reverse();
+      warmVerts.reverse();
       console.log('[Step4] ✓ Reversed warm vertices to match anchor direction');
     }
   }
 
   // Convert to OptVertex[] with fresh canonical IDs (no optimization)
-  const result: OptVertex[] = combinedVerts.map((v) => ({
+  const result: OptVertex[] = warmVerts.map((v) => ({
     x: v.x,
     y: v.y,
     canonStartId: allocateId(),
@@ -1000,8 +909,7 @@ export function buildOptimizedFromStitchedLoop(input: Step4Input): Step4Output {
         stitchedLoop.vertices,
         startAnchor,
         endAnchor,
-        optimizationOptions,
-        canonicalLoopsMap
+        optimizationOptions
       );
     } else {
       // Cold segment: extract from canonical loop
