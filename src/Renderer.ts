@@ -2598,7 +2598,7 @@ export class Renderer {
 
   /**
    * Helper: Draw vertex index labels for a segment
-   * Shows: first, last, and 3 evenly distributed vertices
+   * Shows: ALL vertices with their index numbers
    */
   private drawVertexIndexLabels(
     vertices: Vec2[],
@@ -2607,53 +2607,34 @@ export class Renderer {
     baseIndex: number,
     segmentColor: string
   ): void {
-    if (vertices.length < 2) return;
+    if (vertices.length < 1) return;
 
-    // Calculate which vertices to label
-    const indicesToLabel: number[] = [
-      0, // First
-      vertices.length - 1, // Last
-    ];
-
-    // Add 3 evenly distributed intermediate vertices
-    if (vertices.length > 2) {
-      const step = vertices.length / 4; // Divide into 4 segments
-      indicesToLabel.push(
-        Math.floor(step),     // 1/4 position
-        Math.floor(step * 2), // 1/2 position
-        Math.floor(step * 3)  // 3/4 position
-      );
-    }
-
-    // Remove duplicates and sort
-    const uniqueIndices = [...new Set(indicesToLabel)].sort((a, b) => a - b);
-
-    // Draw labels
+    // Draw labels for ALL vertices
     this.ctx.save();
-    this.ctx.font = '9px monospace';
+    this.ctx.font = '8px monospace';
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
 
-    for (const i of uniqueIndices) {
+    for (let i = 0; i < vertices.length; i++) {
       const vertex = vertices[i];
       const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
 
       // Offset label slightly to avoid covering the vertex
-      const offsetX = 8;
-      const offsetY = -8;
+      const offsetX = 6;
+      const offsetY = -6;
       const labelX = screen.x + offsetX;
       const labelY = screen.y + offsetY;
 
       // Draw text background (semi-transparent black)
       const text = `${baseIndex + i}`;
       const metrics = this.ctx.measureText(text);
-      const padding = 2;
-      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      const padding = 1;
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
       this.ctx.fillRect(
         labelX - metrics.width / 2 - padding,
-        labelY - 4.5 - padding,
+        labelY - 4 - padding,
         metrics.width + padding * 2,
-        9 + padding * 2
+        8 + padding * 2
       );
 
       // Draw text (use segment color for visibility)

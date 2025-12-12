@@ -61,8 +61,8 @@ export class PipelineConfig {
   // Viewport control, zoom limits, and follow behavior
   // ============================================================================
 
-  /** Initial camera zoom in pixels-per-metre (PPM) - 2x zoom for closer view */
-  readonly cameraInitialZoom = 50;
+  /** Initial camera zoom in pixels-per-metre (PPM) - 3x zoom for closer view (1.5x closer than before) */
+  readonly cameraInitialZoom = 75;
 
   /** Minimum zoom level (PPM) - furthest out the camera can zoom */
   readonly cameraMinZoom = 10;
