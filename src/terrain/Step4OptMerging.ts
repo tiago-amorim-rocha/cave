@@ -833,24 +833,50 @@ function optimizeWarmSegment(
  *
  * Convention: Each segment includes its start anchor but excludes its end anchor.
  * This ensures no duplicates when concatenating.
+ *
+ * Additional modification: For each segment boundary, we duplicate the next segment's
+ * first vertex and append it to the current segment. This creates explicit connection
+ * vertices, making boundaries clear in debug visualization.
  */
 function mergeSegments(processedSegments: ProcessedSegment[]): OptVertex[] {
   const result: OptVertex[] = [];
 
-  console.log('[Step4] Merging segments', {
+  console.log('[Step4] Merging segments with explicit boundary vertices', {
     segmentCount: processedSegments.length
   });
 
-  for (const segment of processedSegments) {
+  for (let i = 0; i < processedSegments.length; i++) {
+    const segment = processedSegments[i];
+    const nextSegment = processedSegments[(i + 1) % processedSegments.length];
+
     console.log('[Step4] Adding segment', {
+      index: i,
       kind: segment.kind,
-      vertexCount: segment.optVertices.length
+      vertexCount: segment.optVertices.length,
+      willAddBoundaryVertex: true
     });
+
+    // Add all vertices from this segment
     result.push(...segment.optVertices);
+
+    // Add boundary vertex: duplicate the first vertex of the next segment
+    // This creates an explicit connection point between segments
+    if (nextSegment.optVertices.length > 0) {
+      const boundaryVertex = { ...nextSegment.optVertices[0] };
+      result.push(boundaryVertex);
+
+      console.log('[Step4] Added boundary vertex', {
+        fromSegment: i,
+        toSegment: (i + 1) % processedSegments.length,
+        position: { x: boundaryVertex.x.toFixed(3), y: boundaryVertex.y.toFixed(3) },
+        resultIndex: result.length - 1
+      });
+    }
   }
 
-  console.log('[Step4] Segments merged', {
-    totalOptVertices: result.length
+  console.log('[Step4] Segments merged with boundary vertices', {
+    totalOptVertices: result.length,
+    boundaryVerticesAdded: processedSegments.length
   });
 
   return result;
