@@ -2587,12 +2587,14 @@ export class Renderer {
       // DO NOT call closePath() for open segments
       this.ctx.stroke();
 
-      // Draw vertex index labels (first, last, and 3 evenly distributed)
+      // Draw vertex index labels for all vertices
       this.drawVertexIndexLabels(vertices, canvasWidth, canvasHeight, currentIndex, color);
 
-      // Increment currentIndex: each segment includes a boundary vertex (next segment's first),
-      // so we subtract 1 to account for the shared vertex with the next segment
-      currentIndex += vertices.length - 1;
+      // Increment currentIndex:
+      // - Warm segments: include both boundary vertices (grown by 2)
+      // - Cold segments: unchanged from original
+      // Simply use full length since warm already includes its growth
+      currentIndex += vertices.length;
     }
 
     this.ctx.restore();

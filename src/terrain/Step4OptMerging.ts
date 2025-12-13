@@ -834,58 +834,85 @@ function optimizeWarmSegment(
  * Convention: Each segment includes its start anchor but excludes its end anchor.
  * This ensures no duplicates when concatenating.
  *
- * Additional modification: We append the next segment's first vertex to each segment's
- * optVertices array (for visualization), then merge by skipping duplicate boundary vertices.
- * This allows segments to visually "own" their boundary vertices without duplication.
+ * Additional modification: ONLY warm (rebuilt) segments get boundary vertices added.
+ * - Warm segments: prepend previous segment's last vertex AND append next segment's first vertex
+ * - Cold segments: remain completely unchanged
+ * This allows warm segments to explicitly show their connection points while preserving cold geometry.
  */
 function mergeSegments(processedSegments: ProcessedSegment[]): OptVertex[] {
   const result: OptVertex[] = [];
 
-  console.log('[Step4] Merging segments with shared boundary vertices', {
+  console.log('[Step4] Merging segments (growing warm segments only)', {
     segmentCount: processedSegments.length
   });
 
-  // First pass: Append boundary vertices to each segment for visualization
+  // First pass: Add boundary vertices ONLY to warm segments
   for (let i = 0; i < processedSegments.length; i++) {
     const segment = processedSegments[i];
-    const nextSegment = processedSegments[(i + 1) % processedSegments.length];
 
-    // Add next segment's first vertex to this segment (for visualization only)
-    if (nextSegment.optVertices.length > 0) {
-      const boundaryVertex = { ...nextSegment.optVertices[0] };
-      segment.optVertices.push(boundaryVertex);
+    if (segment.kind === 'warm') {
+      const prevSegment = processedSegments[(i - 1 + processedSegments.length) % processedSegments.length];
+      const nextSegment = processedSegments[(i + 1) % processedSegments.length];
 
-      console.log('[Step4] Appended boundary vertex to segment', {
+      // Prepend previous segment's last vertex
+      if (prevSegment.optVertices.length > 0) {
+        const startBoundary = { ...prevSegment.optVertices[prevSegment.optVertices.length - 1] };
+        segment.optVertices.unshift(startBoundary);
+
+        console.log('[Step4] Prepended start boundary to warm segment', {
+          segmentIndex: i,
+          position: { x: startBoundary.x.toFixed(3), y: startBoundary.y.toFixed(3) }
+        });
+      }
+
+      // Append next segment's first vertex
+      if (nextSegment.optVertices.length > 0) {
+        const endBoundary = { ...nextSegment.optVertices[0] };
+        segment.optVertices.push(endBoundary);
+
+        console.log('[Step4] Appended end boundary to warm segment', {
+          segmentIndex: i,
+          newLength: segment.optVertices.length,
+          position: { x: endBoundary.x.toFixed(3), y: endBoundary.y.toFixed(3) }
+        });
+      }
+    } else {
+      console.log('[Step4] Cold segment unchanged', {
         segmentIndex: i,
-        segmentKind: segment.kind,
-        newLength: segment.optVertices.length,
-        boundaryPosition: { x: boundaryVertex.x.toFixed(3), y: boundaryVertex.y.toFixed(3) }
+        vertexCount: segment.optVertices.length
       });
     }
   }
 
-  // Second pass: Merge segments, skipping first vertex of subsequent segments
-  // (since it's already included as the last vertex of the previous segment)
+  // Second pass: Merge segments
+  // - Warm segments: include all vertices (now includes both boundaries)
+  // - Cold segments: skip first and last vertices (they're already in adjacent warm segments)
   for (let i = 0; i < processedSegments.length; i++) {
     const segment = processedSegments[i];
 
     console.log('[Step4] Merging segment', {
       index: i,
       kind: segment.kind,
-      vertexCount: segment.optVertices.length,
-      skipFirstVertex: i > 0
+      vertexCount: segment.optVertices.length
     });
 
-    if (i === 0) {
-      // First segment: include all vertices
+    if (segment.kind === 'warm') {
+      // Warm segment: include all vertices (with both boundaries)
       result.push(...segment.optVertices);
     } else {
-      // Subsequent segments: skip first vertex (already included in previous segment)
-      result.push(...segment.optVertices.slice(1));
+      // Cold segment: skip first and last (they're in adjacent warm segments)
+      if (segment.optVertices.length > 2) {
+        result.push(...segment.optVertices.slice(1, -1));
+      } else {
+        console.warn('[Step4] Cold segment too short to skip boundaries', {
+          segmentIndex: i,
+          vertexCount: segment.optVertices.length
+        });
+      }
     }
   }
 
-  console.log('[Step4] Segments merged with shared boundaries', {
+  console.log('[Step4] Segments merged (warm grown, cold unchanged)', {
     totalOptVertices: result.length,
     segmentCount: processedSegments.length
   });
