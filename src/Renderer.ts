@@ -2590,7 +2590,9 @@ export class Renderer {
       // Draw vertex index labels (first, last, and 3 evenly distributed)
       this.drawVertexIndexLabels(vertices, canvasWidth, canvasHeight, currentIndex, color);
 
-      currentIndex += vertices.length;
+      // Increment currentIndex: each segment includes a boundary vertex (next segment's first),
+      // so we subtract 1 to account for the shared vertex with the next segment
+      currentIndex += vertices.length - 1;
     }
 
     this.ctx.restore();
