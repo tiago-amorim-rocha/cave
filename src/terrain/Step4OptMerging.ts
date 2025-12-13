@@ -834,49 +834,60 @@ function optimizeWarmSegment(
  * Convention: Each segment includes its start anchor but excludes its end anchor.
  * This ensures no duplicates when concatenating.
  *
- * Additional modification: For each segment boundary, we duplicate the next segment's
- * first vertex and append it to the current segment. This creates explicit connection
- * vertices, making boundaries clear in debug visualization.
+ * Additional modification: We append the next segment's first vertex to each segment's
+ * optVertices array (for visualization), then merge by skipping duplicate boundary vertices.
+ * This allows segments to visually "own" their boundary vertices without duplication.
  */
 function mergeSegments(processedSegments: ProcessedSegment[]): OptVertex[] {
   const result: OptVertex[] = [];
 
-  console.log('[Step4] Merging segments with explicit boundary vertices', {
+  console.log('[Step4] Merging segments with shared boundary vertices', {
     segmentCount: processedSegments.length
   });
 
+  // First pass: Append boundary vertices to each segment for visualization
   for (let i = 0; i < processedSegments.length; i++) {
     const segment = processedSegments[i];
     const nextSegment = processedSegments[(i + 1) % processedSegments.length];
 
-    console.log('[Step4] Adding segment', {
-      index: i,
-      kind: segment.kind,
-      vertexCount: segment.optVertices.length,
-      willAddBoundaryVertex: true
-    });
-
-    // Add all vertices from this segment
-    result.push(...segment.optVertices);
-
-    // Add boundary vertex: duplicate the first vertex of the next segment
-    // This creates an explicit connection point between segments
+    // Add next segment's first vertex to this segment (for visualization only)
     if (nextSegment.optVertices.length > 0) {
       const boundaryVertex = { ...nextSegment.optVertices[0] };
-      result.push(boundaryVertex);
+      segment.optVertices.push(boundaryVertex);
 
-      console.log('[Step4] Added boundary vertex', {
-        fromSegment: i,
-        toSegment: (i + 1) % processedSegments.length,
-        position: { x: boundaryVertex.x.toFixed(3), y: boundaryVertex.y.toFixed(3) },
-        resultIndex: result.length - 1
+      console.log('[Step4] Appended boundary vertex to segment', {
+        segmentIndex: i,
+        segmentKind: segment.kind,
+        newLength: segment.optVertices.length,
+        boundaryPosition: { x: boundaryVertex.x.toFixed(3), y: boundaryVertex.y.toFixed(3) }
       });
     }
   }
 
-  console.log('[Step4] Segments merged with boundary vertices', {
+  // Second pass: Merge segments, skipping first vertex of subsequent segments
+  // (since it's already included as the last vertex of the previous segment)
+  for (let i = 0; i < processedSegments.length; i++) {
+    const segment = processedSegments[i];
+
+    console.log('[Step4] Merging segment', {
+      index: i,
+      kind: segment.kind,
+      vertexCount: segment.optVertices.length,
+      skipFirstVertex: i > 0
+    });
+
+    if (i === 0) {
+      // First segment: include all vertices
+      result.push(...segment.optVertices);
+    } else {
+      // Subsequent segments: skip first vertex (already included in previous segment)
+      result.push(...segment.optVertices.slice(1));
+    }
+  }
+
+  console.log('[Step4] Segments merged with shared boundaries', {
     totalOptVertices: result.length,
-    boundaryVerticesAdded: processedSegments.length
+    segmentCount: processedSegments.length
   });
 
   return result;
