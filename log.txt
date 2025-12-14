@@ -1,2565 +1,750 @@
-[23:36:08] LOG: [UI] Stitch button TOUCHSTART!
-[23:36:08] LOG: [UI] Stitch button TOUCHEND!
-[23:36:08] LOG: [Carving] Debug step advanced {
-  "from": "Step 3: Reuse Plan",
-  "to": "Step 4: Opt-Space Merging"
-}
-[23:36:08] LOG: [Renderer] Carving debug mode changed {
-  "from": "reuse_plan",
-  "to": "opt_merging"
-}
-[23:36:08] LOG: [Carving] Step 4: Building optimized loops from stitched loops
-[23:36:08] LOG: [Step4] Processing stitched loop {
-  "loopId": 1,
-  "vertexCount": 190,
-  "segmentCount": 2
-}
-[23:36:08] LOG: [Step4] Starting opt-space merging {
-  "stitchedLoopId": 1,
-  "segmentCount": 2,
-  "stitchedVertexCount": 190
-}
-[23:36:08] LOG: [Step4] Identifying anchors {
-  "stitchedLoopId": 1,
-  "segmentCount": 2
-}
-[23:36:08] LOG: [Step4] Looking up cold-opt anchor (next segment start) {
-  "canonicalLoopId": 1,
-  "startIndex": 34,
-  "optVerticesCount": 199
-}
-[23:36:08] LOG: [Step4] ✓ Anchor from next cold segment (opt) {
-  "boundaryIndex": 0,
-  "stitchedIndex": 16,
-  "startIndex": 34,
-  "position": {
-    "x": 12.59375,
-    "y": 10.421875
-  }
-}
-[23:36:08] LOG: [Step4] Looking up cold-opt anchor (prev segment end) {
-  "canonicalLoopId": 1,
-  "endIndex": 48,
-  "optVerticesCount": 199
-}
-[23:36:08] LOG: [Step4] ✓ Anchor from prev cold segment (opt) {
-  "boundaryIndex": 1,
-  "stitchedIndex": 189,
-  "endIndex": 48,
-  "position": {
-    "x": 18.4375,
-    "y": 9.80078125
-  }
-}
-[23:36:08] LOG: [Step4] Anchors identified {
-  "anchorCount": 2,
-  "sources": {
-    "coldOpt": 2,
-    "coldCanonical": 0,
-    "warmStitched": 0
-  }
-}
-[23:36:08] LOG: [Step4] Processing segment {
-  "index": 0,
-  "kind": "warm",
-  "vertexRange": [
-    0,
-    16
-  ],
-  "startAnchor": "cold-opt",
-  "endAnchor": "cold-opt"
-}
-[23:36:08] LOG: [Step4] Processing warm segment (optimization DISABLED) {
-  "vertexRange": [
-    0,
-    16
-  ],
-  "vertexCount": 16,
-  "startAnchor": {
-    "stitchedIndex": 189,
-    "position": {
-      "x": 18.4375,
-      "y": 9.80078125
-    },
-    "source": "cold-opt"
-  },
-  "endAnchor": {
-    "stitchedIndex": 16,
-    "position": {
-      "x": 12.59375,
-      "y": 10.421875
-    },
-    "source": "cold-opt"
-  },
-  "totalStitchedVertices": 190
-}
-[23:36:08] LOG: [Step4] Extracted warm vertices {
-  "extractedCount": 16,
-  "firstVertex": {
-    "x": 13,
-    "y": 10.25
-  },
-  "lastVertex": {
-    "x": 18.5,
-    "y": 9.8125
-  }
-}
-[23:36:08] LOG: [Step4] Snapped first vertex to start anchor {
-  "before": {
-    "x": 13,
-    "y": 10.25,
-    "canonStartId": 387,
-    "canonEndId": 388
-  },
-  "after": {
-    "x": 18.4375,
-    "y": 9.80078125,
-    "canonStartId": 387,
-    "canonEndId": 388
-  },
-  "snapDistance": "5.456"
-}
-[23:36:08] LOG: [Step4] Warm segment processed (no optimization) {
-  "vertexCount": 16,
-  "firstVertex": {
-    "x": 18.4375,
-    "y": 9.80078125,
-    "canonStartId": 387,
-    "canonEndId": 388
-  },
-  "lastVertex": {
-    "x": 18.5,
-    "y": 9.8125,
-    "canonStartId": 417,
-    "canonEndId": 418
-  },
-  "allVertices": [
-    {
-      "idx": 0,
-      "pos": [
-        "18.438",
-        "9.801"
-      ]
-    },
-    {
-      "idx": 1,
-      "pos": [
-        "13.125",
-        "10.000"
-      ]
-    },
-    {
-      "idx": 2,
-      "pos": [
-        "13.500",
-        "9.438"
-      ]
-    },
-    {
-      "idx": 3,
-      "pos": [
-        "14.000",
-        "8.938"
-      ]
-    },
-    {
-      "idx": 4,
-      "pos": [
-        "14.500",
-        "8.625"
-      ]
-    },
-    {
-      "idx": 5,
-      "pos": [
-        "14.688",
-        "8.500"
-      ]
-    },
-    {
-      "idx": 6,
-      "pos": [
-        "15.000",
-        "8.313"
-      ]
-    },
-    {
-      "idx": 7,
-      "pos": [
-        "15.500",
-        "8.188"
-      ]
-    },
-    {
-      "idx": 8,
-      "pos": [
-        "16.000",
-        "8.125"
-      ]
-    },
-    {
-      "idx": 9,
-      "pos": [
-        "16.500",
-        "8.313"
-      ]
-    },
-    {
-      "idx": 10,
-      "pos": [
-        "16.813",
-        "8.500"
-      ]
-    },
-    {
-      "idx": 11,
-      "pos": [
-        "17.000",
-        "8.625"
-      ]
-    },
-    {
-      "idx": 12,
-      "pos": [
-        "17.500",
-        "9.063"
-      ]
-    },
-    {
-      "idx": 13,
-      "pos": [
-        "17.875",
-        "9.500"
-      ]
-    },
-    {
-      "idx": 14,
-      "pos": [
-        "18.000",
-        "9.688"
-      ]
-    },
-    {
-      "idx": 15,
-      "pos": [
-        "18.500",
-        "9.813"
-      ]
-    }
-  ]
-}
-[23:36:08] LOG: [Step4] Processing segment {
-  "index": 1,
-  "kind": "cold",
-  "vertexRange": [
-    17,
-    189
-  ],
-  "startAnchor": "cold-opt",
-  "endAnchor": "cold-opt"
-}
-[23:36:08] LOG: [Step4] Extracting cold opt segment {
-  "sourceCanonicalId": 1,
-  "loopIndexRange": [
-    34,
-    48
-  ],
-  "optVertexCount": 199,
-  "firstOptVertices": [
-    {
-      "idx": 0,
-      "canonRange": [
-        1,
-        2
-      ]
-    },
-    {
-      "idx": 1,
-      "canonRange": [
-        1,
-        3
-      ]
-    },
-    {
-      "idx": 2,
-      "canonRange": [
-        2,
-        4
-      ]
-    },
-    {
-      "idx": 3,
-      "canonRange": [
-        3,
-        4
-      ]
-    },
-    {
-      "idx": 4,
-      "canonRange": [
-        4,
-        5
-      ]
-    }
-  ],
-  "lastOptVertices": [
-    {
-      "idx": 194,
-      "canonRange": [
-        184,
-        186
-      ]
-    },
-    {
-      "idx": 195,
-      "canonRange": [
-        0,
-        186
-      ]
-    },
-    {
-      "idx": 196,
-      "canonRange": [
-        0,
-        186
-      ]
-    },
-    {
-      "idx": 197,
-      "canonRange": [
-        0,
-        1
-      ]
-    },
-    {
-      "idx": 198,
-      "canonRange": [
-        1,
-        2
-      ]
-    }
-  ]
-}
-[23:36:08] LOG: [Step4] Found opt indices {
-  "startOptIdx": 36,
-  "endOptIdx": 55,
-  "totalOptVertices": 199,
-  "startOptVertex": {
-    "canonRange": [
-      32,
-      34
-    ],
-    "pos": [
-      "12.594",
-      "10.422"
-    ]
-  },
-  "endOptVertex": {
-    "canonRange": [
-      46,
-      48
-    ],
-    "pos": [
-      "18.438",
-      "9.801"
-    ]
-  }
-}
-[23:36:08] LOG: [Step4][Cold] Arc selection (ancestry-based) {
-  "stitchedSegmentLength": 172,
-  "startOptIdx": 36,
-  "endOptIdx": 55,
-  "totalOptVertices": 199,
-  "startLoopIndex": 34,
-  "endLoopIndex": 48,
-  "forwardArc": {
-    "optIndices": 19,
-    "optIndicesArray": [
-      36,
-      37,
-      38,
-      39,
-      40,
-      41,
-      42,
-      43,
-      44,
-      45
-    ],
-    "canonicalPath": 15,
-    "canonicalPathSample": [
-      34,
-      35,
-      36,
-      37,
-      38,
-      39,
-      40,
-      41,
-      42,
-      43
-    ],
-    "ancestry": {
-      "matches": 14,
-      "longestRun": 14
-    }
-  },
-  "backwardArc": {
-    "optIndices": 180,
-    "optIndicesArray": [
-      36,
-      35,
-      34,
-      33,
-      32,
-      31,
-      30,
-      29,
-      28,
-      27
-    ],
-    "canonicalPath": 174,
-    "canonicalPathSample": [
-      34,
-      33,
-      32,
-      31,
-      30,
-      29,
-      28,
-      27,
-      26,
-      25
-    ],
-    "ancestry": {
-      "matches": 174,
-      "longestRun": 174
-    }
-  },
-  "chosen": "backward",
-  "method": "ancestry"
-}
-[23:36:08] LOG: [Step4][Cold] Start anchor validated {
-  "anchorCanonicalIndex": 34,
-  "segmentStartIndex": 34,
-  "segmentEndIndex": 48,
-  "distanceToCanonical": "0.441"
-}
-[23:36:08] LOG: [Step4][Cold] Extraction complete {
-  "extractedVertexCount": 180,
-  "expectedLength": 180,
-  "selectionMethod": "ancestry",
-  "ancestryScore": {
-    "matches": 174,
-    "longestRun": 174
-  },
-  "extractedVertices": [
-    {
-      "idx": 0,
-      "canonRange": [
-        34,
-        34
-      ],
-      "pos": [
-        "12.594",
-        "10.422"
-      ]
-    },
-    {
-      "idx": 1,
-      "canonRange": [
-        32,
-        33
-      ],
-      "pos": [
-        "12.500",
-        "10.313"
-      ]
-    },
-    {
-      "idx": 2,
-      "canonRange": [
-        31,
-        33
-      ],
-      "pos": [
-        "12.480",
-        "10.063"
-      ]
-    },
-    {
-      "idx": 3,
-      "canonRange": [
-        31,
-        32
-      ],
-      "pos": [
-        "12.383",
-        "9.813"
-      ]
-    },
-    {
-      "idx": 4,
-      "canonRange": [
-        29,
-        31
-      ],
-      "pos": [
-        "11.988",
-        "9.219"
-      ]
-    },
-    {
-      "idx": 5,
-      "canonRange": [
-        29,
-        30
-      ],
-      "pos": [
-        "11.922",
-        "9.094"
-      ]
-    },
-    {
-      "idx": 6,
-      "canonRange": [
-        28,
-        29
-      ],
-      "pos": [
-        "11.758",
-        "8.688"
-      ]
-    },
-    {
-      "idx": 7,
-      "canonRange": [
-        27,
-        28
-      ],
-      "pos": [
-        "11.664",
-        "8.313"
-      ]
-    },
-    {
-      "idx": 8,
-      "canonRange": [
-        26,
-        27
-      ],
-      "pos": [
-        "11.625",
-        "7.813"
-      ]
-    },
-    {
-      "idx": 9,
-      "canonRange": [
-        25,
-        26
-      ],
-      "pos": [
-        "11.625",
-        "7.188"
-      ]
-    },
-    {
-      "idx": 10,
-      "canonRange": [
-        24,
-        25
-      ],
-      "pos": [
-        "11.586",
-        "6.688"
-      ]
-    },
-    {
-      "idx": 11,
-      "canonRange": [
-        23,
-        24
-      ],
-      "pos": [
-        "11.523",
-        "6.383"
-      ]
-    },
-    {
-      "idx": 12,
-      "canonRange": [
-        22,
-        23
-      ],
-      "pos": [
-        "11.383",
-        "6.117"
-      ]
-    },
-    {
-      "idx": 13,
-      "canonRange": [
-        21,
-        23
-      ],
-      "pos": [
-        "11.266",
-        "5.973"
-      ]
-    },
-    {
-      "idx": 14,
-      "canonRange": [
-        20,
-        22
-      ],
-      "pos": [
-        "11.027",
-        "5.785"
-      ]
-    },
-    {
-      "idx": 15,
-      "canonRange": [
-        20,
-        21
-      ],
-      "pos": [
-        "10.813",
-        "5.680"
-      ]
-    },
-    {
-      "idx": 16,
-      "canonRange": [
-        18,
-        20
-      ],
-      "pos": [
-        "10.328",
-        "5.504"
-      ]
-    },
-    {
-      "idx": 17,
-      "canonRange": [
-        16,
-        17
-      ],
-      "pos": [
-        "9.188",
-        "5.070"
-      ]
-    },
-    {
-      "idx": 18,
-      "canonRange": [
-        15,
-        16
-      ],
-      "pos": [
-        "8.813",
-        "4.953"
-      ]
-    },
-    {
-      "idx": 19,
-      "canonRange": [
-        14,
-        15
-      ],
-      "pos": [
-        "8.313",
-        "4.852"
-      ]
-    },
-    {
-      "idx": 20,
-      "canonRange": [
-        13,
-        14
-      ],
-      "pos": [
-        "7.688",
-        "4.773"
-      ]
-    },
-    {
-      "idx": 21,
-      "canonRange": [
-        12,
-        14
-      ],
-      "pos": [
-        "7.438",
-        "4.730"
-      ]
-    },
-    {
-      "idx": 22,
-      "canonRange": [
-        11,
-        13
-      ],
-      "pos": [
-        "6.984",
-        "4.609"
-      ]
-    },
-    {
-      "idx": 23,
-      "canonRange": [
-        11,
-        12
-      ],
-      "pos": [
-        "6.844",
-        "4.547"
-      ]
-    },
-    {
-      "idx": 24,
-      "canonRange": [
-        10,
-        11
-      ],
-      "pos": [
-        "6.594",
-        "4.383"
-      ]
-    },
-    {
-      "idx": 25,
-      "canonRange": [
-        9,
-        10
-      ],
-      "pos": [
-        "6.344",
-        "4.117"
-      ]
-    },
-    {
-      "idx": 26,
-      "canonRange": [
-        8,
-        10
-      ],
-      "pos": [
-        "6.219",
-        "3.926"
-      ]
-    },
-    {
-      "idx": 27,
-      "canonRange": [
-        7,
-        9
-      ],
-      "pos": [
-        "5.957",
-        "3.438"
-      ]
-    },
-    {
-      "idx": 28,
-      "canonRange": [
-        6,
-        8
-      ],
-      "pos": [
-        "5.672",
-        "2.996"
-      ]
-    },
-    {
-      "idx": 29,
-      "canonRange": [
-        6,
-        7
-      ],
-      "pos": [
-        "5.570",
-        "2.883"
-      ]
-    },
-    {
-      "idx": 30,
-      "canonRange": [
-        5,
-        6
-      ],
-      "pos": [
-        "5.188",
-        "2.617"
-      ]
-    },
-    {
-      "idx": 31,
-      "canonRange": [
-        4,
-        6
-      ],
-      "pos": [
-        "5.063",
-        "2.559"
-      ]
-    },
-    {
-      "idx": 32,
-      "canonRange": [
-        4,
-        5
-      ],
-      "pos": [
-        "4.813",
-        "2.500"
-      ]
-    },
-    {
-      "idx": 33,
-      "canonRange": [
-        3,
-        4
-      ],
-      "pos": [
-        "4.188",
-        "2.500"
-      ]
-    },
-    {
-      "idx": 34,
-      "canonRange": [
-        2,
-        4
-      ],
-      "pos": [
-        "3.938",
-        "2.488"
-      ]
-    },
-    {
-      "idx": 35,
-      "canonRange": [
-        1,
-        3
-      ],
-      "pos": [
-        "3.563",
-        "2.449"
-      ]
-    },
-    {
-      "idx": 36,
-      "canonRange": [
-        1,
-        2
-      ],
-      "pos": [
-        "3.313",
-        "2.438"
-      ]
-    },
-    {
-      "idx": 37,
-      "canonRange": [
-        1,
-        2
-      ],
-      "pos": [
-        "3.313",
-        "2.438"
-      ]
-    },
-    {
-      "idx": 38,
-      "canonRange": [
-        0,
-        1
-      ],
-      "pos": [
-        "2.625",
-        "2.438"
-      ]
-    },
-    {
-      "idx": 39,
-      "canonRange": [
-        0,
-        186
-      ],
-      "pos": [
-        "2.461",
-        "2.477"
-      ]
-    },
-    {
-      "idx": 40,
-      "canonRange": [
-        0,
-        186
-      ],
-      "pos": [
-        "2.441",
-        "2.590"
-      ]
-    },
-    {
-      "idx": 41,
-      "canonRange": [
-        184,
-        186
-      ],
-      "pos": [
-        "2.426",
-        "3.063"
-      ]
-    },
-    {
-      "idx": 42,
-      "canonRange": [
-        183,
-        185
-      ],
-      "pos": [
-        "2.387",
-        "3.438"
-      ]
-    },
-    {
-      "idx": 43,
-      "canonRange": [
-        183,
-        184
-      ],
-      "pos": [
-        "2.375",
-        "3.688"
-      ]
-    },
-    {
-      "idx": 44,
-      "canonRange": [
-        164,
-        165
-      ],
-      "pos": [
-        "2.375",
-        "13.313"
-      ]
-    },
-    {
-      "idx": 45,
-      "canonRange": [
-        163,
-        165
-      ],
-      "pos": [
-        "2.387",
-        "13.563"
-      ]
-    },
-    {
-      "idx": 46,
-      "canonRange": [
-        162,
-        164
-      ],
-      "pos": [
-        "2.426",
-        "13.938"
-      ]
-    },
-    {
-      "idx": 47,
-      "canonRange": [
-        162,
-        163
-      ],
-      "pos": [
-        "2.438",
-        "14.188"
-      ]
-    },
-    {
-      "idx": 48,
-      "canonRange": [
-        142,
-        143
-      ],
-      "pos": [
-        "2.438",
-        "24.313"
-      ]
-    },
-    {
-      "idx": 49,
-      "canonRange": [
-        141,
-        143
-      ],
-      "pos": [
-        "2.449",
-        "24.563"
-      ]
-    },
-    {
-      "idx": 50,
-      "canonRange": [
-        140,
-        142
-      ],
-      "pos": [
-        "2.488",
-        "24.938"
-      ]
-    },
-    {
-      "idx": 51,
-      "canonRange": [
-        140,
-        141
-      ],
-      "pos": [
-        "2.500",
-        "25.188"
-      ]
-    },
-    {
-      "idx": 52,
-      "canonRange": [
-        137,
-        138
-      ],
-      "pos": [
-        "2.500",
-        "26.695"
-      ]
-    },
-    {
-      "idx": 53,
-      "canonRange": [
-        136,
-        138
-      ],
-      "pos": [
-        "2.531",
-        "26.754"
-      ]
-    },
-    {
-      "idx": 54,
-      "canonRange": [
-        136,
-        137
-      ],
-      "pos": [
-        "2.688",
-        "26.813"
-      ]
-    },
-    {
-      "idx": 55,
-      "canonRange": [
-        135,
-        137
-      ],
-      "pos": [
-        "2.938",
-        "26.824"
-      ]
-    },
-    {
-      "idx": 56,
-      "canonRange": [
-        135,
-        136
-      ],
-      "pos": [
-        "3.188",
-        "26.883"
-      ]
-    },
-    {
-      "idx": 57,
-      "canonRange": [
-        134,
-        136
-      ],
-      "pos": [
-        "3.563",
-        "27.012"
-      ]
-    },
-    {
-      "idx": 58,
-      "canonRange": [
-        133,
-        135
-      ],
-      "pos": [
-        "4.063",
-        "27.129"
-      ]
-    },
-    {
-      "idx": 59,
-      "canonRange": [
-        132,
-        134
-      ],
-      "pos": [
-        "4.422",
-        "27.164"
-      ]
-    },
-    {
-      "idx": 60,
-      "canonRange": [
-        132,
-        133
-      ],
-      "pos": [
-        "4.594",
-        "27.117"
-      ]
-    },
-    {
-      "idx": 61,
-      "canonRange": [
-        131,
-        132
-      ],
-      "pos": [
-        "4.844",
-        "26.906"
-      ]
-    },
-    {
-      "idx": 62,
-      "canonRange": [
-        130,
-        131
-      ],
-      "pos": [
-        "5.156",
-        "26.594"
-      ]
-    },
-    {
-      "idx": 63,
-      "canonRange": [
-        129,
-        130
-      ],
-      "pos": [
-        "5.406",
-        "26.422"
-      ]
-    },
-    {
-      "idx": 64,
-      "canonRange": [
-        128,
-        130
-      ],
-      "pos": [
-        "5.578",
-        "26.406"
-      ]
-    },
-    {
-      "idx": 65,
-      "canonRange": [
-        128,
-        129
-      ],
-      "pos": [
-        "5.813",
-        "26.453"
-      ]
-    },
-    {
-      "idx": 66,
-      "canonRange": [
-        127,
-        129
-      ],
-      "pos": [
-        "5.938",
-        "26.500"
-      ]
-    },
-    {
-      "idx": 67,
-      "canonRange": [
-        127,
-        128
-      ],
-      "pos": [
-        "6.188",
-        "26.641"
-      ]
-    },
-    {
-      "idx": 68,
-      "canonRange": [
-        126,
-        127
-      ],
-      "pos": [
-        "6.594",
-        "26.922"
-      ]
-    },
-    {
-      "idx": 69,
-      "canonRange": [
-        125,
-        126
-      ],
-      "pos": [
-        "6.906",
-        "27.078"
-      ]
-    },
-    {
-      "idx": 70,
-      "canonRange": [
-        124,
-        125
-      ],
-      "pos": [
-        "7.188",
-        "27.078"
-      ]
-    },
-    {
-      "idx": 71,
-      "canonRange": [
-        123,
-        124
-      ],
-      "pos": [
-        "7.813",
-        "26.922"
-      ]
-    },
-    {
-      "idx": 72,
-      "canonRange": [
-        121,
-        123
-      ],
-      "pos": [
-        "8.438",
-        "26.723"
-      ]
-    },
-    {
-      "idx": 73,
-      "canonRange": [
-        121,
-        122
-      ],
-      "pos": [
-        "8.688",
-        "26.688"
-      ]
-    },
-    {
-      "idx": 74,
-      "canonRange": [
-        120,
-        122
-      ],
-      "pos": [
-        "8.938",
-        "26.699"
-      ]
-    },
-    {
-      "idx": 75,
-      "canonRange": [
-        120,
-        121
-      ],
-      "pos": [
-        "9.188",
-        "26.758"
-      ]
-    },
-    {
-      "idx": 76,
-      "canonRange": [
-        119,
-        121
-      ],
-      "pos": [
-        "9.563",
-        "26.887"
-      ]
-    },
-    {
-      "idx": 77,
-      "canonRange": [
-        118,
-        120
-      ],
-      "pos": [
-        "10.063",
-        "27.027"
-      ]
-    },
-    {
-      "idx": 78,
-      "canonRange": [
-        118,
-        119
-      ],
-      "pos": [
-        "10.313",
-        "27.117"
-      ]
-    },
-    {
-      "idx": 79,
-      "canonRange": [
-        116,
-        118
-      ],
-      "pos": [
-        "10.938",
-        "27.395"
-      ]
-    },
-    {
-      "idx": 80,
-      "canonRange": [
-        116,
-        117
-      ],
-      "pos": [
-        "11.188",
-        "27.461"
-      ]
-    },
-    {
-      "idx": 81,
-      "canonRange": [
-        115,
-        116
-      ],
-      "pos": [
-        "11.688",
-        "27.500"
-      ]
-    },
-    {
-      "idx": 82,
-      "canonRange": [
-        114,
-        115
-      ],
-      "pos": [
-        "12.313",
-        "27.500"
-      ]
-    },
-    {
-      "idx": 83,
-      "canonRange": [
-        113,
-        115
-      ],
-      "pos": [
-        "12.563",
-        "27.512"
-      ]
-    },
-    {
-      "idx": 84,
-      "canonRange": [
-        112,
-        114
-      ],
-      "pos": [
-        "12.938",
-        "27.551"
-      ]
-    },
-    {
-      "idx": 85,
-      "canonRange": [
-        112,
-        113
-      ],
-      "pos": [
-        "13.188",
-        "27.563"
-      ]
-    },
-    {
-      "idx": 86,
-      "canonRange": [
-        111,
-        112
-      ],
-      "pos": [
-        "13.813",
-        "27.563"
-      ]
-    },
-    {
-      "idx": 87,
-      "canonRange": [
-        110,
-        111
-      ],
-      "pos": [
-        "14.313",
-        "27.523"
-      ]
-    },
-    {
-      "idx": 88,
-      "canonRange": [
-        109,
-        111
-      ],
-      "pos": [
-        "14.438",
-        "27.492"
-      ]
-    },
-    {
-      "idx": 89,
-      "canonRange": [
-        109,
-        110
-      ],
-      "pos": [
-        "14.688",
-        "27.383"
-      ]
-    },
-    {
-      "idx": 90,
-      "canonRange": [
-        108,
-        110
-      ],
-      "pos": [
-        "15.016",
-        "27.172"
-      ]
-    },
-    {
-      "idx": 91,
-      "canonRange": [
-        107,
-        109
-      ],
-      "pos": [
-        "15.219",
-        "27.016"
-      ]
-    },
-    {
-      "idx": 92,
-      "canonRange": [
-        107,
-        108
-      ],
-      "pos": [
-        "15.344",
-        "26.883"
-      ]
-    },
-    {
-      "idx": 93,
-      "canonRange": [
-        106,
-        107
-      ],
-      "pos": [
-        "15.523",
-        "26.617"
-      ]
-    },
-    {
-      "idx": 94,
-      "canonRange": [
-        105,
-        106
-      ],
-      "pos": [
-        "15.641",
-        "26.188"
-      ]
-    },
-    {
-      "idx": 95,
-      "canonRange": [
-        104,
-        105
-      ],
-      "pos": [
-        "15.688",
-        "25.813"
-      ]
-    },
-    {
-      "idx": 96,
-      "canonRange": [
-        103,
-        104
-      ],
-      "pos": [
-        "15.688",
-        "25.188"
-      ]
-    },
-    {
-      "idx": 97,
-      "canonRange": [
-        102,
-        104
-      ],
-      "pos": [
-        "15.711",
-        "24.938"
-      ]
-    },
-    {
-      "idx": 98,
-      "canonRange": [
-        102,
-        103
-      ],
-      "pos": [
-        "15.766",
-        "24.688"
-      ]
-    },
-    {
-      "idx": 99,
-      "canonRange": [
-        101,
-        103
-      ],
-      "pos": [
-        "15.840",
-        "24.473"
-      ]
-    },
-    {
-      "idx": 100,
-      "canonRange": [
-        101,
-        102
-      ],
-      "pos": [
-        "15.930",
-        "24.305"
-      ]
-    },
-    {
-      "idx": 101,
-      "canonRange": [
-        100,
-        101
-      ],
-      "pos": [
-        "16.117",
-        "24.070"
-      ]
-    },
-    {
-      "idx": 102,
-      "canonRange": [
-        99,
-        100
-      ],
-      "pos": [
-        "16.383",
-        "23.844"
-      ]
-    },
-    {
-      "idx": 103,
-      "canonRange": [
-        98,
-        100
-      ],
-      "pos": [
-        "16.574",
-        "23.719"
-      ]
-    },
-    {
-      "idx": 104,
-      "canonRange": [
-        97,
-        99
-      ],
-      "pos": [
-        "16.926",
-        "23.516"
-      ]
-    },
-    {
-      "idx": 105,
-      "canonRange": [
-        97,
-        98
-      ],
-      "pos": [
-        "17.117",
-        "23.313"
-      ]
-    },
-    {
-      "idx": 106,
-      "canonRange": [
-        96,
-        98
-      ],
-      "pos": [
-        "17.254",
-        "23.063"
-      ]
-    },
-    {
-      "idx": 107,
-      "canonRange": [
-        96,
-        97
-      ],
-      "pos": [
-        "17.313",
-        "22.813"
-      ]
-    },
-    {
-      "idx": 108,
-      "canonRange": [
-        95,
-        96
-      ],
-      "pos": [
-        "17.313",
-        "22.188"
-      ]
-    },
-    {
-      "idx": 109,
-      "canonRange": [
-        94,
-        95
-      ],
-      "pos": [
-        "17.352",
-        "21.688"
-      ]
-    },
-    {
-      "idx": 110,
-      "canonRange": [
-        93,
-        95
-      ],
-      "pos": [
-        "17.395",
-        "21.484"
-      ]
-    },
-    {
-      "idx": 111,
-      "canonRange": [
-        93,
-        94
-      ],
-      "pos": [
-        "17.453",
-        "21.344"
-      ]
-    },
-    {
-      "idx": 112,
-      "canonRange": [
-        92,
-        94
-      ],
-      "pos": [
-        "17.586",
-        "21.219"
-      ]
-    },
-    {
-      "idx": 113,
-      "canonRange": [
-        92,
-        93
-      ],
-      "pos": [
-        "17.813",
-        "21.094"
-      ]
-    },
-    {
-      "idx": 114,
-      "canonRange": [
-        91,
-        93
-      ],
-      "pos": [
-        "17.938",
-        "21.066"
-      ]
-    },
-    {
-      "idx": 115,
-      "canonRange": [
-        91,
-        92
-      ],
-      "pos": [
-        "18.188",
-        "21.117"
-      ]
-    },
-    {
-      "idx": 116,
-      "canonRange": [
-        90,
-        91
-      ],
-      "pos": [
-        "18.570",
-        "21.383"
-      ]
-    },
-    {
-      "idx": 117,
-      "canonRange": [
-        89,
-        90
-      ],
-      "pos": [
-        "18.883",
-        "21.656"
-      ]
-    },
-    {
-      "idx": 118,
-      "canonRange": [
-        88,
-        90
-      ],
-      "pos": [
-        "19.074",
-        "21.758"
-      ]
-    },
-    {
-      "idx": 119,
-      "canonRange": [
-        88,
-        89
-      ],
-      "pos": [
-        "19.313",
-        "21.828"
-      ]
-    },
-    {
-      "idx": 120,
-      "canonRange": [
-        87,
-        89
-      ],
-      "pos": [
-        "19.438",
-        "21.836"
-      ]
-    },
-    {
-      "idx": 121,
-      "canonRange": [
-        87,
-        88
-      ],
-      "pos": [
-        "19.688",
-        "21.781"
-      ]
-    },
-    {
-      "idx": 122,
-      "canonRange": [
-        86,
-        87
-      ],
-      "pos": [
-        "20.117",
-        "21.547"
-      ]
-    },
-    {
-      "idx": 123,
-      "canonRange": [
-        85,
-        87
-      ],
-      "pos": [
-        "20.234",
-        "21.414"
-      ]
-    },
-    {
-      "idx": 124,
-      "canonRange": [
-        85,
-        86
-      ],
-      "pos": [
-        "20.383",
-        "21.188"
-      ]
-    },
-    {
-      "idx": 125,
-      "canonRange": [
-        84,
-        86
-      ],
-      "pos": [
-        "20.430",
-        "21.063"
-      ]
-    },
-    {
-      "idx": 126,
-      "canonRange": [
-        84,
-        85
-      ],
-      "pos": [
-        "20.430",
-        "20.813"
-      ]
-    },
-    {
-      "idx": 127,
-      "canonRange": [
-        83,
-        85
-      ],
-      "pos": [
-        "20.266",
-        "20.438"
-      ]
-    },
-    {
-      "idx": 128,
-      "canonRange": [
-        82,
-        84
-      ],
-      "pos": [
-        "20.051",
-        "20.063"
-      ]
-    },
-    {
-      "idx": 129,
-      "canonRange": [
-        82,
-        83
-      ],
-      "pos": [
-        "19.953",
-        "19.813"
-      ]
-    },
-    {
-      "idx": 130,
-      "canonRange": [
-        81,
-        83
-      ],
-      "pos": [
-        "19.898",
-        "19.563"
-      ]
-    },
-    {
-      "idx": 131,
-      "canonRange": [
-        81,
-        82
-      ],
-      "pos": [
-        "19.875",
-        "19.313"
-      ]
-    },
-    {
-      "idx": 132,
-      "canonRange": [
-        80,
-        82
-      ],
-      "pos": [
-        "19.883",
-        "19.078"
-      ]
-    },
-    {
-      "idx": 133,
-      "canonRange": [
-        80,
-        81
-      ],
-      "pos": [
-        "19.922",
-        "18.906"
-      ]
-    },
-    {
-      "idx": 134,
-      "canonRange": [
-        79,
-        80
-      ],
-      "pos": [
-        "20.078",
-        "18.594"
-      ]
-    },
-    {
-      "idx": 135,
-      "canonRange": [
-        78,
-        80
-      ],
-      "pos": [
-        "20.129",
-        "18.422"
-      ]
-    },
-    {
-      "idx": 136,
-      "canonRange": [
-        78,
-        79
-      ],
-      "pos": [
-        "20.164",
-        "18.188"
-      ]
-    },
-    {
-      "idx": 137,
-      "canonRange": [
-        77,
-        78
-      ],
-      "pos": [
-        "20.188",
-        "17.688"
-      ]
-    },
-    {
-      "idx": 138,
-      "canonRange": [
-        76,
-        78
-      ],
-      "pos": [
-        "20.211",
-        "17.438"
-      ]
-    },
-    {
-      "idx": 139,
-      "canonRange": [
-        75,
-        77
-      ],
-      "pos": [
-        "20.301",
-        "17.082"
-      ]
-    },
-    {
-      "idx": 140,
-      "canonRange": [
-        75,
-        76
-      ],
-      "pos": [
-        "20.383",
-        "16.930"
-      ]
-    },
-    {
-      "idx": 141,
-      "canonRange": [
-        74,
-        75
-      ],
-      "pos": [
-        "20.734",
-        "16.617"
-      ]
-    },
-    {
-      "idx": 142,
-      "canonRange": [
-        73,
-        74
-      ],
-      "pos": [
-        "21.109",
-        "16.406"
-      ]
-    },
-    {
-      "idx": 143,
-      "canonRange": [
-        72,
-        74
-      ],
-      "pos": [
-        "21.555",
-        "16.219"
-      ]
-    },
-    {
-      "idx": 144,
-      "canonRange": [
-        71,
-        73
-      ],
-      "pos": [
-        "22.063",
-        "15.957"
-      ]
-    },
-    {
-      "idx": 145,
-      "canonRange": [
-        70,
-        72
-      ],
-      "pos": [
-        "22.414",
-        "15.734"
-      ]
-    },
-    {
-      "idx": 146,
-      "canonRange": [
-        70,
-        71
-      ],
-      "pos": [
-        "22.547",
-        "15.617"
-      ]
-    },
-    {
-      "idx": 147,
-      "canonRange": [
-        69,
-        70
-      ],
-      "pos": [
-        "22.719",
-        "15.313"
-      ]
-    },
-    {
-      "idx": 148,
-      "canonRange": [
-        67,
-        68
-      ],
-      "pos": [
-        "23.078",
-        "14.594"
-      ]
-    },
-    {
-      "idx": 149,
-      "canonRange": [
-        66,
-        67
-      ],
-      "pos": [
-        "23.359",
-        "14.188"
-      ]
-    },
-    {
-      "idx": 150,
-      "canonRange": [
-        65,
-        67
-      ],
-      "pos": [
-        "23.570",
-        "13.961"
-      ]
-    },
-    {
-      "idx": 151,
-      "canonRange": [
-        64,
-        66
-      ],
-      "pos": [
-        "23.926",
-        "13.656"
-      ]
-    },
-    {
-      "idx": 152,
-      "canonRange": [
-        64,
-        65
-      ],
-      "pos": [
-        "24.117",
-        "13.391"
-      ]
-    },
-    {
-      "idx": 153,
-      "canonRange": [
-        63,
-        65
-      ],
-      "pos": [
-        "24.254",
-        "13.086"
-      ]
-    },
-    {
-      "idx": 154,
-      "canonRange": [
-        63,
-        64
-      ],
-      "pos": [
-        "24.313",
-        "12.813"
-      ]
-    },
-    {
-      "idx": 155,
-      "canonRange": [
-        62,
-        64
-      ],
-      "pos": [
-        "24.305",
-        "12.563"
-      ]
-    },
-    {
-      "idx": 156,
-      "canonRange": [
-        62,
-        63
-      ],
-      "pos": [
-        "24.266",
-        "12.313"
-      ]
-    },
-    {
-      "idx": 157,
-      "canonRange": [
-        61,
-        62
-      ],
-      "pos": [
-        "24.164",
-        "11.813"
-      ]
-    },
-    {
-      "idx": 158,
-      "canonRange": [
-        59,
-        60
-      ],
-      "pos": [
-        "24.023",
-        "10.688"
-      ]
-    },
-    {
-      "idx": 159,
-      "canonRange": [
-        58,
-        60
-      ],
-      "pos": [
-        "23.992",
-        "10.563"
-      ]
-    },
-    {
-      "idx": 160,
-      "canonRange": [
-        58,
-        59
-      ],
-      "pos": [
-        "23.883",
-        "10.313"
-      ]
-    },
-    {
-      "idx": 161,
-      "canonRange": [
-        57,
-        58
-      ],
-      "pos": [
-        "23.570",
-        "9.844"
-      ]
-    },
-    {
-      "idx": 162,
-      "canonRange": [
-        56,
-        58
-      ],
-      "pos": [
-        "23.418",
-        "9.754"
-      ]
-    },
-    {
-      "idx": 163,
-      "canonRange": [
-        56,
-        57
-      ],
-      "pos": [
-        "23.188",
-        "9.711"
-      ]
-    },
-    {
-      "idx": 164,
-      "canonRange": [
-        55,
-        57
-      ],
-      "pos": [
-        "22.938",
-        "9.703"
-      ]
-    },
-    {
-      "idx": 165,
-      "canonRange": [
-        55,
-        56
-      ],
-      "pos": [
-        "22.688",
-        "9.727"
-      ]
-    },
-    {
-      "idx": 166,
-      "canonRange": [
-        54,
-        56
-      ],
-      "pos": [
-        "22.438",
-        "9.793"
-      ]
-    },
-    {
-      "idx": 167,
-      "canonRange": [
-        54,
-        55
-      ],
-      "pos": [
-        "22.188",
-        "9.906"
-      ]
-    },
-    {
-      "idx": 168,
-      "canonRange": [
-        53,
-        55
-      ],
-      "pos": [
-        "22.063",
-        "9.941"
-      ]
-    },
-    {
-      "idx": 169,
-      "canonRange": [
-        53,
-        54
-      ],
-      "pos": [
-        "21.813",
-        "9.930"
-      ]
-    },
-    {
-      "idx": 170,
-      "canonRange": [
-        52,
-        54
-      ],
-      "pos": [
-        "21.438",
-        "9.801"
-      ]
-    },
-    {
-      "idx": 171,
-      "canonRange": [
-        52,
-        53
-      ],
-      "pos": [
-        "21.188",
-        "9.734"
-      ]
-    },
-    {
-      "idx": 172,
-      "canonRange": [
-        51,
-        53
-      ],
-      "pos": [
-        "20.938",
-        "9.695"
-      ]
-    },
-    {
-      "idx": 173,
-      "canonRange": [
-        51,
-        52
-      ],
-      "pos": [
-        "20.688",
-        "9.688"
-      ]
-    },
-    {
-      "idx": 174,
-      "canonRange": [
-        50,
-        52
-      ],
-      "pos": [
-        "20.438",
-        "9.746"
-      ]
-    },
-    {
-      "idx": 175,
-      "canonRange": [
-        49,
-        51
-      ],
-      "pos": [
-        "19.938",
-        "10.004"
-      ]
-    },
-    {
-      "idx": 176,
-      "canonRange": [
-        49,
-        50
-      ],
-      "pos": [
-        "19.688",
-        "10.078"
-      ]
-    },
-    {
-      "idx": 177,
-      "canonRange": [
-        48,
-        50
-      ],
-      "pos": [
-        "19.563",
-        "10.094"
-      ]
-    },
-    {
-      "idx": 178,
-      "canonRange": [
-        48,
-        49
-      ],
-      "pos": [
-        "19.313",
-        "10.078"
-      ]
-    },
-    {
-      "idx": 179,
-      "canonRange": [
-        47,
-        49
-      ],
-      "pos": [
-        "18.938",
-        "9.973"
-      ]
-    }
-  ]
-}
-[23:36:08] LOG: [Step4] Merging segments {
-  "segmentCount": 2
-}
-[23:36:08] LOG: [Step4] Adding segment {
-  "kind": "warm",
-  "vertexCount": 16
-}
-[23:36:08] LOG: [Step4] Adding segment {
-  "kind": "cold",
-  "vertexCount": 180
-}
-[23:36:08] LOG: [Step4] Segments merged {
-  "totalOptVertices": 196
-}
-[23:36:08] LOG: [Step4] ✓ Opt-space merging complete {
-  "stitchedLoopId": 1,
-  "finalOptVertexCount": 196,
-  "segmentCount": 2,
-  "warmSegments": 1,
-  "coldSegments": 1
-}
-[23:36:08] LOG: [Step4][OptLoop] {
-  loopId: 1,
-  warmSegments: [
-    { index: 0, vertices: 16 }
-  ],
-  coldSegments: [
-    { index: 1, vertices: 180 }
-  ],
-  totalOptVertices: 196,
-  anchors: [
-    { x: 12.59, y: 10.42 },
-    { x: 18.44, y: 9.80 }
-  ]
-}
-[23:36:08] LOG: [Step4] ✓ Processed stitched loop {
-  "loopId": 1,
-  "optVertexCount": 196,
-  "anchorCount": 2,
-  "segmentCount": 2
-}
-[23:36:08] LOG: [Renderer] Step 4 debug data set {
-  "loopCount": 1,
-  "totalOptVertices": 196,
-  "totalAnchors": 2
-}
-[23:36:08] LOG: [Carving] ✓ Step 4 enabled: showing opt-space merging overlay {
-  "loopCount": 1
-}
-[23:36:08] LOG: [Render][Step4] drawSegment {
+[19:00:56] LOG: [Render][Step4] drawSegment {
   kind: 'warm',
   closed: false,
-  vertexCount: 16,
-  first: { x: 18.44, y: 9.80 },
-  last: { x: 18.50, y: 9.81 }
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
 }
-[23:36:08] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
   closed: false,
-  vertexCount: 16,
-  first: { x: 18.44, y: 9.80 },
-  last: { x: 18.50, y: 9.81 },
-  lastScreen: { x: 320, y: 315 },
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
   willCallClosePath: false
 }
-[23:36:08] LOG: [Render][Step4] drawSegment {
+[19:00:56] LOG: [Render][Step4] drawSegment {
   kind: 'cold',
   closed: false,
-  vertexCount: 180,
-  first: { x: 12.59, y: 10.42 },
-  last: { x: 18.94, y: 9.97 }
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
 }
-[23:36:08] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
   closed: false,
-  vertexCount: 180,
-  first: { x: 12.59, y: 10.42 },
-  last: { x: 18.94, y: 9.97 },
-  lastScreen: { x: 338, y: 321 },
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
   willCallClosePath: false
 }
-[23:36:14] LOG: [Step4][TapInspect] {
-  "tap": {
-    "x": 13.924,
-    "y": 9.965
-  },
-  "segmentKind": "warm",
-  "segmentIndex": 0,
-  "edgeIndex": 0,
-  "edgeLength": 5.316234,
-  "v0": {
-    "optIndex": 0,
-    "x": 18.438,
-    "y": 9.801,
-    "canonStartId": 387,
-    "canonEndId": 388
-  },
-  "v1": {
-    "optIndex": 1,
-    "x": 13.125,
-    "y": 10,
-    "canonStartId": 389,
-    "canonEndId": 390
-  }
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 }
 }
-[23:36:14] LOG: [Step4][TapInspect] {
-  "tap": {
-    "x": 13.949,
-    "y": 9.965
-  },
-  "segmentKind": "warm",
-  "segmentIndex": 0,
-  "edgeIndex": 0,
-  "edgeLength": 5.316234,
-  "v0": {
-    "optIndex": 0,
-    "x": 18.438,
-    "y": 9.801,
-    "canonStartId": 387,
-    "canonEndId": 388
-  },
-  "v1": {
-    "optIndex": 1,
-    "x": 13.125,
-    "y": 10,
-    "canonStartId": 389,
-    "canonEndId": 390
-  }
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 },
+  lastScreen: { x: 125, y: 381 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 },
+  lastScreen: { x: 12, y: 470 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 },
+  lastScreen: { x: 125, y: 381 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 },
+  lastScreen: { x: 12, y: 470 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 },
+  lastScreen: { x: 125, y: 381 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 },
+  lastScreen: { x: 12, y: 470 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 },
+  lastScreen: { x: 125, y: 381 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 },
+  lastScreen: { x: 12, y: 470 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 },
+  lastScreen: { x: 125, y: 381 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 },
+  lastScreen: { x: 12, y: 470 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 },
+  lastScreen: { x: 125, y: 381 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 },
+  lastScreen: { x: 12, y: 470 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 },
+  lastScreen: { x: 125, y: 381 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 },
+  lastScreen: { x: 12, y: 470 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 },
+  lastScreen: { x: 125, y: 381 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 },
+  lastScreen: { x: 12, y: 470 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 },
+  lastScreen: { x: 125, y: 381 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 },
+  lastScreen: { x: 12, y: 470 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 },
+  lastScreen: { x: 125, y: 381 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 },
+  lastScreen: { x: 12, y: 470 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 },
+  lastScreen: { x: 125, y: 381 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 },
+  lastScreen: { x: 12, y: 470 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 10,
+  first: { x: 6.19, y: 11.79 },
+  last: { x: 9.01, y: 9.56 },
+  lastScreen: { x: 125, y: 381 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 228,
+  first: { x: 9.01, y: 9.56 },
+  last: { x: 6.19, y: 11.79 },
+  lastScreen: { x: 12, y: 470 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'warm',
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
+  closed: false,
+  vertexCount: 12,
+  first: { x: 9.38, y: 14.69 },
+  last: { x: 13.06, y: 13.50 },
+  lastScreen: { x: 287, y: 538 },
+  willCallClosePath: false
+}
+[19:00:56] LOG: [Render][Step4] drawSegment {
+  kind: 'cold',
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 }
+}
+[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
+  closed: false,
+  vertexCount: 194,
+  first: { x: 13.06, y: 13.50 },
+  last: { x: 9.38, y: 14.69 },
+  lastScreen: { x: 140, y: 586 },
+  willCallClosePath: false
 }
