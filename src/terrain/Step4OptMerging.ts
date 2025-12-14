@@ -22,6 +22,7 @@ import type {
 } from './CanonicalGeometry';
 import { allocateVertexId as allocateId } from './CanonicalGeometry';
 import type { OptimizationOptions } from '../VertexOptimizationPipeline';
+import { VertexOptimizationPipeline } from '../VertexOptimizationPipeline';
 
 // ============================================================================
 // Types
@@ -836,10 +837,11 @@ function optimizeWarmSegment(
  *
  * Additional modification: ONLY warm (rebuilt) segments get boundary vertices added.
  * - Warm segments: prepend previous segment's last vertex AND append next segment's first vertex
+ * - Warm segments are then optimized (middle vertices only, boundaries fixed)
  * - Cold segments: remain completely unchanged
  * This allows warm segments to explicitly show their connection points while preserving cold geometry.
  */
-function mergeSegments(processedSegments: ProcessedSegment[]): OptVertex[] {
+function mergeSegments(processedSegments: ProcessedSegment[], optimizationOptions: OptimizationOptions): OptVertex[] {
   const result: OptVertex[] = [];
 
   console.log('[Step4] Merging segments (growing warm segments only)', {
@@ -874,6 +876,56 @@ function mergeSegments(processedSegments: ProcessedSegment[]): OptVertex[] {
           segmentIndex: i,
           newLength: segment.optVertices.length,
           position: { x: endBoundary.x.toFixed(3), y: endBoundary.y.toFixed(3) }
+        });
+      }
+
+      // NOW optimize the warm segment's MIDDLE vertices, keeping boundaries fixed
+      if (segment.optVertices.length > 2) {
+        const firstBoundary = segment.optVertices[0];
+        const lastBoundary = segment.optVertices[segment.optVertices.length - 1];
+        const middleVertices = segment.optVertices.slice(1, -1);
+
+        console.log('[Step4] Optimizing warm segment middle vertices', {
+          segmentIndex: i,
+          totalVertices: segment.optVertices.length,
+          middleVertices: middleVertices.length,
+          boundariesFixed: 2
+        });
+
+        // Run optimization pipeline on middle vertices (as open arc)
+        const pipeline = new VertexOptimizationPipeline();
+
+        const middleAsPoints = middleVertices.map(v => ({ x: v.x, y: v.y }));
+        const optimizationResult = pipeline.optimize([middleAsPoints], {
+          gridPitch: optimizationOptions.gridPitch,
+          simplificationEpsilon: optimizationOptions.simplificationEpsilon,
+          chaikinEnabled: optimizationOptions.chaikinEnabled,
+          chaikinIterations: optimizationOptions.chaikinIterations,
+          simplificationEpsilonPost: optimizationOptions.simplificationEpsilonPost,
+          closed: false // Important: treat as open arc, not closed loop
+        });
+
+        const optimizedMiddle = optimizationResult.finalOptLoops[0] || [];
+
+        console.log('[Step4] Warm segment optimization complete', {
+          segmentIndex: i,
+          beforeOptimization: middleVertices.length,
+          afterOptimization: optimizedMiddle.length,
+          reduction: middleVertices.length > 0
+            ? ((middleVertices.length - optimizedMiddle.length) / middleVertices.length * 100).toFixed(1) + '%'
+            : '0%'
+        });
+
+        // Reconstruct segment: boundary + optimized middle + boundary
+        segment.optVertices = [
+          firstBoundary,
+          ...optimizedMiddle,
+          lastBoundary
+        ];
+      } else {
+        console.log('[Step4] Warm segment too short to optimize', {
+          segmentIndex: i,
+          vertexCount: segment.optVertices.length
         });
       }
     } else {
@@ -995,8 +1047,8 @@ export function buildOptimizedFromStitchedLoop(input: Step4Input): Step4Output {
     });
   }
 
-  // Step 3: Merge segments
-  const finalOptVertices = mergeSegments(processedSegments);
+  // Step 3: Merge segments (with warm segment optimization)
+  const finalOptVertices = mergeSegments(processedSegments, optimizationOptions);
 
   // Compute segment boundaries for debug visualization
   const segmentBoundaries: number[] = [];
