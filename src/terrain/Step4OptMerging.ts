@@ -78,6 +78,9 @@ export interface Step4Input {
 
   /** Optimization options for warm segments */
   optimizationOptions: OptimizationOptions;
+
+  /** Skip optimization (for Step 4 visualization, apply in Step 5) */
+  skipOptimization?: boolean;
 }
 
 /**
@@ -838,11 +841,15 @@ function optimizeWarmSegment(
  *
  * Additional modification: ONLY warm (rebuilt) segments get boundary vertices added.
  * - Warm segments: prepend previous segment's last vertex AND append next segment's first vertex
- * - Warm segments are then optimized (middle vertices only, boundaries fixed)
+ * - Warm segments are then optimized (middle vertices only, boundaries fixed) - IF skipOptimization is false
  * - Cold segments: remain completely unchanged
  * This allows warm segments to explicitly show their connection points while preserving cold geometry.
  */
-function mergeSegments(processedSegments: ProcessedSegment[], optimizationOptions: OptimizationOptions): OptVertex[] {
+function mergeSegments(
+  processedSegments: ProcessedSegment[],
+  optimizationOptions: OptimizationOptions,
+  skipOptimization: boolean = false
+): OptVertex[] {
   const result: OptVertex[] = [];
 
   console.log('[Step4] Merging segments (growing warm segments only)', {
@@ -883,7 +890,8 @@ function mergeSegments(processedSegments: ProcessedSegment[], optimizationOption
       // NOW optimize the warm segment's MIDDLE vertices, keeping boundaries fixed
       // Run same optimization as global: Chaikin + post-simplification
       // Skip cleanLoop to avoid vertex reversal issues with open arcs
-      if (segment.optVertices.length > 2 && optimizationOptions.chaikinEnabled) {
+      // Only run if skipOptimization is false (Step 5)
+      if (!skipOptimization && segment.optVertices.length > 2 && optimizationOptions.chaikinEnabled) {
         const firstBoundary = segment.optVertices[0];
         const lastBoundary = segment.optVertices[segment.optVertices.length - 1];
         const middleVertices = segment.optVertices.slice(1, -1);
@@ -1008,7 +1016,7 @@ function mergeSegments(processedSegments: ProcessedSegment[], optimizationOption
  * @returns Step 4 output with final opt vertices
  */
 export function buildOptimizedFromStitchedLoop(input: Step4Input): Step4Output {
-  const { stitchedLoop, canonicalLoopsMap, optimizationOptions } = input;
+  const { stitchedLoop, canonicalLoopsMap, optimizationOptions, skipOptimization = false } = input;
 
   console.log('[Step4] Starting opt-space merging', {
     stitchedLoopId: stitchedLoop.id,
@@ -1067,8 +1075,8 @@ export function buildOptimizedFromStitchedLoop(input: Step4Input): Step4Output {
     });
   }
 
-  // Step 3: Merge segments (with warm segment optimization)
-  const finalOptVertices = mergeSegments(processedSegments, optimizationOptions);
+  // Step 3: Merge segments (with optional warm segment optimization)
+  const finalOptVertices = mergeSegments(processedSegments, optimizationOptions, skipOptimization);
 
   // Compute segment boundaries for debug visualization
   const segmentBoundaries: number[] = [];

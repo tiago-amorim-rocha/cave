@@ -1209,7 +1209,7 @@ class CarvableCaves {
         segmentCount: stitchedLoop.segments.length
       });
 
-      // Build Step 4 input
+      // Build Step 4 input (without optimization - save for Step 5)
       const step4Input: Step4Input = {
         stitchedLoop,
         canonicalLoopsMap,
@@ -1220,7 +1220,8 @@ class CarvableCaves {
           chaikinIterations: this.config.chaikinIterations,
           simplificationEpsilonPost: this.config.simplificationEpsilonPost,
           closed: true // Default for full loops (Step 4 will override for warm segments)
-        }
+        },
+        skipOptimization: true // Step 4: show unoptimized, apply optimization in Step 5
       };
 
       // Run Step 4
@@ -1265,6 +1266,86 @@ class CarvableCaves {
   }
 
   /**
+   * Step 5: Apply warm segment optimization (Chaikin + post-simplification)
+   */
+  enableWarmOptimizationDebug(): void {
+    console.log('[Carving] Step 5: Applying warm segment optimization');
+
+    if (!this.config.debugCaptureEnabled) {
+      console.warn('[Carving] Debug capture is disabled - cannot run Step 5');
+      return;
+    }
+
+    if (this.stitchedLoops.length === 0) {
+      console.warn('[Carving] No stitched loops - perform a carve operation first');
+      return;
+    }
+
+    // Get canonical loops map
+    const canonicalLoopsMap = new Map<number, CanonicalLoop>();
+    for (const loop of this.remeshManager.getCanonicalLoops()) {
+      canonicalLoopsMap.set(loop.id, loop);
+    }
+
+    // Process each stitched loop through Step 5 (with optimization)
+    const step5DebugData: Step4DebugData[] = [];
+
+    for (const stitchedLoop of this.stitchedLoops) {
+      console.log('[Step5] Processing stitched loop with optimization', {
+        loopId: stitchedLoop.id,
+        vertexCount: stitchedLoop.vertices.length,
+        segmentCount: stitchedLoop.segments.length
+      });
+
+      // Build Step 5 input (WITH optimization)
+      const step5Input: Step4Input = {
+        stitchedLoop,
+        canonicalLoopsMap,
+        optimizationOptions: {
+          gridPitch: this.densityField.config.gridPitch,
+          simplificationEpsilon: this.config.simplificationEpsilon,
+          chaikinEnabled: this.config.chaikinEnabled,
+          chaikinIterations: this.config.chaikinIterations,
+          simplificationEpsilonPost: this.config.simplificationEpsilonPost,
+          closed: true
+        },
+        skipOptimization: false // Step 5: apply optimization
+      };
+
+      // Run Step 5 (same function, but with optimization enabled)
+      try {
+        const step5Output = buildOptimizedFromStitchedLoop(step5Input);
+
+        // Store debug data for visualization
+        step5DebugData.push({
+          stitchedLoopId: stitchedLoop.id,
+          stitchedVertices: stitchedLoop.vertices,
+          step4Output: step5Output
+        });
+
+        console.log('[Step5] ✓ Processed stitched loop with optimization', {
+          loopId: stitchedLoop.id,
+          optVertexCount: step5Output.optVertices.length,
+          anchorCount: step5Output.debugInfo?.anchorCount || 0,
+          segmentCount: step5Output.debugInfo?.processedSegments?.length || 0
+        });
+      } catch (error) {
+        console.error('[Step5] ✗ Failed to process stitched loop', {
+          loopId: stitchedLoop.id,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    // Pass to renderer (reuse same visualization)
+    this.renderer.setOptMergingDebug(step5DebugData);
+
+    console.log('[Carving] ✓ Step 5 enabled: showing optimized warm segments', {
+      loopCount: step5DebugData.length
+    });
+  }
+
+  /**
    * Advance the carving debug step using a single control:
    * - NONE → CARVED_LOOPS (Step 1)
    * - CARVED_LOOPS → STITCHED_LOOPS (Step 2)
@@ -1303,6 +1384,10 @@ class CarvableCaves {
 
       case CarvingDebugMode.OPT_MERGING:
         this.enableOptMergingDebugOverlay();
+        break;
+
+      case CarvingDebugMode.WARM_OPTIMIZATION:
+        this.enableWarmOptimizationDebug();
         break;
 
       case CarvingDebugMode.NONE:
