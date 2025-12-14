@@ -22,6 +22,8 @@ import type {
 } from './CanonicalGeometry';
 import { allocateVertexId as allocateId } from './CanonicalGeometry';
 import type { OptimizationOptions } from '../VertexOptimizationPipeline';
+import { chaikinSmoothMultiple } from '../ChaikinSmoothing';
+import { simplifyPolyline } from '../PolylineSimplifier';
 
 // ============================================================================
 // Types
@@ -896,9 +898,6 @@ function mergeSegments(processedSegments: ProcessedSegment[], optimizationOption
         });
 
         // Step 1: Chaikin smoothing on middle vertices (as open arc)
-        const { chaikinSmoothMultiple } = require('../ChaikinSmoothing');
-        const { simplifyPolyline } = require('../PolylineSimplifier');
-
         const middleAsPoints = middleVertices.map(v => ({ x: v.x, y: v.y }));
         let optimizedMiddle = chaikinSmoothMultiple(
           middleAsPoints,
