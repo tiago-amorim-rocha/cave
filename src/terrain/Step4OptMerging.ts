@@ -334,7 +334,7 @@ function identifyAnchors(
  * @param canonicalLoopsMap - Map of canonical loops
  * @param startAnchor - Anchor at segment start
  * @param endAnchor - Anchor at segment end
- * @param stitchedLoopId - ID of the stitched loop (for debugging)
+ * @param stitchedLoop - The stitched loop (for spatial validation)
  * @param segmentIndex - Index of this segment in the stitched loop (for debugging)
  * @returns Opt vertices for this segment (includes start, excludes end)
  */
@@ -343,7 +343,7 @@ function extractColdOptSegment(
   canonicalLoopsMap: Map<LoopId, CanonicalLoop>,
   startAnchor: Anchor,
   endAnchor: Anchor,
-  stitchedLoopId: LoopId,
+  stitchedLoop: StitchedLoop,
   segmentIndex: number
 ): OptVertex[] {
   if (segment.isNew) {
@@ -523,17 +523,80 @@ function extractColdOptSegment(
     canonLoop.optVertices
   );
 
-  // 4. Choose arc based on ancestry score (longestRun primary, matches secondary)
+  // 4. Spatial validation: Compare arcs against stitched segment path
+  /**
+   * Compute average spatial distance from arc vertices to stitched segment vertices.
+   * Lower distance = better match to the actual spatial path.
+   */
+  function scoreArcBySpatialDistance(
+    arcOptIndices: number[],
+    optVertices: OptVertex[],
+    stitchedVertices: Point[]
+  ): number {
+    if (arcOptIndices.length === 0 || stitchedVertices.length === 0) {
+      return Infinity;
+    }
+
+    // Sample uniformly from stitched vertices (use every vertex for accuracy)
+    const sampleInterval = Math.max(1, Math.floor(stitchedVertices.length / 20));
+    let totalDistance = 0;
+    let sampleCount = 0;
+
+    for (let i = 0; i < stitchedVertices.length; i += sampleInterval) {
+      const stitchedPt = stitchedVertices[i];
+
+      // Find closest vertex in the arc
+      let minDist = Infinity;
+      for (const optIdx of arcOptIndices) {
+        const optVert = optVertices[optIdx];
+        const dx = optVert.x - stitchedPt.x;
+        const dy = optVert.y - stitchedPt.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        minDist = Math.min(minDist, dist);
+      }
+
+      totalDistance += minDist;
+      sampleCount++;
+    }
+
+    return sampleCount > 0 ? totalDistance / sampleCount : Infinity;
+  }
+
+  // Extract stitched vertices for this segment
+  const stitchedSegmentVertices: Point[] = [];
+  for (let i = segment.vertexRange[0]; i <= segment.vertexRange[1]; i++) {
+    stitchedSegmentVertices.push(stitchedLoop.vertices[i]);
+  }
+
+  const forwardSpatialDist = scoreArcBySpatialDistance(
+    forwardArcOptIndices,
+    canonLoop.optVertices,
+    stitchedSegmentVertices
+  );
+
+  const backwardSpatialDist = scoreArcBySpatialDistance(
+    backwardArcOptIndices,
+    canonLoop.optVertices,
+    stitchedSegmentVertices
+  );
+
+  // 5. Choose arc: spatial distance as primary, ancestry as fallback
   let useForwardArc: boolean;
-  let selectionMethod: 'ancestry' | 'length-fallback';
+  let selectionMethod: 'spatial' | 'ancestry' | 'length-fallback';
 
   const MIN_ANCESTRY_THRESHOLD = 2; // Require at least some ancestry match
+  const SPATIAL_TOLERANCE = 0.05; // 5cm tolerance for considering arcs spatially equivalent
 
-  if (
+  // Primary: Use spatial distance
+  if (Math.abs(forwardSpatialDist - backwardSpatialDist) > SPATIAL_TOLERANCE) {
+    // Clear spatial winner
+    selectionMethod = 'spatial';
+    useForwardArc = forwardSpatialDist < backwardSpatialDist;
+  } else if (
     forwardScore.longestRun >= MIN_ANCESTRY_THRESHOLD ||
     backwardScore.longestRun >= MIN_ANCESTRY_THRESHOLD
   ) {
-    // Use ancestry-based selection
+    // Spatial tie, use ancestry-based selection
     selectionMethod = 'ancestry';
 
     if (forwardScore.longestRun !== backwardScore.longestRun) {
@@ -544,7 +607,7 @@ function extractColdOptSegment(
       useForwardArc = forwardScore.matches >= backwardScore.matches;
     }
   } else {
-    // Ancestry matching failed, fall back to length heuristic
+    // Both spatial and ancestry failed, fall back to length heuristic
     selectionMethod = 'length-fallback';
 
     const stitchedSegmentLength = segment.vertexRange[1] - segment.vertexRange[0];
@@ -562,7 +625,7 @@ function extractColdOptSegment(
     });
   }
 
-  console.log('[Step4][Cold] Arc selection (ancestry-based)', {
+  console.log('[Step4][Cold] Arc selection (spatial + ancestry)', {
     stitchedSegmentLength: segment.vertexRange[1] - segment.vertexRange[0],
     startOptIdx,
     endOptIdx,
@@ -574,20 +637,23 @@ function extractColdOptSegment(
       optIndicesArray: forwardArcOptIndices.slice(0, 10), // First 10 for debugging
       canonicalPath: canonicalIdPathForward.length,
       canonicalPathSample: canonicalIdPathForward.slice(0, 10), // First 10 for debugging
-      ancestry: forwardScore
+      ancestry: forwardScore,
+      spatialDist: forwardSpatialDist.toFixed(3)
     },
     backwardArc: {
       optIndices: backwardArcOptIndices.length,
       optIndicesArray: backwardArcOptIndices.slice(0, 10), // First 10 for debugging
       canonicalPath: canonicalIdPathBackward.length,
       canonicalPathSample: canonicalIdPathBackward.slice(0, 10), // First 10 for debugging
-      ancestry: backwardScore
+      ancestry: backwardScore,
+      spatialDist: backwardSpatialDist.toFixed(3)
     },
     chosen: useForwardArc ? 'forward' : 'backward',
-    method: selectionMethod
+    method: selectionMethod,
+    spatialDiff: Math.abs(forwardSpatialDist - backwardSpatialDist).toFixed(3)
   });
 
-  // 5. Extract the chosen arc
+  // 6. Extract the chosen arc
   const result: OptVertex[] = [];
 
   if (useForwardArc) {
@@ -1087,7 +1153,7 @@ export function buildOptimizedFromStitchedLoop(input: Step4Input): Step4Output {
         canonicalLoopsMap,
         startAnchor,
         endAnchor,
-        stitchedLoop.id,
+        stitchedLoop,
         i
       );
     }
