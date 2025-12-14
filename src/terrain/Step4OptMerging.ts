@@ -966,27 +966,52 @@ function mergeSegments(
 
   // Second pass: Merge segments
   // - Warm segments: include all vertices (now includes both boundaries)
-  // - Cold segments: skip first and last vertices (they're already in adjacent warm segments)
+  // - Cold segments: conditionally skip boundaries based on adjacent segment types
+  //   - Only skip first if prev is warm (warm has it)
+  //   - Only skip last if next is warm (warm has it)
+  //   - Keep boundaries when adjacent to cold (they won't have them)
   for (let i = 0; i < processedSegments.length; i++) {
     const segment = processedSegments[i];
+    const prevSegment = processedSegments[(i - 1 + processedSegments.length) % processedSegments.length];
+    const nextSegment = processedSegments[(i + 1) % processedSegments.length];
 
     console.log('[Step4] Merging segment', {
       index: i,
       kind: segment.kind,
-      vertexCount: segment.optVertices.length
+      vertexCount: segment.optVertices.length,
+      prevKind: prevSegment.kind,
+      nextKind: nextSegment.kind
     });
 
     if (segment.kind === 'warm') {
       // Warm segment: include all vertices (with both boundaries)
       result.push(...segment.optVertices);
     } else {
-      // Cold segment: skip first and last (they're in adjacent warm segments)
-      if (segment.optVertices.length > 2) {
-        result.push(...segment.optVertices.slice(1, -1));
+      // Cold segment: only skip boundaries that are duplicated in adjacent warm segments
+      const skipFirst = prevSegment.kind === 'warm'; // warm has this.first
+      const skipLast = nextSegment.kind === 'warm';  // warm has this.last
+
+      const startIdx = skipFirst ? 1 : 0;
+      const endIdx = skipLast ? segment.optVertices.length - 1 : segment.optVertices.length;
+
+      console.log('[Step4] Cold segment boundary logic', {
+        segmentIndex: i,
+        skipFirst,
+        skipLast,
+        startIdx,
+        endIdx,
+        vertexCount: segment.optVertices.length,
+        sliceLength: endIdx - startIdx
+      });
+
+      if (endIdx > startIdx) {
+        result.push(...segment.optVertices.slice(startIdx, endIdx));
       } else {
-        console.warn('[Step4] Cold segment too short to skip boundaries', {
+        console.warn('[Step4] Cold segment empty after boundary skipping', {
           segmentIndex: i,
-          vertexCount: segment.optVertices.length
+          vertexCount: segment.optVertices.length,
+          skipFirst,
+          skipLast
         });
       }
     }
