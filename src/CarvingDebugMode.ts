@@ -9,7 +9,7 @@
  * Debug visualization modes for the carving pipeline.
  *
  * Step progression:
- * NONE → CARVED_LOOPS → STITCHED_LOOPS → REUSE_PLAN → OPT_MERGING → NONE (cycles back)
+ * NONE → CARVED_LOOPS → STITCHED_LOOPS → REUSE_PLAN → OPT_MERGING → WARM_OPTIMIZATION → NONE (cycles back)
  */
 export enum CarvingDebugMode {
   /**
@@ -42,13 +42,21 @@ export enum CarvingDebugMode {
   REUSE_PLAN = 'reuse_plan',
 
   /**
-   * Step 4: Show opt-space merging
-   * - Displays final optimized loops with anchor points
-   * - Shows warm (rebuilt) vs cold (reused) opt vertices
+   * Step 4: Show opt-space merging (before optimization)
+   * - Displays merged loops with boundary vertices
+   * - Shows warm (rebuilt) vs cold (reused) segments
    * - Visualizes segment boundaries in opt space
-   * - This is the final step before physics integration
+   * - Warm segments NOT YET optimized
    */
-  OPT_MERGING = 'opt_merging'
+  OPT_MERGING = 'opt_merging',
+
+  /**
+   * Step 5: Show warm segment optimization
+   * - Displays Chaikin smoothing + post-simplification
+   * - Shows optimized warm segments with fixed boundaries
+   * - Final step before physics integration
+   */
+  WARM_OPTIMIZATION = 'warm_optimization'
 }
 
 /**
@@ -68,6 +76,8 @@ export function nextCarvingDebugMode(current: CarvingDebugMode): CarvingDebugMod
     case CarvingDebugMode.REUSE_PLAN:
       return CarvingDebugMode.OPT_MERGING;
     case CarvingDebugMode.OPT_MERGING:
+      return CarvingDebugMode.WARM_OPTIMIZATION;
+    case CarvingDebugMode.WARM_OPTIMIZATION:
       return CarvingDebugMode.NONE;
     default:
       return CarvingDebugMode.NONE;
@@ -92,6 +102,8 @@ export function getCarvingDebugModeLabel(mode: CarvingDebugMode): string {
       return 'Step 3: Reuse Plan';
     case CarvingDebugMode.OPT_MERGING:
       return 'Step 4: Opt-Space Merging';
+    case CarvingDebugMode.WARM_OPTIMIZATION:
+      return 'Step 5: Warm Optimization';
     default:
       return 'Unknown';
   }
