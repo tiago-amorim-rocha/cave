@@ -879,41 +879,60 @@ function mergeSegments(processedSegments: ProcessedSegment[], optimizationOption
       }
 
       // NOW optimize the warm segment's MIDDLE vertices, keeping boundaries fixed
-      // ONLY run Chaikin smoothing - skip cleanLoop/simplification as they're already done
-      // and can cause vertex reversal issues with open arcs
+      // Run same optimization as global: Chaikin + post-simplification
+      // Skip cleanLoop to avoid vertex reversal issues with open arcs
       if (segment.optVertices.length > 2 && optimizationOptions.chaikinEnabled) {
         const firstBoundary = segment.optVertices[0];
         const lastBoundary = segment.optVertices[segment.optVertices.length - 1];
         const middleVertices = segment.optVertices.slice(1, -1);
 
-        console.log('[Step4] Optimizing warm segment middle vertices (Chaikin only)', {
+        console.log('[Step4] Optimizing warm segment middle vertices (Chaikin + post-simplification)', {
           segmentIndex: i,
           totalVertices: segment.optVertices.length,
           middleVertices: middleVertices.length,
           boundariesFixed: 2,
-          chaikinIterations: optimizationOptions.chaikinIterations
+          chaikinIterations: optimizationOptions.chaikinIterations,
+          postSimplificationEpsilon: optimizationOptions.simplificationEpsilonPost
         });
 
-        // Run ONLY Chaikin smoothing on middle vertices (as open arc)
-        // Skip cleanLoop and Visvalingam to avoid vertex reversal issues with open arcs
+        // Step 1: Chaikin smoothing on middle vertices (as open arc)
         const { chaikinSmoothMultiple } = require('../ChaikinSmoothing');
+        const { simplifyPolyline } = require('../PolylineSimplifier');
 
         const middleAsPoints = middleVertices.map(v => ({ x: v.x, y: v.y }));
-        const optimizedMiddle = chaikinSmoothMultiple(
+        let optimizedMiddle = chaikinSmoothMultiple(
           middleAsPoints,
           optimizationOptions.chaikinIterations,
           0.25,
           false // CRITICAL: open arc, not closed loop
         );
 
+        const afterChaikin = optimizedMiddle.length;
         console.log('[Step4] Warm segment Chaikin smoothing complete', {
           segmentIndex: i,
           beforeSmoothing: middleVertices.length,
-          afterSmoothing: optimizedMiddle.length,
-          vertexIncrease: ((optimizedMiddle.length - middleVertices.length) / middleVertices.length * 100).toFixed(1) + '%'
+          afterSmoothing: afterChaikin,
+          vertexIncrease: ((afterChaikin - middleVertices.length) / middleVertices.length * 100).toFixed(1) + '%'
         });
 
-        // Reconstruct segment: boundary + smoothed middle + boundary
+        // Step 2: Post-smoothing simplification (same as global optimization)
+        if (optimizationOptions.simplificationEpsilonPost > 0) {
+          const areaThresholdPost = optimizationOptions.simplificationEpsilonPost * optimizationOptions.simplificationEpsilonPost;
+          optimizedMiddle = simplifyPolyline(
+            optimizedMiddle,
+            areaThresholdPost,
+            false // CRITICAL: open arc, not closed loop
+          );
+
+          console.log('[Step4] Warm segment post-simplification complete', {
+            segmentIndex: i,
+            beforeSimplification: afterChaikin,
+            afterSimplification: optimizedMiddle.length,
+            reduction: ((afterChaikin - optimizedMiddle.length) / afterChaikin * 100).toFixed(1) + '%'
+          });
+        }
+
+        // Reconstruct segment: boundary + optimized middle + boundary
         segment.optVertices = [
           firstBoundary,
           ...optimizedMiddle,
