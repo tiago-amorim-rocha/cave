@@ -22,7 +22,6 @@ import type {
 } from './CanonicalGeometry';
 import { allocateVertexId as allocateId } from './CanonicalGeometry';
 import type { OptimizationOptions } from '../VertexOptimizationPipeline';
-import { VertexOptimizationPipeline } from '../VertexOptimizationPipeline';
 
 // ============================================================================
 // Types
@@ -880,48 +879,51 @@ function mergeSegments(processedSegments: ProcessedSegment[], optimizationOption
       }
 
       // NOW optimize the warm segment's MIDDLE vertices, keeping boundaries fixed
-      if (segment.optVertices.length > 2) {
+      // ONLY run Chaikin smoothing - skip cleanLoop/simplification as they're already done
+      // and can cause vertex reversal issues with open arcs
+      if (segment.optVertices.length > 2 && optimizationOptions.chaikinEnabled) {
         const firstBoundary = segment.optVertices[0];
         const lastBoundary = segment.optVertices[segment.optVertices.length - 1];
         const middleVertices = segment.optVertices.slice(1, -1);
 
-        console.log('[Step4] Optimizing warm segment middle vertices', {
+        console.log('[Step4] Optimizing warm segment middle vertices (Chaikin only)', {
           segmentIndex: i,
           totalVertices: segment.optVertices.length,
           middleVertices: middleVertices.length,
-          boundariesFixed: 2
+          boundariesFixed: 2,
+          chaikinIterations: optimizationOptions.chaikinIterations
         });
 
-        // Run optimization pipeline on middle vertices (as open arc)
-        const pipeline = new VertexOptimizationPipeline();
+        // Run ONLY Chaikin smoothing on middle vertices (as open arc)
+        // Skip cleanLoop and Visvalingam to avoid vertex reversal issues with open arcs
+        const { chaikinSmoothMultiple } = require('../ChaikinSmoothing');
 
         const middleAsPoints = middleVertices.map(v => ({ x: v.x, y: v.y }));
-        const optimizationResult = pipeline.optimize([middleAsPoints], {
-          gridPitch: optimizationOptions.gridPitch,
-          simplificationEpsilon: optimizationOptions.simplificationEpsilon,
-          chaikinEnabled: optimizationOptions.chaikinEnabled,
-          chaikinIterations: optimizationOptions.chaikinIterations,
-          simplificationEpsilonPost: optimizationOptions.simplificationEpsilonPost,
-          closed: false // Important: treat as open arc, not closed loop
-        });
+        const optimizedMiddle = chaikinSmoothMultiple(
+          middleAsPoints,
+          optimizationOptions.chaikinIterations,
+          0.25,
+          false // CRITICAL: open arc, not closed loop
+        );
 
-        const optimizedMiddle = optimizationResult.finalOptLoops[0] || [];
-
-        console.log('[Step4] Warm segment optimization complete', {
+        console.log('[Step4] Warm segment Chaikin smoothing complete', {
           segmentIndex: i,
-          beforeOptimization: middleVertices.length,
-          afterOptimization: optimizedMiddle.length,
-          reduction: middleVertices.length > 0
-            ? ((middleVertices.length - optimizedMiddle.length) / middleVertices.length * 100).toFixed(1) + '%'
-            : '0%'
+          beforeSmoothing: middleVertices.length,
+          afterSmoothing: optimizedMiddle.length,
+          vertexIncrease: ((optimizedMiddle.length - middleVertices.length) / middleVertices.length * 100).toFixed(1) + '%'
         });
 
-        // Reconstruct segment: boundary + optimized middle + boundary
+        // Reconstruct segment: boundary + smoothed middle + boundary
         segment.optVertices = [
           firstBoundary,
           ...optimizedMiddle,
           lastBoundary
         ];
+      } else if (segment.optVertices.length > 2) {
+        console.log('[Step4] Warm segment: Chaikin disabled, keeping vertices as-is', {
+          segmentIndex: i,
+          vertexCount: segment.optVertices.length
+        });
       } else {
         console.log('[Step4] Warm segment too short to optimize', {
           segmentIndex: i,
