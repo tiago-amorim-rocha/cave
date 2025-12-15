@@ -1,750 +1,689 @@
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 },
-  lastScreen: { x: 125, y: 381 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 },
-  lastScreen: { x: 12, y: 470 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 },
-  lastScreen: { x: 125, y: 381 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 },
-  lastScreen: { x: 12, y: 470 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 },
-  lastScreen: { x: 125, y: 381 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 },
-  lastScreen: { x: 12, y: 470 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 },
-  lastScreen: { x: 125, y: 381 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 },
-  lastScreen: { x: 12, y: 470 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 },
-  lastScreen: { x: 125, y: 381 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 },
-  lastScreen: { x: 12, y: 470 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 },
-  lastScreen: { x: 125, y: 381 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 },
-  lastScreen: { x: 12, y: 470 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 },
-  lastScreen: { x: 125, y: 381 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 },
-  lastScreen: { x: 12, y: 470 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 },
-  lastScreen: { x: 125, y: 381 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 },
-  lastScreen: { x: 12, y: 470 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 },
-  lastScreen: { x: 125, y: 381 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 },
-  lastScreen: { x: 12, y: 470 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 },
-  lastScreen: { x: 125, y: 381 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 },
-  lastScreen: { x: 12, y: 470 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 },
-  lastScreen: { x: 125, y: 381 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 },
-  lastScreen: { x: 12, y: 470 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 10,
-  first: { x: 6.19, y: 11.79 },
-  last: { x: 9.01, y: 9.56 },
-  lastScreen: { x: 125, y: 381 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 228,
-  first: { x: 9.01, y: 9.56 },
-  last: { x: 6.19, y: 11.79 },
-  lastScreen: { x: 12, y: 470 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'warm',
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for warm segment {
-  closed: false,
-  vertexCount: 12,
-  first: { x: 9.38, y: 14.69 },
-  last: { x: 13.06, y: 13.50 },
-  lastScreen: { x: 287, y: 538 },
-  willCallClosePath: false
-}
-[19:00:56] LOG: [Render][Step4] drawSegment {
-  kind: 'cold',
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 }
-}
-[19:00:56] LOG: [Render][Step4][Canvas] About to stroke path for cold segment {
-  closed: false,
-  vertexCount: 194,
-  first: { x: 13.06, y: 13.50 },
-  last: { x: 9.38, y: 14.69 },
-  lastScreen: { x: 140, y: 586 },
-  willCallClosePath: false
+[20:55:18] LOG: [Visvalingam] Simplification {
+  "before": 1143,
+  "after": 324,
+  "reduction": "71.7%",
+  "ancestryPreserved": true
+}
+[20:55:18] LOG: [FullHeal] ⏱️ Optimization: 9.90ms (287 → 324 vertices)
+[20:55:18] LOG: [FullHeal]    ↳ cleanLoop: 0.40ms
+[20:55:18] LOG: [FullHeal]    ↳ Chaikin smoothing (expand): 2.20ms
+[20:55:18] LOG: [FullHeal]    ↳ Post-simplification (reduce): 7.10ms
+[20:55:18] LOG: [FullHeal] Stored optVertices on canonical loops for ancestry {
+  "count": 5,
+  "withOptVertices": 5
+}
+[20:55:18] LOG: [FullHeal] Canonical loops: 5 (324 verts total)
+[20:55:18] LOG: [FullHeal] Calling physicsEngine.setCanonicalTerrainLoops
+[20:55:18] LOG: [Box2DEngine] setCanonicalTerrainLoops called with 5 loops
+[20:55:18] LOG: [Box2DEngine] Building terrain body for loop #0, verts=61, reverse=true
+[20:55:18] LOG: [Box2DEngine] Loop 6: built 4 segments (verts=61)
+[20:55:18] LOG: [Box2D][FromOpt] {
+  loopId: 6,
+  reverse: true,
+  optVertexCount: 61,
+  segmentCount: 4
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 0 {
+  "id": 1,
+  "optStart": 0,
+  "optEnd": 17,
+  "canonRange": [
+    3,
+    19
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 1,
+  optRange: [0, 17],
+  first: { x: 15.81, y: 2.50 },
+  last: { x: 18.57, y: 5.34 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 1 {
+  "id": 2,
+  "optStart": 17,
+  "optEnd": 36,
+  "canonRange": [
+    18,
+    34
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 2,
+  optRange: [17, 36],
+  first: { x: 18.57, y: 5.34 },
+  last: { x: 17.56, y: 8.29 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 2 {
+  "id": 3,
+  "optStart": 36,
+  "optEnd": 56,
+  "canonRange": [
+    32,
+    48
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 3,
+  optRange: [36, 56],
+  first: { x: 17.56, y: 8.29 },
+  last: { x: 14.00, y: 3.81 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 3 {
+  "id": 4,
+  "optStart": 56,
+  "optEnd": 60,
+  "canonRange": [
+    3,
+    51
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 4,
+  optRange: [56, 60],
+  first: { x: 14.00, y: 3.81 },
+  last: { x: 15.81, y: 2.50 }
+}
+[20:55:18] LOG: [Box2D] Created segments {
+  "loopId": 6,
+  "segmentCount": 4,
+  "segments": [
+    {
+      "id": 1,
+      "optRange": [
+        0,
+        17
+      ],
+      "canonRange": [
+        3,
+        19
+      ]
+    },
+    {
+      "id": 2,
+      "optRange": [
+        17,
+        36
+      ],
+      "canonRange": [
+        18,
+        34
+      ]
+    },
+    {
+      "id": 3,
+      "optRange": [
+        36,
+        56
+      ],
+      "canonRange": [
+        32,
+        48
+      ]
+    },
+    {
+      "id": 4,
+      "optRange": [
+        56,
+        60
+      ],
+      "canonRange": [
+        3,
+        51
+      ]
+    }
+  ]
+}
+[20:55:18] LOG: [Box2DEngine] Building terrain body for loop #1, verts=15, reverse=true
+[20:55:18] LOG: [Box2DEngine] Loop 7: built 1 segments (verts=15)
+[20:55:18] LOG: [Box2D][FromOpt] {
+  loopId: 7,
+  reverse: true,
+  optVertexCount: 15,
+  segmentCount: 1
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 0 {
+  "id": 5,
+  "optStart": 0,
+  "optEnd": 14,
+  "canonRange": [
+    0,
+    14
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 5,
+  optRange: [0, 14],
+  first: { x: 29.09, y: 6.27 },
+  last: { x: 29.09, y: 6.27 }
+}
+[20:55:18] LOG: [Box2D] Created segments {
+  "loopId": 7,
+  "segmentCount": 1,
+  "segments": [
+    {
+      "id": 5,
+      "optRange": [
+        0,
+        14
+      ],
+      "canonRange": [
+        0,
+        14
+      ]
+    }
+  ]
+}
+[20:55:18] LOG: [Box2DEngine] Building terrain body for loop #2, verts=100, reverse=true
+[20:55:18] LOG: [Box2DEngine] Loop 8: built 7 segments (verts=100)
+[20:55:18] LOG: [Box2D][FromOpt] {
+  loopId: 8,
+  reverse: true,
+  optVertexCount: 100,
+  segmentCount: 7
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 0 {
+  "id": 6,
+  "optStart": 0,
+  "optEnd": 18,
+  "canonRange": [
+    0,
+    14
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 6,
+  optRange: [0, 18],
+  first: { x: 2.50, y: 8.19 },
+  last: { x: 6.19, y: 13.12 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 1 {
+  "id": 7,
+  "optStart": 18,
+  "optEnd": 32,
+  "canonRange": [
+    13,
+    28
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 7,
+  optRange: [18, 32],
+  first: { x: 6.19, y: 13.12 },
+  last: { x: 10.08, y: 17.91 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 2 {
+  "id": 8,
+  "optStart": 32,
+  "optEnd": 48,
+  "canonRange": [
+    27,
+    43
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 8,
+  optRange: [32, 48],
+  first: { x: 10.08, y: 17.91 },
+  last: { x: 9.38, y: 24.41 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 3 {
+  "id": 9,
+  "optStart": 48,
+  "optEnd": 72,
+  "canonRange": [
+    42,
+    56
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 9,
+  optRange: [48, 72],
+  first: { x: 9.38, y: 24.41 },
+  last: { x: 5.31, y: 25.62 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 4 {
+  "id": 10,
+  "optStart": 72,
+  "optEnd": 87,
+  "canonRange": [
+    55,
+    75
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 10,
+  optRange: [72, 87],
+  first: { x: 5.31, y: 25.62 },
+  last: { x: 2.44, y: 18.69 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 5 {
+  "id": 11,
+  "optStart": 87,
+  "optEnd": 95,
+  "canonRange": [
+    74,
+    92
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 11,
+  optRange: [87, 95],
+  first: { x: 2.44, y: 18.69 },
+  last: { x: 2.44, y: 10.19 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 6 {
+  "id": 12,
+  "optStart": 95,
+  "optEnd": 99,
+  "canonRange": [
+    0,
+    94
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 12,
+  optRange: [95, 99],
+  first: { x: 2.44, y: 10.19 },
+  last: { x: 2.50, y: 8.19 }
+}
+[20:55:18] LOG: [Box2D] Created segments {
+  "loopId": 8,
+  "segmentCount": 7,
+  "segments": [
+    {
+      "id": 6,
+      "optRange": [
+        0,
+        18
+      ],
+      "canonRange": [
+        0,
+        14
+      ]
+    },
+    {
+      "id": 7,
+      "optRange": [
+        18,
+        32
+      ],
+      "canonRange": [
+        13,
+        28
+      ]
+    },
+    {
+      "id": 8,
+      "optRange": [
+        32,
+        48
+      ],
+      "canonRange": [
+        27,
+        43
+      ]
+    },
+    {
+      "id": 9,
+      "optRange": [
+        48,
+        72
+      ],
+      "canonRange": [
+        42,
+        56
+      ]
+    },
+    {
+      "id": 10,
+      "optRange": [
+        72,
+        87
+      ],
+      "canonRange": [
+        55,
+        75
+      ]
+    },
+    {
+      "id": 11,
+      "optRange": [
+        87,
+        95
+      ],
+      "canonRange": [
+        74,
+        92
+      ]
+    },
+    {
+      "id": 12,
+      "optRange": [
+        95,
+        99
+      ],
+      "canonRange": [
+        0,
+        94
+      ]
+    }
+  ]
+}
+[20:55:18] LOG: [Box2DEngine] Building terrain body for loop #3, verts=27, reverse=true
+[20:55:18] LOG: [Box2DEngine] Loop 9: built 1 segments (verts=27)
+[20:55:18] LOG: [Box2D][FromOpt] {
+  loopId: 9,
+  reverse: true,
+  optVertexCount: 27,
+  segmentCount: 1
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 0 {
+  "id": 13,
+  "optStart": 0,
+  "optEnd": 26,
+  "canonRange": [
+    0,
+    16
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 13,
+  optRange: [0, 26],
+  first: { x: 10.31, y: 10.88 },
+  last: { x: 10.31, y: 10.88 }
+}
+[20:55:18] LOG: [Box2D] Created segments {
+  "loopId": 9,
+  "segmentCount": 1,
+  "segments": [
+    {
+      "id": 13,
+      "optRange": [
+        0,
+        26
+      ],
+      "canonRange": [
+        0,
+        16
+      ]
+    }
+  ]
+}
+[20:55:18] LOG: [Box2DEngine] Building terrain body for loop #4, verts=121, reverse=true
+[20:55:18] LOG: [Box2DEngine] Loop 10: built 8 segments (verts=121)
+[20:55:18] LOG: [Box2D][FromOpt] {
+  loopId: 10,
+  reverse: true,
+  optVertexCount: 121,
+  segmentCount: 8
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 0 {
+  "id": 14,
+  "optStart": 0,
+  "optEnd": 6,
+  "canonRange": [
+    0,
+    19
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 14,
+  optRange: [0, 6],
+  first: { x: 29.43, y: 15.34 },
+  last: { x: 29.56, y: 23.81 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 1 {
+  "id": 15,
+  "optStart": 6,
+  "optEnd": 24,
+  "canonRange": [
+    18,
+    34
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 15,
+  optRange: [6, 24],
+  first: { x: 29.56, y: 23.81 },
+  last: { x: 25.12, y: 27.81 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 2 {
+  "id": 16,
+  "optStart": 24,
+  "optEnd": 38,
+  "canonRange": [
+    33,
+    48
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 16,
+  optRange: [24, 38],
+  first: { x: 25.12, y: 27.81 },
+  last: { x: 21.06, y: 29.51 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 3 {
+  "id": 17,
+  "optStart": 38,
+  "optEnd": 59,
+  "canonRange": [
+    46,
+    63
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 17,
+  optRange: [38, 59],
+  first: { x: 21.06, y: 29.51 },
+  last: { x: 17.27, y: 25.96 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 4 {
+  "id": 18,
+  "optStart": 59,
+  "optEnd": 77,
+  "canonRange": [
+    61,
+    78
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 18,
+  optRange: [59, 77],
+  first: { x: 17.27, y: 25.96 },
+  last: { x: 18.91, y: 20.38 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 5 {
+  "id": 19,
+  "optStart": 77,
+  "optEnd": 99,
+  "canonRange": [
+    77,
+    92
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 19,
+  optRange: [77, 99],
+  first: { x: 18.91, y: 20.38 },
+  last: { x: 24.19, y: 19.62 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 6 {
+  "id": 20,
+  "optStart": 99,
+  "optEnd": 118,
+  "canonRange": [
+    91,
+    107
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 20,
+  optRange: [99, 118],
+  first: { x: 24.19, y: 19.62 },
+  last: { x: 28.98, y: 15.88 }
+}
+[20:55:18] LOG: [Box2DEngine]  Segment 7 {
+  "id": 21,
+  "optStart": 118,
+  "optEnd": 120,
+  "canonRange": [
+    0,
+    107
+  ]
+}
+[20:55:18] LOG: [Box2D][FromOpt] segmentEndpoints {
+  segmentId: 21,
+  optRange: [118, 120],
+  first: { x: 28.98, y: 15.88 },
+  last: { x: 29.43, y: 15.34 }
+}
+[20:55:18] LOG: [Box2D] Created segments {
+  "loopId": 10,
+  "segmentCount": 8,
+  "segments": [
+    {
+      "id": 14,
+      "optRange": [
+        0,
+        6
+      ],
+      "canonRange": [
+        0,
+        19
+      ]
+    },
+    {
+      "id": 15,
+      "optRange": [
+        6,
+        24
+      ],
+      "canonRange": [
+        18,
+        34
+      ]
+    },
+    {
+      "id": 16,
+      "optRange": [
+        24,
+        38
+      ],
+      "canonRange": [
+        33,
+        48
+      ]
+    },
+    {
+      "id": 17,
+      "optRange": [
+        38,
+        59
+      ],
+      "canonRange": [
+        46,
+        63
+      ]
+    },
+    {
+      "id": 18,
+      "optRange": [
+        59,
+        77
+      ],
+      "canonRange": [
+        61,
+        78
+      ]
+    },
+    {
+      "id": 19,
+      "optRange": [
+        77,
+        99
+      ],
+      "canonRange": [
+        77,
+        92
+      ]
+    },
+    {
+      "id": 20,
+      "optRange": [
+        99,
+        118
+      ],
+      "canonRange": [
+        91,
+        107
+      ]
+    },
+    {
+      "id": 21,
+      "optRange": [
+        118,
+        120
+      ],
+      "canonRange": [
+        0,
+        107
+      ]
+    }
+  ]
+}
+[20:55:18] LOG: [Box2DEngine] setCanonicalTerrainLoops finished; terrainBodies=5
+[20:55:18] LOG: [FullHeal] physicsEngine.setCanonicalTerrainLoops completed
+[20:55:18] LOG: [FullHeal] ⏱️ Box2D colliders: 8.40ms (created 5 bodies)
+[20:55:18] LOG: [FullHeal] 🎯 TOTAL (physics only): 24.40ms
+[20:55:18] LOG: [FullHeal] Updating renderer polylines with 5 loops
+[20:55:18] LOG: [Renderer] updatePolylines: 5 polylines
+[20:55:18] LOG: [Renderer] first polyline length=61
+[20:55:18] LOG: [FullHeal] Render polylines: 5, first lengths=61,15,100,27,121
+[20:55:18] LOG: [FullHeal] ⏱️ Re-render walls: 0.50ms
+[20:55:18] LOG: [FullHeal] 🎯 TOTAL (including rendering): 24.90ms
+[20:55:21] LOG: Module loaded successfully!
+[20:55:26] LOG: [Carving] Auto-triggering Step 1 (DIRTY_AABB) debug visualization
+[20:55:26] LOG: [Renderer] Carving debug mode changed {
+  "from": "none",
+  "to": "dirty_aabb"
+}
+[20:55:28] LOG: [UI] Stitch button MOUSEDOWN!
+[20:55:28] LOG: [UI] Stitch button CLICKED!
+[20:55:28] LOG: [Carving] Debug step advanced {
+  "from": "Step 1: Dirty AABB",
+  "to": "Step 2: Canonical Affected"
+}
+[20:55:28] LOG: [Renderer] Carving debug mode changed {
+  "from": "dirty_aabb",
+  "to": "canonical_affected"
+}
+[20:55:28] LOG: [UI] Stitch button MOUSEDOWN!
+[20:55:28] LOG: [UI] Stitch button CLICKED!
+[20:55:28] LOG: [Carving] Debug step advanced {
+  "from": "Step 2: Canonical Affected",
+  "to": "Step 3: Canonical Dirty Ranges"
+}
+[20:55:28] LOG: [Renderer] Carving debug mode changed {
+  "from": "canonical_affected",
+  "to": "canonical_dirty_ranges"
+}
+[20:55:29] LOG: [UI] Stitch button MOUSEDOWN!
+[20:55:29] LOG: [UI] Stitch button CLICKED!
+[20:55:29] LOG: [Carving] Debug step advanced {
+  "from": "Step 3: Canonical Dirty Ranges",
+  "to": "Step 4: Opt Invalidation"
+}
+[20:55:29] LOG: [Renderer] Carving debug mode changed {
+  "from": "canonical_dirty_ranges",
+  "to": "opt_invalidation"
+}
+[20:55:46] LOG: [UI] Stitch button MOUSEDOWN!
+[20:55:46] LOG: [UI] Stitch button CLICKED!
+[20:55:46] LOG: [Carving] Debug step advanced {
+  "from": "Step 4: Opt Invalidation",
+  "to": "Step 5a: MS Loops + Matching"
+}
+[20:55:46] LOG: [Renderer] Carving debug mode changed {
+  "from": "opt_invalidation",
+  "to": "local_ms_match"
 }

@@ -1,18 +1,8 @@
 import type { Camera } from './Camera';
 import type { Vec2 } from './types';
 import type { DensityField } from './DensityField';
-import type { CanonicalLoop, OptVertex, PhysicsSegment, ReusePlanDebug } from './terrain/CanonicalGeometry';
-import type { Step4Output } from './terrain/Step4OptMerging';
+import type { CanonicalLoop, OptVertex, PhysicsSegment } from './terrain/CanonicalGeometry';
 import { CarvingDebugMode } from './CarvingDebugMode';
-
-/**
- * Step 4 debug data (opt-space merging visualization)
- */
-export interface Step4DebugData {
-  stitchedLoopId: number;
-  stitchedVertices: Vec2[]; // Original stitched vertices for comparison
-  step4Output: Step4Output; // Complete Step 4 output with opt vertices and debug info
-}
 
 /**
  * Option-2 style local update preview data (canonical dirty ranges → opt invalidation).
@@ -147,18 +137,6 @@ export class Renderer {
   // Option-2 staged local-update debug data (Step 5a–5h)
   private localUpdateDebug: LocalUpdateDebugData | null = null;
 
-  // Loop patching debug info
-  private loopPatchDebugInfo: Array<{
-    originalLoop: Vec2[];
-    oldArc: Vec2[];
-    newArc: Vec2[];
-    patchedLoop: Vec2[];
-    beforePart: Vec2[];
-    afterPart: Vec2[];
-    dirtyAABB: { minX: number; minY: number; maxX: number; maxY: number };
-  }> = [];
-  private lastPatchLogTime: number = 0;
-
   public showGrid: boolean = false;
   public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
@@ -172,8 +150,6 @@ export class Renderer {
   public showSamplePoints: boolean = false; // Disabled for performance testing
   public showDirtyAABB: boolean = true; // Enabled by default for local update debugging
   public showRebuiltChains: boolean = true; // Enabled by default for local update debugging
-  public showLoopPatching: boolean = false; // Legacy loop patching debug visualization (disabled by default)
-  public showReusePreview: boolean = false; // Legacy preview (disabled for step 3)
 
   /**
    * Carving debug visualization mode (state machine for step progression)
@@ -182,9 +158,6 @@ export class Renderer {
   private _carvingDebugMode: CarvingDebugMode = CarvingDebugMode.NONE;
 
   private debugHoverWorld: { x: number; y: number } | null = null; // For hover labels
-  private reusePlanDebug: ReusePlanDebug[] = [];
-  private optMergingDebug: Step4DebugData[] = []; // Step 4: opt-space merging debug data
-  private lastLoggedOptMergingId: number | null = null; // Track last logged Step 4 data to avoid spam
   private carveOption2Debug: CarveOption2DebugData | null = null;
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
@@ -298,25 +271,6 @@ export class Renderer {
   }
 
   /**
-   * Set reuse plan debug data (step 3 overlay)
-   */
-  setReusePlanDebug(reusePlan: ReusePlanDebug[]): void {
-    this.reusePlanDebug = reusePlan;
-  }
-
-  /**
-   * Step 4: Set opt-space merging debug data
-   */
-  setOptMergingDebug(debugData: Step4DebugData[]): void {
-    this.optMergingDebug = debugData;
-    console.log('[Renderer] Step 4 debug data set', {
-      loopCount: debugData.length,
-      totalOptVertices: debugData.reduce((sum, d) => sum + d.step4Output.optVertices.length, 0),
-      totalAnchors: debugData.reduce((sum, d) => sum + (d.step4Output.debugInfo?.anchorCount || 0), 0)
-    });
-  }
-
-  /**
    * Set option-2 style local update preview debug data.
    */
   setCarveOption2Debug(debugData: CarveOption2DebugData | null): void {
@@ -325,54 +279,6 @@ export class Renderer {
 
   setLocalUpdateDebug(debugData: LocalUpdateDebugData | null): void {
     this.localUpdateDebug = debugData;
-  }
-
-  getOptMergingDebug(): Step4DebugData[] {
-    return this.optMergingDebug;
-  }
-
-  /**
-   * Step 3: Stitched segment classifications (warm/cold in stitched canonical space)
-   */
-  private stitchedSegmentations: Array<{
-    stitchedLoopId: number;
-    dirtyRanges: Array<{ startIndex: number; endIndex: number }>;
-    segments: Array<{ kind: 'warm' | 'cold'; startIndex: number; endIndex: number }>;
-  }> = [];
-
-  private stitchedLoopsForRendering: Array<{ id: number; vertices: { x: number; y: number }[] }> = [];
-
-  setStitchedSegmentations(
-    segmentations: Array<{
-      stitchedLoopId: number;
-      dirtyRanges: Array<{ startIndex: number; endIndex: number }>;
-      segments: Array<{ kind: 'warm' | 'cold'; startIndex: number; endIndex: number }>;
-    }>,
-    stitchedLoops: Array<{ id: number; vertices: { x: number; y: number }[] }>
-  ): void {
-    this.stitchedSegmentations = segmentations;
-    this.stitchedLoopsForRendering = stitchedLoops;
-  }
-
-  /**
-   * Step 4: Per-segment OptVertex arrays (future)
-   */
-  private segmentOptVerticesDebug: Array<{
-    stitchedLoopId: number;
-    segmentIndex: number;
-    optVertices: Array<{ x: number; y: number; canonStartId: number; canonEndId: number }>;
-    isWarm: boolean;
-    sourceCanonicalId?: number;
-  }> = [];
-
-  setSegmentOptVertices(segments: Array<{
-    stitchedLoopId: number;
-    segmentIndex: number;
-    optVertices: Array<{ x: number; y: number; canonStartId: number; canonEndId: number }>;
-    isWarm: boolean;
-    sourceCanonicalId?: number;
-  }>): void {
-    this.segmentOptVerticesDebug = segments;
   }
 
   /**
@@ -479,23 +385,6 @@ export class Renderer {
   }
 
   /**
-   * Returns true when every vertex of the polyline lies inside the region.
-   * Useful for tagging loops that are fully contained in the dirty AABB.
-   */
-  private polylineFullyInsideRegion(polyline: Vec2[], region: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
-    const eps = 1e-6;
-    for (const v of polyline) {
-      if (
-        v.x < region.minX - eps || v.x > region.maxX + eps ||
-        v.y < region.minY - eps || v.y > region.maxY + eps
-      ) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  /**
    * Remove polylines that intersect with the given region
    * Returns the number of polylines removed
    */
@@ -585,23 +474,7 @@ export class Renderer {
   clearLocalUpdateDebug(): void {
     this.dirtyAABB = null;
     this.rebuiltChains = [];
-    this.loopPatchDebugInfo = [];
     this.localUpdateDebug = null;
-  }
-
-  /**
-   * Set loop patch debug info for visualization
-   */
-  setLoopPatchDebugInfo(info: Array<{
-    originalLoop: Vec2[];
-    oldArc: Vec2[];
-    newArc: Vec2[];
-    patchedLoop: Vec2[];
-    beforePart: Vec2[];
-    afterPart: Vec2[];
-    dirtyAABB: { minX: number; minY: number; maxX: number; maxY: number };
-  }>): void {
-    this.loopPatchDebugInfo = info;
   }
 
   /**
@@ -614,9 +487,6 @@ export class Renderer {
    * @param joystickDraw - Optional callback to draw virtual joystick
    * @param spider - Optional spider rendering data
    * @param playerDirection - Optional player direction in radians (for rendering direction indicator)
-   * @param carvedLoops - Optional carved terrain loops to render (for visualization)
-   * @param carveRegion - Optional carve region AABB to render
-   * @param stitchedLoops - Optional stitched canonical loops to render as dashed overlays
    */
   render(
     playerPosition?: { x: number; y: number },
@@ -626,10 +496,7 @@ export class Renderer {
     playerDebugDraw?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
     joystickDraw?: (ctx: CanvasRenderingContext2D) => void,
     spider?: SpiderRenderData,
-    playerDirection?: number,
-    carvedLoops?: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }>,
-    carveRegion?: { minX: number; minY: number; maxX: number; maxY: number } | null,
-    stitchedLoops?: Array<{ id: number; vertices: { x: number; y: number }[] }>
+    playerDirection?: number
   ): void {
     try {
       const dpr = window.devicePixelRatio || 1;
@@ -715,11 +582,6 @@ export class Renderer {
       // Draw rebuilt chains (local update debugging)
       if (this.showRebuiltChains && this.rebuiltChains.length > 0) {
         this.drawRebuiltChains(width, height);
-      }
-
-      // Draw loop patching debug visualization
-      if (this.showLoopPatching && this.loopPatchDebugInfo.length > 0) {
-        this.drawLoopPatching(width, height);
       }
 
       // Draw physics segment debug
@@ -862,88 +724,6 @@ export class Renderer {
     this.ctx.beginPath();
     this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
     this.ctx.fill();
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Draw stitched canonical loops (debug overlay)
-   * Each loop gets a unique color and ID label.
-   */
-  private drawStitchedCanonicalLoops(
-    canvasWidth: number,
-    canvasHeight: number,
-    stitchedLoops: Array<{ id: number; vertices: { x: number; y: number }[] }>
-  ): void {
-    // Vibrant color palette - each loop gets a distinct color
-    const loopColors = [
-      '#FF0000', // Red
-      '#00FF00', // Green
-      '#0000FF', // Blue
-      '#FFFF00', // Yellow
-      '#FF00FF', // Magenta
-      '#00FFFF', // Cyan
-      '#FF8800', // Orange
-      '#8800FF', // Purple
-      '#FF0088', // Pink
-      '#00FF88', // Spring Green
-      '#FF8888', // Light Red
-      '#88FF88', // Light Green
-      '#8888FF', // Light Blue
-      '#FFFF88', // Light Yellow
-      '#FF88FF', // Light Magenta
-      '#88FFFF', // Light Cyan
-    ];
-
-    this.ctx.save();
-    this.ctx.lineWidth = 4;
-    this.ctx.globalAlpha = 1.0;
-
-    stitchedLoops.forEach((loop, index) => {
-      if (!loop.vertices || loop.vertices.length < 2) return;
-      const verts = loop.vertices;
-      const color = loopColors[index % loopColors.length];
-
-      this.ctx.strokeStyle = color;
-      this.ctx.fillStyle = color;
-
-      // Draw loop outline
-      const first = this.camera.worldToScreen(verts[0].x, verts[0].y, canvasWidth, canvasHeight);
-      this.ctx.beginPath();
-      this.ctx.moveTo(first.x, first.y);
-      for (let i = 1; i < verts.length; i++) {
-        const v = this.camera.worldToScreen(verts[i].x, verts[i].y, canvasWidth, canvasHeight);
-        this.ctx.lineTo(v.x, v.y);
-      }
-      this.ctx.stroke();
-
-      // Mark starting point with larger circle
-      this.ctx.beginPath();
-      this.ctx.arc(first.x, first.y, 6, 0, Math.PI * 2);
-      this.ctx.fill();
-
-      // White outline for starting point
-      this.ctx.strokeStyle = '#FFFFFF';
-      this.ctx.lineWidth = 2;
-      this.ctx.stroke();
-
-      // Draw ID label near starting point
-      this.ctx.font = 'bold 16px monospace';
-      this.ctx.textAlign = 'left';
-      this.ctx.textBaseline = 'top';
-
-      // Black outline for text readability
-      this.ctx.lineWidth = 4;
-      this.ctx.strokeStyle = '#000000';
-      this.ctx.strokeText(`#${loop.id}`, first.x + 12, first.y - 8);
-
-      // Colored text
-      this.ctx.fillStyle = color;
-      this.ctx.fillText(`#${loop.id}`, first.x + 12, first.y - 8);
-
-      // Reset line width
-      this.ctx.lineWidth = 4;
-    });
 
     this.ctx.restore();
   }
@@ -1149,384 +929,171 @@ export class Renderer {
     this.ctx.restore();
   }
 
-  /**
-   * Draw reuse plan overlay (step 3) with distinct styles for dirty vs reused spans
-   */
-  private drawReusePlanOverlay(canvasWidth: number, canvasHeight: number, reusePlan: ReusePlanDebug[]): void {
+  private drawDensityField(canvasWidth: number, canvasHeight: number): void {
+    if (!this.densityField) return;
+
     this.ctx.save();
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
 
-    for (const plan of reusePlan) {
-      for (const seg of plan.segments) {
-        if (!seg.points || seg.points.length < 2) {
-          continue;
-        }
+    const field = this.densityField;
+    const gridWidth = field.gridWidth;
+    const gridHeight = field.gridHeight;
 
-        this.ctx.setLineDash([]); // reset before styling
-        this.ctx.beginPath();
-        const firstScreen = this.camera.worldToScreen(seg.points[0].x, seg.points[0].y, canvasWidth, canvasHeight);
-        this.ctx.moveTo(firstScreen.x, firstScreen.y);
+    // Create ImageData for the density field
+    const imageData = this.ctx.createImageData(gridWidth, gridHeight);
 
-        for (let i = 1; i < seg.points.length; i++) {
-          const screen = this.camera.worldToScreen(seg.points[i].x, seg.points[i].y, canvasWidth, canvasHeight);
-          this.ctx.lineTo(screen.x, screen.y);
-        }
+    // Fill ImageData with grayscale values from density field
+    for (let gy = 0; gy < gridHeight; gy++) {
+      for (let gx = 0; gx < gridWidth; gx++) {
+        const idx = gy * gridWidth + gx;
+        const density = field.data[idx]; // 0-255
 
-        switch (seg.kind) {
-          case 'dirty':
-            this.ctx.lineWidth = 4;
-            this.ctx.setLineDash([]); // solid
-            this.ctx.strokeStyle = '#ff00ff'; // magenta for re-optimize span
-            break;
-          case 'reuse-head':
-            this.ctx.lineWidth = 3;
-            this.ctx.setLineDash([]);
-            this.ctx.strokeStyle = '#0066ff'; // blue for head reuse span
-            break;
-          case 'reuse-tail':
-            this.ctx.lineWidth = 3;
-            this.ctx.setLineDash([]);
-            this.ctx.strokeStyle = '#00ffff'; // cyan for tail reuse span
-            break;
-        }
-
-        this.ctx.stroke();
-        this.ctx.setLineDash([]);
+        // Convert to RGBA (grayscale)
+        const pixelIdx = idx * 4;
+        imageData.data[pixelIdx + 0] = density; // R
+        imageData.data[pixelIdx + 1] = density; // G
+        imageData.data[pixelIdx + 2] = density; // B
+        imageData.data[pixelIdx + 3] = 128; // A (50% transparent)
       }
     }
 
-    this.ctx.restore();
-    this.drawReusePlanLegend();
-  }
+    // Create temporary canvas to hold the ImageData
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = gridWidth;
+    tempCanvas.height = gridHeight;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return;
 
-  /**
-   * Step 3: Draw stitched segment classifications (warm/cold in stitched canonical space)
-   * Renders directly from stitched loop vertices using segment classifications.
-   */
-  private drawStitchedSegmentClassifications(canvasWidth: number, canvasHeight: number): void {
-    this.ctx.save();
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
+    tempCtx.putImageData(imageData, 0, 0);
 
-    // Draw each segmentation
-    for (const segmentation of this.stitchedSegmentations) {
-      // Find the corresponding stitched loop
-      const stitchedLoop = this.stitchedLoopsForRendering.find(
-        loop => loop.id === segmentation.stitchedLoopId
-      );
+    // Calculate world bounds of density field
+    const worldWidth = field.config.width;
+    const worldHeight = field.config.height;
 
-      if (!stitchedLoop) {
-        console.warn('[Renderer] Stitched loop not found for segmentation', {
-          stitchedLoopId: segmentation.stitchedLoopId
-        });
-        continue;
-      }
+    // Convert world bounds to screen coordinates
+    const topLeft = this.camera.worldToScreen(0, 0, canvasWidth, canvasHeight);
+    const bottomRight = this.camera.worldToScreen(worldWidth, worldHeight, canvasWidth, canvasHeight);
 
-      const n = stitchedLoop.vertices.length;
+    const screenWidth = bottomRight.x - topLeft.x;
+    const screenHeight = bottomRight.y - topLeft.y;
 
-      // Draw each segment
-      for (let segIdx = 0; segIdx < segmentation.segments.length; segIdx++) {
-        const segment = segmentation.segments[segIdx];
-        const { kind, startIndex, endIndex } = segment;
-
-        // Choose color based on segment kind
-        if (kind === 'warm') {
-          this.ctx.strokeStyle = '#ff6b35'; // Warm orange for dirty (rebuilt) segments
-          this.ctx.lineWidth = 5;
-        } else {
-          this.ctx.strokeStyle = '#4ecdc4'; // Cool cyan for clean (reused) segments
-          this.ctx.lineWidth = 5;
-        }
-
-        // Collect vertices for this segment (inclusive endIndex)
-        // IMPORTANT: We need to draw edges from startIndex to endIndex+1 to avoid gaps
-        const vertices: { x: number; y: number }[] = [];
-
-        if (startIndex <= endIndex) {
-          // Normal interval: [startIndex, endIndex]
-          // Draw vertices from startIndex to endIndex, plus one extra to close to next segment
-          for (let i = startIndex; i <= endIndex; i++) {
-            vertices.push(stitchedLoop.vertices[i]);
-          }
-          // Add connecting edge to next segment (or wrap to start for last segment)
-          const nextSegment = segmentation.segments[(segIdx + 1) % segmentation.segments.length];
-          const nextStartIndex = nextSegment.startIndex;
-          if (nextStartIndex === (endIndex + 1) % n) {
-            // Segments are adjacent - draw edge to next segment start
-            vertices.push(stitchedLoop.vertices[nextStartIndex]);
-          }
-        } else {
-          // Wrapped interval: [startIndex, n-1] + [0, endIndex]
-          for (let i = startIndex; i < n; i++) {
-            vertices.push(stitchedLoop.vertices[i]);
-          }
-          for (let i = 0; i <= endIndex; i++) {
-            vertices.push(stitchedLoop.vertices[i]);
-          }
-          // Add connecting edge to next segment
-          const nextSegment = segmentation.segments[(segIdx + 1) % segmentation.segments.length];
-          const nextStartIndex = nextSegment.startIndex;
-          if (nextStartIndex === (endIndex + 1) % n) {
-            vertices.push(stitchedLoop.vertices[nextStartIndex]);
-          }
-        }
-
-        // Draw the polyline
-        if (vertices.length >= 2) {
-          this.ctx.beginPath();
-          const firstScreen = this.camera.worldToScreen(vertices[0].x, vertices[0].y, canvasWidth, canvasHeight);
-          this.ctx.moveTo(firstScreen.x, firstScreen.y);
-
-          for (let i = 1; i < vertices.length; i++) {
-            const screen = this.camera.worldToScreen(vertices[i].x, vertices[i].y, canvasWidth, canvasHeight);
-            this.ctx.lineTo(screen.x, screen.y);
-          }
-
-          this.ctx.stroke();
-        }
-
-        // Draw small dots at vertices for visibility (original range only, not the extra edge)
-        for (let i = startIndex; i <= endIndex; i++) {
-          const vertex = stitchedLoop.vertices[i];
-          const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
-          this.ctx.fillStyle = kind === 'warm' ? '#ff6b35' : '#4ecdc4';
-          this.ctx.beginPath();
-          this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-      }
-    }
-
-    this.ctx.restore();
-
-    // Draw legend
-    this.drawStitchedSegmentLegend();
-  }
-
-  /**
-   * Draw legend for Step 3 stitched segment classification
-   */
-  private drawStitchedSegmentLegend(): void {
-    this.ctx.save();
-    this.ctx.font = '14px monospace';
-
-    const legendX = 10;
-    const legendY = 150;
-    const lineHeight = 20;
-
-    // Count warm and cold segments
-    const warmCount = this.stitchedSegmentations.reduce(
-      (sum, s) => sum + s.segments.filter(seg => seg.kind === 'warm').length,
-      0
-    );
-    const coldCount = this.stitchedSegmentations.reduce(
-      (sum, s) => sum + s.segments.filter(seg => seg.kind === 'cold').length,
-      0
+    // Draw the density field image scaled to world coordinates
+    this.ctx.drawImage(
+      tempCanvas,
+      topLeft.x,
+      topLeft.y,
+      screenWidth,
+      screenHeight
     );
 
-    // Background
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    this.ctx.fillRect(legendX, legendY, 320, lineHeight * 4 + 10);
-
-    // Title
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.fillText('Step 3: Stitched Segment Classification', legendX + 5, legendY + lineHeight);
-
-    // Warm segments
-    this.ctx.fillStyle = '#ff6b35';
-    this.ctx.fillRect(legendX + 10, legendY + lineHeight * 1.5, 30, 10);
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.fillText(`WARM (rebuilt): ${warmCount} segments`, legendX + 50, legendY + lineHeight * 2);
-
-    // Cold segments
-    this.ctx.fillStyle = '#4ecdc4';
-    this.ctx.fillRect(legendX + 10, legendY + lineHeight * 2.5, 30, 10);
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.fillText(`COLD (reused): ${coldCount} segments`, legendX + 50, legendY + lineHeight * 3);
-
     this.ctx.restore();
   }
 
   /**
-   * Step 4 (future): Draw segment OptVertex arrays - visualize warm (rebuilt) vs cold (reused) segments
+   * Draw debug grid
    */
-  private drawSegmentOptVertices(canvasWidth: number, canvasHeight: number): void {
+  private drawGrid(canvasWidth: number, canvasHeight: number): void {
     this.ctx.save();
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
+    this.ctx.strokeStyle = '#333';
+    this.ctx.lineWidth = 1;
 
-    // Group segments by stitched loop ID for organized drawing
-    const loopSegments = new Map<number, typeof this.segmentOptVerticesDebug>();
-    for (const segData of this.segmentOptVerticesDebug) {
-      if (!loopSegments.has(segData.stitchedLoopId)) {
-        loopSegments.set(segData.stitchedLoopId, []);
-      }
-      loopSegments.get(segData.stitchedLoopId)!.push(segData);
-    }
+    // Draw grid lines every 1 metre in world space
+    const gridSpacing = 1; // metres
 
-    // Draw each loop's segments
-    for (const [loopId, segments] of loopSegments) {
-      // Sort by segment index to maintain order
-      segments.sort((a, b) => a.segmentIndex - b.segmentIndex);
+    // Calculate visible world bounds
+    const topLeft = this.camera.screenToWorld(0, 0, canvasWidth, canvasHeight);
+    const bottomRight = this.camera.screenToWorld(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
 
-      for (const segData of segments) {
-        if (segData.optVertices.length < 2) continue;
+    const startX = Math.floor(topLeft.x / gridSpacing) * gridSpacing;
+    const endX = Math.ceil(bottomRight.x / gridSpacing) * gridSpacing;
+    const startY = Math.floor(topLeft.y / gridSpacing) * gridSpacing;
+    const endY = Math.ceil(bottomRight.y / gridSpacing) * gridSpacing;
 
-        // Choose color based on warm (rebuilt) vs cold (reused)
-        if (segData.isWarm) {
-          this.ctx.strokeStyle = '#ff6b35'; // Warm orange for rebuilt segments
-          this.ctx.lineWidth = 5;
-          this.ctx.setLineDash([]);
-        } else {
-          this.ctx.strokeStyle = '#4ecdc4'; // Cool cyan for reused segments
-          this.ctx.lineWidth = 5;
-          this.ctx.setLineDash([]);
-        }
-
-        // Draw the OptVertex polyline
-        this.ctx.beginPath();
-        const firstScreen = this.camera.worldToScreen(
-          segData.optVertices[0].x,
-          segData.optVertices[0].y,
-          canvasWidth,
-          canvasHeight
-        );
-        this.ctx.moveTo(firstScreen.x, firstScreen.y);
-
-        for (let i = 1; i < segData.optVertices.length; i++) {
-          const screen = this.camera.worldToScreen(
-            segData.optVertices[i].x,
-            segData.optVertices[i].y,
-            canvasWidth,
-            canvasHeight
-          );
-          this.ctx.lineTo(screen.x, screen.y);
-        }
-
-        this.ctx.stroke();
-
-        // Draw small dots at vertices for visibility
-        for (const optV of segData.optVertices) {
-          const screen = this.camera.worldToScreen(optV.x, optV.y, canvasWidth, canvasHeight);
-          this.ctx.fillStyle = segData.isWarm ? '#ff6b35' : '#4ecdc4';
-          this.ctx.beginPath();
-          this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-      }
-    }
-
-    this.ctx.restore();
-
-    // Draw legend
-    this.drawSegmentOptVerticesLegend();
-  }
-
-  /**
-   * Draw legend for segment OptVertex visualization
-   */
-  private drawSegmentOptVerticesLegend(): void {
-    this.ctx.save();
-    this.ctx.font = '14px monospace';
-
-    const legendX = 10;
-    const legendY = 150;
-    const lineHeight = 20;
-
-    // Count warm and cold segments
-    const warmCount = this.segmentOptVerticesDebug.filter(s => s.isWarm).length;
-    const coldCount = this.segmentOptVerticesDebug.filter(s => !s.isWarm).length;
-
-    // Background
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    this.ctx.fillRect(legendX, legendY, 320, lineHeight * 4 + 10);
-
-    // Title
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.fillText('Step 3: Segment OptVertex Arrays', legendX + 5, legendY + lineHeight);
-
-    // Warm segments
-    this.ctx.fillStyle = '#ff6b35';
-    this.ctx.fillRect(legendX + 10, legendY + lineHeight * 1.5, 30, 10);
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.fillText(`WARM (rebuilt): ${warmCount} segments`, legendX + 50, legendY + lineHeight * 2);
-
-    // Cold segments
-    this.ctx.fillStyle = '#4ecdc4';
-    this.ctx.fillRect(legendX + 10, legendY + lineHeight * 2.5, 30, 10);
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.fillText(`COLD (reused): ${coldCount} segments`, legendX + 50, legendY + lineHeight * 3);
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Draw reuse preview overlay for canonical loops with debugPreviewOptVertices
-   */
-  private drawReusePreview(canvasWidth: number, canvasHeight: number): void {
-    if (!this.showReusePreview || this.canonicalLoops.length === 0) {
-      return;
-    }
-
-    this.ctx.save();
-
-    // Find canonical loops with preview vertices
-    for (const loop of this.canonicalLoops) {
-      if (!loop.debugPreviewOptVertices || loop.debugPreviewOptVertices.length === 0) {
-        continue;
-      }
-
-      const preview = loop.debugPreviewOptVertices;
-
-      // Draw preview as a thicker, distinctive colored line
-      this.ctx.strokeStyle = '#ff00ff'; // Magenta for high visibility
-      this.ctx.lineWidth = 4; // Thicker than normal walls
-      this.ctx.lineCap = 'round';
-      this.ctx.lineJoin = 'round';
-      this.ctx.setLineDash([10, 5]); // Dashed line pattern
-
+    // Vertical lines
+    for (let x = startX; x <= endX; x += gridSpacing) {
+      const top = this.camera.worldToScreen(x, topLeft.y, canvasWidth, canvasHeight);
+      const bottom = this.camera.worldToScreen(x, bottomRight.y, canvasWidth, canvasHeight);
       this.ctx.beginPath();
-      const firstScreen = this.camera.worldToScreen(preview[0].x, preview[0].y, canvasWidth, canvasHeight);
+      this.ctx.moveTo(top.x, top.y);
+      this.ctx.lineTo(bottom.x, bottom.y);
+      this.ctx.stroke();
+    }
+
+    // Horizontal lines
+    for (let y = startY; y <= endY; y += gridSpacing) {
+      const left = this.camera.worldToScreen(topLeft.x, y, canvasWidth, canvasHeight);
+      const right = this.camera.worldToScreen(bottomRight.x, y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.moveTo(left.x, left.y);
+      this.ctx.lineTo(right.x, right.y);
+      this.ctx.stroke();
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw subtle grid lines in cave space (empty area)
+   * Grid is almost the same color as the cave background for subtle visual aid
+   */
+  private drawCaveGrid(canvasWidth: number, canvasHeight: number): void {
+    if (this.polylines.length === 0) return;
+
+    this.ctx.save();
+
+    // Create clipping region from polylines (only draw grid inside cave)
+    this.ctx.beginPath();
+    for (const polyline of this.polylines) {
+      if (polyline.length < 2) continue;
+
+      const firstScreen = this.camera.worldToScreen(polyline[0].x, polyline[0].y, canvasWidth, canvasHeight);
       this.ctx.moveTo(firstScreen.x, firstScreen.y);
 
-      for (let i = 1; i < preview.length; i++) {
-        const screen = this.camera.worldToScreen(preview[i].x, preview[i].y, canvasWidth, canvasHeight);
+      for (let i = 1; i < polyline.length; i++) {
+        const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
         this.ctx.lineTo(screen.x, screen.y);
       }
 
-      // Close if needed
-      if (loop.isClosed) {
-        this.ctx.closePath();
-      }
+      this.ctx.closePath();
+    }
+    this.ctx.clip('evenodd');
 
+    // Make cave grid lines stand out a bit more than the cave background '#fff8e3'
+    this.ctx.strokeStyle = '#d4b46b';
+    this.ctx.lineWidth = 1;
+    this.ctx.globalAlpha = 0.85;
+
+    // Draw grid lines every 1 metre in world space
+    const gridSpacing = 1; // metres
+
+    // Calculate visible world bounds
+    const topLeft = this.camera.screenToWorld(0, 0, canvasWidth, canvasHeight);
+    const bottomRight = this.camera.screenToWorld(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
+
+    const startX = Math.floor(topLeft.x / gridSpacing) * gridSpacing;
+    const endX = Math.ceil(bottomRight.x / gridSpacing) * gridSpacing;
+    const startY = Math.floor(topLeft.y / gridSpacing) * gridSpacing;
+    const endY = Math.ceil(bottomRight.y / gridSpacing) * gridSpacing;
+
+    // Vertical lines
+    for (let x = startX; x <= endX; x += gridSpacing) {
+      const top = this.camera.worldToScreen(x, topLeft.y, canvasWidth, canvasHeight);
+      const bottom = this.camera.worldToScreen(x, bottomRight.y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.moveTo(top.x, top.y);
+      this.ctx.lineTo(bottom.x, bottom.y);
       this.ctx.stroke();
-      this.ctx.setLineDash([]); // Reset dash pattern
     }
 
-    this.ctx.restore();
-  }
+    // Horizontal lines
+    for (let y = startY; y <= endY; y += gridSpacing) {
+      const left = this.camera.worldToScreen(topLeft.x, y, canvasWidth, canvasHeight);
+      const right = this.camera.worldToScreen(bottomRight.x, y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.moveTo(left.x, left.y);
+      this.ctx.lineTo(right.x, right.y);
+      this.ctx.stroke();
+    }
 
-  /**
-   * Legend for reuse plan overlay
-   */
-  private drawReusePlanLegend(): void {
-    this.ctx.save();
-    const padding = 10;
-    const text = 'Step 3: DIRTY = magenta dashed, HEAD = blue, TAIL = cyan';
-    this.ctx.font = '12px monospace';
-    this.ctx.textAlign = 'left';
-    this.ctx.textBaseline = 'top';
-
-    const metrics = this.ctx.measureText(text);
-    const boxWidth = metrics.width + padding * 2;
-    const boxHeight = 24;
-
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    this.ctx.fillRect(padding, padding, boxWidth, boxHeight);
-
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.fillText(text, padding * 1.2, padding + 6);
     this.ctx.restore();
   }
 
@@ -1969,952 +1536,6 @@ export class Renderer {
     this.ctx.restore();
   }
 
-  /**
-   * Draw loop patching debug visualization
-   * Shows:
-   * - Original loop (gray)
-   * - Old arc being replaced (red)
-   * - New arc from marching squares (green)
-   * - Patched loop (cyan)
-   * - Dirty AABB (yellow box)
-   */
-  private drawLoopPatching(canvasWidth: number, canvasHeight: number): void {
-    if (this.loopPatchDebugInfo.length === 0) {
-      return;
-    }
-
-    // Only log once per second to avoid spam
-    const now = Date.now();
-    if (!this.lastPatchLogTime || now - this.lastPatchLogTime > 1000) {
-      console.log(`[Renderer] Drawing ${this.loopPatchDebugInfo.length} loop patch debug infos`);
-      this.lastPatchLogTime = now;
-    }
-
-    this.ctx.save();
-
-    for (const patchInfo of this.loopPatchDebugInfo) {
-      // 1. Draw dirty AABB (yellow dashed box)
-      const topLeft = this.camera.worldToScreen(patchInfo.dirtyAABB.minX, patchInfo.dirtyAABB.minY, canvasWidth, canvasHeight);
-      const bottomRight = this.camera.worldToScreen(patchInfo.dirtyAABB.maxX, patchInfo.dirtyAABB.maxY, canvasWidth, canvasHeight);
-      const rectWidth = bottomRight.x - topLeft.x;
-      const rectHeight = bottomRight.y - topLeft.y;
-
-      this.ctx.strokeStyle = '#ffff00'; // Yellow
-      this.ctx.lineWidth = 2;
-      this.ctx.setLineDash([8, 4]);
-      this.ctx.strokeRect(topLeft.x, topLeft.y, rectWidth, rectHeight);
-      this.ctx.setLineDash([]);
-
-      // 2. Draw original loop (gray, thin, semi-transparent) - FULL original for reference
-      if (patchInfo.originalLoop.length > 2) {
-        this.ctx.strokeStyle = 'rgba(128, 128, 128, 0.3)'; // Gray, very subtle
-        this.ctx.lineWidth = 1;
-        this.ctx.beginPath();
-        const first = this.camera.worldToScreen(patchInfo.originalLoop[0].x, patchInfo.originalLoop[0].y, canvasWidth, canvasHeight);
-        this.ctx.moveTo(first.x, first.y);
-        for (let i = 1; i < patchInfo.originalLoop.length; i++) {
-          const screen = this.camera.worldToScreen(patchInfo.originalLoop[i].x, patchInfo.originalLoop[i].y, canvasWidth, canvasHeight);
-          this.ctx.lineTo(screen.x, screen.y);
-        }
-        this.ctx.closePath();
-        this.ctx.stroke();
-      }
-
-      // 2b. Draw KEPT parts of the loop (before and after) in BLUE - these are unchanged
-      // This clearly shows which vertices are being preserved
-      if (patchInfo.beforePart.length > 1) {
-        this.ctx.strokeStyle = '#4488ff'; // Bright blue
-        this.ctx.lineWidth = 4;
-        this.ctx.globalAlpha = 0.9;
-        this.ctx.beginPath();
-        const first = this.camera.worldToScreen(patchInfo.beforePart[0].x, patchInfo.beforePart[0].y, canvasWidth, canvasHeight);
-        this.ctx.moveTo(first.x, first.y);
-        for (let i = 1; i < patchInfo.beforePart.length; i++) {
-          const screen = this.camera.worldToScreen(patchInfo.beforePart[i].x, patchInfo.beforePart[i].y, canvasWidth, canvasHeight);
-          this.ctx.lineTo(screen.x, screen.y);
-        }
-        this.ctx.stroke();
-        this.ctx.globalAlpha = 1.0;
-
-        // Draw vertices as blue dots
-        for (const vertex of patchInfo.beforePart) {
-          const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
-          this.ctx.fillStyle = '#4488ff';
-          this.ctx.beginPath();
-          this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-      }
-
-      if (patchInfo.afterPart.length > 1) {
-        this.ctx.strokeStyle = '#4488ff'; // Bright blue
-        this.ctx.lineWidth = 4;
-        this.ctx.globalAlpha = 0.9;
-        this.ctx.beginPath();
-        const first = this.camera.worldToScreen(patchInfo.afterPart[0].x, patchInfo.afterPart[0].y, canvasWidth, canvasHeight);
-        this.ctx.moveTo(first.x, first.y);
-        for (let i = 1; i < patchInfo.afterPart.length; i++) {
-          const screen = this.camera.worldToScreen(patchInfo.afterPart[i].x, patchInfo.afterPart[i].y, canvasWidth, canvasHeight);
-          this.ctx.lineTo(screen.x, screen.y);
-        }
-        this.ctx.stroke();
-        this.ctx.globalAlpha = 1.0;
-
-        // Draw vertices as blue dots
-        for (const vertex of patchInfo.afterPart) {
-          const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
-          this.ctx.fillStyle = '#4488ff';
-          this.ctx.beginPath();
-          this.ctx.arc(screen.x, screen.y, 3, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-      }
-
-      // 3. Draw old arc being replaced (red, thick)
-      if (patchInfo.oldArc.length > 1) {
-        this.ctx.strokeStyle = '#ff0000'; // Red
-        this.ctx.lineWidth = 5;
-        this.ctx.globalAlpha = 0.8;
-        this.ctx.beginPath();
-        const first = this.camera.worldToScreen(patchInfo.oldArc[0].x, patchInfo.oldArc[0].y, canvasWidth, canvasHeight);
-        this.ctx.moveTo(first.x, first.y);
-        for (let i = 1; i < patchInfo.oldArc.length; i++) {
-          const screen = this.camera.worldToScreen(patchInfo.oldArc[i].x, patchInfo.oldArc[i].y, canvasWidth, canvasHeight);
-          this.ctx.lineTo(screen.x, screen.y);
-        }
-        this.ctx.stroke();
-        this.ctx.globalAlpha = 1.0;
-
-        // Draw vertices as red dots
-        for (const vertex of patchInfo.oldArc) {
-          const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
-          this.ctx.fillStyle = '#ff0000';
-          this.ctx.beginPath();
-          this.ctx.arc(screen.x, screen.y, 4, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-      }
-
-      // 4. Draw new arc from marching squares (green, thick)
-      if (patchInfo.newArc.length > 1) {
-        this.ctx.strokeStyle = '#00ff00'; // Green
-        this.ctx.lineWidth = 5;
-        this.ctx.globalAlpha = 0.8;
-        this.ctx.beginPath();
-        const first = this.camera.worldToScreen(patchInfo.newArc[0].x, patchInfo.newArc[0].y, canvasWidth, canvasHeight);
-        this.ctx.moveTo(first.x, first.y);
-        for (let i = 1; i < patchInfo.newArc.length; i++) {
-          const screen = this.camera.worldToScreen(patchInfo.newArc[i].x, patchInfo.newArc[i].y, canvasWidth, canvasHeight);
-          this.ctx.lineTo(screen.x, screen.y);
-        }
-        this.ctx.stroke();
-        this.ctx.globalAlpha = 1.0;
-
-        // Draw vertices as green dots
-        for (const vertex of patchInfo.newArc) {
-          const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
-          this.ctx.fillStyle = '#00ff00';
-          this.ctx.beginPath();
-          this.ctx.arc(screen.x, screen.y, 4, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-      }
-
-      // 5. Draw patched loop (cyan, medium thickness)
-      if (patchInfo.patchedLoop.length > 2) {
-        this.ctx.strokeStyle = '#00ffff'; // Cyan
-        this.ctx.lineWidth = 3;
-        this.ctx.globalAlpha = 0.6;
-        this.ctx.beginPath();
-        const first = this.camera.worldToScreen(patchInfo.patchedLoop[0].x, patchInfo.patchedLoop[0].y, canvasWidth, canvasHeight);
-        this.ctx.moveTo(first.x, first.y);
-        for (let i = 1; i < patchInfo.patchedLoop.length; i++) {
-          const screen = this.camera.worldToScreen(patchInfo.patchedLoop[i].x, patchInfo.patchedLoop[i].y, canvasWidth, canvasHeight);
-          this.ctx.lineTo(screen.x, screen.y);
-        }
-        this.ctx.closePath();
-        this.ctx.stroke();
-        this.ctx.globalAlpha = 1.0;
-      }
-
-      // 6. Highlight connection points (where new arc joins unchanged loop)
-      // These are critical for understanding the stitching process
-      if (patchInfo.newArc.length > 0) {
-        // Connection point 1: Start of new arc (connects to "before" part)
-        const startPoint = patchInfo.newArc[0];
-        const startScreen = this.camera.worldToScreen(startPoint.x, startPoint.y, canvasWidth, canvasHeight);
-
-        // Draw outer ring (white)
-        this.ctx.strokeStyle = '#ffffff';
-        this.ctx.lineWidth = 3;
-        this.ctx.beginPath();
-        this.ctx.arc(startScreen.x, startScreen.y, 10, 0, Math.PI * 2);
-        this.ctx.stroke();
-
-        // Draw inner circle (magenta)
-        this.ctx.fillStyle = '#ff00ff';
-        this.ctx.beginPath();
-        this.ctx.arc(startScreen.x, startScreen.y, 7, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        // Connection point 2: End of new arc (connects to "after" part)
-        const endPoint = patchInfo.newArc[patchInfo.newArc.length - 1];
-        const endScreen = this.camera.worldToScreen(endPoint.x, endPoint.y, canvasWidth, canvasHeight);
-
-        // Draw outer ring (white)
-        this.ctx.strokeStyle = '#ffffff';
-        this.ctx.lineWidth = 3;
-        this.ctx.beginPath();
-        this.ctx.arc(endScreen.x, endScreen.y, 10, 0, Math.PI * 2);
-        this.ctx.stroke();
-
-        // Draw inner circle (orange)
-        this.ctx.fillStyle = '#ff8800';
-        this.ctx.beginPath();
-        this.ctx.arc(endScreen.x, endScreen.y, 7, 0, Math.PI * 2);
-        this.ctx.fill();
-      }
-
-      // 7. Draw legend in top-left of dirty AABB
-      const legendX = topLeft.x + 10;
-      const legendY = topLeft.y + 10;
-      this.ctx.font = 'bold 12px monospace';
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.strokeStyle = '#000000';
-      this.ctx.lineWidth = 3;
-
-      const legendItems = [
-        { color: '#4488ff', text: 'KEPT (unchanged)' },
-        { color: '#ff0000', text: 'OLD Arc (replaced)' },
-        { color: '#00ff00', text: 'NEW Arc (from MS)' },
-        { color: '#ff00ff', text: 'Start Stitch' },
-        { color: '#ff8800', text: 'End Stitch' },
-      ];
-
-      let yOffset = 0;
-      for (const item of legendItems) {
-        // Background
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        this.ctx.fillRect(legendX - 5, legendY + yOffset - 12, 180, 18);
-
-        // Color swatch
-        this.ctx.fillStyle = item.color;
-        this.ctx.fillRect(legendX, legendY + yOffset - 8, 20, 10);
-
-        // Text
-        this.ctx.strokeText(item.text, legendX + 25, legendY + yOffset);
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.fillText(item.text, legendX + 25, legendY + yOffset);
-
-        yOffset += 20;
-      }
-    }
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Draw density field as grayscale image
-   */
-  private drawDensityField(canvasWidth: number, canvasHeight: number): void {
-    if (!this.densityField) return;
-
-    this.ctx.save();
-
-    const field = this.densityField;
-    const gridWidth = field.gridWidth;
-    const gridHeight = field.gridHeight;
-
-    // Create ImageData for the density field
-    const imageData = this.ctx.createImageData(gridWidth, gridHeight);
-
-    // Fill ImageData with grayscale values from density field
-    for (let gy = 0; gy < gridHeight; gy++) {
-      for (let gx = 0; gx < gridWidth; gx++) {
-        const idx = gy * gridWidth + gx;
-        const density = field.data[idx]; // 0-255
-
-        // Convert to RGBA (grayscale)
-        const pixelIdx = idx * 4;
-        imageData.data[pixelIdx + 0] = density; // R
-        imageData.data[pixelIdx + 1] = density; // G
-        imageData.data[pixelIdx + 2] = density; // B
-        imageData.data[pixelIdx + 3] = 128; // A (50% transparent)
-      }
-    }
-
-    // Create temporary canvas to hold the ImageData
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = gridWidth;
-    tempCanvas.height = gridHeight;
-    const tempCtx = tempCanvas.getContext('2d');
-    if (!tempCtx) return;
-
-    tempCtx.putImageData(imageData, 0, 0);
-
-    // Calculate world bounds of density field
-    const worldWidth = field.config.width;
-    const worldHeight = field.config.height;
-
-    // Convert world bounds to screen coordinates
-    const topLeft = this.camera.worldToScreen(0, 0, canvasWidth, canvasHeight);
-    const bottomRight = this.camera.worldToScreen(worldWidth, worldHeight, canvasWidth, canvasHeight);
-
-    const screenWidth = bottomRight.x - topLeft.x;
-    const screenHeight = bottomRight.y - topLeft.y;
-
-    // Draw the density field image scaled to world coordinates
-    this.ctx.drawImage(
-      tempCanvas,
-      topLeft.x,
-      topLeft.y,
-      screenWidth,
-      screenHeight
-    );
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Draw debug grid
-   */
-  private drawGrid(canvasWidth: number, canvasHeight: number): void {
-    this.ctx.save();
-    this.ctx.strokeStyle = '#333';
-    this.ctx.lineWidth = 1;
-
-    // Draw grid lines every 1 metre in world space
-    const gridSpacing = 1; // metres
-
-    // Calculate visible world bounds
-    const topLeft = this.camera.screenToWorld(0, 0, canvasWidth, canvasHeight);
-    const bottomRight = this.camera.screenToWorld(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
-
-    const startX = Math.floor(topLeft.x / gridSpacing) * gridSpacing;
-    const endX = Math.ceil(bottomRight.x / gridSpacing) * gridSpacing;
-    const startY = Math.floor(topLeft.y / gridSpacing) * gridSpacing;
-    const endY = Math.ceil(bottomRight.y / gridSpacing) * gridSpacing;
-
-    // Vertical lines
-    for (let x = startX; x <= endX; x += gridSpacing) {
-      const top = this.camera.worldToScreen(x, topLeft.y, canvasWidth, canvasHeight);
-      const bottom = this.camera.worldToScreen(x, bottomRight.y, canvasWidth, canvasHeight);
-      this.ctx.beginPath();
-      this.ctx.moveTo(top.x, top.y);
-      this.ctx.lineTo(bottom.x, bottom.y);
-      this.ctx.stroke();
-    }
-
-    // Horizontal lines
-    for (let y = startY; y <= endY; y += gridSpacing) {
-      const left = this.camera.worldToScreen(topLeft.x, y, canvasWidth, canvasHeight);
-      const right = this.camera.worldToScreen(bottomRight.x, y, canvasWidth, canvasHeight);
-      this.ctx.beginPath();
-      this.ctx.moveTo(left.x, left.y);
-      this.ctx.lineTo(right.x, right.y);
-      this.ctx.stroke();
-    }
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Draw subtle grid lines in cave space (empty area)
-   * Grid is almost the same color as the cave background for subtle visual aid
-   */
-  private drawCaveGrid(canvasWidth: number, canvasHeight: number): void {
-    if (this.polylines.length === 0) return;
-
-    this.ctx.save();
-
-    // Create clipping region from polylines (only draw grid inside cave)
-    this.ctx.beginPath();
-    for (const polyline of this.polylines) {
-      if (polyline.length < 2) continue;
-
-      const firstScreen = this.camera.worldToScreen(polyline[0].x, polyline[0].y, canvasWidth, canvasHeight);
-      this.ctx.moveTo(firstScreen.x, firstScreen.y);
-
-      for (let i = 1; i < polyline.length; i++) {
-        const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
-        this.ctx.lineTo(screen.x, screen.y);
-      }
-
-      this.ctx.closePath();
-    }
-    this.ctx.clip('evenodd');
-
-    // Make cave grid lines stand out a bit more than the cave background '#fff8e3'
-    this.ctx.strokeStyle = '#d4b46b';
-    this.ctx.lineWidth = 1;
-    this.ctx.globalAlpha = 0.85;
-
-    // Draw grid lines every 1 metre in world space
-    const gridSpacing = 1; // metres
-
-    // Calculate visible world bounds
-    const topLeft = this.camera.screenToWorld(0, 0, canvasWidth, canvasHeight);
-    const bottomRight = this.camera.screenToWorld(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
-
-    const startX = Math.floor(topLeft.x / gridSpacing) * gridSpacing;
-    const endX = Math.ceil(bottomRight.x / gridSpacing) * gridSpacing;
-    const startY = Math.floor(topLeft.y / gridSpacing) * gridSpacing;
-    const endY = Math.ceil(bottomRight.y / gridSpacing) * gridSpacing;
-
-    // Vertical lines
-    for (let x = startX; x <= endX; x += gridSpacing) {
-      const top = this.camera.worldToScreen(x, topLeft.y, canvasWidth, canvasHeight);
-      const bottom = this.camera.worldToScreen(x, bottomRight.y, canvasWidth, canvasHeight);
-      this.ctx.beginPath();
-      this.ctx.moveTo(top.x, top.y);
-      this.ctx.lineTo(bottom.x, bottom.y);
-      this.ctx.stroke();
-    }
-
-    // Horizontal lines
-    for (let y = startY; y <= endY; y += gridSpacing) {
-      const left = this.camera.worldToScreen(topLeft.x, y, canvasWidth, canvasHeight);
-      const right = this.camera.worldToScreen(bottomRight.x, y, canvasWidth, canvasHeight);
-      this.ctx.beginPath();
-      this.ctx.moveTo(left.x, left.y);
-      this.ctx.lineTo(right.x, right.y);
-      this.ctx.stroke();
-    }
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Draw carved terrain loops for visualization
-   * Warm colors for new loops (from dirty region), cold colors for boundary arcs (preserved)
-   * Loops fully contained within the carve region are treated as new for coloring.
-   * Shows carve region AABB as yellow dashed rectangle
-   */
-  private drawCarvedLoops(
-    canvasWidth: number,
-    canvasHeight: number,
-    carvedLoops: Array<{ loop: { x: number; y: number }[]; closed: boolean; endpoints?: [{ x: number; y: number }, { x: number; y: number }]; inside: boolean }>,
-    carveRegion?: { minX: number; minY: number; maxX: number; maxY: number } | null
-  ): void {
-    this.ctx.save();
-
-    // Warm colors for new loops from dirty region (reds, oranges, yellows)
-    const warmColors = [
-      '#FF0000', // red
-      '#FF4500', // orange red
-      '#FFA500', // orange
-      '#FFD700', // gold
-      '#FFFF00', // yellow
-      '#FF1493', // deep pink
-      '#FF6347', // tomato
-      '#FF8C00', // dark orange
-    ];
-
-    // Cold colors for boundary arcs from existing loops (blues, greens, cyans)
-    const coldColors = [
-      '#0000FF', // blue
-      '#00FFFF', // cyan
-      '#00FF00', // green
-      '#00FF7F', // spring green
-      '#1E90FF', // dodger blue
-      '#00CED1', // dark turquoise
-      '#4169E1', // royal blue
-      '#00FA9A', // medium spring green
-    ];
-
-    // Draw carve region AABB as yellow dashed rectangle
-    if (carveRegion) {
-      this.ctx.strokeStyle = '#FFFF00'; // Yellow
-      this.ctx.lineWidth = 2;
-      this.ctx.setLineDash([5, 5]); // Dashed line
-      this.ctx.globalAlpha = 0.8;
-
-      const topLeft = this.camera.worldToScreen(carveRegion.minX, carveRegion.minY, canvasWidth, canvasHeight);
-      const bottomRight = this.camera.worldToScreen(carveRegion.maxX, carveRegion.maxY, canvasWidth, canvasHeight);
-
-      this.ctx.strokeRect(
-        topLeft.x,
-        topLeft.y,
-        bottomRight.x - topLeft.x,
-        bottomRight.y - topLeft.y
-      );
-
-      this.ctx.setLineDash([]); // Reset to solid line
-    }
-
-    // Count new and boundary loops for color indexing
-    let newLoopIndex = 0;
-    let boundaryIndex = 0;
-
-    carvedLoops.forEach((loopResult) => {
-      const { loop, closed, endpoints, inside } = loopResult;
-      if (loop.length < 2) return;
-
-      // Pick color based on new/boundary and index
-      // inside=true means new loop from dirty region (warm colors)
-      // inside=false means boundary arc from existing loop (cold colors)
-      // Additionally, loops entirely contained in the carve region are treated as new for coloring.
-      const isWarm = inside || (carveRegion ? this.polylineFullyInsideRegion(loop, carveRegion) : false);
-      const colors = isWarm ? warmColors : coldColors;
-      const colorIndex = isWarm ? newLoopIndex++ : boundaryIndex++;
-      const color = colors[colorIndex % colors.length];
-
-      // Draw the loop
-      this.ctx.strokeStyle = color;
-      this.ctx.lineWidth = isWarm ? 4 : 3; // Warm (new) loops slightly thicker so they stand out behind
-      this.ctx.globalAlpha = 0.8;
-
-      this.ctx.beginPath();
-      const firstScreen = this.camera.worldToScreen(loop[0].x, loop[0].y, canvasWidth, canvasHeight);
-      this.ctx.moveTo(firstScreen.x, firstScreen.y);
-
-      for (let i = 1; i < loop.length; i++) {
-        const screen = this.camera.worldToScreen(loop[i].x, loop[i].y, canvasWidth, canvasHeight);
-        this.ctx.lineTo(screen.x, screen.y);
-      }
-
-      this.ctx.stroke();
-
-      // Draw endpoints for open loops
-      if (!closed && endpoints) {
-        this.ctx.strokeStyle = color;
-        this.ctx.lineWidth = 2;
-        this.ctx.globalAlpha = 1.0;
-
-        endpoints.forEach(endpoint => {
-          const screen = this.camera.worldToScreen(endpoint.x, endpoint.y, canvasWidth, canvasHeight);
-          this.ctx.beginPath();
-          this.ctx.arc(screen.x, screen.y, 8, 0, Math.PI * 2); // 8px radius dots
-
-          // Fill for inside loops, stroke only for outside loops
-          if (isWarm) {
-            this.ctx.fillStyle = color;
-            this.ctx.fill();
-          } else {
-            this.ctx.stroke();
-          }
-        });
-      }
-    });
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Step 4: Draw opt-space merging overlay
-   * Shows final optimized vertices with anchor markers, segment boundaries, and legend
-   */
-  private drawOptMergingOverlay(canvasWidth: number, canvasHeight: number): void {
-    if (this.optMergingDebug.length === 0) return;
-
-    for (const debugData of this.optMergingDebug) {
-      // SIMPLIFIED DEBUG: Show only warm/cold segments (like Step 1)
-      // Temporarily disabled for clearer debugging:
-      // - No stitched comparison overlay
-      // - No anchors
-      // - No segment boundaries
-
-      // Draw optimized segments ONLY (warm = orange, cold = cyan)
-      this.drawOptMergingSegments(canvasWidth, canvasHeight, debugData);
-
-      // DISABLED: Draw stitched vertices underneath (faint for comparison)
-      // this.drawOptMergingStitchedComparison(canvasWidth, canvasHeight, debugData);
-
-      // DISABLED: Draw anchors
-      // this.drawOptMergingAnchors(canvasWidth, canvasHeight, debugData);
-
-      // DISABLED: Draw segment boundaries
-      // this.drawOptMergingBoundaries(canvasWidth, canvasHeight, debugData);
-    }
-
-    // Draw legend (once for all loops)
-    this.drawOptMergingLegend(canvasWidth, canvasHeight);
-  }
-
-  /**
-   * Step 4: Draw stitched vertices underneath for comparison
-   */
-  private drawOptMergingStitchedComparison(
-    canvasWidth: number,
-    canvasHeight: number,
-    debugData: Step4DebugData
-  ): void {
-    const { stitchedVertices } = debugData;
-    if (stitchedVertices.length < 2) return;
-
-    // DETAILED LOGGING: Log stitched comparison (once per debug data)
-    const shouldLog = this.lastLoggedOptMergingId !== debugData.stitchedLoopId;
-    const firstVertex = stitchedVertices[0];
-    const lastVertex = stitchedVertices[stitchedVertices.length - 1];
-    const isClosed = (firstVertex.x === lastVertex.x && firstVertex.y === lastVertex.y);
-
-    if (shouldLog) {
-      console.log(`[Render][Step4] drawStitchedComparison {
-  closed: ${isClosed},
-  vertexCount: ${stitchedVertices.length},
-  first: { x: ${firstVertex.x.toFixed(2)}, y: ${firstVertex.y.toFixed(2)} },
-  last: { x: ${lastVertex.x.toFixed(2)}, y: ${lastVertex.y.toFixed(2)} }
-}`);
-    }
-
-    this.ctx.save();
-    this.ctx.strokeStyle = '#444444';
-    this.ctx.lineWidth = 1;
-    this.ctx.globalAlpha = 0.3;
-    this.ctx.setLineDash([2, 2]);
-
-    this.ctx.beginPath();
-    const first = this.camera.worldToScreen(stitchedVertices[0].x, stitchedVertices[0].y, canvasWidth, canvasHeight);
-    this.ctx.moveTo(first.x, first.y);
-
-    for (let i = 1; i < stitchedVertices.length; i++) {
-      const screen = this.camera.worldToScreen(stitchedVertices[i].x, stitchedVertices[i].y, canvasWidth, canvasHeight);
-      this.ctx.lineTo(screen.x, screen.y);
-    }
-
-    // CANVAS LOGGING: Log right before stroke
-    if (shouldLog) {
-      const lastScreen = this.camera.worldToScreen(lastVertex.x, lastVertex.y, canvasWidth, canvasHeight);
-      console.log(`[Render][Step4][Canvas] About to stroke stitched comparison {
-  closed: ${isClosed},
-  vertexCount: ${stitchedVertices.length},
-  first: { x: ${firstVertex.x.toFixed(2)}, y: ${firstVertex.y.toFixed(2)} },
-  last: { x: ${lastVertex.x.toFixed(2)}, y: ${lastVertex.y.toFixed(2)} },
-  lastScreen: { x: ${lastScreen.x.toFixed(0)}, y: ${lastScreen.y.toFixed(0)} },
-  willCallClosePath: ${isClosed}
-}`);
-    }
-
-    // Only close the path if first == last (truly closed loop)
-    if (isClosed) {
-      this.ctx.closePath();
-    }
-
-    this.ctx.stroke();
-    this.ctx.restore();
-  }
-
-  /**
-   * Step 4: Draw optimized segments (warm = orange, cold = cyan)
-   */
-  private drawOptMergingSegments(
-    canvasWidth: number,
-    canvasHeight: number,
-    debugData: Step4DebugData
-  ): void {
-    const { step4Output } = debugData;
-    const { optVertices, debugInfo } = step4Output;
-
-    if (!debugInfo || !debugInfo.processedSegments) return;
-
-    // DETAILED LOGGING: Only log once per debug data set (avoid per-frame spam)
-    const shouldLog = this.lastLoggedOptMergingId !== debugData.stitchedLoopId;
-    if (shouldLog) {
-      this.lastLoggedOptMergingId = debugData.stitchedLoopId;
-    }
-
-    this.ctx.save();
-    this.ctx.lineWidth = 3;
-    this.ctx.globalAlpha = 1.0;
-    this.ctx.setLineDash([]);
-
-    let currentIndex = 0;
-
-    for (let segIdx = 0; segIdx < debugInfo.processedSegments.length; segIdx++) {
-      const segment = debugInfo.processedSegments[segIdx];
-      const color = segment.kind === 'warm' ? '#FF8800' : '#00FFFF'; // Orange for warm, Cyan for cold
-      this.ctx.strokeStyle = color;
-
-      const vertices = segment.optVertices;
-      if (vertices.length < 2) {
-        currentIndex += vertices.length;
-        continue;
-      }
-
-      // DETAILED LOGGING: Log each segment being drawn
-      const closed = false; // We never close segments in this renderer
-      if (shouldLog) {
-        const first = vertices[0];
-        const last = vertices[vertices.length - 1];
-        console.log(`[Render][Step4] drawSegment {
-  kind: '${segment.kind}',
-  closed: ${closed},
-  vertexCount: ${vertices.length},
-  first: { x: ${first.x.toFixed(2)}, y: ${first.y.toFixed(2)} },
-  last: { x: ${last.x.toFixed(2)}, y: ${last.y.toFixed(2)} }
-}`);
-      }
-
-      // Draw the segment with normal color
-      this.ctx.beginPath();
-      const first = this.camera.worldToScreen(vertices[0].x, vertices[0].y, canvasWidth, canvasHeight);
-      this.ctx.moveTo(first.x, first.y);
-
-      for (let i = 1; i < vertices.length; i++) {
-        const screen = this.camera.worldToScreen(vertices[i].x, vertices[i].y, canvasWidth, canvasHeight);
-        this.ctx.lineTo(screen.x, screen.y);
-      }
-
-      // CANVAS LOGGING: Log right before stroke to confirm path state
-      if (shouldLog) {
-        const firstVertex = vertices[0];
-        const lastVertex = vertices[vertices.length - 1];
-        const lastScreen = this.camera.worldToScreen(lastVertex.x, lastVertex.y, canvasWidth, canvasHeight);
-        console.log(`[Render][Step4][Canvas] About to stroke path for ${segment.kind} segment {
-  closed: ${closed},
-  vertexCount: ${vertices.length},
-  first: { x: ${firstVertex.x.toFixed(2)}, y: ${firstVertex.y.toFixed(2)} },
-  last: { x: ${lastVertex.x.toFixed(2)}, y: ${lastVertex.y.toFixed(2)} },
-  lastScreen: { x: ${lastScreen.x.toFixed(0)}, y: ${lastScreen.y.toFixed(0)} },
-  willCallClosePath: false
-}`);
-      }
-
-      // DO NOT call closePath() for open segments
-      this.ctx.stroke();
-
-      // Draw vertex index labels for all vertices
-      this.drawVertexIndexLabels(vertices, canvasWidth, canvasHeight, currentIndex, color);
-
-      // Increment currentIndex:
-      // - Warm segments: include both boundary vertices (grown by 2)
-      // - Cold segments: unchanged from original
-      // Simply use full length since warm already includes its growth
-      currentIndex += vertices.length;
-    }
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Helper: Draw vertex index labels for a segment
-   * Shows: ALL vertices with their index numbers
-   */
-  private drawVertexIndexLabels(
-    vertices: Vec2[],
-    canvasWidth: number,
-    canvasHeight: number,
-    baseIndex: number,
-    segmentColor: string
-  ): void {
-    if (vertices.length < 1) return;
-
-    // Draw labels for ALL vertices
-    this.ctx.save();
-    this.ctx.font = '8px monospace';
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-
-    for (let i = 0; i < vertices.length; i++) {
-      const vertex = vertices[i];
-      const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
-
-      // Offset label slightly to avoid covering the vertex
-      const offsetX = 6;
-      const offsetY = -6;
-      const labelX = screen.x + offsetX;
-      const labelY = screen.y + offsetY;
-
-      // Draw text background (semi-transparent black)
-      const text = `${baseIndex + i}`;
-      const metrics = this.ctx.measureText(text);
-      const padding = 1;
-      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-      this.ctx.fillRect(
-        labelX - metrics.width / 2 - padding,
-        labelY - 4 - padding,
-        metrics.width + padding * 2,
-        8 + padding * 2
-      );
-
-      // Draw text (use segment color for visibility)
-      this.ctx.fillStyle = segmentColor;
-      this.ctx.fillText(text, labelX, labelY);
-    }
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Step 4: Draw anchor markers with colors by source
-   */
-  private drawOptMergingAnchors(
-    canvasWidth: number,
-    canvasHeight: number,
-    debugData: Step4DebugData
-  ): void {
-    const { step4Output } = debugData;
-    const { debugInfo } = step4Output;
-
-    if (!debugInfo || !debugInfo.anchors) return;
-
-    this.ctx.save();
-    this.ctx.lineWidth = 2;
-    this.ctx.globalAlpha = 1.0;
-
-    for (const anchor of debugInfo.anchors) {
-      const screen = this.camera.worldToScreen(anchor.position.x, anchor.position.y, canvasWidth, canvasHeight);
-
-      // Color by source
-      let color: string;
-      switch (anchor.source) {
-        case 'cold-opt':
-          color = '#0088FF'; // Blue
-          break;
-        case 'cold-canonical':
-          color = '#FF8800'; // Orange
-          break;
-        case 'warm-stitched':
-          color = '#00FF00'; // Green
-          break;
-      }
-
-      // Draw outer circle
-      this.ctx.strokeStyle = '#FFFFFF';
-      this.ctx.fillStyle = color;
-      this.ctx.beginPath();
-      this.ctx.arc(screen.x, screen.y, 6, 0, Math.PI * 2);
-      this.ctx.fill();
-      this.ctx.stroke();
-
-      // Draw inner dot
-      this.ctx.fillStyle = '#FFFFFF';
-      this.ctx.beginPath();
-      this.ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
-      this.ctx.fill();
-
-      // Draw label if hover is nearby
-      if (this.debugHoverWorld) {
-        const dx = this.debugHoverWorld.x - anchor.position.x;
-        const dy = this.debugHoverWorld.y - anchor.position.y;
-        const distSq = dx * dx + dy * dy;
-        if (distSq < 1.0) { // Within 1m
-          const label = `Anchor #${anchor.segmentBoundaryIndex}\n${anchor.source}`;
-          this.ctx.font = 'bold 12px monospace';
-          this.ctx.textAlign = 'left';
-          this.ctx.textBaseline = 'bottom';
-          this.ctx.strokeStyle = '#000000';
-          this.ctx.lineWidth = 3;
-          this.ctx.strokeText(label, screen.x + 10, screen.y - 10);
-          this.ctx.fillStyle = color;
-          this.ctx.fillText(label, screen.x + 10, screen.y - 10);
-        }
-      }
-    }
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Step 4: Draw segment boundary markers
-   */
-  private drawOptMergingBoundaries(
-    canvasWidth: number,
-    canvasHeight: number,
-    debugData: Step4DebugData
-  ): void {
-    const { step4Output } = debugData;
-    const { optVertices, debugInfo } = step4Output;
-
-    if (!debugInfo || !debugInfo.segmentBoundaries) return;
-
-    this.ctx.save();
-    this.ctx.strokeStyle = '#FFFFFF';
-    this.ctx.lineWidth = 2;
-    this.ctx.globalAlpha = 0.6;
-    this.ctx.setLineDash([4, 4]);
-
-    for (let i = 0; i < debugInfo.segmentBoundaries.length; i++) {
-      const boundaryIndex = debugInfo.segmentBoundaries[i];
-      if (boundaryIndex >= optVertices.length) continue;
-
-      const vertex = optVertices[boundaryIndex];
-      const screen = this.camera.worldToScreen(vertex.x, vertex.y, canvasWidth, canvasHeight);
-
-      // Draw vertical marker line
-      this.ctx.beginPath();
-      this.ctx.moveTo(screen.x, screen.y - 20);
-      this.ctx.lineTo(screen.x, screen.y + 20);
-      this.ctx.stroke();
-
-      // Draw segment index label
-      this.ctx.font = 'bold 11px monospace';
-      this.ctx.textAlign = 'center';
-      this.ctx.textBaseline = 'bottom';
-      this.ctx.setLineDash([]);
-      this.ctx.strokeStyle = '#000000';
-      this.ctx.lineWidth = 3;
-      this.ctx.strokeText(`S${i}`, screen.x, screen.y - 25);
-      this.ctx.fillStyle = '#FFFF00';
-      this.ctx.fillText(`S${i}`, screen.x, screen.y - 25);
-      this.ctx.setLineDash([4, 4]);
-      this.ctx.lineWidth = 2;
-    }
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Step 4: Draw legend explaining colors
-   */
-  private drawOptMergingLegend(canvasWidth: number, canvasHeight: number): void {
-    this.ctx.save();
-
-    const x = 20;
-    const y = canvasHeight - 180;
-    const lineHeight = 22;
-
-    // Background
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    this.ctx.fillRect(x - 10, y - 10, 280, 170);
-
-    // Border
-    this.ctx.strokeStyle = '#00FF00';
-    this.ctx.lineWidth = 2;
-    this.ctx.strokeRect(x - 10, y - 10, 280, 170);
-
-    // Title
-    this.ctx.font = 'bold 14px monospace';
-    this.ctx.fillStyle = '#00FF00';
-    this.ctx.textAlign = 'left';
-    this.ctx.textBaseline = 'top';
-    this.ctx.fillText('Step 4: Opt-Space Merging', x, y);
-
-    let currentY = y + lineHeight + 5;
-
-    // Segment colors
-    this.ctx.font = 'bold 12px monospace';
-    this.ctx.fillStyle = '#FFFFFF';
-    this.ctx.fillText('Segments:', x, currentY);
-    currentY += lineHeight;
-
-    this.ctx.fillStyle = '#FF8800';
-    this.ctx.fillText('▬ Warm (new, optimized)', x + 10, currentY);
-    currentY += lineHeight;
-
-    this.ctx.fillStyle = '#00FFFF';
-    this.ctx.fillText('▬ Cold (reused opt)', x + 10, currentY);
-    currentY += lineHeight + 5;
-
-    // Anchor colors
-    this.ctx.fillStyle = '#FFFFFF';
-    this.ctx.fillText('Anchors:', x, currentY);
-    currentY += lineHeight;
-
-    this.ctx.fillStyle = '#0088FF';
-    this.ctx.fillText('● Cold-Opt', x + 10, currentY);
-    currentY += lineHeight;
-
-    this.ctx.fillStyle = '#FF8800';
-    this.ctx.fillText('● Cold-Canonical', x + 10, currentY);
-    currentY += lineHeight;
-
-    this.ctx.fillStyle = '#00FF00';
-    this.ctx.fillText('● Warm-Stitched', x + 10, currentY);
-
-    this.ctx.restore();
-  }
-
   // ============================================================================
   // Option 2 Debug Overlays (Canonical-First Local Update)
   // ============================================================================
@@ -3123,11 +1744,13 @@ export class Renderer {
       if (!inv || inv.length === 0 || !opt || opt.length < 2) continue;
       const n = opt.length;
 
-      // Draw edges colored by invalidation membership (based on start vertex index)
+      // Draw edges colored by invalidation membership.
+      // We require BOTH endpoints to be inside the span so the red polyline terminates
+      // exactly at the start/end markers (which are vertex indices).
       for (let i = 0; i < n - 1; i++) {
         const a = opt[i];
         const b = opt[i + 1];
-        const invalid = inAnySpan(i, inv, n);
+        const invalid = inAnySpan(i, inv, n) && inAnySpan(i + 1, inv, n);
         this.ctx.strokeStyle = invalid ? '#ff3333' : '#00ffff';
         this.ctx.lineWidth = invalid ? 4 : 2.5;
         this.ctx.globalAlpha = invalid ? 0.95 : 0.75;
@@ -3371,7 +1994,8 @@ export class Renderer {
       for (let i = 0; i < n; i++) {
         const a = loop[i];
         const b = loop[(i + 1) % n];
-        const invalid = spans.length > 0 && inAnySpan(i, spans, n);
+        const next = (i + 1) % n;
+        const invalid = spans.length > 0 && inAnySpan(i, spans, n) && inAnySpan(next, spans, n);
         this.ctx.strokeStyle = invalid ? '#ff3333' : '#00ffff';
         this.ctx.lineWidth = invalid ? 4 : 2.5;
         this.ctx.globalAlpha = invalid ? 0.95 : 0.75;
