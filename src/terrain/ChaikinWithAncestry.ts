@@ -8,11 +8,18 @@ export function chaikinWithAncestry(
   vertices: OptVertex[],
   iterations: number = 1,
   ratio: number = 0.25,
-  closed: boolean = true
+  closed: boolean = true,
+  baseIndexPeriod?: number
 ): OptVertex[] {
   if (iterations <= 0 || vertices.length < 2) {
     return vertices.slice();
   }
+
+  // Canonical ancestry is stored as loop-local indices. For closed loops, the edge
+  // connecting the last vertex to the first must be treated as adjacent on a circle,
+  // not as a huge numeric jump (N-1 -> 0). We "unwrap" that seam by allowing indices
+  // to exceed N-1 and shifting the wrap endpoint by +N when needed.
+  const period = baseIndexPeriod ?? vertices.length;
 
   let working = vertices.slice();
 
@@ -24,8 +31,21 @@ export function chaikinWithAncestry(
       const a = working[i];
       const b = working[(i + 1) % working.length];
 
-      const canonStartId = Math.min(a.canonStartId, b.canonStartId);
-      const canonEndId = Math.max(a.canonEndId, b.canonEndId);
+      // Seam handling for closed loops: shift the wrap endpoint forward by +period
+      // so the ancestry union stays local rather than expanding to [0..N-1].
+      let bStart = b.canonStartId;
+      let bEnd = b.canonEndId;
+      if (closed && i === edgeCount - 1) {
+        const aStart = a.canonStartId;
+        // If b is "behind" a in the unwrapped index space, shift it forward.
+        if (bEnd < aStart) {
+          bStart += period;
+          bEnd += period;
+        }
+      }
+
+      const canonStartId = Math.min(a.canonStartId, bStart);
+      const canonEndId = Math.max(a.canonEndId, bEnd);
 
       console.assert(
         canonStartId <= canonEndId,
@@ -51,7 +71,12 @@ export function chaikinWithAncestry(
     }
 
     if (closed && result.length > 0) {
-      result.push({ ...result[0] });
+      // Keep the loop "unwrapped" by shifting the closing duplicate forward by +period.
+      result.push({
+        ...result[0],
+        canonStartId: result[0].canonStartId + period,
+        canonEndId: result[0].canonEndId + period
+      });
     }
 
     console.log(`[Chaikin] Iteration ${iter}`, {

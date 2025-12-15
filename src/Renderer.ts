@@ -15,6 +15,65 @@ export interface Step4DebugData {
 }
 
 /**
+ * Option-2 style local update preview data (canonical dirty ranges → opt invalidation).
+ *
+ * This is a debug-only structure used to visualize the canonical-first pipeline without
+ * requiring the full update to be applied yet.
+ */
+export interface CarveOption2DebugData {
+  region: { minX: number; minY: number; maxX: number; maxY: number };
+  affectedCanonicalLoopIds: number[];
+  dirtyRanges: Array<{ loopId: number; startIndex: number; endIndex: number }>;
+  optInvalidations: Array<{ loopId: number; spans: Array<{ startOpt: number; endOpt: number }> }>;
+}
+
+export interface LocalUpdateDebugData {
+  paddedAABB: { minX: number; minY: number; maxX: number; maxY: number };
+
+  affectedCanonicalLoops?: Array<{ id: number; vertices: Vec2[] }>;
+  msCleanedLoops?: Vec2[][];
+  matches?: Array<{
+    oldLoopId: number;
+    newLoopId: number | null;
+    oldCentroid: Vec2;
+    newCentroid?: Vec2;
+  }>;
+
+  surgeryPreview?: {
+    replacementLoops: Array<{ id: number; vertices: Vec2[] }>;
+  };
+
+  surgeryCommit?: {
+    replacementLoopIds: number[];
+  };
+
+  optAabbInvalidation?: {
+    optLoops: Vec2[][];
+    invalidations: Array<{ loopIndex: number; spans: Array<{ startOpt: number; endOpt: number }> }>;
+  };
+
+  optRebuild?: {
+    rebuiltOptLoops: Vec2[][];
+  };
+
+  optSplice?: {
+    splicedOptLoops: Vec2[][];
+    keptCount: number;
+    rebuiltCount: number;
+  };
+
+  physicsPlan?: {
+    affectedBodyCount: number;
+    loopsToAdd: number;
+  };
+
+  physicsApply?: {
+    removedBodyCount: number;
+    loopsAdded: number;
+  };
+}
+
+/**
  * Ball rendering data
  */
 export interface BallRenderData {
@@ -85,6 +144,9 @@ export class Renderer {
   private dirtyAABB: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
   private rebuiltChains: Vec2[][] = []; // Chains added during last local update
 
+  // Option-2 staged local-update debug data (Step 5a–5h)
+  private localUpdateDebug: LocalUpdateDebugData | null = null;
+
   // Loop patching debug info
   private loopPatchDebugInfo: Array<{
     originalLoop: Vec2[];
@@ -123,6 +185,7 @@ export class Renderer {
   private reusePlanDebug: ReusePlanDebug[] = [];
   private optMergingDebug: Step4DebugData[] = []; // Step 4: opt-space merging debug data
   private lastLoggedOptMergingId: number | null = null; // Track last logged Step 4 data to avoid spam
+  private carveOption2Debug: CarveOption2DebugData | null = null;
 
   constructor(canvas: HTMLCanvasElement, camera: Camera) {
     this.canvas = canvas;
@@ -251,6 +314,17 @@ export class Renderer {
       totalOptVertices: debugData.reduce((sum, d) => sum + d.step4Output.optVertices.length, 0),
       totalAnchors: debugData.reduce((sum, d) => sum + (d.step4Output.debugInfo?.anchorCount || 0), 0)
     });
+  }
+
+  /**
+   * Set option-2 style local update preview debug data.
+   */
+  setCarveOption2Debug(debugData: CarveOption2DebugData | null): void {
+    this.carveOption2Debug = debugData;
+  }
+
+  setLocalUpdateDebug(debugData: LocalUpdateDebugData | null): void {
+    this.localUpdateDebug = debugData;
   }
 
   getOptMergingDebug(): Step4DebugData[] {
@@ -512,6 +586,7 @@ export class Renderer {
     this.dirtyAABB = null;
     this.rebuiltChains = [];
     this.loopPatchDebugInfo = [];
+    this.localUpdateDebug = null;
   }
 
   /**
@@ -581,25 +656,6 @@ export class Renderer {
       // ========================================
       // Carving Debug Overlays (State-Based)
       // ========================================
-      // These render ON TOP of the terrain for additional debug info
-      if (this._carvingDebugMode === CarvingDebugMode.REUSE_PLAN) {
-        // Step 3: Show reuse plan (warm vs cold segments)
-        if (this.stitchedSegmentations.length > 0) {
-          this.drawStitchedSegmentClassifications(width, height);
-        } else if (this.segmentOptVerticesDebug.length > 0) {
-          this.drawSegmentOptVertices(width, height);
-        }
-      } else if (this.showReusePreview) {
-        // Legacy preview (deprecated - kept for compatibility)
-        this.drawReusePreview(width, height);
-      }
-
-      if (this._carvingDebugMode === CarvingDebugMode.OPT_MERGING) {
-        // Step 4: Show opt-space merging overlay
-        if (this.optMergingDebug.length > 0) {
-          this.drawOptMergingOverlay(width, height);
-        }
-      }
 
       // Draw physics bodies (debugging) - use custom debug draw
       if (this.showPhysicsBodies && physicsDebugDraw) {
@@ -676,33 +732,63 @@ export class Renderer {
         playerDebugDraw(this.ctx, width, height);
       }
 
-      // ========================================
-      // Carving Debug Visualization (State-Based Rendering)
-      // ========================================
-      // Only one debug mode renders at a time to prevent overlaps
       switch (this._carvingDebugMode) {
-        case CarvingDebugMode.CARVED_LOOPS:
-          // Step 1: Show raw carved loops from marching squares
-          if (carvedLoops && carvedLoops.length > 0) {
-            this.drawCarvedLoops(width, height, carvedLoops, carveRegion);
-          }
+        case CarvingDebugMode.DIRTY_AABB:
+          this.drawOption2Legend(width, height, 'Step 1: Dirty AABB', [
+            'Yellow dashed box = dirty region',
+            'Stamp brush creates this region'
+          ]);
           break;
 
-        case CarvingDebugMode.STITCHED_LOOPS:
-          // Step 2: Show stitched canonical loops (replaces step 1)
-          if (stitchedLoops && stitchedLoops.length > 0) {
-            this.drawStitchedCanonicalLoops(width, height, stitchedLoops);
-          }
+        case CarvingDebugMode.CANONICAL_AFFECTED:
+          this.drawCanonicalAffectedOverlay(width, height);
           break;
 
-        case CarvingDebugMode.REUSE_PLAN:
-          // Step 3: Show reuse plan visualization
-          // (Handled by showReusePlan flag for now - to be refactored)
+        case CarvingDebugMode.CANONICAL_DIRTY_RANGES:
+          this.drawCanonicalDirtyRangesOverlay(width, height);
           break;
 
-        case CarvingDebugMode.OPT_MERGING:
-          // Step 4: Show opt-space merging
-          // (Handled separately below via drawOptMergingOverlay)
+        case CarvingDebugMode.OPT_INVALIDATION:
+          this.drawOptInvalidationOverlay(width, height);
+          break;
+
+        case CarvingDebugMode.LOCAL_MS_MATCH:
+          this.drawLocalMsMatchOverlay(width, height);
+          break;
+
+        case CarvingDebugMode.LOCAL_CANON_SURGERY_PREVIEW:
+          this.drawLocalCanonSurgeryPreviewOverlay(width, height);
+          break;
+
+        case CarvingDebugMode.LOCAL_CANON_SURGERY_COMMIT:
+          this.drawLocalCanonSurgeryCommitOverlay(width, height);
+          break;
+
+        case CarvingDebugMode.LOCAL_OPT_AABB_INVALIDATION:
+          this.drawLocalOptAabbInvalidationOverlay(width, height);
+          break;
+
+        case CarvingDebugMode.LOCAL_OPT_REBUILD:
+          this.drawLocalOptRebuildOverlay(width, height);
+          break;
+
+        case CarvingDebugMode.LOCAL_OPT_SPLICE_VALIDATE:
+          this.drawLocalOptSpliceOverlay(width, height);
+          break;
+
+        case CarvingDebugMode.LOCAL_PHYSICS_PLAN:
+          this.drawLocalPhysicsPlanOverlay(width, height);
+          break;
+
+        case CarvingDebugMode.LOCAL_PHYSICS_APPLY:
+          this.drawLocalPhysicsApplyOverlay(width, height);
+          break;
+
+        case CarvingDebugMode.SEGMENT_DEBUG:
+          this.drawOption2Legend(width, height, 'Step 6: Segment Debug', [
+            'Enable segment debug overlay',
+            'Inspect updated physics segments'
+          ]);
           break;
 
         case CarvingDebugMode.NONE:
@@ -2827,5 +2913,601 @@ export class Renderer {
     this.ctx.fillText('● Warm-Stitched', x + 10, currentY);
 
     this.ctx.restore();
+  }
+
+  // ============================================================================
+  // Option 2 Debug Overlays (Canonical-First Local Update)
+  // ============================================================================
+
+  private drawOption2Legend(
+    canvasWidth: number,
+    canvasHeight: number,
+    title: string,
+    lines: string[]
+  ): void {
+    this.ctx.save();
+    const width = 360;
+    const x = Math.max(20, Math.floor((canvasWidth - width) / 2));
+    const y = 20;
+    const lineHeight = 18;
+    const height = 18 + (lines.length + 1) * lineHeight + 16;
+
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    this.ctx.fillRect(x - 10, y - 10, width, height);
+    this.ctx.strokeStyle = '#00ff00';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(x - 10, y - 10, width, height);
+
+    this.ctx.font = 'bold 14px monospace';
+    this.ctx.fillStyle = '#00ff00';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'top';
+    this.ctx.fillText(title, x, y);
+
+    this.ctx.font = '12px monospace';
+    this.ctx.fillStyle = '#ffffff';
+    let cy = y + lineHeight + 6;
+    for (const line of lines) {
+      this.ctx.fillText(`- ${line}`, x, cy);
+      cy += lineHeight;
+    }
+
+    this.ctx.restore();
+  }
+
+  private drawCanonicalAffectedOverlay(canvasWidth: number, canvasHeight: number): void {
+    if (!this.carveOption2Debug || this.canonicalLoops.length === 0) return;
+
+    const affected = new Set(this.carveOption2Debug.affectedCanonicalLoopIds);
+
+    this.ctx.save();
+    this.ctx.lineWidth = 3;
+    this.ctx.globalAlpha = 1.0;
+
+    for (const loop of this.canonicalLoops) {
+      const verts = loop.vertices;
+      if (!verts || verts.length < 2) continue;
+
+      const isAffected = affected.has(loop.id);
+      this.ctx.strokeStyle = isAffected ? '#ff00ff' : 'rgba(255,255,255,0.25)';
+      this.ctx.lineWidth = isAffected ? 4 : 2;
+      this.ctx.globalAlpha = isAffected ? 0.95 : 0.35;
+
+      const first = this.camera.worldToScreen(verts[0].x, verts[0].y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.moveTo(first.x, first.y);
+      for (let i = 1; i < verts.length; i++) {
+        const s = this.camera.worldToScreen(verts[i].x, verts[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(s.x, s.y);
+      }
+      this.ctx.stroke();
+
+      if (isAffected) {
+        this.ctx.font = 'bold 12px monospace';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'top';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeStyle = '#000000';
+        this.ctx.strokeText(`canon#${loop.id}`, first.x + 8, first.y + 8);
+        this.ctx.fillStyle = '#ff00ff';
+        this.ctx.fillText(`canon#${loop.id}`, first.x + 8, first.y + 8);
+      }
+    }
+
+    this.ctx.restore();
+    this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 2: Canonical Affected', [
+      'Magenta = affected canonical loops',
+      'Use this set for local updates'
+    ]);
+  }
+
+  private drawCanonicalDirtyRangesOverlay(canvasWidth: number, canvasHeight: number): void {
+    if (!this.carveOption2Debug || this.canonicalLoops.length === 0) return;
+    const ranges = this.carveOption2Debug.dirtyRanges;
+    if (ranges.length === 0) {
+      this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 3: Canonical Dirty Ranges', [
+        'No dirty ranges computed'
+      ]);
+      return;
+    }
+
+    const rangeMap = new Map<number, Array<{ startIndex: number; endIndex: number }>>();
+    for (const r of ranges) {
+      const arr = rangeMap.get(r.loopId) ?? [];
+      arr.push({ startIndex: r.startIndex, endIndex: r.endIndex });
+      rangeMap.set(r.loopId, arr);
+    }
+
+    this.ctx.save();
+
+    for (const loop of this.canonicalLoops) {
+      const verts = loop.vertices;
+      if (!verts || verts.length < 2) continue;
+
+      const loopRanges = rangeMap.get(loop.id);
+      if (!loopRanges || loopRanges.length === 0) continue;
+
+      // Draw full loop faintly
+      this.ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      this.ctx.lineWidth = 2;
+      this.ctx.globalAlpha = 0.5;
+      const first = this.camera.worldToScreen(verts[0].x, verts[0].y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.moveTo(first.x, first.y);
+      for (let i = 1; i < verts.length; i++) {
+        const s = this.camera.worldToScreen(verts[i].x, verts[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(s.x, s.y);
+      }
+      this.ctx.stroke();
+
+      // Draw dirty spans
+      const drawSpan = (start: number, end: number) => {
+        if (end - start < 1) return;
+        const s0 = this.camera.worldToScreen(verts[start].x, verts[start].y, canvasWidth, canvasHeight);
+        this.ctx.beginPath();
+        this.ctx.moveTo(s0.x, s0.y);
+        for (let i = start + 1; i <= end; i++) {
+          const si = this.camera.worldToScreen(verts[i].x, verts[i].y, canvasWidth, canvasHeight);
+          this.ctx.lineTo(si.x, si.y);
+        }
+        this.ctx.stroke();
+      };
+
+      this.ctx.strokeStyle = '#ff00ff';
+      this.ctx.lineWidth = 5;
+      this.ctx.globalAlpha = 0.9;
+      for (const { startIndex, endIndex } of loopRanges) {
+        if (startIndex <= endIndex) {
+          drawSpan(startIndex, endIndex);
+        } else {
+          drawSpan(startIndex, verts.length - 1);
+          drawSpan(0, endIndex);
+        }
+
+        // Mark boundaries
+        const startPt = this.camera.worldToScreen(verts[startIndex].x, verts[startIndex].y, canvasWidth, canvasHeight);
+        const endPt = this.camera.worldToScreen(verts[endIndex].x, verts[endIndex].y, canvasWidth, canvasHeight);
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.beginPath();
+        this.ctx.arc(startPt.x, startPt.y, 5, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.fillStyle = '#ffff00';
+        this.ctx.beginPath();
+        this.ctx.arc(endPt.x, endPt.y, 5, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+    }
+
+    this.ctx.restore();
+    this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 3: Canonical Dirty Ranges', [
+      'Magenta = dirty canonical span',
+      'Green = start, Yellow = end'
+    ]);
+  }
+
+  private drawOptInvalidationOverlay(canvasWidth: number, canvasHeight: number): void {
+    if (!this.carveOption2Debug || this.canonicalLoops.length === 0) return;
+    const invalidations = this.carveOption2Debug.optInvalidations;
+    if (invalidations.length === 0) {
+      this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 4: Opt Invalidation', [
+        'No opt invalidations computed (missing optVertices?)'
+      ]);
+      return;
+    }
+
+    const invMap = new Map<number, Array<{ startOpt: number; endOpt: number }>>();
+    for (const inv of invalidations) invMap.set(inv.loopId, inv.spans);
+
+    const inAnySpan = (i: number, spans: Array<{ startOpt: number; endOpt: number }>, n: number): boolean => {
+      if (n <= 0) return false;
+      for (const s of spans) {
+        const start = s.startOpt;
+        const end = s.endOpt;
+        if (start < 0 || end < 0) continue;
+        if (start <= end) {
+          if (start <= i && i <= end) return true;
+        } else {
+          // wrap span
+          if (i >= start || i <= end) return true;
+        }
+      }
+      return false;
+    };
+
+    this.ctx.save();
+    this.ctx.globalAlpha = 1.0;
+
+    for (const loop of this.canonicalLoops) {
+      const inv = invMap.get(loop.id);
+      const opt = loop.optVertices;
+      if (!inv || inv.length === 0 || !opt || opt.length < 2) continue;
+      const n = opt.length;
+
+      // Draw edges colored by invalidation membership (based on start vertex index)
+      for (let i = 0; i < n - 1; i++) {
+        const a = opt[i];
+        const b = opt[i + 1];
+        const invalid = inAnySpan(i, inv, n);
+        this.ctx.strokeStyle = invalid ? '#ff3333' : '#00ffff';
+        this.ctx.lineWidth = invalid ? 4 : 2.5;
+        this.ctx.globalAlpha = invalid ? 0.95 : 0.75;
+        this.ctx.beginPath();
+        const sa = this.camera.worldToScreen(a.x, a.y, canvasWidth, canvasHeight);
+        const sb = this.camera.worldToScreen(b.x, b.y, canvasWidth, canvasHeight);
+        this.ctx.moveTo(sa.x, sa.y);
+        this.ctx.lineTo(sb.x, sb.y);
+        this.ctx.stroke();
+      }
+
+      // Mark removal boundaries
+      for (const span of inv) {
+        const { startOpt, endOpt } = span;
+        if (startOpt >= 0 && startOpt < n) {
+          const v = opt[startOpt];
+          const s = this.camera.worldToScreen(v.x, v.y, canvasWidth, canvasHeight);
+          this.ctx.fillStyle = '#00ff00';
+          this.ctx.beginPath();
+          this.ctx.arc(s.x, s.y, 5, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+        if (endOpt >= 0 && endOpt < n) {
+          const v = opt[endOpt];
+          const s = this.camera.worldToScreen(v.x, v.y, canvasWidth, canvasHeight);
+          this.ctx.fillStyle = '#ffff00';
+          this.ctx.beginPath();
+          this.ctx.arc(s.x, s.y, 5, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+      }
+    }
+
+    this.ctx.restore();
+    this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 4: Opt Invalidation', [
+      'Cyan = reused opt vertices',
+      'Red = invalidated span',
+      'Green/Yellow = removal start/end'
+    ]);
+  }
+
+  private drawLocalMsMatchOverlay(canvasWidth: number, canvasHeight: number): void {
+    const data = this.localUpdateDebug;
+    if (!data) {
+      this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5a: MS Loops + Matching', [
+        'No local-update session (stamp carve first)'
+      ]);
+      return;
+    }
+
+    this.ctx.save();
+
+    // Draw cleaned MS loops (green)
+    if (data.msCleanedLoops && data.msCleanedLoops.length > 0) {
+      this.ctx.strokeStyle = '#00ff00';
+      this.ctx.lineWidth = 3;
+      this.ctx.globalAlpha = 0.9;
+      for (const loop of data.msCleanedLoops) {
+        if (loop.length < 2) continue;
+        const first = this.camera.worldToScreen(loop[0].x, loop[0].y, canvasWidth, canvasHeight);
+        this.ctx.beginPath();
+        this.ctx.moveTo(first.x, first.y);
+        for (let i = 1; i < loop.length; i++) {
+          const s = this.camera.worldToScreen(loop[i].x, loop[i].y, canvasWidth, canvasHeight);
+          this.ctx.lineTo(s.x, s.y);
+        }
+        this.ctx.stroke();
+      }
+    }
+
+    // Draw affected old canonical loops (magenta)
+    if (data.affectedCanonicalLoops && data.affectedCanonicalLoops.length > 0) {
+      this.ctx.strokeStyle = '#ff00ff';
+      this.ctx.lineWidth = 4;
+      this.ctx.globalAlpha = 0.8;
+      for (const loop of data.affectedCanonicalLoops) {
+        if (loop.vertices.length < 2) continue;
+        const first = this.camera.worldToScreen(loop.vertices[0].x, loop.vertices[0].y, canvasWidth, canvasHeight);
+        this.ctx.beginPath();
+        this.ctx.moveTo(first.x, first.y);
+        for (let i = 1; i < loop.vertices.length; i++) {
+          const s = this.camera.worldToScreen(loop.vertices[i].x, loop.vertices[i].y, canvasWidth, canvasHeight);
+          this.ctx.lineTo(s.x, s.y);
+        }
+        this.ctx.stroke();
+      }
+    }
+
+    // Draw match lines (white)
+    if (data.matches && data.matches.length > 0) {
+      this.ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      this.ctx.lineWidth = 2;
+      this.ctx.globalAlpha = 1.0;
+      for (const m of data.matches) {
+        if (!m.newCentroid) continue;
+        const a = this.camera.worldToScreen(m.oldCentroid.x, m.oldCentroid.y, canvasWidth, canvasHeight);
+        const b = this.camera.worldToScreen(m.newCentroid.x, m.newCentroid.y, canvasWidth, canvasHeight);
+        this.ctx.beginPath();
+        this.ctx.moveTo(a.x, a.y);
+        this.ctx.lineTo(b.x, b.y);
+        this.ctx.stroke();
+      }
+    }
+
+    this.ctx.restore();
+
+    this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5a: MS Loops + Matching', [
+      'Green = cleaned MS loops (padded region)',
+      'Magenta = affected canonical loops',
+      'White lines = match old→new (centroids)'
+    ]);
+  }
+
+  private drawLocalCanonSurgeryPreviewOverlay(canvasWidth: number, canvasHeight: number): void {
+    const data = this.localUpdateDebug;
+    if (!data || !data.surgeryPreview) {
+      this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5b: Canon Surgery Preview', [
+        'No surgery preview (advance from Step 5a)'
+      ]);
+      return;
+    }
+
+    this.ctx.save();
+
+    // Old affected loops (faint red)
+    if (data.affectedCanonicalLoops && data.affectedCanonicalLoops.length > 0) {
+      this.ctx.strokeStyle = 'rgba(255,50,50,0.7)';
+      this.ctx.lineWidth = 3;
+      this.ctx.globalAlpha = 0.65;
+      for (const loop of data.affectedCanonicalLoops) {
+        if (loop.vertices.length < 2) continue;
+        const first = this.camera.worldToScreen(loop.vertices[0].x, loop.vertices[0].y, canvasWidth, canvasHeight);
+        this.ctx.beginPath();
+        this.ctx.moveTo(first.x, first.y);
+        for (let i = 1; i < loop.vertices.length; i++) {
+          const s = this.camera.worldToScreen(loop.vertices[i].x, loop.vertices[i].y, canvasWidth, canvasHeight);
+          this.ctx.lineTo(s.x, s.y);
+        }
+        this.ctx.stroke();
+      }
+    }
+
+    // Replacement preview loops (green)
+    this.ctx.strokeStyle = '#00ff00';
+    this.ctx.lineWidth = 4;
+    this.ctx.globalAlpha = 0.95;
+    for (const loop of data.surgeryPreview.replacementLoops) {
+      if (loop.vertices.length < 2) continue;
+      const first = this.camera.worldToScreen(loop.vertices[0].x, loop.vertices[0].y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.moveTo(first.x, first.y);
+      for (let i = 1; i < loop.vertices.length; i++) {
+        const s = this.camera.worldToScreen(loop.vertices[i].x, loop.vertices[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(s.x, s.y);
+      }
+      this.ctx.stroke();
+    }
+
+    this.ctx.restore();
+    this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5b: Canon Surgery Preview', [
+      'Green = canonical after surgery (preview)',
+      'Red = current canonical (pre-commit)'
+    ]);
+  }
+
+  private drawLocalCanonSurgeryCommitOverlay(canvasWidth: number, canvasHeight: number): void {
+    const data = this.localUpdateDebug;
+    if (!data || !data.surgeryCommit) {
+      this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5c: Commit Canon Surgery', [
+        'No commit info (advance from Step 5b)'
+      ]);
+      return;
+    }
+
+    const highlightIds = new Set(data.surgeryCommit.replacementLoopIds);
+
+    this.ctx.save();
+    this.ctx.strokeStyle = '#00ff00';
+    this.ctx.lineWidth = 4;
+    this.ctx.globalAlpha = 0.95;
+
+    for (const loop of this.canonicalLoops) {
+      if (!highlightIds.has(loop.id) || loop.vertices.length < 2) continue;
+      const first = this.camera.worldToScreen(loop.vertices[0].x, loop.vertices[0].y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.moveTo(first.x, first.y);
+      for (let i = 1; i < loop.vertices.length; i++) {
+        const s = this.camera.worldToScreen(loop.vertices[i].x, loop.vertices[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(s.x, s.y);
+      }
+      this.ctx.stroke();
+    }
+
+    this.ctx.restore();
+    this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5c: Commit Canon Surgery', [
+      'Canonical layer mutated',
+      'Green highlight = replacement loops'
+    ]);
+  }
+
+  private drawLocalOptAabbInvalidationOverlay(canvasWidth: number, canvasHeight: number): void {
+    const data = this.localUpdateDebug;
+    const inv = data?.optAabbInvalidation;
+    if (!data || !inv) {
+      this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5d: Opt Invalidation (AABB)', [
+        'No opt invalidation info (advance from Step 5c)'
+      ]);
+      return;
+    }
+
+    const invMap = new Map<number, Array<{ startOpt: number; endOpt: number }>>();
+    for (const entry of inv.invalidations) {
+      invMap.set(entry.loopIndex, entry.spans);
+    }
+
+    const inAnySpan = (i: number, spans: Array<{ startOpt: number; endOpt: number }>, n: number): boolean => {
+      if (n <= 0) return false;
+      for (const s of spans) {
+        const start = s.startOpt;
+        const end = s.endOpt;
+        if (start < 0 || end < 0) continue;
+        if (start <= end) {
+          if (start <= i && i <= end) return true;
+        } else {
+          // wrap span
+          if (i >= start || i <= end) return true;
+        }
+      }
+      return false;
+    };
+
+    this.ctx.save();
+    this.ctx.globalAlpha = 1.0;
+
+    for (let li = 0; li < inv.optLoops.length; li++) {
+      const loop = inv.optLoops[li];
+      if (loop.length < 2) continue;
+      const spans = invMap.get(li) ?? [];
+      const n = loop.length;
+
+      for (let i = 0; i < n; i++) {
+        const a = loop[i];
+        const b = loop[(i + 1) % n];
+        const invalid = spans.length > 0 && inAnySpan(i, spans, n);
+        this.ctx.strokeStyle = invalid ? '#ff3333' : '#00ffff';
+        this.ctx.lineWidth = invalid ? 4 : 2.5;
+        this.ctx.globalAlpha = invalid ? 0.95 : 0.75;
+        const sa = this.camera.worldToScreen(a.x, a.y, canvasWidth, canvasHeight);
+        const sb = this.camera.worldToScreen(b.x, b.y, canvasWidth, canvasHeight);
+        this.ctx.beginPath();
+        this.ctx.moveTo(sa.x, sa.y);
+        this.ctx.lineTo(sb.x, sb.y);
+        this.ctx.stroke();
+      }
+
+      // Mark span boundaries
+      for (const span of spans) {
+        const { startOpt, endOpt } = span;
+        if (startOpt >= 0 && startOpt < n) {
+          const v = loop[startOpt];
+          const s = this.camera.worldToScreen(v.x, v.y, canvasWidth, canvasHeight);
+          this.ctx.fillStyle = '#00ff00';
+          this.ctx.beginPath();
+          this.ctx.arc(s.x, s.y, 5, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+        if (endOpt >= 0 && endOpt < n) {
+          const v = loop[endOpt];
+          const s = this.camera.worldToScreen(v.x, v.y, canvasWidth, canvasHeight);
+          this.ctx.fillStyle = '#ffff00';
+          this.ctx.beginPath();
+          this.ctx.arc(s.x, s.y, 5, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+      }
+    }
+    this.ctx.restore();
+
+    this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5d: Opt Invalidation (AABB)', [
+      'Cyan = reused opt edges',
+      'Red = opt span touching padded region',
+      'Green/Yellow = span start/end'
+    ]);
+  }
+
+  private drawLocalOptRebuildOverlay(canvasWidth: number, canvasHeight: number): void {
+    const data = this.localUpdateDebug;
+    const rebuilt = data?.optRebuild?.rebuiltOptLoops;
+    if (!data || !rebuilt) {
+      this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5e: Opt Rebuild', [
+        'No rebuilt opt loops (advance from Step 5d)'
+      ]);
+      return;
+    }
+
+    this.ctx.save();
+    this.ctx.strokeStyle = '#00ff00';
+    this.ctx.lineWidth = 3.5;
+    this.ctx.globalAlpha = 0.95;
+    for (const loop of rebuilt) {
+      if (loop.length < 2) continue;
+      const first = this.camera.worldToScreen(loop[0].x, loop[0].y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.moveTo(first.x, first.y);
+      for (let i = 1; i < loop.length; i++) {
+        const s = this.camera.worldToScreen(loop[i].x, loop[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(s.x, s.y);
+      }
+      this.ctx.stroke();
+    }
+    this.ctx.restore();
+
+    this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5e: Opt Rebuild', [
+      'Green = rebuilt opt loops (for replacements)'
+    ]);
+  }
+
+  private drawLocalOptSpliceOverlay(canvasWidth: number, canvasHeight: number): void {
+    const data = this.localUpdateDebug;
+    const spliced = data?.optSplice;
+    if (!data || !spliced) {
+      this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5f: Opt Splice + Validate', [
+        'No splice info (advance from Step 5e)'
+      ]);
+      return;
+    }
+
+    this.ctx.save();
+    this.ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    this.ctx.lineWidth = 2;
+    this.ctx.globalAlpha = 0.55;
+    for (const loop of spliced.splicedOptLoops) {
+      if (loop.length < 2) continue;
+      const first = this.camera.worldToScreen(loop[0].x, loop[0].y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.moveTo(first.x, first.y);
+      for (let i = 1; i < loop.length; i++) {
+        const s = this.camera.worldToScreen(loop[i].x, loop[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(s.x, s.y);
+      }
+      this.ctx.stroke();
+    }
+    this.ctx.restore();
+
+    this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5f: Opt Splice + Validate', [
+      `Opt sets: base=${spliced.keptCount}, rebuiltInputs=${spliced.rebuiltCount}`
+    ]);
+  }
+
+  private drawLocalPhysicsPlanOverlay(canvasWidth: number, canvasHeight: number): void {
+    const data = this.localUpdateDebug;
+    const plan = data?.physicsPlan;
+    if (!data || !plan) {
+      this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5g: Physics Plan', [
+        'No physics plan (advance from Step 5f)'
+      ]);
+      return;
+    }
+
+    this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5g: Physics Plan', [
+      `Bodies in region: ${plan.affectedBodyCount}`,
+      `Loops to add: ${plan.loopsToAdd}`,
+      'Next step removes bodies in AABB and adds replacements'
+    ]);
+  }
+
+  private drawLocalPhysicsApplyOverlay(canvasWidth: number, canvasHeight: number): void {
+    const data = this.localUpdateDebug;
+    const applied = data?.physicsApply;
+    if (!data || !applied) {
+      this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5h: Apply Physics', [
+        'No apply result (advance from Step 5g)'
+      ]);
+      return;
+    }
+
+    this.drawOption2Legend(canvasWidth, canvasHeight, 'Step 5h: Apply Physics', [
+      `Removed bodies: ${applied.removedBodyCount}`,
+      `Added loops: ${applied.loopsAdded}`,
+      'Dirty region cleared; segment debug available next'
+    ]);
   }
 }

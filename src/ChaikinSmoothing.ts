@@ -2,6 +2,13 @@ import type { Point } from './types';
 import type { OptVertex, CanonicalVertex, VertexId } from './terrain/CanonicalGeometry';
 import { chaikinWithAncestry } from './terrain/ChaikinWithAncestry';
 
+function isClosedByPosition(points: Array<{ x: number; y: number }>): boolean {
+  if (points.length < 3) return false;
+  const first = points[0];
+  const last = points[points.length - 1];
+  return Math.hypot(first.x - last.x, first.y - last.y) < 1e-6;
+}
+
 /**
  * Chaikin smoothing with ancestry initialization convenience wrapper.
  * Returns OptVertex[] carrying canonStartId/canonEndId.
@@ -15,8 +22,12 @@ export function chaikinSmooth(
   ratio: number = 0.25,
   closed: boolean = true
 ): OptVertex[] {
-  const withAncestry = points.map((p, i) => {
-    const id = 'id' in p ? p.id : (i as VertexId);
+  const base = points.map((p) => ({ x: p.x, y: p.y }));
+  const closedByPos = closed && isClosedByPosition(base);
+  const unique = closedByPos ? base.slice(0, -1) : base;
+
+  const withAncestry = unique.map((p, i) => {
+    const id = i as VertexId;
     return {
       x: p.x,
       y: p.y,
@@ -25,7 +36,7 @@ export function chaikinSmooth(
     };
   });
 
-  return chaikinWithAncestry(withAncestry, 1, ratio, closed);
+  return chaikinWithAncestry(withAncestry, 1, ratio, closed, unique.length);
 }
 
 /**
@@ -42,8 +53,12 @@ export function chaikinSmoothMultiple(
   ratio: number = 0.25,
   closed: boolean = true
 ): OptVertex[] {
-  const withAncestry = points.map((p, i) => {
-    const id = 'id' in p ? p.id : (i as VertexId);
+  const base = points.map((p) => ({ x: p.x, y: p.y }));
+  const closedByPos = closed && isClosedByPosition(base);
+  const unique = closedByPos ? base.slice(0, -1) : base;
+
+  const withAncestry = unique.map((p, i) => {
+    const id = i as VertexId;
     return {
       x: p.x,
       y: p.y,
@@ -52,5 +67,5 @@ export function chaikinSmoothMultiple(
     };
   });
 
-  return chaikinWithAncestry(withAncestry, iterations, ratio, closed);
+  return chaikinWithAncestry(withAncestry, iterations, ratio, closed, unique.length);
 }

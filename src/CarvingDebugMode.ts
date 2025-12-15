@@ -9,7 +9,10 @@
  * Debug visualization modes for the carving pipeline.
  *
  * Step progression:
- * NONE → CARVED_LOOPS → STITCHED_LOOPS → REUSE_PLAN → OPT_MERGING → WARM_OPTIMIZATION → NONE (cycles back)
+ * NONE → DIRTY_AABB → CANONICAL_AFFECTED → CANONICAL_DIRTY_RANGES → OPT_INVALIDATION
+ *     → LOCAL_MS_MATCH → LOCAL_CANON_SURGERY_PREVIEW → LOCAL_CANON_SURGERY_COMMIT
+ *     → LOCAL_OPT_AABB_INVALIDATION → LOCAL_OPT_REBUILD → LOCAL_OPT_SPLICE_VALIDATE
+ *     → LOCAL_PHYSICS_PLAN → LOCAL_PHYSICS_APPLY → SEGMENT_DEBUG → NONE (cycles back)
  */
 export enum CarvingDebugMode {
   /**
@@ -19,44 +22,83 @@ export enum CarvingDebugMode {
   NONE = 'none',
 
   /**
-   * Step 1: Show raw carved loops from marching squares
-   * - Displays newly carved terrain fragments
-   * - Shows carve region boundary
+   * Step 1: Dirty region AABB
+   * - Shows the dirty AABB produced by stamping the carve brush
    */
-  CARVED_LOOPS = 'carved_loops',
+  DIRTY_AABB = 'dirty_aabb',
 
   /**
-   * Step 2: Show stitched canonical loops
-   * - Displays how carved loops are stitched to existing canonical geometry
-   * - Shows segment boundaries with ancestry markers
-   * - Replaces Step 1 visualization
+   * Step 2: Canonical loops affected by dirty region
+   * - Highlights which canonical loops intersect the dirty AABB
    */
-  STITCHED_LOOPS = 'stitched_loops',
+  CANONICAL_AFFECTED = 'canonical_affected',
 
   /**
-   * Step 3: Show reuse plan (segment classification)
-   * - Displays warm (new) vs cold (reused) segment classification
-   * - Shows canonical vertex ancestry for cold segments
-   * - Highlights which geometry can be reused
+   * Step 3: Dirty canonical index ranges (per affected loop)
+   * - Visualizes which canonical vertex indices are considered dirty
    */
-  REUSE_PLAN = 'reuse_plan',
+  CANONICAL_DIRTY_RANGES = 'canonical_dirty_ranges',
 
   /**
-   * Step 4: Show opt-space merging (before optimization)
-   * - Displays merged loops with boundary vertices
-   * - Shows warm (rebuilt) vs cold (reused) segments
-   * - Visualizes segment boundaries in opt space
-   * - Warm segments NOT YET optimized
+   * Step 4: Opt-vertex invalidation preview
+   * - Shows which opt vertices would be invalidated/rebuilt based on dirty canonical ranges
    */
-  OPT_MERGING = 'opt_merging',
+  OPT_INVALIDATION = 'opt_invalidation',
 
   /**
-   * Step 5: Show warm segment optimization
-   * - Displays Chaikin smoothing + post-simplification
-   * - Shows optimized warm segments with fixed boundaries
-   * - Final step before physics integration
+   * Step 5a: Marching-squares loops + matching plan
+   * - Shows cleaned MS loops in the padded dirty region
+   * - Shows how new loops match affected canonical loops
    */
-  WARM_OPTIMIZATION = 'warm_optimization'
+  LOCAL_MS_MATCH = 'local_ms_match',
+
+  /**
+   * Step 5b: Canonical surgery preview (no mutation)
+   * - Shows would-be replacements for affected canonical loops
+   */
+  LOCAL_CANON_SURGERY_PREVIEW = 'local_canon_surgery_preview',
+
+  /**
+   * Step 5c: Commit canonical surgery
+   * - Mutates canonical loops (read-only layer) to reflect the local update
+   */
+  LOCAL_CANON_SURGERY_COMMIT = 'local_canon_surgery_commit',
+
+  /**
+   * Step 5d: Opt-layer invalidation (AABB-based)
+   * - Marks which existing opt loops intersect the padded dirty region
+   */
+  LOCAL_OPT_AABB_INVALIDATION = 'local_opt_aabb_invalidation',
+
+  /**
+   * Step 5e: Rebuild opt loops for replacements
+   * - Runs the optimization pipeline for replacement canonical loops
+   */
+  LOCAL_OPT_REBUILD = 'local_opt_rebuild',
+
+  /**
+   * Step 5f: Splice rebuilt opt loops into global opt set
+   * - Drops invalidated opt loops, appends rebuilt loops, validates
+   */
+  LOCAL_OPT_SPLICE_VALIDATE = 'local_opt_splice_validate',
+
+  /**
+   * Step 5g: Physics update plan
+   * - Shows what will be removed/added in physics
+   */
+  LOCAL_PHYSICS_PLAN = 'local_physics_plan',
+
+  /**
+   * Step 5h: Apply physics update
+   * - Applies region removal + adds replacement loops and refreshes rendering
+   */
+  LOCAL_PHYSICS_APPLY = 'local_physics_apply',
+
+  /**
+   * Step 6: Segment debug (after local update)
+   * - Highlights physics segments and their canonical ranges
+   */
+  SEGMENT_DEBUG = 'segment_debug',
 }
 
 /**
@@ -68,16 +110,32 @@ export enum CarvingDebugMode {
 export function nextCarvingDebugMode(current: CarvingDebugMode): CarvingDebugMode {
   switch (current) {
     case CarvingDebugMode.NONE:
-      return CarvingDebugMode.CARVED_LOOPS;
-    case CarvingDebugMode.CARVED_LOOPS:
-      return CarvingDebugMode.STITCHED_LOOPS;
-    case CarvingDebugMode.STITCHED_LOOPS:
-      return CarvingDebugMode.REUSE_PLAN;
-    case CarvingDebugMode.REUSE_PLAN:
-      return CarvingDebugMode.OPT_MERGING;
-    case CarvingDebugMode.OPT_MERGING:
-      return CarvingDebugMode.WARM_OPTIMIZATION;
-    case CarvingDebugMode.WARM_OPTIMIZATION:
+      return CarvingDebugMode.DIRTY_AABB;
+    case CarvingDebugMode.DIRTY_AABB:
+      return CarvingDebugMode.CANONICAL_AFFECTED;
+    case CarvingDebugMode.CANONICAL_AFFECTED:
+      return CarvingDebugMode.CANONICAL_DIRTY_RANGES;
+    case CarvingDebugMode.CANONICAL_DIRTY_RANGES:
+      return CarvingDebugMode.OPT_INVALIDATION;
+    case CarvingDebugMode.OPT_INVALIDATION:
+      return CarvingDebugMode.LOCAL_MS_MATCH;
+    case CarvingDebugMode.LOCAL_MS_MATCH:
+      return CarvingDebugMode.LOCAL_CANON_SURGERY_PREVIEW;
+    case CarvingDebugMode.LOCAL_CANON_SURGERY_PREVIEW:
+      return CarvingDebugMode.LOCAL_CANON_SURGERY_COMMIT;
+    case CarvingDebugMode.LOCAL_CANON_SURGERY_COMMIT:
+      return CarvingDebugMode.LOCAL_OPT_AABB_INVALIDATION;
+    case CarvingDebugMode.LOCAL_OPT_AABB_INVALIDATION:
+      return CarvingDebugMode.LOCAL_OPT_REBUILD;
+    case CarvingDebugMode.LOCAL_OPT_REBUILD:
+      return CarvingDebugMode.LOCAL_OPT_SPLICE_VALIDATE;
+    case CarvingDebugMode.LOCAL_OPT_SPLICE_VALIDATE:
+      return CarvingDebugMode.LOCAL_PHYSICS_PLAN;
+    case CarvingDebugMode.LOCAL_PHYSICS_PLAN:
+      return CarvingDebugMode.LOCAL_PHYSICS_APPLY;
+    case CarvingDebugMode.LOCAL_PHYSICS_APPLY:
+      return CarvingDebugMode.SEGMENT_DEBUG;
+    case CarvingDebugMode.SEGMENT_DEBUG:
       return CarvingDebugMode.NONE;
     default:
       return CarvingDebugMode.NONE;
@@ -94,16 +152,32 @@ export function getCarvingDebugModeLabel(mode: CarvingDebugMode): string {
   switch (mode) {
     case CarvingDebugMode.NONE:
       return 'No Debug';
-    case CarvingDebugMode.CARVED_LOOPS:
-      return 'Step 1: Carved Loops';
-    case CarvingDebugMode.STITCHED_LOOPS:
-      return 'Step 2: Stitched Loops';
-    case CarvingDebugMode.REUSE_PLAN:
-      return 'Step 3: Reuse Plan';
-    case CarvingDebugMode.OPT_MERGING:
-      return 'Step 4: Opt-Space Merging';
-    case CarvingDebugMode.WARM_OPTIMIZATION:
-      return 'Step 5: Warm Optimization';
+    case CarvingDebugMode.DIRTY_AABB:
+      return 'Step 1: Dirty AABB';
+    case CarvingDebugMode.CANONICAL_AFFECTED:
+      return 'Step 2: Canonical Affected';
+    case CarvingDebugMode.CANONICAL_DIRTY_RANGES:
+      return 'Step 3: Canonical Dirty Ranges';
+    case CarvingDebugMode.OPT_INVALIDATION:
+      return 'Step 4: Opt Invalidation';
+    case CarvingDebugMode.LOCAL_MS_MATCH:
+      return 'Step 5a: MS Loops + Matching';
+    case CarvingDebugMode.LOCAL_CANON_SURGERY_PREVIEW:
+      return 'Step 5b: Canon Surgery Preview';
+    case CarvingDebugMode.LOCAL_CANON_SURGERY_COMMIT:
+      return 'Step 5c: Commit Canon Surgery';
+    case CarvingDebugMode.LOCAL_OPT_AABB_INVALIDATION:
+      return 'Step 5d: Opt Invalidation (AABB)';
+    case CarvingDebugMode.LOCAL_OPT_REBUILD:
+      return 'Step 5e: Opt Rebuild';
+    case CarvingDebugMode.LOCAL_OPT_SPLICE_VALIDATE:
+      return 'Step 5f: Opt Splice + Validate';
+    case CarvingDebugMode.LOCAL_PHYSICS_PLAN:
+      return 'Step 5g: Physics Plan';
+    case CarvingDebugMode.LOCAL_PHYSICS_APPLY:
+      return 'Step 5h: Apply Physics';
+    case CarvingDebugMode.SEGMENT_DEBUG:
+      return 'Step 6: Segment Debug';
     default:
       return 'Unknown';
   }

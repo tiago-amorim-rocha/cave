@@ -15,9 +15,11 @@ import type { Box2DPhysics } from './Box2DPhysics';
 import type { Renderer } from './Renderer';
 import { VertexOptimizationPipeline, type OptimizationOptions } from './VertexOptimizationPipeline';
 import type { Point } from './types';
+import { simplifyPolyline } from './PolylineSimplifier';
 import { cleanLoop } from './physics/shapeUtils';
 import { LoopPatcher } from './LoopPatcher';
-import { createCanonicalLoop, replaceCanonicalRange, buildSegmentsForLoop, type CanonicalLoop, type CanonicalVertex, type OptVertex, type PhysicsSegment } from './terrain/CanonicalGeometry';
+import { createCanonicalLoop, computeLoopAABB, replaceCanonicalRange, buildSegmentsForLoop, type CanonicalLoop, type CanonicalVertex, type OptVertex, type PhysicsSegment } from './terrain/CanonicalGeometry';
+import { chaikinWithAncestry } from './terrain/ChaikinWithAncestry';
 
 // Debug flag for loop classification - set to false to silence logs
 const DEBUG_LOOP_CLASSIFICATION = true;
@@ -102,6 +104,55 @@ export interface RemeshStats {
   postSimplificationReduction: number;
 }
 
+export interface LocalUpdateSurgeryResult {
+  oldLoopId: number;
+  matchedNewLoopId: number | null;
+  resultLoops: CanonicalLoop[];
+}
+
+export interface LocalUpdateSession {
+  expandCells: number;
+  gridPitch: number;
+  dirtyAABB: { minX: number; minY: number; maxX: number; maxY: number };
+  paddedAABB: { minX: number; minY: number; maxX: number; maxY: number };
+
+  affectedCanonicals: CanonicalLoop[];
+
+  msCleanedLoops: Point[][];
+  newCanonicalLoops: CanonicalLoop[];
+
+  surgery: {
+    matches: Array<{ oldLoopId: number; newLoopId: number | null }>;
+    resultsByOld: LocalUpdateSurgeryResult[];
+    remainingNewLoopIds: number[];
+    replacements: CanonicalLoop[];
+    previewLoops?: CanonicalLoop[];
+  };
+
+  opt?: {
+    baseOptLoops: OptVertex[][];
+    baseInvalidations: Array<{ loopIndex: number; spans: Array<{ startOpt: number; endOpt: number }> }>;
+    rebuiltOptLoops: OptVertex[][];
+    rebuiltInvalidations: Array<{ loopIndex: number; spans: Array<{ startOpt: number; endOpt: number }> }>;
+    rebuiltSegmentDebug: Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }>;
+    rebuiltArcs: Array<{ loopIndex: number; span: { startOpt: number; endOpt: number }; arc: OptVertex[] }>;
+    splicedOptLoops: OptVertex[][];
+    spliceSummary?: Array<{
+      oldLoopId: number;
+      newLoopId: number;
+      oldSpanCount: number;
+      newSpanCount: number;
+      splicedVertexCount: number;
+      usedFallback: boolean;
+    }>;
+  };
+
+  physics?: {
+    affectedBodyCount: number;
+    removedBodyCount: number;
+  };
+}
+
 export class RemeshManager {
   private densityField: DensityField;
   private marchingSquares: MarchingSquares;
@@ -145,53 +196,8 @@ export class RemeshManager {
    * Touch = any vertex inside, or any edge segment intersects the AABB.
    */
   private loopTouchesRegion(points: Point[], region: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
-    const pointInside = (p: Point) =>
-      p.x >= region.minX && p.x <= region.maxX && p.y >= region.minY && p.y <= region.maxY;
-
-    const segmentsIntersect = (a: Point, b: Point, c: Point, d: Point): boolean => {
-      const cross = (p: Point, q: Point, r: Point) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
-      const onSegment = (p: Point, q: Point, r: Point) =>
-        Math.min(p.x, r.x) - 1e-6 <= q.x && q.x <= Math.max(p.x, r.x) + 1e-6 &&
-        Math.min(p.y, r.y) - 1e-6 <= q.y && q.y <= Math.max(p.y, r.y) + 1e-6;
-
-      const o1 = cross(a, b, c);
-      const o2 = cross(a, b, d);
-      const o3 = cross(c, d, a);
-      const o4 = cross(c, d, b);
-
-      if (o1 === 0 && onSegment(a, c, b)) return true;
-      if (o2 === 0 && onSegment(a, d, b)) return true;
-      if (o3 === 0 && onSegment(c, a, d)) return true;
-      if (o4 === 0 && onSegment(c, b, d)) return true;
-
-      return (o1 > 0) !== (o2 > 0) && (o3 > 0) !== (o4 > 0);
-    };
-
-    const segmentIntersectsAABB = (p1: Point, p2: Point): boolean => {
-      if (pointInside(p1) || pointInside(p2)) return true;
-
-      // Quick reject using segment AABB
-      const minX = Math.min(p1.x, p2.x);
-      const maxX = Math.max(p1.x, p2.x);
-      const minY = Math.min(p1.y, p2.y);
-      const maxY = Math.max(p1.y, p2.y);
-      if (maxX < region.minX || minX > region.maxX || maxY < region.minY || minY > region.maxY) {
-        return false;
-      }
-
-      // Check against each rectangle edge
-      const topLeft = { x: region.minX, y: region.minY };
-      const topRight = { x: region.maxX, y: region.minY };
-      const bottomLeft = { x: region.minX, y: region.maxY };
-      const bottomRight = { x: region.maxX, y: region.maxY };
-
-      return (
-        segmentsIntersect(p1, p2, topLeft, topRight) ||
-        segmentsIntersect(p1, p2, topRight, bottomRight) ||
-        segmentsIntersect(p1, p2, bottomRight, bottomLeft) ||
-        segmentsIntersect(p1, p2, bottomLeft, topLeft)
-      );
-    };
+    const pointInside = (p: Point) => this.pointInAabb(p, region);
+    const segmentIntersectsAABB = (p1: Point, p2: Point): boolean => this.segmentIntersectsAabb(p1, p2, region);
 
     // Any vertex inside?
     for (const v of points) {
@@ -204,6 +210,381 @@ export class RemeshManager {
     }
 
     return false;
+  }
+
+  private pointInAabb(p: Point, region: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+    return p.x >= region.minX && p.x <= region.maxX && p.y >= region.minY && p.y <= region.maxY;
+  }
+
+  private segmentIntersectsAabb(a: Point, b: Point, region: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+    if (this.pointInAabb(a, region) || this.pointInAabb(b, region)) return true;
+
+    // Quick reject using segment AABB
+    const minX = Math.min(a.x, b.x);
+    const maxX = Math.max(a.x, b.x);
+    const minY = Math.min(a.y, b.y);
+    const maxY = Math.max(a.y, b.y);
+    if (maxX < region.minX || minX > region.maxX || maxY < region.minY || minY > region.maxY) {
+      return false;
+    }
+
+    const cross = (p: Point, q: Point, r: Point) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+    const onSegment = (p: Point, q: Point, r: Point) =>
+      Math.min(p.x, r.x) - 1e-6 <= q.x && q.x <= Math.max(p.x, r.x) + 1e-6 &&
+      Math.min(p.y, r.y) - 1e-6 <= q.y && q.y <= Math.max(p.y, r.y) + 1e-6;
+
+    const segmentsIntersect = (p1: Point, p2: Point, p3: Point, p4: Point): boolean => {
+      const o1 = cross(p1, p2, p3);
+      const o2 = cross(p1, p2, p4);
+      const o3 = cross(p3, p4, p1);
+      const o4 = cross(p3, p4, p2);
+
+      if (o1 === 0 && onSegment(p1, p3, p2)) return true;
+      if (o2 === 0 && onSegment(p1, p4, p2)) return true;
+      if (o3 === 0 && onSegment(p3, p1, p4)) return true;
+      if (o4 === 0 && onSegment(p3, p2, p4)) return true;
+
+      return (o1 > 0) !== (o2 > 0) && (o3 > 0) !== (o4 > 0);
+    };
+
+    // Check against each rectangle edge
+    const topLeft = { x: region.minX, y: region.minY };
+    const topRight = { x: region.maxX, y: region.minY };
+    const bottomLeft = { x: region.minX, y: region.maxY };
+    const bottomRight = { x: region.maxX, y: region.maxY };
+
+    return (
+      segmentsIntersect(a, b, topLeft, topRight) ||
+      segmentsIntersect(a, b, topRight, bottomRight) ||
+      segmentsIntersect(a, b, bottomRight, bottomLeft) ||
+      segmentsIntersect(a, b, bottomLeft, topLeft)
+    );
+  }
+
+  private computeOptInvalidationSpansByRegion(
+    optLoop: OptVertex[],
+    region: { minX: number; minY: number; maxX: number; maxY: number }
+  ): Array<{ startOpt: number; endOpt: number }> {
+    const n = optLoop.length;
+    if (n < 2) return [];
+
+    const invalid = new Array<boolean>(n).fill(false);
+
+    for (let i = 0; i < n; i++) {
+      if (this.pointInAabb(optLoop[i], region)) invalid[i] = true;
+    }
+
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      if (this.segmentIntersectsAabb(optLoop[i], optLoop[j], region)) {
+        invalid[i] = true;
+        invalid[j] = true;
+      }
+    }
+
+    const spans: Array<{ startOpt: number; endOpt: number }> = [];
+    let spanStart = -1;
+    for (let i = 0; i < n; i++) {
+      if (invalid[i]) {
+        if (spanStart === -1) spanStart = i;
+      } else if (spanStart !== -1) {
+        spans.push({ startOpt: spanStart, endOpt: i - 1 });
+        spanStart = -1;
+      }
+    }
+    if (spanStart !== -1) {
+      spans.push({ startOpt: spanStart, endOpt: n - 1 });
+    }
+
+    // Merge wrap if both ends are invalid
+    if (spans.length >= 2 && invalid[0] && invalid[n - 1]) {
+      const first = spans[0];
+      const last = spans[spans.length - 1];
+      const merged: Array<{ startOpt: number; endOpt: number }> = [];
+      merged.push({ startOpt: last.startOpt, endOpt: first.endOpt }); // wrap span
+      for (let i = 1; i < spans.length - 1; i++) merged.push(spans[i]);
+      return merged;
+    }
+
+    return spans;
+  }
+
+  private canonicalDirtySpans(
+    loop: CanonicalLoop,
+    region: { minX: number; minY: number; maxX: number; maxY: number }
+  ): Array<{ startIndex: number; endIndex: number }> {
+    const n = loop.vertices.length;
+    if (n < 3) return [];
+    const unique = loop.isClosed && n > 1 ? loop.vertices.slice(0, -1) : loop.vertices.slice();
+    const nUnique = unique.length;
+    if (nUnique < 3) return [];
+
+    const flags = unique.map((v) => this.pointInAabb(v, region));
+
+    const runs: Array<{ startIndex: number; endIndex: number }> = [];
+    let runStart = -1;
+    for (let i = 0; i < nUnique; i++) {
+      if (flags[i]) {
+        if (runStart === -1) runStart = i;
+      } else if (runStart !== -1) {
+        runs.push({ startIndex: runStart, endIndex: i - 1 });
+        runStart = -1;
+      }
+    }
+    if (runStart !== -1) runs.push({ startIndex: runStart, endIndex: nUnique - 1 });
+
+    if (runs.length >= 2 && flags[0] && flags[nUnique - 1]) {
+      const first = runs[0];
+      const last = runs[runs.length - 1];
+      const merged: Array<{ startIndex: number; endIndex: number }> = [];
+      merged.push({ startIndex: last.startIndex, endIndex: first.endIndex }); // wrap span
+      for (let i = 1; i < runs.length - 1; i++) merged.push(runs[i]);
+      return merged;
+    }
+
+    return runs;
+  }
+
+  private optimizeOptChainWithAncestry(vertices: OptVertex[]): OptVertex[] {
+    if (vertices.length < 2) return vertices.slice();
+    const gridPitch = this.optimizationOptions.gridPitch;
+    const dedupeEps = gridPitch * 0.1;
+    const minEdgeLen = gridPitch * 0.3;
+
+    const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
+
+    // 1) Dedupe consecutive points (keep endpoints)
+    let working: OptVertex[] = [vertices[0]];
+    for (let i = 1; i < vertices.length - 1; i++) {
+      const prev = working[working.length - 1];
+      const curr = vertices[i];
+      if (dist(prev, curr) > dedupeEps) working.push(curr);
+    }
+    if (vertices.length > 1) {
+      const last = vertices[vertices.length - 1];
+      const prev = working[working.length - 1];
+      if (dist(prev, last) > 1e-12) working.push(last);
+    }
+
+    // 2) Cull tiny edges (keep endpoints)
+    const culled: OptVertex[] = [working[0]];
+    for (let i = 1; i < working.length - 1; i++) {
+      const prev = culled[culled.length - 1];
+      const curr = working[i];
+      if (dist(prev, curr) >= minEdgeLen) culled.push(curr);
+    }
+    if (working.length > 1) culled.push(working[working.length - 1]);
+    working = culled;
+
+    // 3) Simplification (open chain)
+    if (this.optimizationOptions.simplificationEpsilon > 0) {
+      const areaThreshold = this.optimizationOptions.simplificationEpsilon * this.optimizationOptions.simplificationEpsilon;
+      working = simplifyPolyline(working, areaThreshold, false);
+    }
+
+    // 4) Chaikin smoothing (open chain)
+    if (this.optimizationOptions.chaikinEnabled && this.optimizationOptions.chaikinIterations > 0) {
+      working = chaikinWithAncestry(working, this.optimizationOptions.chaikinIterations, 0.25, false);
+    }
+
+    // 5) Post-simplification (open chain)
+    if (this.optimizationOptions.simplificationEpsilonPost > 0) {
+      const areaThresholdPost = this.optimizationOptions.simplificationEpsilonPost * this.optimizationOptions.simplificationEpsilonPost;
+      working = simplifyPolyline(working, areaThresholdPost, false);
+    }
+
+    return working;
+  }
+
+  private resamplePath(points: Point[], count: number): Point[] {
+    if (count <= 0) return [];
+    if (points.length === 0) return [];
+    if (points.length === 1 || count === 1) return [{ x: points[0].x, y: points[0].y }];
+
+    const cumulative: number[] = [0];
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      cumulative.push(cumulative[cumulative.length - 1] + Math.hypot(curr.x - prev.x, curr.y - prev.y));
+    }
+    const total = cumulative[cumulative.length - 1];
+    if (total <= 1e-9) {
+      // Degenerate: all points coincide
+      return Array.from({ length: count }, () => ({ x: points[0].x, y: points[0].y }));
+    }
+
+    const out: Point[] = [];
+    for (let k = 0; k < count; k++) {
+      const t = (k / (count - 1)) * total;
+      let i = 1;
+      while (i < cumulative.length && cumulative[i] < t) i++;
+      if (i >= cumulative.length) {
+        const last = points[points.length - 1];
+        out.push({ x: last.x, y: last.y });
+        continue;
+      }
+      const t0 = cumulative[i - 1];
+      const t1 = cumulative[i];
+      const alpha = t1 > t0 ? (t - t0) / (t1 - t0) : 0;
+      const p0 = points[i - 1];
+      const p1 = points[i];
+      out.push({
+        x: p0.x * (1 - alpha) + p1.x * alpha,
+        y: p0.y * (1 - alpha) + p1.y * alpha
+      });
+    }
+    return out;
+  }
+
+  private extractLoopPath(
+    loop: Point[],
+    startIndex: number,
+    endIndex: number,
+    forward: boolean
+  ): Point[] {
+    const n = loop.length;
+    if (n === 0) return [];
+    const path: Point[] = [];
+
+    const norm = (i: number) => ((i % n) + n) % n;
+    let i = norm(startIndex);
+    const end = norm(endIndex);
+
+    path.push({ x: loop[i].x, y: loop[i].y });
+    if (i === end) return path;
+
+    const step = forward ? 1 : -1;
+    while (i !== end) {
+      i = norm(i + step);
+      path.push({ x: loop[i].x, y: loop[i].y });
+      if (path.length > n + 2) break;
+    }
+    return path;
+  }
+
+  private updateCanonicalSpanFromMatchedLoop(
+    oldLoop: CanonicalLoop,
+    newLoop: CanonicalLoop,
+    span: { startIndex: number; endIndex: number },
+    region: { minX: number; minY: number; maxX: number; maxY: number }
+  ): void {
+    const oldUnique = oldLoop.isClosed ? oldLoop.vertices.slice(0, -1) : oldLoop.vertices;
+    const newUnique = newLoop.isClosed ? newLoop.vertices.slice(0, -1) : newLoop.vertices;
+    const nOld = oldUnique.length;
+    const nNew = newUnique.length;
+    if (nOld < 3 || nNew < 3) return;
+
+    const indices: number[] = [];
+    const start = span.startIndex;
+    const end = span.endIndex;
+    if (start <= end) {
+      for (let i = start; i <= end; i++) indices.push(i);
+    } else {
+      for (let i = start; i < nOld; i++) indices.push(i);
+      for (let i = 0; i <= end; i++) indices.push(i);
+    }
+    if (indices.length === 0) return;
+
+    const oldStartPt = oldUnique[indices[0]];
+    const oldEndPt = oldUnique[indices[indices.length - 1]];
+
+    const findNearestIndex = (pts: CanonicalVertex[], target: Point): number => {
+      let best = 0;
+      let bestD = Infinity;
+      for (let i = 0; i < pts.length; i++) {
+        const dx = pts[i].x - target.x;
+        const dy = pts[i].y - target.y;
+        const d = dx * dx + dy * dy;
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      }
+      return best;
+    };
+
+    const ns = findNearestIndex(newUnique, oldStartPt);
+    const ne = findNearestIndex(newUnique, oldEndPt);
+
+    const forwardPath = this.extractLoopPath(newUnique, ns, ne, true);
+    const backwardPath = this.extractLoopPath(newUnique, ns, ne, false);
+
+    const scorePath = (path: Point[]): number => {
+      let inside = 0;
+      for (const p of path) if (this.pointInAabb(p, region)) inside++;
+      return inside;
+    };
+
+    const chosen = scorePath(forwardPath) >= scorePath(backwardPath) ? forwardPath : backwardPath;
+    const resampled = this.resamplePath(chosen, indices.length);
+
+    for (let k = 0; k < indices.length; k++) {
+      const idx = indices[k];
+      oldUnique[idx].x = resampled[k].x;
+      oldUnique[idx].y = resampled[k].y;
+    }
+
+    if (oldLoop.isClosed && oldLoop.vertices.length > 0) {
+      const first = oldLoop.vertices[0];
+      const last = oldLoop.vertices[oldLoop.vertices.length - 1];
+      last.x = first.x;
+      last.y = first.y;
+    }
+  }
+
+  private extractOptSpan(optLoop: OptVertex[], span: { startOpt: number; endOpt: number }): OptVertex[] {
+    const n = optLoop.length;
+    if (n === 0) return [];
+    const { startOpt, endOpt } = span;
+    if (startOpt < 0 || endOpt < 0) return [];
+    if (startOpt <= endOpt) {
+      return optLoop.slice(startOpt, endOpt + 1);
+    }
+    // wrap
+    return [...optLoop.slice(startOpt), ...optLoop.slice(0, endOpt + 1)];
+  }
+
+  private spliceOptLoopReplaceSpan(
+    optLoop: OptVertex[],
+    span: { startOpt: number; endOpt: number },
+    insertVertices: OptVertex[],
+    epsilon: number
+  ): OptVertex[] {
+    const n = optLoop.length;
+    if (n === 0) return insertVertices.slice();
+
+    const { startOpt, endOpt } = span;
+
+    const dist = (p: Point, q: Point) => Math.hypot(p.x - q.x, p.y - q.y);
+
+    const dedupeEndpoints = (beforeLast: OptVertex | null, afterFirst: OptVertex | null, verts: OptVertex[]): OptVertex[] => {
+      let out = verts.slice();
+      if (beforeLast && out.length > 0 && dist(beforeLast, out[0]) <= epsilon) {
+        out = out.slice(1);
+      }
+      if (afterFirst && out.length > 0 && dist(afterFirst, out[out.length - 1]) <= epsilon) {
+        out = out.slice(0, -1);
+      }
+      return out;
+    };
+
+    if (startOpt <= endOpt) {
+      const before = optLoop.slice(0, startOpt);
+      const after = optLoop.slice(endOpt + 1);
+      const beforeLast = before.length > 0 ? before[before.length - 1] : null;
+      const afterFirst = after.length > 0 ? after[0] : null;
+      const insert = dedupeEndpoints(beforeLast, afterFirst, insertVertices);
+      return [...before, ...insert, ...after];
+    }
+
+    // Wrap span: rotate so startOpt becomes 0
+    const rotated = [...optLoop.slice(startOpt), ...optLoop.slice(0, startOpt)];
+    const rotEnd = (n - startOpt) + endOpt;
+    const after = rotated.slice(rotEnd + 1);
+    const beforeLast = after.length > 0 ? after[after.length - 1] : null; // previous to insertion in rotated space
+    const afterFirst = after.length > 0 ? after[0] : null;
+    const insert = dedupeEndpoints(beforeLast, afterFirst, insertVertices);
+    return [...insert, ...after];
   }
 
   /**
@@ -346,7 +727,7 @@ export class RemeshManager {
     if (end - start < 1) {
       return [];
     }
-    // IMPORTANT: Preserve canonical vertices with their stable IDs for ancestry tracking
+    // IMPORTANT: Ancestry is loop-local indices; keep vertex order stable for meaningful ranges.
     const slice: CanonicalVertex[] = [];
     for (let i = start; i <= end; i++) {
       slice.push(canon.vertices[i]);
@@ -547,8 +928,8 @@ export class RemeshManager {
     this.renderer.setLoopDebugInfo(loopMetadata);
 
     // Run vertex optimization pipeline
-    // IMPORTANT: Pass canonical vertices (with stable IDs) instead of plain points
-    // so that Chaikin smoothing uses global vertex IDs instead of array indices
+    // IMPORTANT: Pass canonical vertices so we preserve loop order through hygiene,
+    // but ancestry tracking uses loop-local indices (0..n-1).
     const canonicalVerticesForOpt = canonicalLoops.map(loop => loop.vertices);
     const optimizationResult = this.optimizationPipeline.optimize(canonicalVerticesForOpt, this.optimizationOptions);
     const finalVertexCount = optimizationResult.finalLoops.reduce((sum, loop) => sum + loop.length, 0);
@@ -586,20 +967,7 @@ export class RemeshManager {
       withOptVertices: canonicalLoops.filter(l => l.optVertices).length
     });
 
-    // Debug: Verify ancestry tracking uses global IDs for canonical loop 2
-    if (canonicalLoops.length > 2) {
-      const loop2 = canonicalLoops[2];
-      if (loop2.optVertices) {
-        console.log('[ReuseDebug] Canonical vs Opt IDs for sourceCanonicalId: 2', {
-          sourceCanonicalId: 2,
-          canonicalVertexIdSamples: loop2.vertices.slice(0, 10).map(v => v.id),
-          optAncestryIdSamples: loop2.optVertices.slice(0, 10).map(v => ({
-            canonStartId: v.canonStartId,
-            canonEndId: v.canonEndId
-          }))
-        });
-      }
-    }
+    // Debug: Opt ancestry is loop-local indices (0..n-1).
 
     // Use final loops for both physics and rendering (canonical representation)
     const t6 = performance.now();
@@ -647,6 +1015,24 @@ export class RemeshManager {
    * Local update - Phase 6: canonical surgery only, then fallback to full rebuild for optimized/physics.
    */
   localUpdate(expandCells: number = 2): RemeshStats | null {
+    const session = this.beginLocalUpdateSession(expandCells);
+    if (!session) return null;
+
+    this.commitLocalUpdateCanonical(session);
+    this.computeLocalUpdateOptAabbInvalidation(session);
+    this.rebuildLocalUpdateOpt(session);
+    this.commitLocalUpdateOptSplice(session);
+    this.applyLocalUpdatePhysics(session);
+
+    return {
+      originalVertexCount: 0,
+      finalVertexCount: 0,
+      simplificationReduction: 0,
+      postSimplificationReduction: 0,
+    };
+  }
+
+  beginLocalUpdateSession(expandCells: number = 2): LocalUpdateSession | null {
     const dirtyAABB = this.densityField.getDirtyWorldAABB();
     if (!dirtyAABB) return null;
 
@@ -658,128 +1044,446 @@ export class RemeshManager {
       maxY: dirtyAABB.maxY + expandCells * gridPitch
     };
 
-    // A) Find affected canonical loops
     const affectedCanonicals = this.findAffectedCanonicalLoops(paddedAABB);
 
-    // B/C) Marching squares in dirty region, then clean
     const msResults = this.marchingSquares.generateContours(paddedAABB, expandCells);
-    const cleanedLoops: Point[][] = [];
+    const msCleanedLoops: Point[][] = [];
     for (const res of msResults) {
       if (res && res.loop && res.loop.length > 2) {
         const cleaned = cleanLoop(res.loop, gridPitch);
-        if (cleaned.length >= 3) {
-          cleanedLoops.push(cleaned);
-        }
+        if (cleaned.length >= 3) msCleanedLoops.push(cleaned);
       }
     }
-    const newCanonicalLoops = cleanedLoops.map(loop => createCanonicalLoop(loop));
+    const newCanonicalLoops = msCleanedLoops.map(loop => createCanonicalLoop(loop));
 
-    // D) Canonical surgery: replace full loop spans for affected loops with matched new loops
     const matches = this.matchNewLoopsToOld(affectedCanonicals, newCanonicalLoops);
     const remainingNew = new Set(newCanonicalLoops);
-    const replacements: CanonicalLoop[] = [];
+
+    const resultsByOld: LocalUpdateSurgeryResult[] = [];
+    const matchSummary: Array<{ oldLoopId: number; newLoopId: number | null }> = [];
+
     for (const match of matches) {
-      if (!match.replacement) continue;
-      const replLoops = replaceCanonicalRange(
-        match.old,
-        0,
-        match.old.vertices.length - 1,
-        match.replacement.vertices.map(v => ({ x: v.x, y: v.y })),
-        gridPitch
-      );
-      replLoops.forEach(r => replacements.push(r));
+      matchSummary.push({ oldLoopId: match.old.id, newLoopId: match.replacement?.id ?? null });
+
+      if (!match.replacement) {
+        resultsByOld.push({ oldLoopId: match.old.id, matchedNewLoopId: null, resultLoops: [] });
+        continue;
+      }
+      resultsByOld.push({
+        oldLoopId: match.old.id,
+        matchedNewLoopId: match.replacement.id,
+        resultLoops: []
+      });
       remainingNew.delete(match.replacement);
     }
-    for (const loop of remainingNew) {
-      replacements.push(loop);
+
+    const replacements: CanonicalLoop[] = [...affectedCanonicals, ...remainingNew];
+
+    return {
+      expandCells,
+      gridPitch,
+      dirtyAABB,
+      paddedAABB,
+      affectedCanonicals,
+      msCleanedLoops,
+      newCanonicalLoops,
+      surgery: {
+        matches: matchSummary,
+        resultsByOld,
+        remainingNewLoopIds: [...remainingNew].map(l => l.id),
+        replacements
+      }
+    };
+  }
+
+  commitLocalUpdateCanonical(session: LocalUpdateSession): void {
+    // Update affected canonical loops in-place to keep loop-local index ancestry stable.
+    const newById = new Map<number, CanonicalLoop>();
+    for (const l of session.newCanonicalLoops) newById.set(l.id, l);
+
+    const updatedLoopIds: number[] = [];
+
+    for (const match of session.surgery.matches) {
+      if (!match.newLoopId) continue;
+      const oldLoop = session.affectedCanonicals.find(l => l.id === match.oldLoopId);
+      const newLoop = newById.get(match.newLoopId);
+      if (!oldLoop || !newLoop) continue;
+
+      const spans = this.canonicalDirtySpans(oldLoop, session.paddedAABB);
+      for (const span of spans) {
+        this.updateCanonicalSpanFromMatchedLoop(oldLoop, newLoop, span, session.paddedAABB);
+      }
+
+      // Refresh closure and AABB
+      if (oldLoop.isClosed && oldLoop.vertices.length > 0) {
+        const first = oldLoop.vertices[0];
+        const last = oldLoop.vertices[oldLoop.vertices.length - 1];
+        last.x = first.x;
+        last.y = first.y;
+      }
+      oldLoop.aabb = computeLoopAABB(oldLoop.vertices);
+      oldLoop.version += 1;
+      updatedLoopIds.push(oldLoop.id);
     }
 
-    this.canonicalLoops = this.canonicalLoops.filter(loop => !affectedCanonicals.includes(loop));
-    this.canonicalLoops.push(...replacements);
+    // Add any unmatched new loops (new topology inside region)
+    const matchedNewIds = new Set(session.surgery.matches.map(m => m.newLoopId).filter((v): v is number => v !== null));
+    const newLoopsToAdd: CanonicalLoop[] = [];
+    for (const loop of session.newCanonicalLoops) {
+      if (!matchedNewIds.has(loop.id)) newLoopsToAdd.push(loop);
+    }
+    if (newLoopsToAdd.length > 0) {
+      this.canonicalLoops.push(...newLoopsToAdd);
+    }
+
+    // For downstream steps, treat "replacements" as the loops we will (re)build physics for.
+    session.surgery.replacements = [...session.affectedCanonicals, ...newLoopsToAdd];
+
     this.assertCanonicalAABBs(this.canonicalLoops);
     this.renderer.setCanonicalLoops(this.canonicalLoops);
-    this.renderer.setDirtyAABB(paddedAABB);
+    this.renderer.setDirtyAABB(session.paddedAABB);
 
-    console.log('[LocalUpdate] Canonical surgery', {
-      dirtyAABB: paddedAABB,
-      affectedLoops: affectedCanonicals.length,
-      surgeryResults: matches.map(m => ({
-        oldLoopId: m.old.id,
-        newLoopCount: replacements.filter(r => r.version === m.old.version + 1).length
-      })),
-      fallbackToFullRebuild: false
+    console.log('[LocalUpdate] Canonical surgery commit', {
+      dirtyAABB: session.paddedAABB,
+      affectedLoops: session.affectedCanonicals.length,
+      updatedLoopIds,
+      newLoopsAdded: newLoopsToAdd.map(l => l.id)
     });
+  }
 
-    // E) Rebuild optimized vertices locally for affected loops (ancestry-aware)
-    const newOptLoopsDebug: OptVertex[][] = [];
-    const newSegmentsDebug: PhysicsSegment[][] = [];
-    for (const repl of replacements) {
-      const dirtyRange = this.canonicalDirtyRange(repl, paddedAABB);
-      // IMPORTANT: Pass canonical vertices directly (with stable IDs) to preserve ancestry
-      const optResult = this.optimizationPipeline.optimize([repl.vertices], this.optimizationOptions);
-      const optLoop = optResult.finalOptLoops?.[0];
-      if (optLoop) {
-        newOptLoopsDebug.push(optLoop);
-        // Build segments for debug/physics
-        const segments = buildSegmentsForLoop(
-          repl.id,
-          optLoop,
-          64,
-          20,
-          12,
-          0.35
-        );
-        newSegmentsDebug.push(segments);
-        console.log('[LocalOptRebuild] Rebuilding range', {
-          canonRange: [dirtyRange.start, dirtyRange.end],
-          removedOptVerts: 0,
-          newOptVerts: optLoop.length,
-          ancestryCoverage: optLoop.every(v => v.canonStartId !== undefined && v.canonEndId !== undefined)
+  computeLocalUpdateCanonicalPreview(session: LocalUpdateSession): CanonicalLoop[] {
+    const newById = new Map<number, CanonicalLoop>();
+    for (const l of session.newCanonicalLoops) newById.set(l.id, l);
+
+    const cloneLoop = (loop: CanonicalLoop): CanonicalLoop => {
+      const vertices: CanonicalVertex[] = loop.vertices.map((v) => ({
+        id: v.id,
+        x: v.x,
+        y: v.y,
+        segmentA: v.segmentA,
+        segmentB: v.segmentB
+      }));
+      return {
+        id: loop.id,
+        vertices,
+        aabb: computeLoopAABB(vertices),
+        version: loop.version,
+        isClosed: loop.isClosed,
+      };
+    };
+
+    const previewByOldId = new Map<number, CanonicalLoop>();
+    for (const oldLoop of session.affectedCanonicals) {
+      previewByOldId.set(oldLoop.id, cloneLoop(oldLoop));
+    }
+
+    for (const match of session.surgery.matches) {
+      if (!match.newLoopId) continue;
+      const previewOld = previewByOldId.get(match.oldLoopId);
+      const newLoop = newById.get(match.newLoopId);
+      if (!previewOld || !newLoop) continue;
+
+      const spans = this.canonicalDirtySpans(previewOld, session.paddedAABB);
+      for (const span of spans) {
+        this.updateCanonicalSpanFromMatchedLoop(previewOld, newLoop, span, session.paddedAABB);
+      }
+
+      if (previewOld.isClosed && previewOld.vertices.length > 0) {
+        const first = previewOld.vertices[0];
+        const last = previewOld.vertices[previewOld.vertices.length - 1];
+        last.x = first.x;
+        last.y = first.y;
+      }
+      previewOld.aabb = computeLoopAABB(previewOld.vertices);
+    }
+
+    const matchedNewIds = new Set(session.surgery.matches.map(m => m.newLoopId).filter((v): v is number => v !== null));
+    const newLoopsToAdd: CanonicalLoop[] = [];
+    for (const loop of session.newCanonicalLoops) {
+      if (!matchedNewIds.has(loop.id)) newLoopsToAdd.push(loop);
+    }
+
+    return [...previewByOldId.values(), ...newLoopsToAdd];
+  }
+
+  computeLocalUpdateOptAabbInvalidation(session: LocalUpdateSession): void {
+    session.opt = session.opt ?? {
+      baseOptLoops: [],
+      baseInvalidations: [],
+      rebuiltOptLoops: [],
+      rebuiltInvalidations: [],
+      rebuiltSegmentDebug: [],
+      rebuiltArcs: [],
+      splicedOptLoops: [],
+    };
+    session.opt.baseOptLoops = this.optimizedOptLoopsDebug.slice();
+    session.opt.baseInvalidations = [];
+
+    for (const canon of session.affectedCanonicals) {
+      const opt = canon.optVertices;
+      if (!opt || opt.length < 2) continue;
+      const baseIndex = session.opt.baseOptLoops.findIndex(l => l === opt);
+      if (baseIndex < 0) continue;
+
+      const dirtySpans = this.canonicalDirtySpans(canon, session.paddedAABB);
+      if (dirtySpans.length === 0) continue;
+
+      const n = canon.isClosed && canon.vertices.length > 1 ? canon.vertices.length - 1 : canon.vertices.length;
+      const dirtyIntervalsUnwrapped: Array<{ start: number; end: number }> = [];
+      for (const r of dirtySpans) {
+        if (n <= 0) continue;
+        if (r.startIndex <= r.endIndex) {
+          dirtyIntervalsUnwrapped.push({ start: r.startIndex, end: r.endIndex });
+          dirtyIntervalsUnwrapped.push({ start: r.startIndex + n, end: r.endIndex + n });
+        } else {
+          dirtyIntervalsUnwrapped.push({ start: r.startIndex, end: r.endIndex + n });
+        }
+      }
+
+      const invalidFlags = opt.map((ov) =>
+        dirtyIntervalsUnwrapped.some((d) => ov.canonEndId >= d.start && ov.canonStartId <= d.end)
+      );
+
+      const spans: Array<{ startOpt: number; endOpt: number }> = [];
+      let spanStart = -1;
+      for (let i = 0; i < invalidFlags.length; i++) {
+        if (invalidFlags[i]) {
+          if (spanStart === -1) spanStart = i;
+        } else if (spanStart !== -1) {
+          spans.push({ startOpt: spanStart, endOpt: i - 1 });
+          spanStart = -1;
+        }
+      }
+      if (spanStart !== -1) spans.push({ startOpt: spanStart, endOpt: invalidFlags.length - 1 });
+
+      if (spans.length >= 2 && invalidFlags[0] && invalidFlags[invalidFlags.length - 1]) {
+        const first = spans[0];
+        const last = spans[spans.length - 1];
+        const merged: Array<{ startOpt: number; endOpt: number }> = [];
+        merged.push({ startOpt: last.startOpt, endOpt: first.endOpt }); // wrap span
+        for (let i = 1; i < spans.length - 1; i++) merged.push(spans[i]);
+        session.opt.baseInvalidations.push({ loopIndex: baseIndex, spans: merged });
+      } else if (spans.length > 0) {
+        session.opt.baseInvalidations.push({ loopIndex: baseIndex, spans });
+      }
+    }
+  }
+
+  rebuildLocalUpdateOpt(session: LocalUpdateSession): void {
+    const rebuiltOptLoops: OptVertex[][] = [];
+    const rebuiltSegmentDebug: Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }> = [];
+    const rebuiltArcs: Array<{ loopIndex: number; span: { startOpt: number; endOpt: number }; arc: OptVertex[] }> = [];
+
+    session.opt = session.opt ?? {
+      baseOptLoops: [],
+      baseInvalidations: [],
+      rebuiltOptLoops: [],
+      rebuiltInvalidations: [],
+      rebuiltSegmentDebug: [],
+      rebuiltArcs: [],
+      splicedOptLoops: []
+    };
+
+    // Ensure invalidation spans exist (Step 5d output)
+    if (session.opt.baseOptLoops.length === 0) {
+      this.computeLocalUpdateOptAabbInvalidation(session);
+    }
+
+    const invalidByLoopIndex = new Map<number, Array<{ startOpt: number; endOpt: number }>>();
+    for (const entry of session.opt.baseInvalidations) {
+      invalidByLoopIndex.set(entry.loopIndex, entry.spans);
+    }
+
+    // A) For matched/affected loops: rebuild only the invalidated span (open chain)
+    for (const canon of session.affectedCanonicals) {
+      const opt = canon.optVertices;
+      if (!opt || opt.length < 2) continue;
+      const baseIndex = session.opt.baseOptLoops.findIndex(l => l === opt);
+      if (baseIndex < 0) continue;
+
+      const spans = invalidByLoopIndex.get(baseIndex) ?? [];
+      if (spans.length === 0) continue;
+
+      // For now, rebuild a single span (most carves yield one contiguous invalid span).
+      const targetSpan = spans[0];
+      if (spans.length > 1) {
+        console.warn('[LocalOptRebuild] Multiple invalid spans; rebuilding only the first', {
+          loopId: canon.id,
+          spanCount: spans.length
         });
-        repl.optVertices = optLoop;
-        repl.segments = segments;
       }
+
+      const dirtySpans = this.canonicalDirtySpans(canon, session.paddedAABB);
+      if (dirtySpans.length === 0) continue;
+
+      const nUnique = canon.isClosed && canon.vertices.length > 1 ? canon.vertices.length - 1 : canon.vertices.length;
+      if (nUnique < 3) continue;
+
+      // Merge dirty spans into a single unwrapped canonical interval.
+      let mergedStart = Infinity;
+      let mergedEnd = -Infinity;
+      for (const r of dirtySpans) {
+        if (r.startIndex <= r.endIndex) {
+          mergedStart = Math.min(mergedStart, r.startIndex);
+          mergedEnd = Math.max(mergedEnd, r.endIndex);
+        } else {
+          mergedStart = Math.min(mergedStart, r.startIndex);
+          mergedEnd = Math.max(mergedEnd, r.endIndex + nUnique);
+        }
+      }
+      if (!Number.isFinite(mergedStart) || !Number.isFinite(mergedEnd) || mergedEnd < mergedStart) continue;
+
+      // Add 1-vertex anchor on each side to improve continuity.
+      const startAnchor = Math.max(0, mergedStart - 1);
+      const endAnchor = Math.min(mergedEnd + 1, mergedStart + nUnique); // clamp to one wrap max
+
+      const seed: OptVertex[] = [];
+      for (let canonId = startAnchor; canonId <= endAnchor; canonId++) {
+        const idx = canonId % nUnique;
+        const v = canon.vertices[idx];
+        seed.push({
+          x: v.x,
+          y: v.y,
+          canonStartId: canonId,
+          canonEndId: canonId
+        });
+      }
+
+      const arc = this.optimizeOptChainWithAncestry(seed);
+      rebuiltArcs.push({ loopIndex: baseIndex, span: targetSpan, arc });
+      rebuiltOptLoops.push(arc);
+
+      console.log('[LocalOptRebuild] Rebuilt opt span only', {
+        loopId: canon.id,
+        baseLoopIndex: baseIndex,
+        dirtyCanonRange: [mergedStart, mergedEnd],
+        optimizedCanonicalVerts: seed.length,
+        oldOptSpan: [targetSpan.startOpt, targetSpan.endOpt],
+        newOptVerts: arc.length
+      });
     }
 
-    // Merge optimized debug loops: drop those whose AABB intersects padded region
-    const keptOptLoops: OptVertex[][] = [];
-    for (const loop of this.optimizedOptLoopsDebug) {
-      const aabb = this.computeOptAABB(loop);
-      if (!this.aabbsIntersect(aabb, paddedAABB)) {
-        keptOptLoops.push(loop);
-      }
+    // B) For newly created loops: optimize the full loop (these are expected to be local/topology changes)
+    const affectedIds = new Set(session.affectedCanonicals.map(l => l.id));
+    for (const loop of session.surgery.replacements) {
+      if (affectedIds.has(loop.id)) continue;
+      const optResult = this.optimizationPipeline.optimize([loop.vertices], this.optimizationOptions);
+      const optLoop = optResult.finalOptLoops?.[0];
+      if (!optLoop || optLoop.length < 2) continue;
+      const segments = buildSegmentsForLoop(loop.id, optLoop, 64, 20, 12, 0.35);
+      loop.optVertices = optLoop;
+      loop.segments = segments;
+      rebuiltOptLoops.push(optLoop);
+      rebuiltSegmentDebug.push({ loopId: loop.id, vertices: optLoop, segments });
     }
-    this.optimizedOptLoopsDebug = [...keptOptLoops, ...newOptLoopsDebug];
+
+    session.opt.rebuiltOptLoops = rebuiltOptLoops;
+    session.opt.rebuiltSegmentDebug = rebuiltSegmentDebug;
+    session.opt.rebuiltArcs = rebuiltArcs;
+    session.opt.rebuiltInvalidations = [];
+  }
+
+  commitLocalUpdateOptSplice(session: LocalUpdateSession): void {
+    session.opt = session.opt ?? {
+      baseOptLoops: [],
+      baseInvalidations: [],
+      rebuiltOptLoops: [],
+      rebuiltInvalidations: [],
+      rebuiltSegmentDebug: [],
+      rebuiltArcs: [],
+      splicedOptLoops: []
+    };
+    this.computeLocalUpdateOptAabbInvalidation(session);
+
+    const splicedOptLoops = session.opt.baseOptLoops.slice();
+    const spliceSummary: NonNullable<LocalUpdateSession['opt']>['spliceSummary'] = [];
+
+    const gridPitch = this.densityField.config.gridPitch;
+    const epsilon = gridPitch * 0.15;
+
+    const chooseOrientation = (segment: OptVertex[], prev: OptVertex, next: OptVertex): OptVertex[] => {
+      if (segment.length < 2) return segment;
+      const d = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
+      const dForward = d(prev, segment[0]) + d(next, segment[segment.length - 1]);
+      const dReverse = d(prev, segment[segment.length - 1]) + d(next, segment[0]);
+      return dReverse < dForward ? segment.slice().reverse() : segment;
+    };
+
+    // Apply arc rebuilds into existing opt loops (replace only invalidated span)
+    for (const rebuilt of session.opt.rebuiltArcs) {
+      const baseLoop = splicedOptLoops[rebuilt.loopIndex];
+      if (!baseLoop || baseLoop.length < 3) continue;
+      const span = rebuilt.span;
+      const insertRaw = rebuilt.arc;
+      if (insertRaw.length < 2) continue;
+
+      const prev = baseLoop[(span.startOpt - 1 + baseLoop.length) % baseLoop.length];
+      const next = baseLoop[(span.endOpt + 1) % baseLoop.length];
+      const oriented = chooseOrientation(insertRaw, prev, next);
+      const spliced = this.spliceOptLoopReplaceSpan(baseLoop, span, oriented, epsilon);
+      splicedOptLoops[rebuilt.loopIndex] = spliced;
+
+      // Update canonical loop reference if we can identify it by opt pointer
+      const canon = session.affectedCanonicals.find(l => l.optVertices === baseLoop);
+      if (canon) {
+        canon.optVertices = spliced;
+        canon.segments = buildSegmentsForLoop(canon.id, spliced, 64, 20, 12, 0.35);
+      }
+
+      spliceSummary.push({
+        oldLoopId: canon?.id ?? -1,
+        newLoopId: canon?.id ?? -1,
+        oldSpanCount: 1,
+        newSpanCount: 1,
+        splicedVertexCount: spliced.length,
+        usedFallback: false
+      });
+    }
+
+    // Append any new (unmatched) replacement loops
+    for (const repl of session.surgery.replacements) {
+      if (!repl.optVertices || repl.optVertices.length < 2) continue;
+      const isAlreadyPresent = splicedOptLoops.some(l => l === repl.optVertices);
+      if (!isAlreadyPresent) splicedOptLoops.push(repl.optVertices);
+    }
+
+    session.opt.splicedOptLoops = splicedOptLoops;
+    session.opt.spliceSummary = spliceSummary;
+    this.optimizedOptLoopsDebug = splicedOptLoops;
     this.renderer.setOptimizedOptLoops(this.optimizedOptLoopsDebug);
+  }
 
-    // Update canonical physics loops with replacements for physics update
-    this.canonicalPhysicsLoops = this.canonicalPhysicsLoops.filter(entry => !affectedCanonicals.includes(entry.loop));
-    for (const repl of replacements) {
+  computeLocalUpdatePhysicsPlan(session: LocalUpdateSession): void {
+    const engine = this.physics.getEngine();
+    const bodies = engine.getTerrainBodiesInRegion(session.paddedAABB);
+    session.physics = session.physics ?? { affectedBodyCount: 0, removedBodyCount: 0 };
+    session.physics.affectedBodyCount = bodies.length;
+  }
+
+  applyLocalUpdatePhysics(session: LocalUpdateSession): void {
+    // Keep physics registry consistent with canonical surgery.
+    const affectedIds = new Set(session.affectedCanonicals.map(l => l.id));
+    this.canonicalPhysicsLoops = this.canonicalPhysicsLoops.filter(entry => !affectedIds.has(entry.loop.id));
+    for (const repl of session.surgery.replacements) {
       this.canonicalPhysicsLoops.push({ loop: repl, shouldReverse: true });
     }
 
-    // Physically update only affected region
     const engine = this.physics.getEngine();
-    const removed = engine.removeTerrainInRegion(paddedAABB);
-    console.log(`[LocalUpdate] ⏱️ Remove bodies (local segments): removed ${removed}`);
+    const removed = engine.removeTerrainInRegion(session.paddedAABB);
     engine.addCanonicalTerrainLoops(
-      replacements,
-      replacements.map(r => r.optVertices ?? [])
+      session.surgery.replacements,
+      session.surgery.replacements.map(r => r.optVertices ?? [])
     );
     this.renderer.setSegmentDebugData(engine.getSegmentDebugSnapshot());
 
-    // Refresh visuals using full optimized loops (safe for now)
     const renderLoops = this.optimizedOptLoopsDebug.map(loop => loop.map(v => ({ x: v.x, y: v.y })));
     this.renderer.updatePolylines(renderLoops);
 
-    this.densityField.clearDirty();
+    session.physics = session.physics ?? { affectedBodyCount: 0, removedBodyCount: 0 };
+    session.physics.removedBodyCount = removed;
+    console.log(`[LocalUpdate] ⏱️ Remove bodies (local segments): removed ${removed}`);
 
-    return {
-      originalVertexCount: 0,
-      finalVertexCount: 0,
-      simplificationReduction: 0,
-      postSimplificationReduction: 0,
-    };
+    this.densityField.clearDirty();
   }
 
   /**
