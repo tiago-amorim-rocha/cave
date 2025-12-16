@@ -933,6 +933,7 @@ export class Renderer {
 
   private drawWaterParticles(canvasWidth: number, canvasHeight: number): void {
     if (!this.waterParticles) return;
+    if (this.polylines.length === 0) return;
 
     const topLeft = this.camera.screenToWorld(0, 0, canvasWidth, canvasHeight);
     const bottomRight = this.camera.screenToWorld(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
@@ -947,13 +948,35 @@ export class Renderer {
     const stride = particles.length > maxDraw ? Math.ceil(particles.length / maxDraw) : 1;
 
     this.ctx.save();
-    this.ctx.fillStyle = 'rgba(3, 169, 244, 0.65)';
+    // Clip to cave interior so stray particles don't visually "leak" into rock.
+    this.ctx.beginPath();
+    for (const polyline of this.polylines) {
+      if (polyline.length < 2) continue;
+      const firstScreen = this.camera.worldToScreen(polyline[0].x, polyline[0].y, canvasWidth, canvasHeight);
+      this.ctx.moveTo(firstScreen.x, firstScreen.y);
+      for (let i = 1; i < polyline.length; i++) {
+        const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
+        this.ctx.lineTo(screen.x, screen.y);
+      }
+      this.ctx.closePath();
+    }
+    this.ctx.clip('evenodd');
+
+    this.ctx.fillStyle = 'rgba(3, 169, 244, 0.35)';
 
     const r = Math.max(0.75, Math.min(2.0, this.camera.zoom * 0.01));
+    const grid = this.waterGrid;
 
     for (let i = 0; i < particles.length; i += stride) {
       const p = particles[i];
       if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) continue;
+
+      if (grid) {
+        const cx = Math.floor(p.x / grid.cellSizeM);
+        const cy = Math.floor(p.y / grid.cellSizeM);
+        if (cx < 0 || cx >= grid.widthCells || cy < 0 || cy >= grid.heightCells) continue;
+        if (grid.solid[cy * grid.widthCells + cx]) continue;
+      }
 
       const s = this.camera.worldToScreen(p.x, p.y, canvasWidth, canvasHeight);
       this.ctx.beginPath();
