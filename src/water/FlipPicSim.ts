@@ -45,8 +45,8 @@ export class FlipPicSim implements VelocityField {
   private pressure: Float32Array;
   private pressureNext: Float32Array;
 
-  private gravity = 30;
-  private maxFaceSpeed = 40;
+  private gravity = 150;
+  private maxFaceSpeed = 200;
   private substeps = 2;
 
   constructor(grid: WaterGrid, config: Partial<FlipPicSimConfig> = {}) {
