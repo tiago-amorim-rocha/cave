@@ -2,6 +2,7 @@ import type { Camera } from './Camera';
 import type { Vec2 } from './types';
 import type { DensityField } from './DensityField';
 import type { WaterGrid } from './water/WaterGrid';
+import type { MacVelocityGrid } from './water/MacVelocityGrid';
 import type { CanonicalLoop, OptVertex, PhysicsSegment } from './terrain/CanonicalGeometry';
 import { CarvingDebugMode } from './CarvingDebugMode';
 
@@ -86,6 +87,7 @@ export class Renderer {
   private originalPolylineAABBs: Array<{ minX: number; minY: number; maxX: number; maxY: number }> = []; // AABB for each original polyline
   private densityField: DensityField | null = null;
   private waterGrid: WaterGrid | null = null;
+  private waterVelocity: MacVelocityGrid | null = null;
   private optimizedOptLoops: OptVertex[][] = []; // Ancestry-carrying optimized vertices (debug)
   private canonicalLoops: CanonicalLoop[] = []; // Cleaned marching squares output (debug-only)
   private segmentDebugData: Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }> = [];
@@ -107,6 +109,7 @@ export class Renderer {
   public showDensityField: boolean = false;
   public showWaterGrid: boolean = true;
   public showWaterFlowDebug: boolean = true;
+  public showWaterVelocityHsv: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
   public showCanonicalVertices: boolean = false; // Show canonical vertices (debug-only)
@@ -416,6 +419,10 @@ export class Renderer {
 
   setWaterGrid(grid: WaterGrid | null): void {
     this.waterGrid = grid;
+  }
+
+  setWaterVelocityGrid(grid: MacVelocityGrid | null): void {
+    this.waterVelocity = grid;
   }
 
   /**
@@ -853,6 +860,7 @@ export class Renderer {
     const water = grid.water;
     const flowDown = grid.debugFlowDown;
     const flowSide = grid.debugFlowSide;
+    const velGrid = this.waterVelocity;
     const cell = grid.cellSizeM;
 
     const a = this.camera.screenToWorld(0, 0, canvasWidth, canvasHeight);
@@ -890,7 +898,13 @@ export class Renderer {
         const y1 = Math.max(p0.y, p1.y);
 
         const alpha = 0.15 + 0.6 * w;
-        if (this.showWaterFlowDebug) {
+        if (this.showWaterVelocityHsv && velGrid) {
+          const vel = velGrid.getCellVelocity(cx, cy);
+          const speed = Math.sqrt(vel.u * vel.u + vel.v * vel.v);
+          const speedN = Math.max(0, Math.min(1, speed / 8));
+          const rgb = this.velocityToRgb(vel.u, vel.v, speedN);
+          this.ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+        } else if (this.showWaterFlowDebug) {
           const downN = Math.max(0, Math.min(1, flowDown[idx] * 6));
           const sideN = Math.max(0, Math.min(1, flowSide[idx] * 6));
           const r = Math.round(30 + 180 * sideN);
@@ -905,6 +919,36 @@ export class Renderer {
     }
 
     this.ctx.restore();
+  }
+
+  private velocityToRgb(u: number, v: number, speedN: number): { r: number; g: number; b: number } {
+    if (speedN <= 0.001) return { r: 0, g: 0, b: 0 };
+
+    let angle = Math.atan2(v, u);
+    if (angle < 0) angle += Math.PI * 2;
+
+    const seg = Math.min(3, Math.floor(angle / (Math.PI / 2)));
+    const t = (angle - seg * (Math.PI / 2)) / (Math.PI / 2);
+
+    const anchors = [
+      { r: 1, g: 0, b: 0 }, // right = red
+      { r: 0, g: 0, b: 1 }, // down = blue
+      { r: 0, g: 1, b: 1 }, // left = cyan
+      { r: 1, g: 1, b: 0 }, // up = yellow
+    ];
+
+    const a = anchors[seg];
+    const b = anchors[(seg + 1) % 4];
+
+    const r = (a.r * (1 - t) + b.r * t) * speedN;
+    const g = (a.g * (1 - t) + b.g * t) * speedN;
+    const bl = (a.b * (1 - t) + b.b * t) * speedN;
+
+    return {
+      r: Math.round(r * 255),
+      g: Math.round(g * 255),
+      b: Math.round(bl * 255),
+    };
   }
 
   /**

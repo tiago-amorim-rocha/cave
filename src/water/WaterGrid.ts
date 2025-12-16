@@ -1,4 +1,5 @@
 import type { DensityField } from '../DensityField';
+import type { MacVelocityGrid } from './MacVelocityGrid';
 
 export interface WaterGridConfig {
   worldWidthM: number;
@@ -18,6 +19,11 @@ export class WaterGrid {
   private wNext: Float32Array;
   private flowDown: Float32Array;
   private flowSide: Float32Array;
+  private outL: Float32Array;
+  private outR: Float32Array;
+  private outU: Float32Array;
+  private outD: Float32Array;
+  private acceptScaleOrInTotal: Float32Array;
 
   private source: {
     enabled: boolean;
@@ -48,6 +54,11 @@ export class WaterGrid {
     this.wNext = new Float32Array(n);
     this.flowDown = new Float32Array(n);
     this.flowSide = new Float32Array(n);
+    this.outL = new Float32Array(n);
+    this.outR = new Float32Array(n);
+    this.outU = new Float32Array(n);
+    this.outD = new Float32Array(n);
+    this.acceptScaleOrInTotal = new Float32Array(n);
   }
 
   get water(): Readonly<Float32Array> {
@@ -62,11 +73,21 @@ export class WaterGrid {
     return this.flowSide;
   }
 
+  getSourceInfo(): { enabled: boolean; minX: number; maxX: number; y: number } | null {
+    if (!this.source) return null;
+    return { enabled: this.source.enabled, minX: this.source.minX, maxX: this.source.maxX, y: this.source.y };
+  }
+
   resetWater(): void {
     this.w.fill(0);
     this.wNext.fill(0);
     this.flowDown.fill(0);
     this.flowSide.fill(0);
+    this.outL.fill(0);
+    this.outR.fill(0);
+    this.outU.fill(0);
+    this.outD.fill(0);
+    this.acceptScaleOrInTotal.fill(0);
     this.source = null;
   }
 
@@ -100,6 +121,11 @@ export class WaterGrid {
   }
 
   step(dtMs: number, substeps: number = 1): void {
+    this.tickSource(dtMs);
+    this.stepGravityOnly(substeps);
+  }
+
+  tickSource(dtMs: number): void {
     if (this.source?.enabled) {
       this.source.remainingMs -= dtMs;
       if (this.source.remainingMs <= 0) {
@@ -108,7 +134,18 @@ export class WaterGrid {
         this.source.accMs += dtMs;
       }
     }
-    this.stepGravityOnly(substeps);
+    this.applySource();
+  }
+
+  advectWithVelocity(dtMs: number, velocity: MacVelocityGrid, substeps: number = 2): void {
+    const steps = Math.max(1, Math.floor(substeps));
+    const dt = Math.max(0, dtMs) / 1000;
+    if (dt <= 0) return;
+
+    const dtSub = dt / steps;
+    for (let i = 0; i < steps; i++) {
+      this.advectMacSubstep(dtSub, velocity);
+    }
   }
 
   startSource(durationMs: number, config: { y: number; minX: number; maxX: number; intervalMs?: number }): void {
@@ -230,6 +267,218 @@ export class WaterGrid {
         this.wNext[k] -= moved;
         this.wNext[kb] += moved;
         this.flowDown[k] += moved;
+      }
+    }
+
+    const tmp = this.w;
+    this.w = this.wNext;
+    this.wNext = tmp;
+
+    for (let i = 0; i < this.solid.length; i++) {
+      if (this.solid[i]) {
+        this.w[i] = 0;
+      } else {
+        const v = this.w[i];
+        this.w[i] = v < 0 ? 0 : (v > 1 ? 1 : v);
+      }
+    }
+  }
+
+  private advectMacSubstep(dt: number, velocity: MacVelocityGrid): void {
+    const W = this.widthCells;
+    const H = this.heightCells;
+    const h = this.cellSizeM;
+    const invH = 1 / h;
+    const cfl = 0.9;
+
+    const U = velocity.debugU;
+    const V = velocity.debugV;
+
+    this.outL.fill(0);
+    this.outR.fill(0);
+    this.outU.fill(0);
+    this.outD.fill(0);
+
+    this.flowDown.fill(0);
+    this.flowSide.fill(0);
+
+    // Vertical faces (u): internal faces only, boundaries are assumed 0.
+    for (let y = 0; y < H; y++) {
+      const uRow = y * (W + 1);
+      const cellRow = y * W;
+      for (let x = 1; x < W; x++) {
+        const u = U[uRow + x];
+        if (u === 0) continue;
+
+        const left = cellRow + (x - 1);
+        const right = cellRow + x;
+        if (this.solid[left] || this.solid[right]) continue;
+
+        const frac = Math.min(cfl, Math.abs(u) * dt * invH);
+        if (frac <= 0) continue;
+
+        if (u > 0) {
+          const w = this.w[left];
+          if (w > 0) {
+            this.outR[left] += frac * w;
+          }
+        } else {
+          const w = this.w[right];
+          if (w > 0) {
+            this.outL[right] += frac * w;
+          }
+        }
+      }
+    }
+
+    // Horizontal faces (v): internal faces only, boundaries are assumed 0.
+    for (let yFace = 1; yFace < H; yFace++) {
+      const vRow = yFace * W;
+      const topRow = (yFace - 1) * W;
+      const bottomRow = yFace * W;
+      for (let x = 0; x < W; x++) {
+        const v = V[vRow + x];
+        if (v === 0) continue;
+
+        const top = topRow + x;
+        const bottom = bottomRow + x;
+        if (this.solid[top] || this.solid[bottom]) continue;
+
+        const frac = Math.min(cfl, Math.abs(v) * dt * invH);
+        if (frac <= 0) continue;
+
+        if (v > 0) {
+          const w = this.w[top];
+          if (w > 0) {
+            this.outD[top] += frac * w;
+          }
+        } else {
+          const w = this.w[bottom];
+          if (w > 0) {
+            this.outU[bottom] += frac * w;
+          }
+        }
+      }
+    }
+
+    // Donor-limited: can't send more than you have.
+    for (let i = 0; i < this.solid.length; i++) {
+      if (this.solid[i]) {
+        this.w[i] = 0;
+        this.outL[i] = 0;
+        this.outR[i] = 0;
+        this.outU[i] = 0;
+        this.outD[i] = 0;
+        continue;
+      }
+
+      const totalOut = this.outL[i] + this.outR[i] + this.outU[i] + this.outD[i];
+      const available = this.w[i];
+      if (totalOut > available && totalOut > 1e-8) {
+        const s = available / totalOut;
+        this.outL[i] *= s;
+        this.outR[i] *= s;
+        this.outU[i] *= s;
+        this.outD[i] *= s;
+      }
+    }
+
+    // Compute in-totals per receiver.
+    this.acceptScaleOrInTotal.fill(0);
+    for (let y = 0; y < H; y++) {
+      const row = y * W;
+      for (let x = 0; x < W; x++) {
+        const i = row + x;
+        const oL = this.outL[i];
+        const oR = this.outR[i];
+        const oU = this.outU[i];
+        const oD = this.outD[i];
+
+        if (oL > 0 && x > 0) this.acceptScaleOrInTotal[i - 1] += oL;
+        if (oR > 0 && x + 1 < W) this.acceptScaleOrInTotal[i + 1] += oR;
+        if (oU > 0 && y > 0) this.acceptScaleOrInTotal[i - W] += oU;
+        if (oD > 0 && y + 1 < H) this.acceptScaleOrInTotal[i + W] += oD;
+      }
+    }
+
+    // Convert in-totals to accept scales to enforce max fill = 1.
+    for (let i = 0; i < this.solid.length; i++) {
+      if (this.solid[i]) {
+        this.acceptScaleOrInTotal[i] = 0;
+        continue;
+      }
+
+      const inTotal = this.acceptScaleOrInTotal[i];
+      if (inTotal <= 1e-8) {
+        this.acceptScaleOrInTotal[i] = 1;
+        continue;
+      }
+
+      const free = 1 - this.w[i];
+      if (free <= 0) {
+        this.acceptScaleOrInTotal[i] = 0;
+      } else if (inTotal > free) {
+        this.acceptScaleOrInTotal[i] = free / inTotal;
+      } else {
+        this.acceptScaleOrInTotal[i] = 1;
+      }
+    }
+
+    // Apply receiver acceptance to each directed outflow (keeps volume conserved).
+    for (let y = 0; y < H; y++) {
+      const row = y * W;
+      for (let x = 0; x < W; x++) {
+        const i = row + x;
+
+        const oL = this.outL[i];
+        if (oL > 0 && x > 0) this.outL[i] = oL * this.acceptScaleOrInTotal[i - 1];
+
+        const oR = this.outR[i];
+        if (oR > 0 && x + 1 < W) this.outR[i] = oR * this.acceptScaleOrInTotal[i + 1];
+
+        const oU = this.outU[i];
+        if (oU > 0 && y > 0) this.outU[i] = oU * this.acceptScaleOrInTotal[i - W];
+
+        const oD = this.outD[i];
+        if (oD > 0 && y + 1 < H) this.outD[i] = oD * this.acceptScaleOrInTotal[i + W];
+      }
+    }
+
+    // Apply transfers.
+    this.wNext.set(this.w);
+
+    for (let y = 0; y < H; y++) {
+      const row = y * W;
+      for (let x = 0; x < W; x++) {
+        const i = row + x;
+        if (this.solid[i]) {
+          this.wNext[i] = 0;
+          continue;
+        }
+
+        const oL = this.outL[i];
+        const oR = this.outR[i];
+        const oU = this.outU[i];
+        const oD = this.outD[i];
+
+        this.wNext[i] -= (oL + oR + oU + oD);
+
+        if (oL > 0 && x > 0) {
+          this.wNext[i - 1] += oL;
+          this.flowSide[i] += oL;
+        }
+        if (oR > 0 && x + 1 < W) {
+          this.wNext[i + 1] += oR;
+          this.flowSide[i] += oR;
+        }
+        if (oU > 0 && y > 0) {
+          this.wNext[i - W] += oU;
+          this.flowDown[i] += oU;
+        }
+        if (oD > 0 && y + 1 < H) {
+          this.wNext[i + W] += oD;
+          this.flowDown[i] += oD;
+        }
       }
     }
 

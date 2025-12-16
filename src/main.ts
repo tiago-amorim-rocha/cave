@@ -17,6 +17,7 @@ import { BrushGenerator, type Brush } from './BrushGenerator';
 import { PipelineConfig, DEFAULT_CONFIG } from './PipelineConfig';
 import type { CarvingDebugContext, CarvingDebugHooks } from './carving/CarvingDebugHooks';
 import { WaterGrid } from './water/WaterGrid';
+import { MacVelocityGrid } from './water/MacVelocityGrid';
 
 /**
  * Main application
@@ -37,6 +38,7 @@ class CarvableCaves {
   private joystick: VirtualJoystick;
   private remeshManager!: RemeshManager; // Initialized after physics
   private waterGrid: WaterGrid | null = null;
+  private waterVelocity: MacVelocityGrid | null = null;
 
   private needsRemesh = true;
   private animationFrameId = 0;
@@ -259,7 +261,13 @@ class CarvableCaves {
 
     // Register water simulation step with physics engine (runs at fixed 60Hz)
     this.physics.getEngine().registerFixedUpdate((dt) => {
-      this.waterGrid?.step(dt, 1);
+      this.waterGrid?.tickSource(dt);
+      this.waterVelocity?.step(dt, this.waterGrid);
+      if (this.waterGrid && this.waterVelocity) {
+        this.waterGrid.advectWithVelocity(dt, this.waterVelocity, 2);
+      } else {
+        this.waterGrid?.step(dt, 1);
+      }
     });
 
     // Start render loop
@@ -666,6 +674,15 @@ class CarvableCaves {
     this.waterGrid.spawnDebugDrop();
 
     this.renderer.setWaterGrid(this.waterGrid);
+
+    this.waterVelocity = new MacVelocityGrid({
+      widthCells: this.waterGrid.widthCells,
+      heightCells: this.waterGrid.heightCells,
+      cellSizeM: this.waterGrid.cellSizeM,
+      solidCells: this.waterGrid.solid,
+    });
+    this.waterVelocity.reset();
+    this.renderer.setWaterVelocityGrid(this.waterVelocity);
   }
 
   /**
@@ -890,6 +907,12 @@ debugConsole.onToggleWaterGrid = (enabled: boolean) => {
 debugConsole.onToggleWaterFlowDebug = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showWaterFlowDebug = enabled;
+  }
+};
+
+debugConsole.onToggleWaterVelocityHsv = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showWaterVelocityHsv = enabled;
   }
 };
 
