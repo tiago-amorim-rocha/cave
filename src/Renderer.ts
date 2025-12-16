@@ -88,6 +88,7 @@ export class Renderer {
   private densityField: DensityField | null = null;
   private waterGrid: WaterGrid | null = null;
   private waterVelocity: VelocityField | null = null;
+  private waterParticles: ReadonlyArray<{ x: number; y: number }> | null = null;
   private optimizedOptLoops: OptVertex[][] = []; // Ancestry-carrying optimized vertices (debug)
   private canonicalLoops: CanonicalLoop[] = []; // Cleaned marching squares output (debug-only)
   private segmentDebugData: Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }> = [];
@@ -110,6 +111,7 @@ export class Renderer {
   public showWaterGrid: boolean = true;
   public showWaterFlowDebug: boolean = true;
   public showWaterVelocityHsv: boolean = false;
+  public showWaterParticles: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
   public showCanonicalVertices: boolean = false; // Show canonical vertices (debug-only)
@@ -425,6 +427,10 @@ export class Renderer {
     this.waterVelocity = grid;
   }
 
+  setWaterParticles(particles: ReadonlyArray<{ x: number; y: number }> | null): void {
+    this.waterParticles = particles;
+  }
+
   /**
    * Set loop debug info for rendering loop numbers and sample points
    */
@@ -504,6 +510,10 @@ export class Renderer {
       // Draw water grid overlay (debug)
       if (this.showWaterGrid && this.waterGrid) {
         this.drawWaterGrid(width, height);
+      }
+
+      if (this.showWaterParticles && this.waterParticles) {
+        this.drawWaterParticles(width, height);
       }
 
       // ========================================
@@ -916,6 +926,39 @@ export class Renderer {
         }
         this.ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
       }
+    }
+
+    this.ctx.restore();
+  }
+
+  private drawWaterParticles(canvasWidth: number, canvasHeight: number): void {
+    if (!this.waterParticles) return;
+
+    const topLeft = this.camera.screenToWorld(0, 0, canvasWidth, canvasHeight);
+    const bottomRight = this.camera.screenToWorld(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
+
+    const minX = Math.min(topLeft.x, bottomRight.x);
+    const minY = Math.min(topLeft.y, bottomRight.y);
+    const maxX = Math.max(topLeft.x, bottomRight.x);
+    const maxY = Math.max(topLeft.y, bottomRight.y);
+
+    const particles = this.waterParticles;
+    const maxDraw = 6000;
+    const stride = particles.length > maxDraw ? Math.ceil(particles.length / maxDraw) : 1;
+
+    this.ctx.save();
+    this.ctx.fillStyle = 'rgba(3, 169, 244, 0.65)';
+
+    const r = Math.max(0.75, Math.min(2.0, this.camera.zoom * 0.01));
+
+    for (let i = 0; i < particles.length; i += stride) {
+      const p = particles[i];
+      if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) continue;
+
+      const s = this.camera.worldToScreen(p.x, p.y, canvasWidth, canvasHeight);
+      this.ctx.beginPath();
+      this.ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      this.ctx.fill();
     }
 
     this.ctx.restore();

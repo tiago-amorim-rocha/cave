@@ -38,6 +38,7 @@ export class DebugConsole {
   public onToggleWaterGrid?: (enabled: boolean) => void;
   public onToggleWaterFlowDebug?: (enabled: boolean) => void;
   public onToggleWaterVelocityHsv?: (enabled: boolean) => void;
+  public onToggleWaterParticles?: (enabled: boolean) => void;
   public onToggleDirtyAABB?: (enabled: boolean) => void;
   public onToggleRebuiltChains?: (enabled: boolean) => void;
   public onSimplificationChange?: (epsilon: number) => void;
@@ -481,6 +482,7 @@ export class DebugConsole {
       { label: 'Water Grid', key: 'water', callback: 'onToggleWaterGrid', checked: true },
       { label: 'Water Flow Colors', key: 'waterflow', callback: 'onToggleWaterFlowDebug', checked: true },
       { label: 'Water Velocity HSV', key: 'watervel', callback: 'onToggleWaterVelocityHsv', checked: false },
+      { label: 'Water Particles', key: 'waterparts', callback: 'onToggleWaterParticles', checked: false },
       { label: 'Dirty AABB', key: 'dirtyaabb', callback: 'onToggleDirtyAABB', checked: true },
       { label: 'Rebuilt Chains', key: 'rebuiltchains', callback: 'onToggleRebuiltChains', checked: true },
     ];

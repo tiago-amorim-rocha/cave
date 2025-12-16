@@ -698,6 +698,7 @@ class CarvableCaves {
     this.flipSim.seedFromWaterGrid(this.waterGrid.water, 0.02);
     this.waterGrid.clearWaterOnly();
     this.flipSim.writeDensityToWaterGrid(this.waterGrid);
+    this.renderer.setWaterParticles(this.flipSim.getParticles());
 
     // Velocity HSV debug can use the FLIP/PIC MAC grid.
     this.renderer.setWaterVelocityGrid(this.flipSim);
@@ -934,6 +935,12 @@ debugConsole.onToggleWaterFlowDebug = (enabled: boolean) => {
 debugConsole.onToggleWaterVelocityHsv = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showWaterVelocityHsv = enabled;
+  }
+};
+
+debugConsole.onToggleWaterParticles = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showWaterParticles = enabled;
   }
 };
 
