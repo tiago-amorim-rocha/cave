@@ -45,8 +45,9 @@ export class FlipPicSim implements VelocityField {
   private pressure: Float32Array;
   private pressureNext: Float32Array;
 
-  private gravity = 10;
-  private maxFaceSpeed = 25;
+  private gravity = 30;
+  private maxFaceSpeed = 40;
+  private substeps = 2;
 
   constructor(grid: WaterGrid, config: Partial<FlipPicSimConfig> = {}) {
     this.grid = grid;
@@ -128,10 +129,18 @@ export class FlipPicSim implements VelocityField {
     if (src?.enabled) {
       const drops = this.grid.consumeSourceDrops(64);
       if (drops > 0) {
-        this.spawnSourceParticles(src.minX, src.maxX, src.y, drops * 6);
+        this.spawnSourceParticles(src.minX, src.maxX, src.y, drops * 10);
       }
     }
 
+    const steps = Math.max(1, Math.floor(this.substeps));
+    const dtSub = dt / steps;
+    for (let i = 0; i < steps; i++) {
+      this.stepSub(dtSub);
+    }
+  }
+
+  private stepSub(dt: number): void {
     // Store previous grid velocities for FLIP delta
     this.uPrev.set(this.u);
     this.vPrev.set(this.v);
@@ -184,7 +193,7 @@ export class FlipPicSim implements VelocityField {
       const cx = x0 + Math.floor(Math.random() * (x1 - x0 + 1));
       const x = (cx + 0.5 + (Math.random() - 0.5) * 0.6) * this.h;
       const yy = (y + 0.5 + (Math.random() - 0.5) * 0.6) * this.h;
-      this.particles.push({ x, y: yy, vx: 0, vy: 0 });
+      this.particles.push({ x, y: yy, vx: 0, vy: 4 });
     }
   }
 
@@ -450,11 +459,47 @@ export class FlipPicSim implements VelocityField {
 
       const i = cy * this.W + cx;
       if (this.grid.solid[i]) {
-        // Revert and kill inward velocity
-        p.x = px0;
-        p.y = py0;
-        if (p.vy > 0) p.vy = 0;
-        p.vx *= 0.2;
+        // Push out of the solid cell along the shortest axis and allow sliding.
+        const fx = p.x / this.h - cx;
+        const fy = p.y / this.h - cy;
+
+        const left = fx;
+        const right = 1 - fx;
+        const up = fy;
+        const down = 1 - fy;
+
+        const eps = 1e-3;
+        let best = left;
+        let dir: 'L' | 'R' | 'U' | 'D' = 'L';
+        if (right < best) { best = right; dir = 'R'; }
+        if (up < best) { best = up; dir = 'U'; }
+        if (down < best) { best = down; dir = 'D'; }
+
+        if (dir === 'L') {
+          p.x = cx * this.h - eps;
+          if (p.vx > 0) p.vx = 0;
+        } else if (dir === 'R') {
+          p.x = (cx + 1) * this.h + eps;
+          if (p.vx < 0) p.vx = 0;
+        } else if (dir === 'U') {
+          p.y = cy * this.h - eps;
+          if (p.vy > 0) p.vy = 0;
+        } else {
+          p.y = (cy + 1) * this.h + eps;
+          if (p.vy < 0) p.vy = 0;
+        }
+
+        // If we're still inside due to numeric issues, revert.
+        let ccx = Math.floor(p.x / this.h);
+        let ccy = Math.floor(p.y / this.h);
+        ccx = Math.max(0, Math.min(this.W - 1, ccx));
+        ccy = Math.max(0, Math.min(this.H - 1, ccy));
+        if (this.grid.solid[ccy * this.W + ccx]) {
+          p.x = px0;
+          p.y = py0;
+          p.vx = 0;
+          if (p.vy > 0) p.vy = 0;
+        }
       }
     }
   }
