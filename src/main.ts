@@ -3,9 +3,7 @@ import { DensityField } from './DensityField';
 import { MarchingSquares } from './MarchingSquares';
 import { Renderer } from './Renderer';
 import { DebugConsole } from './DebugConsole';
-import { SpiderDebugUI } from './SpiderDebugUI';
 import { CaveGeneratorUI, type PerlinCaveParams } from './CaveGeneratorUI';
-import { CharacterControllerUI } from './CharacterControllerUI';
 import { LoopCache } from './LoopCache';
 import { InputHandler } from './InputHandler';
 import { Box2DPhysics } from './Box2DPhysics';
@@ -13,110 +11,11 @@ import { VirtualJoystick } from './VirtualJoystick';
 import { RemeshManager, type RemeshStats } from './RemeshManager';
 import { VersionChecker } from './VersionChecker';
 import type { WorldConfig, BrushSettings, Vec2 } from './types';
-import * as SpiderMath from './controllers/spider/SpiderMath';
-import { SpiderController } from './controllers/spider/SpiderController';
-import { DEFAULT_SPIDER_CONFIG } from './controllers/spider/SpiderTypes';
 import { CapsuleController } from './controllers/CapsuleController';
 import type { IPlayerController } from './controllers/IPlayerController';
 import { BrushGenerator, type Brush } from './BrushGenerator';
 import { PipelineConfig, DEFAULT_CONFIG } from './PipelineConfig';
 import type { CarvingDebugContext, CarvingDebugHooks } from './carving/CarvingDebugHooks';
-
-/**
- * Test spider math functions (Phase 1 verification)
- * This runs once at startup and logs results to console
- */
-function testSpiderMath() {
-  // console.log('\n=== SPIDER MATH TESTS (Phase 1) ===\n');
-
-  // Test 1: deltaAngle (shortest angular difference)
-  // console.log('Test 1: deltaAngle (shortest angular difference)');
-  // console.log('  deltaAngle(10, 50) =', SpiderMath.deltaAngle(10, 50), '(expected: 40)');
-  // console.log('  deltaAngle(350, 10) =', SpiderMath.deltaAngle(350, 10), '(expected: 20)');
-  // console.log('  deltaAngle(10, 350) =', SpiderMath.deltaAngle(10, 350), '(expected: -20)');
-  // console.log('  deltaAngle(170, -170) =', SpiderMath.deltaAngle(170, -170), '(expected: 20)');
-
-  // Test 2: normalizeAngle180
-  // console.log('\nTest 2: normalizeAngle180 (wrap to [-180, 180])');
-  // console.log('  normalizeAngle180(0) =', SpiderMath.normalizeAngle180(0), '(expected: 0)');
-  // console.log('  normalizeAngle180(190) =', SpiderMath.normalizeAngle180(190), '(expected: -170)');
-  // console.log('  normalizeAngle180(-190) =', SpiderMath.normalizeAngle180(-190), '(expected: 170)');
-  // console.log('  normalizeAngle180(360) =', SpiderMath.normalizeAngle180(360), '(expected: 0)');
-  // console.log('  normalizeAngle180(720) =', SpiderMath.normalizeAngle180(720), '(expected: 0)');
-
-  // Test 3: computeJointLimitTorque (PD controller)
-  // console.log('\nTest 3: computeJointLimitTorque (PD controller for soft limits)');
-
-  // Inside free range [10, 160] - should return 0
-  const torque1 = SpiderMath.computeJointLimitTorque(
-    0, 45, // parent=0°, child=45° (rel=45°)
-    10, 160, // free range [10°, 160°]
-    10, 1, // Kp=10, Kd=1
-    0, 0 // no angular velocity
-  );
-  // console.log('  Inside range [10°, 160°]: rel=45° → torque =', torque1, '(expected: 0)');
-
-  // Below free range - should push toward min
-  const torque2 = SpiderMath.computeJointLimitTorque(
-    0, 5, // parent=0°, child=5° (rel=5°, below min=10°)
-    10, 160, // free range
-    10, 1, // Kp=10, Kd=1
-    0, 0 // no angular velocity
-  );
-  // console.log('  Below range: rel=5° (min=10°) → torque =', torque2, '(expected: 50 = 10*(10-5))');
-
-  // Above free range - should push toward max
-  const torque3 = SpiderMath.computeJointLimitTorque(
-    0, 170, // parent=0°, child=170° (rel=170°, above max=160°)
-    10, 160, // free range
-    10, 1, // Kp=10, Kd=1
-    0, 0 // no angular velocity
-  );
-  // console.log('  Above range: rel=170° (max=160°) → torque =', torque3, '(expected: -100 = 10*(160-170))');
-
-  // Test 4: applyMirrorIfNeeded
-  // console.log('\nTest 4: applyMirrorIfNeeded (left/right leg symmetry)');
-
-  const leftRange = { min: 10, max: 160 };
-  SpiderMath.applyMirrorIfNeeded(true, leftRange);
-  // console.log('  Left leg [10°, 160°] → ', leftRange, '(expected: unchanged)');
-
-  const rightRange = { min: 10, max: 160 };
-  SpiderMath.applyMirrorIfNeeded(false, rightRange);
-  // console.log('  Right leg [10°, 160°] → ', rightRange, '(expected: [-160°, -10°])');
-
-  // Test 5: angleToDir
-  // console.log('\nTest 5: angleToDir (angle to direction vector)');
-  const dir0 = SpiderMath.angleToDir(0);
-  // console.log('  angleToDir(0°) =', `{x: ${dir0.x.toFixed(3)}, y: ${dir0.y.toFixed(3)}}`, '(expected: {x: 1, y: 0})');
-
-  const dir90 = SpiderMath.angleToDir(90);
-  // console.log('  angleToDir(90°) =', `{x: ${dir90.x.toFixed(3)}, y: ${dir90.y.toFixed(3)}}`, '(expected: {x: 0, y: 1})');
-
-  const dir180 = SpiderMath.angleToDir(180);
-  // console.log('  angleToDir(180°) =', `{x: ${dir180.x.toFixed(3)}, y: ${dir180.y.toFixed(3)}}`, '(expected: {x: -1, y: 0})');
-
-  // Test 6: rotateDir
-  // console.log('\nTest 6: rotateDir (rotate direction vector)');
-  const rotated = SpiderMath.rotateDir({ x: 1, y: 0 }, 90);
-  // console.log('  rotateDir({1, 0}, 90°) =', `{x: ${rotated.x.toFixed(3)}, y: ${rotated.y.toFixed(3)}}`, '(expected: {x: 0, y: 1})');
-
-  // Test 7: DEFAULT_SPIDER_CONFIG
-  // console.log('\nTest 7: DEFAULT_SPIDER_CONFIG (verify Unity defaults loaded)');
-  // console.log('  Segment lengths: L1=', DEFAULT_SPIDER_CONFIG.segmentLength1,
-  //             'L2=', DEFAULT_SPIDER_CONFIG.segmentLength2,
-  //             'L3=', DEFAULT_SPIDER_CONFIG.segmentLength3);
-  // console.log('  Torque: gain=', DEFAULT_SPIDER_CONFIG.torqueGain,
-  //             'max=', DEFAULT_SPIDER_CONFIG.maxJointTorque);
-  // console.log('  Joint limit PD: Kp=', DEFAULT_SPIDER_CONFIG.jointLimitKp,
-  //             'Kd=', DEFAULT_SPIDER_CONFIG.jointLimitKd);
-  // console.log('  Hip limits: [', DEFAULT_SPIDER_CONFIG.hipLimitFreeMin, '°,',
-  //             DEFAULT_SPIDER_CONFIG.hipLimitFreeMax, '°]');
-  // console.log('  Knee limits: [', DEFAULT_SPIDER_CONFIG.kneeLimitFreeMin, '°,',
-  //             DEFAULT_SPIDER_CONFIG.kneeLimitFreeMax, '°]');
-
-  // console.log('\n=== END SPIDER MATH TESTS ===\n');
-}
 
 /**
  * Main application
@@ -133,7 +32,6 @@ class CarvableCaves {
   private loopCache: LoopCache;
   private inputHandler: InputHandler;
   private physics: Box2DPhysics;
-  private spider: SpiderController | null = null; // Spider controller (parked for future reference)
   private player: IPlayerController | null = null; // Current active player controller
   private joystick: VirtualJoystick;
   private remeshManager!: RemeshManager; // Initialized after physics
@@ -160,7 +58,7 @@ class CarvableCaves {
   private originalVertexCount = 0; // vertices from Marching Squares
   private finalVertexCount = 0; // vertices after full pipeline
 
-  // Automated joystick test (for debugging spider movement)
+  // Automated joystick test (for debugging movement)
   private testStartFrame = 0;
   private testPhase: 'waiting' | 'input' | 'release' | 'done' = 'waiting';
 
@@ -286,24 +184,6 @@ class CarvableCaves {
     // UI elements removed - all debug functionality now in debug console
   }
 
-  /**
-   * Wire up spider debug UI callbacks (called after spider is created)
-   */
-  private setupSpiderDebugUI(): void {
-    const spiderUI = (window as any).spiderDebugUI as SpiderDebugUI;
-
-    if (spiderUI && this.spider) {
-      // Attach the controller and its config to the debug UI
-      spiderUI.attachController(this.spider, this.spider.config);
-    }
-  }
-
-  private setupCharacterControllerUI(): void {
-    // STUB: This method was for the old ForcePlayerController
-    // Spider controller uses SpiderDebugUI instead
-    // Character controller UI is no longer used with spider
-  }
-
   private async start(gridPitch: number): Promise<void> {
     // Initialize Box2D physics
     await this.physics.init();
@@ -372,9 +252,6 @@ class CarvableCaves {
         this.player.update(dt);
       }
     });
-
-    // Spider debug UI disabled (using simple capsule controller)
-    // this.setupSpiderDebugUI();
 
     // Start render loop
     this.loop();
@@ -472,7 +349,7 @@ class CarvableCaves {
 
   /**
    * Spawn a test ball at random position in the world (with spawn validation)
-   * COMMENTED OUT: Not using balls anymore with spider controller
+   * COMMENTED OUT: Not using balls anymore
    */
   // private spawnTestBall(): void {
   //   const margin = 2; // Stay 2m away from edges
@@ -515,7 +392,7 @@ class CarvableCaves {
     // Update FPS
     this.updateFPS();
 
-    // Automated joystick test (for debugging spider movement)
+    // Automated joystick test (for debugging movement)
     if (this.config.testEnabled) {
       this.runAutomatedTest();
     }
@@ -565,7 +442,6 @@ class CarvableCaves {
       physicsDebugDraw,
       undefined,
       joystickDraw,
-      undefined,
       playerDirection
     );
   };
@@ -610,9 +486,9 @@ class CarvableCaves {
   }
 
   /**
-   * Run automated joystick test to debug spider movement
+   * Run automated joystick test to debug movement
    * Test sequence:
-   * 1. Wait 60 frames (~1 second) for spider to settle
+   * 1. Wait 60 frames (~1 second) to settle
    * 2. Apply small upward force for 10 frames
    * 3. Release for 20 frames and observe behavior
    */
@@ -621,12 +497,12 @@ class CarvableCaves {
 
     switch (this.testPhase) {
       case 'waiting':
-        // Wait 60 frames for spider to settle
+        // Wait 60 frames to settle
         if (this.testStartFrame === 0) {
           this.testStartFrame = currentFrame;
           // console.log('[TEST] ========================================');
           // console.log('[TEST] AUTOMATED JOYSTICK TEST STARTING');
-          // console.log('[TEST] Phase 1: Waiting 60 frames for spider to settle...');
+          // console.log('[TEST] Phase 1: Waiting 60 frames to settle...');
           // console.log('[TEST] ========================================');
         }
         if (currentFrame - this.testStartFrame >= 60) {
@@ -913,13 +789,9 @@ class CarvableCaves {
 
 // Initialize debug console (hidden by default)
 let debugConsole: DebugConsole;
-let spiderDebugUI: SpiderDebugUI;
 try {
   debugConsole = new DebugConsole();
   (window as any).debugConsole = debugConsole; // Make accessible for stats updates
-
-  spiderDebugUI = new SpiderDebugUI();
-  (window as any).spiderDebugUI = spiderDebugUI; // Make accessible
 } catch (error) {
   console.error('Failed to create debug console:', error);
   throw error;
@@ -1065,43 +937,6 @@ caveGeneratorUI.onGenerate = (params) => {
   }
 };
 
-// Initialize character controller UI (hidden by default)
-let characterControllerUI: CharacterControllerUI;
-try {
-  characterControllerUI = new CharacterControllerUI();
-  (window as any).characterControllerUI = characterControllerUI; // Make accessible for setup after player creation
-} catch (error) {
-  // console.error('Failed to create character controller UI:', error);
-  throw error;
-}
-
-// Create character controller UI toggle button
-const controllerButton = document.createElement('button');
-controllerButton.id = 'controller-button';
-controllerButton.textContent = '⚙️';
-controllerButton.title = 'Character Controller Settings';
-controllerButton.style.cssText = `
-  position: fixed;
-  bottom: calc(env(safe-area-inset-bottom, 10px) + 200px);
-  left: calc(env(safe-area-inset-left, 10px) + 10px);
-  background: rgba(66, 66, 66, 0.95);
-  border-radius: 50%;
-  width: 54px;
-  height: 54px;
-  border: 2px solid rgba(255, 255, 0, 0.5);
-  cursor: pointer;
-  font-size: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10001;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-`;
-controllerButton.addEventListener('click', () => {
-  characterControllerUI.toggle();
-});
-document.body.appendChild(controllerButton);
-
 // Create carve button (on right side, opposite of joystick)
 const carveButton = document.createElement('button');
 carveButton.id = 'carve-button';
@@ -1149,10 +984,7 @@ carveButton.addEventListener('touchend', (e) => {
     app.carveAroundPlayer();
   }
 });
-  document.body.appendChild(carveButton);
-
-// Test spider math before starting application
-testSpiderMath();
+document.body.appendChild(carveButton);
 
 // Start the application
 let app: CarvableCaves;

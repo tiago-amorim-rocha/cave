@@ -28,6 +28,9 @@ public/version.json
 *.log
 npm-debug.log*
 logs/
+log.txt
+headless-*.txt
+rapier-*.txt
 
 # Testing
 coverage/

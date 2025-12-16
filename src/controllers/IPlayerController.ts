@@ -1,6 +1,5 @@
 /**
  * Interface that all player controllers must implement
- * This allows swapping between different controller types (force-based, spider, etc.)
  */
 
 export interface IPlayerController {
@@ -17,7 +16,6 @@ export interface IPlayerController {
 
   /**
    * Get player radius (for rendering)
-   * For multi-body controllers (like spider), this is the body radius
    */
   getRadius(): number;
 
@@ -28,7 +26,6 @@ export interface IPlayerController {
 
   /**
    * Get the main player rigid body
-   * For multi-body controllers, this is the "body" or "torso"
    */
   getBody(): any;
 
@@ -79,25 +76,4 @@ export interface IPlayerController {
    * @returns Direction angle in radians (0 = right, PI/2 = down, etc.)
    */
   getDirection?(): number;
-}
-
-/**
- * Controller type enum for factory and switching
- */
-export enum ControllerType {
-  FORCE = 'force',
-  SPIDER = 'spider',
-  CAPSULE = 'capsule',
-}
-
-/**
- * Configuration for controller creation
- */
-export interface ControllerConfig {
-  /** Initial spawn X position (metres) */
-  x: number;
-  /** Initial spawn Y position (metres) */
-  y: number;
-  /** Optional controller-specific configuration */
-  options?: Record<string, any>;
 }

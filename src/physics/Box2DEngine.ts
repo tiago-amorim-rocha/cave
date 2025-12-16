@@ -155,7 +155,7 @@ export class Box2DEngine {
 
   /**
    * Render debug visualization
-   * TODO: Implement proper debug drawing when @box2d/debug-draw is working
+   * TODO: Expand debug drawing to cover more shape types
    */
   debugDraw(ctx: CanvasRenderingContext2D, camera: Camera, canvasWidth: number, canvasHeight: number): void {
     if (!this.world || !this.debugDrawEnabled) return;
