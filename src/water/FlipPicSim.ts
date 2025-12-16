@@ -45,9 +45,16 @@ export class FlipPicSim implements VelocityField {
   private pressure: Float32Array;
   private pressureNext: Float32Array;
 
-  private gravity = 150;
-  private maxFaceSpeed = 200;
-  private substeps = 2;
+  private gravity = 30;
+  private maxFaceSpeed = 60;
+  private substeps = 1;
+  private particleDampingPerSecond = 0.9;
+
+  // Particle separation (position-based push-apart).
+  private pushApartSteps = 2;
+  private minDistanceFactor = 0.9; // multiples of particle spacing (h / particlesPerCellSide)
+  private particleCellHead: Int32Array; // W x H, head index for linked list
+  private particleCellNext: Int32Array; // maxParticles, next index per particle
 
   constructor(grid: WaterGrid, config: Partial<FlipPicSimConfig> = {}) {
     this.grid = grid;
@@ -73,10 +80,59 @@ export class FlipPicSim implements VelocityField {
     this.divergence = new Float32Array(this.W * this.H);
     this.pressure = new Float32Array(this.W * this.H);
     this.pressureNext = new Float32Array(this.W * this.H);
+
+    this.particleCellHead = new Int32Array(this.W * this.H);
+    this.particleCellNext = new Int32Array(this.config.maxParticles);
   }
 
   getParticles(): ReadonlyArray<FlipPicParticle> {
     return this.particles;
+  }
+
+  setFlipRatio(value: number): void {
+    this.config.flipRatio = Math.max(0, Math.min(1, value));
+  }
+
+  setGravity(value: number): void {
+    this.gravity = Math.max(0, value);
+  }
+
+  setSubsteps(value: number): void {
+    const v = Math.floor(value);
+    this.substeps = Math.max(1, Math.min(8, v));
+  }
+
+  setProjectionIterations(value: number): void {
+    const v = Math.floor(value);
+    this.config.projectionIterations = Math.max(1, Math.min(200, v));
+  }
+
+  setMaxFaceSpeed(value: number): void {
+    this.maxFaceSpeed = Math.max(0, value);
+  }
+
+  setParticleDampingPerSecond(value: number): void {
+    this.particleDampingPerSecond = Math.max(0, value);
+  }
+
+  setPushApartSteps(value: number): void {
+    const v = Math.floor(value);
+    this.pushApartSteps = Math.max(0, Math.min(32, v));
+  }
+
+  setMinDistanceFactor(value: number): void {
+    this.minDistanceFactor = Math.max(0, value);
+  }
+
+  setMaxParticles(maxParticles: number): void {
+    const target = Math.max(1, Math.floor(maxParticles));
+    this.config.maxParticles = target;
+    if (this.particleCellNext.length < target) {
+      this.particleCellNext = new Int32Array(target);
+    }
+    if (this.particles.length > target) {
+      this.particles.length = target;
+    }
   }
 
   reset(): void {
@@ -127,7 +183,7 @@ export class FlipPicSim implements VelocityField {
     // Keep particles fed from the existing timed source (for now).
     const src = this.grid.getSourceInfo();
     if (src?.enabled) {
-      const drops = this.grid.consumeSourceDrops(64);
+      const drops = this.grid.consumeSourceDrops(24);
       if (drops > 0) {
         this.spawnSourceParticles(src.minX, src.maxX, src.y, drops * 10);
       }
@@ -166,6 +222,7 @@ export class FlipPicSim implements VelocityField {
     // Grid -> particle (PIC/FLIP blend) and advect
     this.updateParticlesFromGrid(dt);
     this.advectParticles(dt);
+    this.pushApartAndResolveSolids();
   }
 
   // VelocityField
@@ -405,6 +462,7 @@ export class FlipPicSim implements VelocityField {
 
   private updateParticlesFromGrid(dt: number): void {
     const flip = Math.max(0, Math.min(1, this.config.flipRatio));
+    const damp = Math.max(0, 1 - this.particleDampingPerSecond * dt);
 
     for (const p of this.particles) {
       const pic = this.sampleGridVelocity(p.x, p.y);
@@ -415,10 +473,8 @@ export class FlipPicSim implements VelocityField {
 
       p.vx = pic.u * (1 - flip) + flipVel.u * flip;
       p.vy = pic.v * (1 - flip) + flipVel.v * flip;
-
-      // Light damping for stability
-      p.vx *= 0.999;
-      p.vy *= 0.999;
+      p.vx *= damp;
+      p.vy *= damp;
     }
   }
 
@@ -501,6 +557,177 @@ export class FlipPicSim implements VelocityField {
           if (p.vy > 0) p.vy = 0;
         }
       }
+    }
+  }
+
+  private pushApartAndResolveSolids(): void {
+    let iterations = Math.max(0, Math.floor(this.pushApartSteps));
+    if (iterations === 0) return;
+    if (this.particles.length < 2) return;
+
+    const particleCount = this.particles.length;
+    // Adaptive cap: separation is the most expensive step; keep the UI responsive under load.
+    if (particleCount > 45_000) iterations = Math.min(iterations, 1);
+    if (particleCount > 60_000) iterations = 0;
+    if (iterations === 0) return;
+
+    const pps = Math.max(1, Math.floor(this.config.particlesPerCellSide));
+    const baseSpacing = this.h / pps;
+    const minDist = Math.max(0, this.minDistanceFactor) * baseSpacing;
+    if (minDist <= 0) return;
+
+    const minDistSq = minDist * minDist;
+    const range = Math.max(1, Math.ceil(minDist / this.h));
+    const eps = 1e-12;
+
+    for (let iter = 0; iter < iterations; iter++) {
+      this.buildParticleCellLists();
+
+      const particles = this.particles;
+      const next = this.particleCellNext;
+      const head = this.particleCellHead;
+      const maxX = this.W * this.h;
+      const maxY = this.H * this.h;
+
+      for (let i = 0; i < particles.length; i++) {
+        const pi = particles[i];
+        const cx = Math.max(0, Math.min(this.W - 1, Math.floor(pi.x / this.h)));
+        const cy = Math.max(0, Math.min(this.H - 1, Math.floor(pi.y / this.h)));
+
+        for (let dy = -range; dy <= range; dy++) {
+          const ny = cy + dy;
+          if (ny < 0 || ny >= this.H) continue;
+          for (let dx = -range; dx <= range; dx++) {
+            const nx = cx + dx;
+            if (nx < 0 || nx >= this.W) continue;
+            let j = head[ny * this.W + nx];
+            while (j !== -1) {
+              if (j > i) {
+                const pj = particles[j];
+                const dxp = pi.x - pj.x;
+                const dyp = pi.y - pj.y;
+                const distSq = dxp * dxp + dyp * dyp;
+                if (distSq < minDistSq && distSq > eps) {
+                  const dist = Math.sqrt(distSq);
+                  const push = 0.5 * (minDist - dist) / dist;
+                  const px = dxp * push;
+                  const py = dyp * push;
+
+                  pi.x += px;
+                  pi.y += py;
+                  pj.x -= px;
+                  pj.y -= py;
+
+                  // Keep within world bounds during relaxation (cheap clamp).
+                  if (pi.x < 0) pi.x = 0;
+                  else if (pi.x > maxX) pi.x = maxX;
+                  if (pi.y < 0) pi.y = 0;
+                  else if (pi.y > maxY) pi.y = maxY;
+
+                  if (pj.x < 0) pj.x = 0;
+                  else if (pj.x > maxX) pj.x = maxX;
+                  if (pj.y < 0) pj.y = 0;
+                  else if (pj.y > maxY) pj.y = maxY;
+                }
+              }
+              j = next[j];
+            }
+          }
+        }
+      }
+
+      // After each relaxation pass, push particles out of solids.
+      this.enforceParticleWorldAndSolids();
+    }
+  }
+
+  private buildParticleCellLists(): void {
+    this.particleCellHead.fill(-1);
+
+    const n = this.particles.length;
+    if (n > this.particleCellNext.length) {
+      const newCap = Math.max(n, this.config.maxParticles);
+      this.particleCellNext = new Int32Array(newCap);
+    }
+
+    for (let i = 0; i < n; i++) {
+      const p = this.particles[i];
+      let cx = Math.floor(p.x / this.h);
+      let cy = Math.floor(p.y / this.h);
+      if (cx < 0) cx = 0;
+      else if (cx >= this.W) cx = this.W - 1;
+      if (cy < 0) cy = 0;
+      else if (cy >= this.H) cy = this.H - 1;
+
+      const cell = cy * this.W + cx;
+      this.particleCellNext[i] = this.particleCellHead[cell];
+      this.particleCellHead[cell] = i;
+    }
+  }
+
+  private enforceParticleWorldAndSolids(): void {
+    const maxX = this.W * this.h;
+    const maxY = this.H * this.h;
+
+    for (const p of this.particles) {
+      if (p.x < 0) {
+        p.x = 0;
+        if (p.vx < 0) p.vx = 0;
+      } else if (p.x > maxX) {
+        p.x = maxX;
+        if (p.vx > 0) p.vx = 0;
+      }
+      if (p.y < 0) {
+        p.y = 0;
+        if (p.vy < 0) p.vy = 0;
+      } else if (p.y > maxY) {
+        p.y = maxY;
+        if (p.vy > 0) p.vy = 0;
+      }
+
+      let cx = Math.floor(p.x / this.h);
+      let cy = Math.floor(p.y / this.h);
+      if (cx < 0) cx = 0;
+      if (cx >= this.W) cx = this.W - 1;
+      if (cy < 0) cy = 0;
+      if (cy >= this.H) cy = this.H - 1;
+
+      const i = cy * this.W + cx;
+      if (!this.grid.solid[i]) continue;
+
+      const fx = p.x / this.h - cx;
+      const fy = p.y / this.h - cy;
+
+      const left = fx;
+      const right = 1 - fx;
+      const up = fy;
+      const down = 1 - fy;
+
+      const eps = 1e-3;
+      let best = left;
+      let dir: 'L' | 'R' | 'U' | 'D' = 'L';
+      if (right < best) { best = right; dir = 'R'; }
+      if (up < best) { best = up; dir = 'U'; }
+      if (down < best) { best = down; dir = 'D'; }
+
+      if (dir === 'L') {
+        p.x = cx * this.h - eps;
+        if (p.vx > 0) p.vx = 0;
+      } else if (dir === 'R') {
+        p.x = (cx + 1) * this.h + eps;
+        if (p.vx < 0) p.vx = 0;
+      } else if (dir === 'U') {
+        p.y = cy * this.h - eps;
+        if (p.vy > 0) p.vy = 0;
+      } else {
+        p.y = (cy + 1) * this.h + eps;
+        if (p.vy < 0) p.vy = 0;
+      }
+
+      if (p.x < 0) p.x = 0;
+      else if (p.x > maxX) p.x = maxX;
+      if (p.y < 0) p.y = 0;
+      else if (p.y > maxY) p.y = maxY;
     }
   }
 

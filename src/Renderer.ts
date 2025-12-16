@@ -89,6 +89,11 @@ export class Renderer {
   private waterGrid: WaterGrid | null = null;
   private waterVelocity: VelocityField | null = null;
   private waterParticles: ReadonlyArray<{ x: number; y: number }> | null = null;
+  private waterSurfaceCanvas: HTMLCanvasElement | null = null;
+  private waterSurfaceCtx: CanvasRenderingContext2D | null = null;
+  private waterSurfaceImage: ImageData | null = null;
+  private waterSurfaceField: Float32Array | null = null;
+  private waterSurfaceTmp: Float32Array | null = null;
   private optimizedOptLoops: OptVertex[][] = []; // Ancestry-carrying optimized vertices (debug)
   private canonicalLoops: CanonicalLoop[] = []; // Cleaned marching squares output (debug-only)
   private segmentDebugData: Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }> = [];
@@ -108,10 +113,16 @@ export class Renderer {
 
   public showGrid: boolean = false;
   public showDensityField: boolean = false;
-  public showWaterGrid: boolean = true;
-  public showWaterFlowDebug: boolean = true;
+  public showWaterSurface: boolean = true;
+  public showWaterGrid: boolean = false;
+  public showWaterFlowDebug: boolean = false;
   public showWaterVelocityHsv: boolean = false;
   public showWaterParticles: boolean = false;
+  public waterSurfaceThreshold: number = 0.16;
+  public waterSurfaceSoftness: number = 0.1;
+  public waterSurfaceBlurCells: number = 1;
+  public waterSurfaceAlpha: number = 0.85;
+  public waterSurfaceDensityScale: number = 1.35;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
   public showCanonicalVertices: boolean = false; // Show canonical vertices (debug-only)
@@ -421,6 +432,7 @@ export class Renderer {
 
   setWaterGrid(grid: WaterGrid | null): void {
     this.waterGrid = grid;
+    this.ensureWaterSurfaceBuffers();
   }
 
   setWaterVelocityGrid(grid: VelocityField | null): void {
@@ -504,8 +516,12 @@ export class Renderer {
         this.drawGrid(width, height);
       }
 
-      // Draw polylines
-      this.drawPolylines(width, height);
+      // Draw cave fill/outlines split so water can render in-between.
+      this.drawCaveFill(width, height);
+      if (this.showWaterSurface && this.waterGrid) {
+        this.drawWaterSurface(width, height);
+      }
+      this.drawCaveOutlines(width, height);
 
       // Draw water grid overlay (debug)
       if (this.showWaterGrid && this.waterGrid) {
@@ -745,19 +761,14 @@ export class Renderer {
   }
 
   /**
-   * Draw contour polylines
+   * Draw contour polylines (legacy wrapper)
    */
   private drawPolylines(canvasWidth: number, canvasHeight: number): void {
-    if (this.polylines.length === 0) {
-      console.warn('[Renderer] No polylines to draw (polylines array empty)');
-      return;
-    }
+    this.drawCaveFill(canvasWidth, canvasHeight);
+    this.drawCaveOutlines(canvasWidth, canvasHeight);
+  }
 
-    this.ctx.save();
-
-    // Fill empty cave space (inside contours) with light cream (lightest)
-    // Use 'evenodd' fill rule to handle nested contours
-    this.ctx.fillStyle = '#fff8e3';
+  private beginCavePath(canvasWidth: number, canvasHeight: number): void {
     this.ctx.beginPath();
 
     for (const polyline of this.polylines) {
@@ -773,11 +784,32 @@ export class Renderer {
 
       this.ctx.closePath();
     }
+  }
 
+  private drawCaveFill(canvasWidth: number, canvasHeight: number): void {
+    if (this.polylines.length === 0) {
+      console.warn('[Renderer] No polylines to draw (polylines array empty)');
+      return;
+    }
+
+    this.ctx.save();
+
+    // Fill empty cave space (inside contours) with light cream (lightest)
+    // Use 'evenodd' fill rule to handle nested contours
+    this.ctx.fillStyle = '#fff8e3';
+    this.beginCavePath(canvasWidth, canvasHeight);
     this.ctx.fill('evenodd');
 
     // Draw subtle grid lines in cave space (after fill, before stroke)
     this.drawCaveGrid(canvasWidth, canvasHeight);
+
+    this.ctx.restore();
+  }
+
+  private drawCaveOutlines(canvasWidth: number, canvasHeight: number): void {
+    if (this.polylines.length === 0) return;
+
+    this.ctx.save();
 
     // Stroke outlines (medium purple for definition)
     this.ctx.strokeStyle = '#9c7fa3';
@@ -785,23 +817,174 @@ export class Renderer {
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
 
-    for (const polyline of this.polylines) {
-      if (polyline.length < 2) continue;
-
-      this.ctx.beginPath();
-      const firstScreen = this.camera.worldToScreen(polyline[0].x, polyline[0].y, canvasWidth, canvasHeight);
-      this.ctx.moveTo(firstScreen.x, firstScreen.y);
-
-      for (let i = 1; i < polyline.length; i++) {
-        const screen = this.camera.worldToScreen(polyline[i].x, polyline[i].y, canvasWidth, canvasHeight);
-        this.ctx.lineTo(screen.x, screen.y);
-      }
-
-      this.ctx.closePath();
-      this.ctx.stroke();
-    }
+    this.beginCavePath(canvasWidth, canvasHeight);
+    this.ctx.stroke();
 
     this.ctx.restore();
+  }
+
+  private ensureWaterSurfaceBuffers(): void {
+    if (!this.waterGrid) {
+      this.waterSurfaceCanvas = null;
+      this.waterSurfaceCtx = null;
+      this.waterSurfaceImage = null;
+      this.waterSurfaceField = null;
+      this.waterSurfaceTmp = null;
+      return;
+    }
+
+    const w = this.waterGrid.widthCells;
+    const h = this.waterGrid.heightCells;
+    if (w <= 0 || h <= 0) return;
+
+    if (this.waterSurfaceCanvas && this.waterSurfaceCanvas.width === w && this.waterSurfaceCanvas.height === h) {
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      console.warn('[Renderer] Failed to allocate water surface canvas context');
+      return;
+    }
+
+    this.waterSurfaceCanvas = canvas;
+    this.waterSurfaceCtx = ctx;
+    this.waterSurfaceImage = ctx.createImageData(w, h);
+    this.waterSurfaceField = new Float32Array(w * h);
+    this.waterSurfaceTmp = new Float32Array(w * h);
+  }
+
+  private drawWaterSurface(canvasWidth: number, canvasHeight: number): void {
+    if (!this.waterGrid) return;
+    if (!this.waterSurfaceCanvas || !this.waterSurfaceCtx || !this.waterSurfaceImage || !this.waterSurfaceField || !this.waterSurfaceTmp) {
+      return;
+    }
+
+    const grid = this.waterGrid;
+    const W = grid.widthCells;
+    const H = grid.heightCells;
+    const water = grid.water;
+    const solid = grid.solid;
+
+    const field = this.waterSurfaceField;
+    const tmp = this.waterSurfaceTmp;
+
+    const densityScale = Math.max(0, this.waterSurfaceDensityScale);
+    for (let i = 0; i < field.length; i++) {
+      if (solid[i]) {
+        field[i] = 0;
+        continue;
+      }
+      const v = water[i] * densityScale;
+      field[i] = v <= 0 ? 0 : (v >= 1 ? 1 : v);
+    }
+
+    const blurR = Math.max(0, Math.floor(this.waterSurfaceBlurCells));
+    if (blurR > 0) {
+      this.boxBlurHorizontal(field, tmp, W, H, blurR);
+      this.boxBlurVertical(tmp, field, W, H, blurR);
+
+      // Keep solids cleared so blur doesn't paint into rock.
+      for (let i = 0; i < field.length; i++) {
+        if (solid[i]) field[i] = 0;
+      }
+    }
+
+    const t = Math.max(0, Math.min(1, this.waterSurfaceThreshold));
+    const s = Math.max(0, Math.min(1, this.waterSurfaceSoftness));
+    const alphaScale = Math.max(0, Math.min(1, this.waterSurfaceAlpha));
+
+    const data = this.waterSurfaceImage.data;
+    const baseR = 20;
+    const baseG = 150;
+    const baseB = 240;
+
+    for (let i = 0; i < field.length; i++) {
+      const v = field[i];
+      const a = solid[i] ? 0 : this.smoothstep(t - s, t + s, v);
+      const alpha = a * alphaScale;
+      const di = i * 4;
+      const depth = v <= t ? 0 : Math.max(0, Math.min(1, (v - t) / Math.max(1e-6, 1 - t)));
+      const shade = 1.0 - 0.25 * depth; // slightly darker with depth
+      const highlight = (1 - depth) * 0.12;
+      data[di + 0] = Math.max(0, Math.min(255, Math.round(baseR * shade + 255 * highlight * 0.05)));
+      data[di + 1] = Math.max(0, Math.min(255, Math.round(baseG * shade + 255 * highlight * 0.25)));
+      data[di + 2] = Math.max(0, Math.min(255, Math.round(baseB * shade + 255 * highlight * 0.45)));
+      data[di + 3] = Math.round(alpha * 255);
+    }
+
+    this.waterSurfaceCtx.putImageData(this.waterSurfaceImage, 0, 0);
+
+    const worldWidth = W * grid.cellSizeM;
+    const worldHeight = H * grid.cellSizeM;
+    const topLeft = this.camera.worldToScreen(0, 0, canvasWidth, canvasHeight);
+    const bottomRight = this.camera.worldToScreen(worldWidth, worldHeight, canvasWidth, canvasHeight);
+
+    this.ctx.save();
+
+    // Clip to cave interior (prevents blur bleed into rock).
+    if (this.polylines.length > 0) {
+      this.beginCavePath(canvasWidth, canvasHeight);
+      this.ctx.clip('evenodd');
+    }
+
+    this.ctx.drawImage(
+      this.waterSurfaceCanvas,
+      topLeft.x,
+      topLeft.y,
+      bottomRight.x - topLeft.x,
+      bottomRight.y - topLeft.y
+    );
+
+    this.ctx.restore();
+  }
+
+  private boxBlurHorizontal(src: Float32Array, dst: Float32Array, w: number, h: number, r: number): void {
+    const inv = 1 / (2 * r + 1);
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      let sum = 0;
+      for (let ix = -r; ix <= r; ix++) {
+        const x = ix < 0 ? 0 : (ix >= w ? w - 1 : ix);
+        sum += src[row + x];
+      }
+      for (let x = 0; x < w; x++) {
+        dst[row + x] = sum * inv;
+        const xRemove = x - r;
+        const xAdd = x + r + 1;
+        const removeIdx = row + (xRemove < 0 ? 0 : (xRemove >= w ? w - 1 : xRemove));
+        const addIdx = row + (xAdd < 0 ? 0 : (xAdd >= w ? w - 1 : xAdd));
+        sum += src[addIdx] - src[removeIdx];
+      }
+    }
+  }
+
+  private boxBlurVertical(src: Float32Array, dst: Float32Array, w: number, h: number, r: number): void {
+    const inv = 1 / (2 * r + 1);
+    for (let x = 0; x < w; x++) {
+      let sum = 0;
+      for (let iy = -r; iy <= r; iy++) {
+        const y = iy < 0 ? 0 : (iy >= h ? h - 1 : iy);
+        sum += src[y * w + x];
+      }
+      for (let y = 0; y < h; y++) {
+        dst[y * w + x] = sum * inv;
+        const yRemove = y - r;
+        const yAdd = y + r + 1;
+        const removeY = yRemove < 0 ? 0 : (yRemove >= h ? h - 1 : yRemove);
+        const addY = yAdd < 0 ? 0 : (yAdd >= h ? h - 1 : yAdd);
+        sum += src[addY * w + x] - src[removeY * w + x];
+      }
+    }
+  }
+
+  private smoothstep(edge0: number, edge1: number, x: number): number {
+    if (edge0 === edge1) return x >= edge1 ? 1 : 0;
+    const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+    return t * t * (3 - 2 * t);
   }
 
   private drawDensityField(canvasWidth: number, canvasHeight: number): void {

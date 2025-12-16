@@ -21,6 +21,7 @@ export class DebugConsole {
   private textLogButton: HTMLButtonElement;
   private respawnButton: HTMLButtonElement;
   private caveGenButton: HTMLButtonElement;
+  private waterResetButton: HTMLButtonElement;
   private isMenuExpanded = false;
 
   // Toggle callbacks
@@ -35,10 +36,24 @@ export class DebugConsole {
   public onToggleSegments?: (enabled: boolean) => void;
   public onToggleGrid?: (enabled: boolean) => void;
   public onToggleDensityField?: (enabled: boolean) => void;
+  public onToggleWaterSurface?: (enabled: boolean) => void;
   public onToggleWaterGrid?: (enabled: boolean) => void;
   public onToggleWaterFlowDebug?: (enabled: boolean) => void;
   public onToggleWaterVelocityHsv?: (enabled: boolean) => void;
   public onToggleWaterParticles?: (enabled: boolean) => void;
+  public onWaterFlipRatioChange?: (value: number) => void;
+  public onWaterGravityChange?: (value: number) => void;
+  public onWaterSubstepsChange?: (value: number) => void;
+  public onWaterProjectionIterationsChange?: (value: number) => void;
+  public onWaterPushApartStepsChange?: (value: number) => void;
+  public onWaterMinDistanceFactorChange?: (value: number) => void;
+  public onWaterParticleDampingChange?: (value: number) => void;
+  public onWaterSurfaceThresholdChange?: (value: number) => void;
+  public onWaterSurfaceSoftnessChange?: (value: number) => void;
+  public onWaterSurfaceBlurCellsChange?: (value: number) => void;
+  public onWaterSurfaceAlphaChange?: (value: number) => void;
+  public onWaterSurfaceDensityScaleChange?: (value: number) => void;
+  public onWaterReset?: () => void;
   public onToggleDirtyAABB?: (enabled: boolean) => void;
   public onToggleRebuiltChains?: (enabled: boolean) => void;
   public onSimplificationChange?: (epsilon: number) => void;
@@ -67,11 +82,13 @@ export class DebugConsole {
     this.textLogButton = this.createTextLogButton();
     this.respawnButton = this.createRespawnButton();
     this.caveGenButton = this.createCaveGenButton();
+    this.waterResetButton = this.createWaterResetButton();
     document.body.appendChild(this.hamburgerButton);
     document.body.appendChild(this.visualDebugButton);
     document.body.appendChild(this.textLogButton);
     document.body.appendChild(this.respawnButton);
     document.body.appendChild(this.caveGenButton);
+    document.body.appendChild(this.waterResetButton);
 
     // Intercept console methods
     this.interceptConsole();
@@ -257,6 +274,43 @@ export class DebugConsole {
       if (this.onToggleCaveGen) {
         this.onToggleCaveGen();
       }
+    });
+    return button;
+  }
+
+  private createWaterResetButton(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.id = 'water-reset-button';
+    button.title = 'Restart water sim';
+    button.textContent = '💧';
+    button.style.cssText = `
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 10px) + 310px);
+      left: calc(env(safe-area-inset-left, 10px) + 10px);
+      background: rgba(3, 169, 244, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10001;
+      pointer-events: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      -webkit-tap-highlight-color: rgba(3, 169, 244, 0.3);
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: opacity 0.3s ease 0.2s, transform 0.3s ease 0.2s;
+    `;
+    button.addEventListener('click', () => {
+      this.onWaterReset?.();
     });
     return button;
   }
@@ -479,8 +533,9 @@ export class DebugConsole {
       { label: 'Segments', key: 'segments', callback: 'onToggleSegments', checked: false },
       { label: 'Grid', key: 'grid', callback: 'onToggleGrid', checked: false },
       { label: 'Density Field', key: 'density', callback: 'onToggleDensityField', checked: false },
-      { label: 'Water Grid', key: 'water', callback: 'onToggleWaterGrid', checked: true },
-      { label: 'Water Flow Colors', key: 'waterflow', callback: 'onToggleWaterFlowDebug', checked: true },
+      { label: 'Water Surface', key: 'watersurface', callback: 'onToggleWaterSurface', checked: true },
+      { label: 'Water Grid', key: 'water', callback: 'onToggleWaterGrid', checked: false },
+      { label: 'Water Flow Colors', key: 'waterflow', callback: 'onToggleWaterFlowDebug', checked: false },
       { label: 'Water Velocity HSV', key: 'watervel', callback: 'onToggleWaterVelocityHsv', checked: false },
       { label: 'Water Particles', key: 'waterparts', callback: 'onToggleWaterParticles', checked: false },
       { label: 'Dirty AABB', key: 'dirtyaabb', callback: 'onToggleDirtyAABB', checked: true },
@@ -527,6 +582,268 @@ export class DebugConsole {
       toggleRow.appendChild(labelEl);
       controlsContainer.appendChild(toggleRow);
     });
+
+    // Water tuning controls (sim + surface)
+    const waterSection = document.createElement('div');
+    waterSection.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(3, 169, 244, 0.25);
+    `;
+
+    const waterTitle = document.createElement('div');
+    waterTitle.textContent = 'Water Settings';
+    waterTitle.style.cssText = `
+      color: #03A9F4;
+      font-weight: bold;
+      font-size: 10px;
+      margin-bottom: 4px;
+    `;
+    waterSection.appendChild(waterTitle);
+
+    const addSlider = (opts: {
+      label: string;
+      color: string;
+      min: number;
+      max: number;
+      step: number;
+      value: number;
+      format: (v: number) => string;
+      onChange?: (v: number) => void;
+      desc?: string;
+    }): void => {
+      const row = document.createElement('div');
+      row.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      `;
+
+      const labelRow = document.createElement('div');
+      labelRow.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        font-size: 9px;
+        color: ${opts.color};
+      `;
+
+      const left = document.createElement('span');
+      left.textContent = opts.label;
+      const right = document.createElement('span');
+      right.textContent = opts.format(opts.value);
+
+      labelRow.appendChild(left);
+      labelRow.appendChild(right);
+
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = String(opts.min);
+      slider.max = String(opts.max);
+      slider.step = String(opts.step);
+      slider.value = String(opts.value);
+      slider.style.cssText = `
+        width: 100%;
+        cursor: pointer;
+      `;
+
+      slider.addEventListener('input', (e) => {
+        const target = e.target as HTMLInputElement;
+        const v = parseFloat(target.value);
+        right.textContent = opts.format(v);
+        opts.onChange?.(v);
+      });
+
+      row.appendChild(labelRow);
+      row.appendChild(slider);
+
+      if (opts.desc) {
+        const desc = document.createElement('div');
+        desc.style.cssText = `
+          color: rgba(3, 169, 244, 0.5);
+          font-size: 8px;
+          margin-top: 1px;
+        `;
+        desc.textContent = opts.desc;
+        row.appendChild(desc);
+      }
+
+      waterSection.appendChild(row);
+    };
+
+    // Sim knobs
+    addSlider({
+      label: 'FLIP Ratio',
+      color: '#03A9F4',
+      min: 0,
+      max: 100,
+      step: 1,
+      value: 90,
+      format: (v) => `${Math.round(v)}%`,
+      onChange: (v) => this.onWaterFlipRatioChange?.(v / 100),
+      desc: '0 = PIC, 100 = FLIP',
+    });
+
+    addSlider({
+      label: 'Gravity',
+      color: '#03A9F4',
+      min: 0,
+      max: 300,
+      step: 1,
+      value: 30,
+      format: (v) => `${Math.round(v)}`,
+      onChange: (v) => this.onWaterGravityChange?.(v),
+    });
+
+    addSlider({
+      label: 'Substeps',
+      color: '#03A9F4',
+      min: 1,
+      max: 6,
+      step: 1,
+      value: 1,
+      format: (v) => `${Math.round(v)}`,
+      onChange: (v) => this.onWaterSubstepsChange?.(Math.round(v)),
+    });
+
+    addSlider({
+      label: 'Projection Iter',
+      color: '#03A9F4',
+      min: 5,
+      max: 80,
+      step: 1,
+      value: 25,
+      format: (v) => `${Math.round(v)}`,
+      onChange: (v) => this.onWaterProjectionIterationsChange?.(Math.round(v)),
+    });
+
+    addSlider({
+      label: 'Push-Apart Steps',
+      color: '#03A9F4',
+      min: 0,
+      max: 10,
+      step: 1,
+      value: 2,
+      format: (v) => `${Math.round(v)}`,
+      onChange: (v) => this.onWaterPushApartStepsChange?.(Math.round(v)),
+      desc: 'Particle separation (feel)',
+    });
+
+    addSlider({
+      label: 'Separation',
+      color: '#03A9F4',
+      min: 0,
+      max: 200,
+      step: 5,
+      value: 90,
+      format: (v) => `${Math.round(v)}%`,
+      onChange: (v) => this.onWaterMinDistanceFactorChange?.(v / 100),
+      desc: 'Min distance vs particle spacing',
+    });
+
+    addSlider({
+      label: 'Particle Damping',
+      color: '#03A9F4',
+      min: 0,
+      max: 200,
+      step: 1,
+      value: 90,
+      format: (v) => `${(v / 100).toFixed(2)}/s`,
+      onChange: (v) => this.onWaterParticleDampingChange?.(v / 100),
+    });
+
+    // Surface knobs
+    const surfaceTitle = document.createElement('div');
+    surfaceTitle.textContent = 'Surface (Metaball)';
+    surfaceTitle.style.cssText = `
+      color: rgba(3, 169, 244, 0.9);
+      font-weight: bold;
+      font-size: 9px;
+      margin-top: 6px;
+    `;
+    waterSection.appendChild(surfaceTitle);
+
+    addSlider({
+      label: 'Threshold',
+      color: '#03A9F4',
+      min: 0,
+      max: 100,
+      step: 1,
+      value: 16,
+      format: (v) => (v / 100).toFixed(2),
+      onChange: (v) => this.onWaterSurfaceThresholdChange?.(v / 100),
+    });
+
+    addSlider({
+      label: 'Softness',
+      color: '#03A9F4',
+      min: 0,
+      max: 50,
+      step: 1,
+      value: 10,
+      format: (v) => (v / 100).toFixed(2),
+      onChange: (v) => this.onWaterSurfaceSoftnessChange?.(v / 100),
+    });
+
+    addSlider({
+      label: 'Blur Cells',
+      color: '#03A9F4',
+      min: 0,
+      max: 6,
+      step: 1,
+      value: 1,
+      format: (v) => `${Math.round(v)}`,
+      onChange: (v) => this.onWaterSurfaceBlurCellsChange?.(Math.round(v)),
+    });
+
+    addSlider({
+      label: 'Alpha',
+      color: '#03A9F4',
+      min: 0,
+      max: 100,
+      step: 1,
+      value: 85,
+      format: (v) => `${Math.round(v)}%`,
+      onChange: (v) => this.onWaterSurfaceAlphaChange?.(v / 100),
+    });
+
+    addSlider({
+      label: 'Density Scale',
+      color: '#03A9F4',
+      min: 50,
+      max: 200,
+      step: 1,
+      value: 135,
+      format: (v) => (v / 100).toFixed(2),
+      onChange: (v) => this.onWaterSurfaceDensityScaleChange?.(v / 100),
+    });
+
+    const waterButtons = document.createElement('div');
+    waterButtons.style.cssText = `
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    `;
+    const resetWaterBtn = document.createElement('button');
+    resetWaterBtn.textContent = 'Reset';
+    resetWaterBtn.title = 'Reset water sim';
+    resetWaterBtn.style.cssText = `
+      flex: 1;
+      background: rgba(3, 169, 244, 0.15);
+      border: 1px solid rgba(3, 169, 244, 0.35);
+      color: #03A9F4;
+      border-radius: 3px;
+      padding: 4px 6px;
+      cursor: pointer;
+      font-size: 9px;
+    `;
+    resetWaterBtn.addEventListener('click', () => this.onWaterReset?.());
+    waterButtons.appendChild(resetWaterBtn);
+    waterSection.appendChild(waterButtons);
+
+    controlsContainer.insertBefore(waterSection, controlsContainer.firstChild);
 
     // Add stats display
     const statsRow = document.createElement('div');
@@ -1167,6 +1484,10 @@ export class DebugConsole {
       this.caveGenButton.style.transform = 'translateY(0)';
       this.caveGenButton.style.pointerEvents = 'auto';
 
+      this.waterResetButton.style.opacity = '1';
+      this.waterResetButton.style.transform = 'translateY(0)';
+      this.waterResetButton.style.pointerEvents = 'auto';
+
       // Rotate hamburger icon
       this.hamburgerButton.style.transform = 'rotate(90deg)';
     } else {
@@ -1186,6 +1507,10 @@ export class DebugConsole {
       this.caveGenButton.style.opacity = '0';
       this.caveGenButton.style.transform = 'translateY(-20px)';
       this.caveGenButton.style.pointerEvents = 'none';
+
+      this.waterResetButton.style.opacity = '0';
+      this.waterResetButton.style.transform = 'translateY(-20px)';
+      this.waterResetButton.style.pointerEvents = 'none';
 
       // Reset hamburger icon rotation
       this.hamburgerButton.style.transform = 'rotate(0deg)';

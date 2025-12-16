@@ -683,16 +683,23 @@ class CarvableCaves {
     });
     this.waterGrid.rebuildSolidFromDensityField(this.densityField);
     this.waterGrid.resetWater();
-    this.waterGrid.spawnDebugDrop();
+    const seedPos = this.player ? this.player.getPosition() : { x: this.densityField.config.width / 2, y: this.densityField.config.height / 2 };
+    const seedWidthM = 8;
+    const seedHeightM = 5;
+    this.waterGrid.spawnRectWorld(seedPos.x - seedWidthM * 0.5, seedPos.y - 2, seedWidthM, seedHeightM, 1);
+
+    // Gentle faucet above the player for continuous motion (kept modest for CPU).
+    const src = this.waterGrid.worldToCell(seedPos.x, seedPos.y - 10);
+    this.waterGrid.startSource(30_000, { y: src.cy, minX: src.cx - 1, maxX: src.cx + 1, intervalMs: 140 });
 
     this.renderer.setWaterGrid(this.waterGrid);
 
     // FLIP/PIC free-surface sim (particles + MAC projection in fluid only)
     this.flipSim = new FlipPicSim(this.waterGrid, {
-      flipRatio: 0.95,
-      particlesPerCellSide: 4,
-      projectionIterations: 30,
-      maxParticles: 80_000,
+      flipRatio: 0.9,
+      particlesPerCellSide: 3,
+      projectionIterations: 25,
+      maxParticles: 35_000,
     });
     this.flipSim.reset();
     this.flipSim.seedFromWaterGrid(this.waterGrid.water, 0.02);
@@ -800,6 +807,58 @@ class CarvableCaves {
   setCarveOffset(offset: number): void {
     // For now, no-op (not stored anywhere except config)
     // In the future, could override config value here
+  }
+
+  // ==========================
+  // Water tuning (FLIP/PIC)
+  // ==========================
+
+  setWaterFlipRatio(value: number): void {
+    this.flipSim?.setFlipRatio(value);
+  }
+
+  setWaterGravity(value: number): void {
+    this.flipSim?.setGravity(value);
+  }
+
+  setWaterSubsteps(value: number): void {
+    this.flipSim?.setSubsteps(value);
+  }
+
+  setWaterProjectionIterations(value: number): void {
+    this.flipSim?.setProjectionIterations(value);
+  }
+
+  setWaterPushApartSteps(value: number): void {
+    this.flipSim?.setPushApartSteps(value);
+  }
+
+  setWaterMinDistanceFactor(value: number): void {
+    this.flipSim?.setMinDistanceFactor(value);
+  }
+
+  setWaterParticleDamping(value: number): void {
+    this.flipSim?.setParticleDampingPerSecond(value);
+  }
+
+  resetWater(): void {
+    if (!this.waterGrid) return;
+
+    this.waterGrid.resetWater();
+    const seedPos = this.player ? this.player.getPosition() : { x: this.densityField.config.width / 2, y: this.densityField.config.height / 2 };
+    const seedWidthM = 8;
+    const seedHeightM = 5;
+    this.waterGrid.spawnRectWorld(seedPos.x - seedWidthM * 0.5, seedPos.y - 2, seedWidthM, seedHeightM, 1);
+
+    const src = this.waterGrid.worldToCell(seedPos.x, seedPos.y - 10);
+    this.waterGrid.startSource(30_000, { y: src.cy, minX: src.cx - 1, maxX: src.cx + 1, intervalMs: 140 });
+
+    if (!this.flipSim) return;
+    this.flipSim.reset();
+    this.flipSim.seedFromWaterGrid(this.waterGrid.water, 0.02);
+    this.waterGrid.clearWaterOnly();
+    this.flipSim.writeDensityToWaterGrid(this.waterGrid);
+    this.renderer.setWaterParticles(this.flipSim.getParticles());
   }
 
   /**
@@ -920,6 +979,12 @@ debugConsole.onToggleDensityField = (enabled: boolean) => {
   }
 };
 
+debugConsole.onToggleWaterSurface = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showWaterSurface = enabled;
+  }
+};
+
 debugConsole.onToggleWaterGrid = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showWaterGrid = enabled;
@@ -941,6 +1006,84 @@ debugConsole.onToggleWaterVelocityHsv = (enabled: boolean) => {
 debugConsole.onToggleWaterParticles = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showWaterParticles = enabled;
+  }
+};
+
+debugConsole.onWaterFlipRatioChange = (value: number) => {
+  if (app) {
+    app.setWaterFlipRatio(value);
+  }
+};
+
+debugConsole.onWaterGravityChange = (value: number) => {
+  if (app) {
+    app.setWaterGravity(value);
+  }
+};
+
+debugConsole.onWaterSubstepsChange = (value: number) => {
+  if (app) {
+    app.setWaterSubsteps(value);
+  }
+};
+
+debugConsole.onWaterProjectionIterationsChange = (value: number) => {
+  if (app) {
+    app.setWaterProjectionIterations(value);
+  }
+};
+
+debugConsole.onWaterPushApartStepsChange = (value: number) => {
+  if (app) {
+    app.setWaterPushApartSteps(value);
+  }
+};
+
+debugConsole.onWaterMinDistanceFactorChange = (value: number) => {
+  if (app) {
+    app.setWaterMinDistanceFactor(value);
+  }
+};
+
+debugConsole.onWaterParticleDampingChange = (value: number) => {
+  if (app) {
+    app.setWaterParticleDamping(value);
+  }
+};
+
+debugConsole.onWaterSurfaceThresholdChange = (value: number) => {
+  if (appRenderer) {
+    appRenderer.waterSurfaceThreshold = value;
+  }
+};
+
+debugConsole.onWaterSurfaceSoftnessChange = (value: number) => {
+  if (appRenderer) {
+    appRenderer.waterSurfaceSoftness = value;
+  }
+};
+
+debugConsole.onWaterSurfaceBlurCellsChange = (value: number) => {
+  if (appRenderer) {
+    appRenderer.waterSurfaceBlurCells = value;
+  }
+};
+
+debugConsole.onWaterSurfaceAlphaChange = (value: number) => {
+  if (appRenderer) {
+    appRenderer.waterSurfaceAlpha = value;
+  }
+};
+
+debugConsole.onWaterSurfaceDensityScaleChange = (value: number) => {
+  if (appRenderer) {
+    appRenderer.waterSurfaceDensityScale = value;
+  }
+};
+
+debugConsole.onWaterReset = () => {
+  if (app) {
+    app.resetWater();
   }
 };
 
