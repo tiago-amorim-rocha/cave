@@ -78,6 +78,50 @@ export class WaterGrid {
     return { enabled: this.source.enabled, minX: this.source.minX, maxX: this.source.maxX, y: this.source.y };
   }
 
+  setFromParticles(particles: ReadonlyArray<{ x: number; y: number }>, massPerParticle: number): void {
+    this.w.fill(0);
+    this.flowDown.fill(0);
+    this.flowSide.fill(0);
+
+    for (const p of particles) {
+      const fx = p.x / this.cellSizeM - 0.5;
+      const fy = p.y / this.cellSizeM - 0.5;
+      const ix = Math.floor(fx);
+      const iy = Math.floor(fy);
+      const tx = fx - ix;
+      const ty = fy - iy;
+
+      const x0 = Math.max(0, Math.min(this.widthCells - 1, ix));
+      const y0 = Math.max(0, Math.min(this.heightCells - 1, iy));
+      const x1 = Math.max(0, Math.min(this.widthCells - 1, ix + 1));
+      const y1 = Math.max(0, Math.min(this.heightCells - 1, iy + 1));
+
+      const w00 = (1 - tx) * (1 - ty) * massPerParticle;
+      const w10 = tx * (1 - ty) * massPerParticle;
+      const w01 = (1 - tx) * ty * massPerParticle;
+      const w11 = tx * ty * massPerParticle;
+
+      const i00 = this.idx(x0, y0);
+      const i10 = this.idx(x1, y0);
+      const i01 = this.idx(x0, y1);
+      const i11 = this.idx(x1, y1);
+
+      if (!this.solid[i00]) this.w[i00] += w00;
+      if (!this.solid[i10]) this.w[i10] += w10;
+      if (!this.solid[i01]) this.w[i01] += w01;
+      if (!this.solid[i11]) this.w[i11] += w11;
+    }
+
+    for (let i = 0; i < this.solid.length; i++) {
+      if (this.solid[i]) {
+        this.w[i] = 0;
+      } else {
+        const v = this.w[i];
+        this.w[i] = v < 0 ? 0 : (v > 1 ? 1 : v);
+      }
+    }
+  }
+
   resetWater(): void {
     this.w.fill(0);
     this.wNext.fill(0);
@@ -134,7 +178,28 @@ export class WaterGrid {
         this.source.accMs += dtMs;
       }
     }
-    this.applySource();
+  }
+
+  consumeSourceDrops(maxDrops: number = 64): number {
+    if (!this.source?.enabled) return 0;
+    const m = Math.max(0, Math.floor(maxDrops));
+    if (m === 0) return 0;
+
+    const interval = this.source.intervalMs;
+    if (interval <= 0) return 0;
+
+    const drops = Math.min(m, Math.floor(this.source.accMs / interval));
+    if (drops > 0) {
+      this.source.accMs -= drops * interval;
+    }
+    return drops;
+  }
+
+  clearWaterOnly(): void {
+    this.w.fill(0);
+    this.wNext.fill(0);
+    this.flowDown.fill(0);
+    this.flowSide.fill(0);
   }
 
   advectWithVelocity(dtMs: number, velocity: MacVelocityGrid, substeps: number = 2): void {
@@ -569,9 +634,8 @@ export class WaterGrid {
     if (!this.source?.enabled) return;
     if (this.source.accMs < this.source.intervalMs) return;
 
-    while (this.source.accMs >= this.source.intervalMs && this.source.enabled) {
-      this.source.accMs -= this.source.intervalMs;
-
+    const drops = this.consumeSourceDrops(128);
+    for (let n = 0; n < drops; n++) {
       const span = this.source.maxX - this.source.minX + 1;
       const x = this.source.minX + Math.floor(Math.random() * span);
       const y = this.source.y;

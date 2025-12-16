@@ -1,4 +1,5 @@
 import type { WaterGrid } from './WaterGrid';
+import type { VelocityField } from './VelocityField';
 
 export interface MacVelocityGridConfig {
   widthCells: number;
@@ -7,7 +8,7 @@ export interface MacVelocityGridConfig {
   solidCells: Uint8Array;
 }
 
-export class MacVelocityGrid {
+export class MacVelocityGrid implements VelocityField {
   readonly widthCells: number;
   readonly heightCells: number;
   readonly cellSizeM: number;

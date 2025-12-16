@@ -2,7 +2,7 @@ import type { Camera } from './Camera';
 import type { Vec2 } from './types';
 import type { DensityField } from './DensityField';
 import type { WaterGrid } from './water/WaterGrid';
-import type { MacVelocityGrid } from './water/MacVelocityGrid';
+import type { VelocityField } from './water/VelocityField';
 import type { CanonicalLoop, OptVertex, PhysicsSegment } from './terrain/CanonicalGeometry';
 import { CarvingDebugMode } from './CarvingDebugMode';
 
@@ -87,7 +87,7 @@ export class Renderer {
   private originalPolylineAABBs: Array<{ minX: number; minY: number; maxX: number; maxY: number }> = []; // AABB for each original polyline
   private densityField: DensityField | null = null;
   private waterGrid: WaterGrid | null = null;
-  private waterVelocity: MacVelocityGrid | null = null;
+  private waterVelocity: VelocityField | null = null;
   private optimizedOptLoops: OptVertex[][] = []; // Ancestry-carrying optimized vertices (debug)
   private canonicalLoops: CanonicalLoop[] = []; // Cleaned marching squares output (debug-only)
   private segmentDebugData: Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }> = [];
@@ -421,7 +421,7 @@ export class Renderer {
     this.waterGrid = grid;
   }
 
-  setWaterVelocityGrid(grid: MacVelocityGrid | null): void {
+  setWaterVelocityGrid(grid: VelocityField | null): void {
     this.waterVelocity = grid;
   }
 
@@ -887,7 +887,7 @@ export class Renderer {
       for (let cx = cx0; cx <= cx1; cx++) {
         const idx = cy * grid.widthCells + cx;
         const w = water[idx];
-        if (w <= 0.001) continue;
+        if (w <= 0) continue;
 
         const wx = cx * cell;
         const p0 = this.camera.worldToScreen(wx, wy, canvasWidth, canvasHeight);
@@ -897,7 +897,7 @@ export class Renderer {
         const x1 = Math.max(p0.x, p1.x);
         const y1 = Math.max(p0.y, p1.y);
 
-        const alpha = 0.15 + 0.6 * w;
+        const alpha = Math.min(0.95, 0.06 + 0.85 * w);
         if (this.showWaterVelocityHsv && velGrid) {
           const vel = velGrid.getCellVelocity(cx, cy);
           const speed = Math.sqrt(vel.u * vel.u + vel.v * vel.v);

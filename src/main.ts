@@ -18,6 +18,7 @@ import { PipelineConfig, DEFAULT_CONFIG } from './PipelineConfig';
 import type { CarvingDebugContext, CarvingDebugHooks } from './carving/CarvingDebugHooks';
 import { WaterGrid } from './water/WaterGrid';
 import { MacVelocityGrid } from './water/MacVelocityGrid';
+import { FlipPicSim } from './water/FlipPicSim';
 
 /**
  * Main application
@@ -39,6 +40,7 @@ class CarvableCaves {
   private remeshManager!: RemeshManager; // Initialized after physics
   private waterGrid: WaterGrid | null = null;
   private waterVelocity: MacVelocityGrid | null = null;
+  private flipSim: FlipPicSim | null = null;
 
   private needsRemesh = true;
   private animationFrameId = 0;
@@ -261,12 +263,22 @@ class CarvableCaves {
 
     // Register water simulation step with physics engine (runs at fixed 60Hz)
     this.physics.getEngine().registerFixedUpdate((dt) => {
-      this.waterGrid?.tickSource(dt);
+      if (!this.waterGrid) return;
+
+      this.waterGrid.tickSource(dt);
+
+      if (this.flipSim) {
+        this.flipSim.step(dt);
+        this.flipSim.writeDensityToWaterGrid(this.waterGrid);
+        return;
+      }
+
+      // Fallback: grid-based transport
       this.waterVelocity?.step(dt, this.waterGrid);
-      if (this.waterGrid && this.waterVelocity) {
+      if (this.waterVelocity) {
         this.waterGrid.advectWithVelocity(dt, this.waterVelocity, 2);
       } else {
-        this.waterGrid?.step(dt, 1);
+        this.waterGrid.step(dt, 1);
       }
     });
 
@@ -675,14 +687,23 @@ class CarvableCaves {
 
     this.renderer.setWaterGrid(this.waterGrid);
 
-    this.waterVelocity = new MacVelocityGrid({
-      widthCells: this.waterGrid.widthCells,
-      heightCells: this.waterGrid.heightCells,
-      cellSizeM: this.waterGrid.cellSizeM,
-      solidCells: this.waterGrid.solid,
+    // FLIP/PIC free-surface sim (particles + MAC projection in fluid only)
+    this.flipSim = new FlipPicSim(this.waterGrid, {
+      flipRatio: 0.95,
+      particlesPerCellSide: 4,
+      projectionIterations: 30,
+      maxParticles: 80_000,
     });
-    this.waterVelocity.reset();
-    this.renderer.setWaterVelocityGrid(this.waterVelocity);
+    this.flipSim.reset();
+    this.flipSim.seedFromWaterGrid(this.waterGrid.water, 0.02);
+    this.waterGrid.clearWaterOnly();
+    this.flipSim.writeDensityToWaterGrid(this.waterGrid);
+
+    // Velocity HSV debug can use the FLIP/PIC MAC grid.
+    this.renderer.setWaterVelocityGrid(this.flipSim);
+
+    // Keep legacy velocity grid around only for fallback mode.
+    this.waterVelocity = null;
   }
 
   /**
