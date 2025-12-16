@@ -1136,12 +1136,14 @@ export class RemeshManager {
     this.renderer.setCanonicalLoops(this.canonicalLoops);
     this.renderer.setDirtyAABB(session.paddedAABB);
 
-    console.log('[LocalUpdate] Canonical surgery commit', {
-      dirtyAABB: session.paddedAABB,
-      affectedLoops: session.affectedCanonicals.length,
-      updatedLoopIds,
-      newLoopsAdded: newLoopsToAdd.map(l => l.id)
-    });
+    if (import.meta.env.DEV || __CARVE_DEBUG__) {
+      console.log('[LocalUpdate] Canonical surgery commit', {
+        dirtyAABB: session.paddedAABB,
+        affectedLoops: session.affectedCanonicals.length,
+        updatedLoopIds,
+        newLoopsAdded: newLoopsToAdd.map(l => l.id)
+      });
+    }
   }
 
   computeLocalUpdateCanonicalPreview(session: LocalUpdateSession): CanonicalLoop[] {
@@ -1474,7 +1476,9 @@ export class RemeshManager {
 
     session.physics = session.physics ?? { affectedBodyCount: 0, removedBodyCount: 0 };
     session.physics.removedBodyCount = removed;
-    console.log(`[LocalUpdate] ⏱️ Remove bodies (local segments): removed ${removed}`);
+    if (import.meta.env.DEV || __CARVE_DEBUG__) {
+      console.log(`[LocalUpdate] ⏱️ Remove bodies (local segments): removed ${removed}`);
+    }
 
     this.densityField.clearDirty();
   }

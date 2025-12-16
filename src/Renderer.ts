@@ -141,15 +141,15 @@ export class Renderer {
   public showDensityField: boolean = false;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
-  public showCanonicalVertices: boolean = true; // Show canonical vertices (cleaned marching squares)
-  public showCanonicalLabels: boolean = true; // Show canonical loop ids / start markers
-  public showCanonicalAABBs: boolean = false; // Show canonical loop AABBs
+  public showCanonicalVertices: boolean = false; // Show canonical vertices (debug-only)
+  public showCanonicalLabels: boolean = false; // Show canonical loop ids / start markers (debug-only)
+  public showCanonicalAABBs: boolean = false; // Show canonical loop AABBs (debug-only)
   public showSegmentDebug: boolean = false; // Show physics segment boundaries/ranges
   public showPhysicsBodies: boolean = false; // Disabled for performance testing
   public showLoopNumbers: boolean = false; // Disabled for performance testing
   public showSamplePoints: boolean = false; // Disabled for performance testing
-  public showDirtyAABB: boolean = true; // Enabled by default for local update debugging
-  public showRebuiltChains: boolean = true; // Enabled by default for local update debugging
+  public showDirtyAABB: boolean = false; // Local update debugging
+  public showRebuiltChains: boolean = false; // Local update debugging
 
   /**
    * Carving debug visualization mode (state machine for step progression)
@@ -220,10 +220,12 @@ export class Renderer {
    * This replaces the old boolean flags (showReusePlan, showOptMerging)
    */
   setCarvingDebugMode(mode: CarvingDebugMode): void {
-    console.log('[Renderer] Carving debug mode changed', {
-      from: this._carvingDebugMode,
-      to: mode
-    });
+    if (import.meta.env.DEV || __CARVE_DEBUG__) {
+      console.log('[Renderer] Carving debug mode changed', {
+        from: this._carvingDebugMode,
+        to: mode
+      });
+    }
     this._carvingDebugMode = mode;
   }
 
@@ -233,11 +235,13 @@ export class Renderer {
   updatePolylines(polylines: Vec2[][]): void {
     this.polylines = polylines;
     this.polylineAABBs = polylines.map(p => this.computePolylineAABB(p));
-    console.log(`[Renderer] updatePolylines: ${polylines.length} polylines`);
-    if (polylines.length === 0) {
-      console.warn('[Renderer] updatePolylines received empty array');
-    } else {
-      console.log(`[Renderer] first polyline length=${polylines[0].length}`);
+    if (import.meta.env.DEV || __CARVE_DEBUG__) {
+      console.log(`[Renderer] updatePolylines: ${polylines.length} polylines`);
+      if (polylines.length === 0) {
+        console.warn('[Renderer] updatePolylines received empty array');
+      } else {
+        console.log(`[Renderer] first polyline length=${polylines[0].length}`);
+      }
     }
   }
 

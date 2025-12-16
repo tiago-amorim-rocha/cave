@@ -16,3 +16,5 @@ declare module 'virtual:pwa-register' {
 
   export function registerSW(options?: RegisterSWOptions): RegisterSWReturn;
 }
+
+declare const __CARVE_DEBUG__: boolean;

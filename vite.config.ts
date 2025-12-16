@@ -2,6 +2,9 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  define: {
+    __CARVE_DEBUG__: JSON.stringify(process.env.CARVE_DEBUG === '1'),
+  },
   base: '/cave/',
   publicDir: 'public',
   server: {

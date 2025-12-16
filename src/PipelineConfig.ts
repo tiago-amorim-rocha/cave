@@ -186,7 +186,7 @@ export class PipelineConfig {
   readonly characterControlMode = true;
 
   /** Enable debug loop capture for carved areas */
-  readonly debugCaptureEnabled = true;
+  readonly debugCaptureEnabled = false;
 
   // ============================================================================
   // HELPER METHODS
