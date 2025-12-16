@@ -16,6 +16,7 @@ import type { IPlayerController } from './controllers/IPlayerController';
 import { BrushGenerator, type Brush } from './BrushGenerator';
 import { PipelineConfig, DEFAULT_CONFIG } from './PipelineConfig';
 import type { CarvingDebugContext, CarvingDebugHooks } from './carving/CarvingDebugHooks';
+import { WaterGrid } from './water/WaterGrid';
 
 /**
  * Main application
@@ -35,6 +36,7 @@ class CarvableCaves {
   private player: IPlayerController | null = null; // Current active player controller
   private joystick: VirtualJoystick;
   private remeshManager!: RemeshManager; // Initialized after physics
+  private waterGrid: WaterGrid | null = null;
 
   private needsRemesh = true;
   private animationFrameId = 0;
@@ -241,6 +243,8 @@ class CarvableCaves {
     const world = this.physics.getEngine().getWorld();
     this.player = new CapsuleController(world, actualSpawnX, actualSpawnY);
 
+    this.rebuildWaterGrid();
+
     // Register player's update with physics engine
     this.physics.getEngine().registerFixedUpdate((dt) => {
       if (this.player) {
@@ -251,6 +255,11 @@ class CarvableCaves {
         // Update player (dt is in milliseconds)
         this.player.update(dt);
       }
+    });
+
+    // Register water simulation step with physics engine (runs at fixed 60Hz)
+    this.physics.getEngine().registerFixedUpdate((dt) => {
+      this.waterGrid?.step(dt, 1);
     });
 
     // Start render loop
@@ -615,6 +624,8 @@ class CarvableCaves {
     this.remeshManager.requestFullHeal();
     this.remesh();
 
+    this.rebuildWaterGrid();
+
     // Reset player to center of world (with validation)
     const preferredX = params.worldWidth / 2;
     const preferredY = params.worldHeight / 2;
@@ -640,6 +651,21 @@ class CarvableCaves {
     // Center camera on spawn
     this.camera.x = actualSpawnX;
     this.camera.y = actualSpawnY;
+  }
+
+  private rebuildWaterGrid(): void {
+    const cellSizeM = this.densityField.config.gridPitch;
+
+    this.waterGrid = new WaterGrid({
+      worldWidthM: this.densityField.config.width,
+      worldHeightM: this.densityField.config.height,
+      cellSizeM,
+    });
+    this.waterGrid.rebuildSolidFromDensityField(this.densityField);
+    this.waterGrid.resetWater();
+    this.waterGrid.spawnDebugDrop();
+
+    this.renderer.setWaterGrid(this.waterGrid);
   }
 
   /**
@@ -852,6 +878,18 @@ debugConsole.onToggleGrid = (enabled: boolean) => {
 debugConsole.onToggleDensityField = (enabled: boolean) => {
   if (appRenderer) {
     appRenderer.showDensityField = enabled;
+  }
+};
+
+debugConsole.onToggleWaterGrid = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showWaterGrid = enabled;
+  }
+};
+
+debugConsole.onToggleWaterFlowDebug = (enabled: boolean) => {
+  if (appRenderer) {
+    appRenderer.showWaterFlowDebug = enabled;
   }
 };
 

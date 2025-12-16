@@ -35,6 +35,8 @@ export class DebugConsole {
   public onToggleSegments?: (enabled: boolean) => void;
   public onToggleGrid?: (enabled: boolean) => void;
   public onToggleDensityField?: (enabled: boolean) => void;
+  public onToggleWaterGrid?: (enabled: boolean) => void;
+  public onToggleWaterFlowDebug?: (enabled: boolean) => void;
   public onToggleDirtyAABB?: (enabled: boolean) => void;
   public onToggleRebuiltChains?: (enabled: boolean) => void;
   public onSimplificationChange?: (epsilon: number) => void;
@@ -475,6 +477,8 @@ export class DebugConsole {
       { label: 'Segments', key: 'segments', callback: 'onToggleSegments', checked: false },
       { label: 'Grid', key: 'grid', callback: 'onToggleGrid', checked: false },
       { label: 'Density Field', key: 'density', callback: 'onToggleDensityField', checked: false },
+      { label: 'Water Grid', key: 'water', callback: 'onToggleWaterGrid', checked: true },
+      { label: 'Water Flow Colors', key: 'waterflow', callback: 'onToggleWaterFlowDebug', checked: true },
       { label: 'Dirty AABB', key: 'dirtyaabb', callback: 'onToggleDirtyAABB', checked: true },
       { label: 'Rebuilt Chains', key: 'rebuiltchains', callback: 'onToggleRebuiltChains', checked: true },
     ];

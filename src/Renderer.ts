@@ -1,6 +1,7 @@
 import type { Camera } from './Camera';
 import type { Vec2 } from './types';
 import type { DensityField } from './DensityField';
+import type { WaterGrid } from './water/WaterGrid';
 import type { CanonicalLoop, OptVertex, PhysicsSegment } from './terrain/CanonicalGeometry';
 import { CarvingDebugMode } from './CarvingDebugMode';
 
@@ -84,6 +85,7 @@ export class Renderer {
   private originalPolylines: Vec2[][] = []; // Store original vertices before optimization
   private originalPolylineAABBs: Array<{ minX: number; minY: number; maxX: number; maxY: number }> = []; // AABB for each original polyline
   private densityField: DensityField | null = null;
+  private waterGrid: WaterGrid | null = null;
   private optimizedOptLoops: OptVertex[][] = []; // Ancestry-carrying optimized vertices (debug)
   private canonicalLoops: CanonicalLoop[] = []; // Cleaned marching squares output (debug-only)
   private segmentDebugData: Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }> = [];
@@ -103,6 +105,8 @@ export class Renderer {
 
   public showGrid: boolean = false;
   public showDensityField: boolean = false;
+  public showWaterGrid: boolean = true;
+  public showWaterFlowDebug: boolean = true;
   public showVertices: boolean = false; // Show optimized vertices
   public showOriginalVertices: boolean = false; // Show original vertices (before optimization)
   public showCanonicalVertices: boolean = false; // Show canonical vertices (debug-only)
@@ -410,6 +414,10 @@ export class Renderer {
     this.densityField = field;
   }
 
+  setWaterGrid(grid: WaterGrid | null): void {
+    this.waterGrid = grid;
+  }
+
   /**
    * Set loop debug info for rendering loop numbers and sample points
    */
@@ -485,6 +493,11 @@ export class Renderer {
 
       // Draw polylines
       this.drawPolylines(width, height);
+
+      // Draw water grid overlay (debug)
+      if (this.showWaterGrid && this.waterGrid) {
+        this.drawWaterGrid(width, height);
+      }
 
       // ========================================
       // Carving Debug Overlays (State-Based)
@@ -829,6 +842,67 @@ export class Renderer {
       screenWidth,
       screenHeight
     );
+
+    this.ctx.restore();
+  }
+
+  private drawWaterGrid(canvasWidth: number, canvasHeight: number): void {
+    if (!this.waterGrid) return;
+
+    const grid = this.waterGrid;
+    const water = grid.water;
+    const flowDown = grid.debugFlowDown;
+    const flowSide = grid.debugFlowSide;
+    const cell = grid.cellSizeM;
+
+    const a = this.camera.screenToWorld(0, 0, canvasWidth, canvasHeight);
+    const b = this.camera.screenToWorld(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
+    const minX = Math.min(a.x, b.x);
+    const minY = Math.min(a.y, b.y);
+    const maxX = Math.max(a.x, b.x);
+    const maxY = Math.max(a.y, b.y);
+
+    let cx0 = Math.floor(minX / cell) - 1;
+    let cy0 = Math.floor(minY / cell) - 1;
+    let cx1 = Math.floor(maxX / cell) + 1;
+    let cy1 = Math.floor(maxY / cell) + 1;
+
+    cx0 = Math.max(0, Math.min(grid.widthCells - 1, cx0));
+    cy0 = Math.max(0, Math.min(grid.heightCells - 1, cy0));
+    cx1 = Math.max(0, Math.min(grid.widthCells - 1, cx1));
+    cy1 = Math.max(0, Math.min(grid.heightCells - 1, cy1));
+
+    this.ctx.save();
+
+    for (let cy = cy0; cy <= cy1; cy++) {
+      const wy = cy * cell;
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const idx = cy * grid.widthCells + cx;
+        const w = water[idx];
+        if (w <= 0.001) continue;
+
+        const wx = cx * cell;
+        const p0 = this.camera.worldToScreen(wx, wy, canvasWidth, canvasHeight);
+        const p1 = this.camera.worldToScreen(wx + cell, wy + cell, canvasWidth, canvasHeight);
+        const x0 = Math.min(p0.x, p1.x);
+        const y0 = Math.min(p0.y, p1.y);
+        const x1 = Math.max(p0.x, p1.x);
+        const y1 = Math.max(p0.y, p1.y);
+
+        const alpha = 0.15 + 0.6 * w;
+        if (this.showWaterFlowDebug) {
+          const downN = Math.max(0, Math.min(1, flowDown[idx] * 6));
+          const sideN = Math.max(0, Math.min(1, flowSide[idx] * 6));
+          const r = Math.round(30 + 180 * sideN);
+          const g = Math.round(90 + 140 * downN);
+          const b = 229;
+          this.ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        } else {
+          this.ctx.fillStyle = `rgba(30, 136, 229, ${alpha})`;
+        }
+        this.ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+      }
+    }
 
     this.ctx.restore();
   }
