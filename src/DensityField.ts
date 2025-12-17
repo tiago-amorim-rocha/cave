@@ -503,4 +503,52 @@ export class DensityField {
 
     return density;
   }
+
+  /**
+   * Sample density and its world-space gradient at world coordinates.
+   * Gradient is in "density units per metre" (∂density/∂x, ∂density/∂y).
+   *
+   * Writes into `out` to avoid per-sample allocations (hot path for particles).
+   */
+  getDensityAndGradientAtWorld(
+    worldX: number,
+    worldY: number,
+    out: { density: number; gradX: number; gradY: number }
+  ): void {
+    const invH = 1 / this.config.gridPitch;
+
+    // Convert to grid coordinates (fractional)
+    const gridX = worldX * invH;
+    const gridY = worldY * invH;
+
+    // Get integer grid coordinates
+    const gx0 = Math.floor(gridX);
+    const gy0 = Math.floor(gridY);
+    const gx1 = gx0 + 1;
+    const gy1 = gy0 + 1;
+
+    // Get fractional parts
+    const fx = gridX - gx0;
+    const fy = gridY - gy0;
+
+    // Get corner densities (treat out of bounds as rock = 255)
+    const d00 = this.get(gx0, gy0);
+    const d10 = gx1 < this.gridWidth ? this.get(gx1, gy0) : 255;
+    const d01 = gy1 < this.gridHeight ? this.get(gx0, gy1) : 255;
+    const d11 = (gx1 < this.gridWidth && gy1 < this.gridHeight) ? this.get(gx1, gy1) : 255;
+
+    // Bilinear interpolation for density
+    const d0 = d00 * (1 - fx) + d10 * fx;
+    const d1 = d01 * (1 - fx) + d11 * fx;
+    out.density = d0 * (1 - fy) + d1 * fy;
+
+    // Analytical gradient of bilinear interpolation in world units.
+    // df/dx = df/dfx * dfx/dx, and dfx/dx = 1/h (same for y).
+    const ddx0 = d10 - d00;
+    const ddx1 = d11 - d01;
+    const ddy0 = d01 - d00;
+    const ddy1 = d11 - d10;
+    out.gradX = (ddx0 * (1 - fy) + ddx1 * fy) * invH;
+    out.gradY = (ddy0 * (1 - fx) + ddy1 * fx) * invH;
+  }
 }

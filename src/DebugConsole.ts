@@ -8,6 +8,11 @@ export class DebugConsole {
   private controlsContainer: HTMLDivElement;
   private isVisualDebugVisible = false;
 
+  // Water debug panel (controls)
+  private waterDebugContainer: HTMLDivElement;
+  private waterControlsContainer: HTMLDivElement;
+  private isWaterDebugVisible = false;
+
   // Text log panel
   private textLogContainer: HTMLDivElement;
   private logContainer: HTMLDivElement;
@@ -21,10 +26,12 @@ export class DebugConsole {
   private textLogButton: HTMLButtonElement;
   private respawnButton: HTMLButtonElement;
   private caveGenButton: HTMLButtonElement;
+  private waterDebugButton: HTMLButtonElement;
   private isMenuExpanded = false;
 
   // Toggle callbacks
   public onRespawn?: () => void;
+  public onRespawnWater?: () => void;
   public onToggleCaveGen?: () => void;
   public onToggleControlMode?: (enabled: boolean) => void;
   public onTogglePhysicsMesh?: (enabled: boolean) => void;
@@ -44,12 +51,32 @@ export class DebugConsole {
   public onCarveRadiusChange?: (radius: number) => void;
   public onCarveStrengthChange?: (strength: number) => void;
 
+  public onToggleWaterEnabled?: (enabled: boolean) => void;
+  public onWaterRadiusChange?: (radius: number) => void;
+  public onWaterSpawnRateChange?: (rate: number) => void;
+  public onWaterSpawnDurationChange?: (seconds: number) => void;
+  public onWaterMaxParticlesChange?: (maxParticles: number) => void;
+  public onToggleWaterSeparation?: (enabled: boolean) => void;
+  public onWaterSeparationIterationsChange?: (iters: number) => void;
+  public onWaterSeparationStrengthChange?: (strength: number) => void;
+  public onWaterSubstepsChange?: (substeps: number) => void;
+  public onWaterCollisionIterationsChange?: (iters: number) => void;
+  public onWaterCollisionPushStepChange?: (step: number) => void;
+  public onWaterCollisionNormalDampingChange?: (damping: number) => void;
+  public onWaterCollisionTangentDampingChange?: (damping: number) => void;
+
   constructor() {
     // Create visual debug panel
     this.visualDebugContainer = this.createVisualDebugContainer();
     this.controlsContainer = this.createControlsContainer();
     this.visualDebugContainer.appendChild(this.controlsContainer);
     document.body.appendChild(this.visualDebugContainer);
+
+    // Create water debug panel
+    this.waterDebugContainer = this.createWaterDebugContainer();
+    this.waterControlsContainer = this.createWaterControlsContainer();
+    this.waterDebugContainer.appendChild(this.waterControlsContainer);
+    document.body.appendChild(this.waterDebugContainer);
 
     // Create text log panel
     this.textLogContainer = this.createTextLogContainer();
@@ -63,11 +90,13 @@ export class DebugConsole {
     this.textLogButton = this.createTextLogButton();
     this.respawnButton = this.createRespawnButton();
     this.caveGenButton = this.createCaveGenButton();
+    this.waterDebugButton = this.createWaterDebugButton();
     document.body.appendChild(this.hamburgerButton);
     document.body.appendChild(this.visualDebugButton);
     document.body.appendChild(this.textLogButton);
     document.body.appendChild(this.respawnButton);
     document.body.appendChild(this.caveGenButton);
+    document.body.appendChild(this.waterDebugButton);
 
     // Intercept console methods
     this.interceptConsole();
@@ -85,8 +114,7 @@ export class DebugConsole {
       position: fixed;
       top: calc(env(safe-area-inset-top, 10px) + 10px);
       left: calc(env(safe-area-inset-left, 10px) + 10px);
-      background: rgba(66, 66, 66, 0.95);
-      backdrop-filter: blur(10px);
+      background: #2b2b2b;
       border-radius: 50%;
       width: 48px;
       height: 48px;
@@ -118,8 +146,7 @@ export class DebugConsole {
       position: fixed;
       top: calc(env(safe-area-inset-top, 10px) + 70px);
       left: calc(env(safe-area-inset-left, 10px) + 10px);
-      background: rgba(33, 150, 243, 0.95);
-      backdrop-filter: blur(10px);
+      background: #1565C0;
       border-radius: 50%;
       width: 48px;
       height: 48px;
@@ -153,8 +180,7 @@ export class DebugConsole {
       position: fixed;
       top: calc(env(safe-area-inset-top, 10px) + 130px);
       left: calc(env(safe-area-inset-left, 10px) + 10px);
-      background: rgba(255, 152, 0, 0.95);
-      backdrop-filter: blur(10px);
+      background: #FF9800;
       border-radius: 50%;
       width: 48px;
       height: 48px;
@@ -188,8 +214,7 @@ export class DebugConsole {
       position: fixed;
       top: calc(env(safe-area-inset-top, 10px) + 190px);
       left: calc(env(safe-area-inset-left, 10px) + 10px);
-      background: rgba(156, 39, 176, 0.95);
-      backdrop-filter: blur(10px);
+      background: #7B1FA2;
       border-radius: 50%;
       width: 48px;
       height: 48px;
@@ -227,8 +252,7 @@ export class DebugConsole {
       position: fixed;
       top: calc(env(safe-area-inset-top, 10px) + 250px);
       left: calc(env(safe-area-inset-left, 10px) + 10px);
-      background: rgba(76, 175, 80, 0.95);
-      backdrop-filter: blur(10px);
+      background: #2E7D32;
       border-radius: 50%;
       width: 48px;
       height: 48px;
@@ -257,6 +281,40 @@ export class DebugConsole {
     return button;
   }
 
+  private createWaterDebugButton(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.id = 'water-debug-button';
+    button.title = 'Water Debug';
+    button.textContent = '💧';
+    button.style.cssText = `
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 10px) + 310px);
+      left: calc(env(safe-area-inset-left, 10px) + 10px);
+      background: #00838F;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10001;
+      pointer-events: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      -webkit-tap-highlight-color: rgba(0, 188, 212, 0.3);
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: opacity 0.3s ease 0.2s, transform 0.3s ease 0.2s;
+    `;
+    button.addEventListener('click', () => this.toggleWaterDebug());
+    return button;
+  }
+
   private createVisualDebugContainer(): HTMLDivElement {
     const container = document.createElement('div');
     container.id = 'visual-debug-console';
@@ -266,8 +324,8 @@ export class DebugConsole {
       right: 10px;
       width: 140px;
       max-height: calc(90vh - env(safe-area-inset-top, 10px) - 70px);
-      background: rgba(0, 0, 0, 0.15);
-      border: 1px solid rgba(33, 150, 243, 0.3);
+      background: #0b0f14;
+      border: 1px solid #1e88e5;
       border-radius: 4px;
       z-index: 10000;
       display: none;
@@ -275,14 +333,13 @@ export class DebugConsole {
       font-family: 'Courier New', monospace;
       font-size: 10px;
       pointer-events: auto;
-      backdrop-filter: blur(2px);
     `;
 
     // Title bar
     const titleBar = document.createElement('div');
     titleBar.style.cssText = `
-      background: rgba(33, 150, 243, 0.1);
-      color: #2196F3;
+      background: #0f2a44;
+      color: #BBDEFB;
       padding: 4px 6px;
       font-size: 9px;
       display: flex;
@@ -300,7 +357,7 @@ export class DebugConsole {
     closeBtn.style.cssText = `
       background: none;
       border: none;
-      color: #2196F3;
+      color: #BBDEFB;
       font-size: 12px;
       cursor: pointer;
       padding: 2px 4px;
@@ -317,6 +374,70 @@ export class DebugConsole {
     return container;
   }
 
+  private createWaterDebugContainer(): HTMLDivElement {
+    const container = document.createElement('div');
+    container.id = 'water-debug-console';
+    container.style.cssText = `
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 10px) + 60px);
+      right: 160px;
+      width: 180px;
+      max-height: calc(90vh - env(safe-area-inset-top, 10px) - 70px);
+      background: #071114;
+      border: 1px solid #00ACC1;
+      border-radius: 4px;
+      z-index: 10000;
+      display: none;
+      flex-direction: column;
+      font-family: 'Courier New', monospace;
+      font-size: 10px;
+      pointer-events: auto;
+    `;
+
+    // Title bar
+    const titleBar = document.createElement('div');
+    titleBar.style.cssText = `
+      background: #00363a;
+      color: #B2EBF2;
+      padding: 4px 6px;
+      font-size: 9px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-radius: 3px 3px 0 0;
+    `;
+
+    const title = document.createElement('div');
+    title.textContent = 'Water';
+    title.style.cssText = 'font-weight: bold;';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = `
+      background: none;
+      border: none;
+      color: #B2EBF2;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 2px 4px;
+      opacity: 0.6;
+    `;
+    closeBtn.onmouseenter = () => closeBtn.style.opacity = '1';
+    closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.6';
+    closeBtn.onclick = () => this.toggleWaterDebug();
+
+    titleBar.appendChild(title);
+    titleBar.appendChild(closeBtn);
+    container.appendChild(titleBar);
+
+    return container;
+  }
+
+  private toggleWaterDebug(): void {
+    this.isWaterDebugVisible = !this.isWaterDebugVisible;
+    this.waterDebugContainer.style.display = this.isWaterDebugVisible ? 'flex' : 'none';
+  }
+
   private createTextLogContainer(): HTMLDivElement {
     const container = document.createElement('div');
     container.id = 'text-log-console';
@@ -326,8 +447,8 @@ export class DebugConsole {
       left: 10px;
       right: 10px;
       height: 50vh;
-      background: rgba(0, 0, 0, 0.9);
-      border: 1px solid rgba(255, 152, 0, 0.5);
+      background: #000000;
+      border: 1px solid #FF9800;
       border-radius: 4px;
       z-index: 10000;
       display: none;
@@ -335,14 +456,13 @@ export class DebugConsole {
       font-family: 'Courier New', monospace;
       font-size: 10px;
       pointer-events: auto;
-      backdrop-filter: blur(2px);
     `;
 
     // Title bar
     const titleBar = document.createElement('div');
     titleBar.style.cssText = `
-      background: rgba(255, 152, 0, 0.1);
-      color: #FF9800;
+      background: #2a1700;
+      color: #FFE0B2;
       padding: 4px 6px;
       font-size: 9px;
       display: flex;
@@ -368,7 +488,7 @@ export class DebugConsole {
     copyBtn.style.cssText = `
       background: none;
       border: none;
-      color: #FF9800;
+      color: #FFE0B2;
       font-size: 12px;
       cursor: pointer;
       padding: 2px 4px;
@@ -385,7 +505,7 @@ export class DebugConsole {
     clearBtn.style.cssText = `
       background: none;
       border: none;
-      color: #FF9800;
+      color: #FFE0B2;
       font-size: 12px;
       cursor: pointer;
       padding: 2px 4px;
@@ -402,7 +522,7 @@ export class DebugConsole {
     closeBtn.style.cssText = `
       background: none;
       border: none;
-      color: #FF9800;
+      color: #FFE0B2;
       font-size: 12px;
       cursor: pointer;
       padding: 2px 4px;
@@ -423,10 +543,10 @@ export class DebugConsole {
     const versionSection = document.createElement('div');
     versionSection.id = 'version-info';
     versionSection.style.cssText = `
-      background: rgba(255, 152, 0, 0.05);
+      background: #120a00;
       padding: 6px 8px;
-      border-bottom: 1px solid rgba(255, 152, 0, 0.2);
-      color: #FF9800;
+      border-bottom: 1px solid #4a2a00;
+      color: #FFE0B2;
       font-size: 9px;
       line-height: 1.4;
       user-select: text;
@@ -455,7 +575,7 @@ export class DebugConsole {
   private createControlsContainer(): HTMLDivElement {
     const controlsContainer = document.createElement('div');
     controlsContainer.style.cssText = `
-      background: rgba(0, 0, 0, 0.1);
+      background: #0b0f14;
       padding: 8px;
       overflow-y: auto;
       max-height: calc(90vh - 30px);
@@ -528,9 +648,9 @@ export class DebugConsole {
       gap: 3px;
       margin-top: 8px;
       padding: 6px;
-      background: rgba(33, 150, 243, 0.05);
+      background: #0f2a44;
       border-radius: 3px;
-      border: 1px solid rgba(33, 150, 243, 0.2);
+      border: 1px solid #1e88e5;
     `;
 
     const statsTitle = document.createElement('div');
@@ -570,7 +690,7 @@ export class DebugConsole {
       font-weight: bold;
       margin-top: 2px;
       padding-top: 3px;
-      border-top: 1px solid rgba(33, 150, 243, 0.2);
+      border-top: 1px solid #1e88e5;
     `;
     statsReduction.innerHTML = '<span>Reduction:</span><span id="stats-reduction">—</span>';
 
@@ -588,7 +708,7 @@ export class DebugConsole {
       gap: 3px;
       margin-top: 6px;
       padding-top: 6px;
-      border-top: 1px solid rgba(33, 150, 243, 0.2);
+      border-top: 1px solid #1e88e5;
     `;
 
     const sliderLabel = document.createElement('div');
@@ -628,7 +748,7 @@ export class DebugConsole {
 
     const sliderDesc = document.createElement('div');
     sliderDesc.style.cssText = `
-      color: rgba(33, 150, 243, 0.5);
+      color: #64B5F6;
       font-size: 8px;
       margin-top: 1px;
     `;
@@ -647,7 +767,7 @@ export class DebugConsole {
       gap: 3px;
       margin-top: 6px;
       padding-top: 6px;
-      border-top: 1px solid rgba(33, 150, 243, 0.2);
+      border-top: 1px solid #1e88e5;
     `;
 
     const sliderLabelPost = document.createElement('div');
@@ -687,7 +807,7 @@ export class DebugConsole {
 
     const sliderDescPost = document.createElement('div');
     sliderDescPost.style.cssText = `
-      color: rgba(33, 150, 243, 0.5);
+      color: #64B5F6;
       font-size: 8px;
       margin-top: 1px;
     `;
@@ -706,7 +826,7 @@ export class DebugConsole {
       gap: 6px;
       margin-top: 6px;
       padding-top: 6px;
-      border-top: 1px solid rgba(33, 150, 243, 0.2);
+      border-top: 1px solid #1e88e5;
     `;
 
     // Chaikin toggle
@@ -792,7 +912,7 @@ export class DebugConsole {
 
     const iterationsDesc = document.createElement('div');
     iterationsDesc.style.cssText = `
-      color: rgba(33, 150, 243, 0.5);
+      color: #64B5F6;
       font-size: 8px;
       margin-top: 1px;
     `;
@@ -813,7 +933,7 @@ export class DebugConsole {
       gap: 6px;
       margin-top: 6px;
       padding-top: 6px;
-      border-top: 1px solid rgba(255, 152, 0, 0.2);
+      border-top: 1px solid #FF9800;
     `;
 
     const carvingSectionTitle = document.createElement('div');
@@ -869,7 +989,7 @@ export class DebugConsole {
 
     const radiusDesc = document.createElement('div');
     radiusDesc.style.cssText = `
-      color: rgba(255, 152, 0, 0.5);
+      color: #FFE0B2;
       font-size: 8px;
       margin-top: 1px;
     `;
@@ -924,7 +1044,7 @@ export class DebugConsole {
 
     const strengthDesc = document.createElement('div');
     strengthDesc.style.cssText = `
-      color: rgba(255, 152, 0, 0.5);
+      color: #FFE0B2;
       font-size: 8px;
       margin-top: 1px;
     `;
@@ -936,6 +1056,331 @@ export class DebugConsole {
     carvingSection.appendChild(strengthRow);
 
     controlsContainer.appendChild(carvingSection);
+
+    return controlsContainer;
+  }
+
+  private createWaterControlsContainer(): HTMLDivElement {
+    const controlsContainer = document.createElement('div');
+    controlsContainer.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px;
+      overflow-y: auto;
+    `;
+
+    const perf = document.createElement('div');
+    perf.id = 'water-perf';
+    perf.textContent = 'Water perf: —';
+    perf.style.cssText = `
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 10px;
+      color: #B2EBF2;
+      opacity: 0.95;
+      padding: 6px 8px;
+      border-radius: 3px;
+      background: rgba(0, 54, 58, 0.6);
+      border: 1px solid rgba(0, 172, 193, 0.35);
+      user-select: text;
+      -webkit-user-select: text;
+      cursor: text;
+    `;
+    controlsContainer.appendChild(perf);
+
+    // Enable toggle
+    const enabledRow = document.createElement('div');
+    enabledRow.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    `;
+
+    const enabledCheckbox = document.createElement('input');
+    enabledCheckbox.type = 'checkbox';
+    enabledCheckbox.checked = true;
+    enabledCheckbox.style.cssText = `
+      cursor: pointer;
+      width: 12px;
+      height: 12px;
+    `;
+    enabledCheckbox.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      if (this.onToggleWaterEnabled) this.onToggleWaterEnabled(target.checked);
+    });
+
+    const enabledLabel = document.createElement('label');
+    enabledLabel.textContent = 'Enabled';
+    enabledLabel.style.cssText = `
+      color: #00BCD4;
+      cursor: pointer;
+      user-select: none;
+      font-size: 10px;
+    `;
+    enabledLabel.onclick = () => {
+      enabledCheckbox.checked = !enabledCheckbox.checked;
+      enabledCheckbox.dispatchEvent(new Event('change'));
+    };
+
+    enabledRow.appendChild(enabledCheckbox);
+    enabledRow.appendChild(enabledLabel);
+    controlsContainer.appendChild(enabledRow);
+
+    // Respawn button
+    const respawn = document.createElement('button');
+    respawn.textContent = 'Respawn Water';
+    respawn.style.cssText = `
+      background: #00363a;
+      border: 1px solid #00ACC1;
+      color: #B2EBF2;
+      border-radius: 3px;
+      padding: 6px 8px;
+      cursor: pointer;
+      font-size: 10px;
+      text-align: center;
+    `;
+    respawn.onmouseenter = () => respawn.style.background = '#004d55';
+    respawn.onmouseleave = () => respawn.style.background = '#00363a';
+    respawn.onclick = () => {
+      if (this.onRespawnWater) this.onRespawnWater();
+    };
+    controlsContainer.appendChild(respawn);
+
+    // Separation toggle
+    const separationRow = document.createElement('div');
+    separationRow.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-top: 4px;
+      border-top: 1px solid #00ACC1;
+    `;
+
+    const separationCheckbox = document.createElement('input');
+    separationCheckbox.type = 'checkbox';
+    separationCheckbox.checked = true;
+    separationCheckbox.style.cssText = `
+      cursor: pointer;
+      width: 12px;
+      height: 12px;
+    `;
+    separationCheckbox.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      if (this.onToggleWaterSeparation) this.onToggleWaterSeparation(target.checked);
+    });
+
+    const separationLabel = document.createElement('label');
+    separationLabel.textContent = 'Separation';
+    separationLabel.style.cssText = `
+      color: #B2EBF2;
+      cursor: pointer;
+      user-select: none;
+      font-size: 10px;
+    `;
+    separationLabel.onclick = () => {
+      separationCheckbox.checked = !separationCheckbox.checked;
+      separationCheckbox.dispatchEvent(new Event('change'));
+    };
+
+    separationRow.appendChild(separationCheckbox);
+    separationRow.appendChild(separationLabel);
+    controlsContainer.appendChild(separationRow);
+
+    const addSlider = (
+      labelText: string,
+      valueId: string,
+      min: number,
+      max: number,
+      step: number,
+      initial: number,
+      format: (v: number) => string,
+      onChange: (v: number) => void,
+    ) => {
+      const row = document.createElement('div');
+      row.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding-top: 4px;
+        border-top: 1px solid #00ACC1;
+      `;
+
+      const label = document.createElement('div');
+      label.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        font-size: 9px;
+        color: #00BCD4;
+        opacity: 0.9;
+      `;
+      label.innerHTML = `<span>${labelText}</span><span id="${valueId}">${format(initial)}</span>`;
+
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = `${min}`;
+      slider.max = `${max}`;
+      slider.step = `${step}`;
+      slider.value = `${initial}`;
+      slider.style.cssText = `
+        width: 100%;
+        cursor: pointer;
+      `;
+
+      slider.addEventListener('input', (e) => {
+        const target = e.target as HTMLInputElement;
+        const value = parseFloat(target.value);
+        const valueEl = document.getElementById(valueId);
+        if (valueEl) valueEl.textContent = format(value);
+        onChange(value);
+      });
+
+      row.appendChild(label);
+      row.appendChild(slider);
+      controlsContainer.appendChild(row);
+    };
+
+    addSlider(
+      'Radius',
+      'water-radius-value',
+      0.03,
+      0.35,
+      0.01,
+      0.12,
+      (v) => `${v.toFixed(2)}m`,
+      (radius) => {
+        if (this.onWaterRadiusChange) this.onWaterRadiusChange(radius);
+      }
+    );
+
+    addSlider(
+      'Spawn Rate',
+      'water-spawn-rate-value',
+      0,
+      500,
+      5,
+      30,
+      (v) => `${v.toFixed(0)}/s`,
+      (rate) => {
+        if (this.onWaterSpawnRateChange) this.onWaterSpawnRateChange(rate);
+      }
+    );
+
+    addSlider(
+      'Spawn Seconds',
+      'water-spawn-duration-value',
+      0,
+      30,
+      1,
+      4,
+      (v) => `${v.toFixed(1)}s`,
+      (seconds) => {
+        if (this.onWaterSpawnDurationChange) this.onWaterSpawnDurationChange(seconds);
+      }
+    );
+
+    addSlider(
+      'Max Particles',
+      'water-max-particles-value',
+      0,
+      20000,
+      100,
+      2000,
+      (v) => `${v.toFixed(0)}`,
+      (maxParticles) => {
+        if (this.onWaterMaxParticlesChange) this.onWaterMaxParticlesChange(maxParticles);
+      }
+    );
+
+    addSlider(
+      'Sep Iters',
+      'water-sep-iters-value',
+      0,
+      12,
+      1,
+      3,
+      (v) => `${v.toFixed(0)}`,
+      (iters) => {
+        if (this.onWaterSeparationIterationsChange) this.onWaterSeparationIterationsChange(iters);
+      }
+    );
+
+    addSlider(
+      'Sep Strength',
+      'water-sep-strength-value',
+      0,
+      1,
+      0.05,
+      0.85,
+      (v) => `${v.toFixed(2)}`,
+      (strength) => {
+        if (this.onWaterSeparationStrengthChange) this.onWaterSeparationStrengthChange(strength);
+      }
+    );
+
+    addSlider(
+      'Substeps',
+      'water-substeps-value',
+      1,
+      8,
+      1,
+      2,
+      (v) => `${v.toFixed(0)}`,
+      (substeps) => {
+        if (this.onWaterSubstepsChange) this.onWaterSubstepsChange(substeps);
+      }
+    );
+
+    addSlider(
+      'Collide Iters',
+      'water-collide-iters-value',
+      0,
+      20,
+      1,
+      5,
+      (v) => `${v.toFixed(0)}`,
+      (iters) => {
+        if (this.onWaterCollisionIterationsChange) this.onWaterCollisionIterationsChange(iters);
+      }
+    );
+
+    addSlider(
+      'Push Step',
+      'water-push-step-value',
+      0.005,
+      0.25,
+      0.005,
+      0.05,
+      (v) => `${v.toFixed(3)}m`,
+      (step) => {
+        if (this.onWaterCollisionPushStepChange) this.onWaterCollisionPushStepChange(step);
+      }
+    );
+
+    addSlider(
+      'Normal Damp',
+      'water-normal-damp-value',
+      0,
+      1,
+      0.05,
+      0.85,
+      (v) => `${v.toFixed(2)}`,
+      (damping) => {
+        if (this.onWaterCollisionNormalDampingChange) this.onWaterCollisionNormalDampingChange(damping);
+      }
+    );
+
+    addSlider(
+      'Tangent Damp',
+      'water-tangent-damp-value',
+      0,
+      1,
+      0.05,
+      0.1,
+      (v) => `${v.toFixed(2)}`,
+      (damping) => {
+        if (this.onWaterCollisionTangentDampingChange) this.onWaterCollisionTangentDampingChange(damping);
+      }
+    );
 
     return controlsContainer;
   }
@@ -1159,6 +1604,10 @@ export class DebugConsole {
       this.caveGenButton.style.transform = 'translateY(0)';
       this.caveGenButton.style.pointerEvents = 'auto';
 
+      this.waterDebugButton.style.opacity = '1';
+      this.waterDebugButton.style.transform = 'translateY(0)';
+      this.waterDebugButton.style.pointerEvents = 'auto';
+
       // Rotate hamburger icon
       this.hamburgerButton.style.transform = 'rotate(90deg)';
     } else {
@@ -1178,6 +1627,10 @@ export class DebugConsole {
       this.caveGenButton.style.opacity = '0';
       this.caveGenButton.style.transform = 'translateY(-20px)';
       this.caveGenButton.style.pointerEvents = 'none';
+
+      this.waterDebugButton.style.opacity = '0';
+      this.waterDebugButton.style.transform = 'translateY(-20px)';
+      this.waterDebugButton.style.pointerEvents = 'none';
 
       // Reset hamburger icon rotation
       this.hamburgerButton.style.transform = 'rotate(0deg)';

@@ -14,6 +14,9 @@ export default defineConfig({
   },
   plugins: [
     VitePWA({
+      // Workbox's internal Rollup+Terser bundling currently fails under this setup.
+      // Using development mode skips Terser for the generated SW bundle (app build remains production-minified).
+      mode: 'development',
       registerType: 'autoUpdate',
       includeAssets: ['icon-512.svg'],
       devOptions: {

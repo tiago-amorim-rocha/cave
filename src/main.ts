@@ -16,6 +16,8 @@ import type { IPlayerController } from './controllers/IPlayerController';
 import { BrushGenerator, type Brush } from './BrushGenerator';
 import { PipelineConfig, DEFAULT_CONFIG } from './PipelineConfig';
 import type { CarvingDebugContext, CarvingDebugHooks } from './carving/CarvingDebugHooks';
+import { DEFAULT_WATER_PARAMS, type WaterParticlesParams } from './water/WaterParticles';
+import { WaterWebGPU } from './water/WaterWebGPU';
 
 /**
  * Main application
@@ -35,6 +37,9 @@ class CarvableCaves {
   private player: IPlayerController | null = null; // Current active player controller
   private joystick: VirtualJoystick;
   private remeshManager!: RemeshManager; // Initialized after physics
+
+  private water: WaterWebGPU | null = null;
+  private waterGpuCanvas: HTMLCanvasElement | null = null;
 
   private needsRemesh = true;
   private animationFrameId = 0;
@@ -67,11 +72,15 @@ class CarvableCaves {
 
   // Optional step-by-step carving debug controller (installed only in debug builds)
   private carvingDebugHooks: CarvingDebugHooks | null = null;
+  private gpuOnlyWaterDebug = false;
 
   constructor() {
     try {
       // Initialize pipeline configuration
       this.config = DEFAULT_CONFIG;
+
+      const qs = new URLSearchParams(window.location.search);
+      this.gpuOnlyWaterDebug = qs.has('gpuOnlyWater');
 
       // Get world configuration from pipeline config
       const worldConfig = this.config.getWorldConfig();
@@ -123,6 +132,26 @@ class CarvableCaves {
       this.renderer = new Renderer(this.canvas, this.camera);
       this.renderer.setDensityField(this.densityField); // For debug visualization
 
+      // WebGPU overlay canvas for water only (transparent over Canvas2D scene)
+      this.waterGpuCanvas = document.createElement('canvas');
+      this.waterGpuCanvas.id = 'water-canvas';
+      this.waterGpuCanvas.style.cssText = `
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 2;
+      `;
+      document.body.appendChild(this.waterGpuCanvas);
+      this.syncWaterOverlaySize();
+
+      if (this.gpuOnlyWaterDebug) {
+        // Debug: hide Canvas2D and render only via WebGPU (helps isolate overlay/compositing issues).
+        this.canvas.style.display = 'none';
+        this.waterGpuCanvas.style.zIndex = '1';
+      }
+
       // Initialize input handler (camera controls only, no brushing)
       const brushSettings: BrushSettings = {
         radius: 0, // Disabled
@@ -153,6 +182,7 @@ class CarvableCaves {
         requestAnimationFrame(() => {
           this.pendingResize = false;
           this.renderer.resize();
+          this.syncWaterOverlaySize();
         });
       };
 
@@ -173,10 +203,53 @@ class CarvableCaves {
       });
 
       // Start render loop (async initialization happens there)
-      this.start(worldConfig.gridPitch);
+      void this.start(worldConfig.gridPitch).catch((err) => {
+        this.showFatalError(err);
+      });
     } catch (error) {
       // console.error('Failed to initialize CarvableCaves:', error);
       throw error;
+    }
+  }
+
+  private showFatalError(err: unknown): void {
+    try {
+      console.error('[CarvableCaves] Fatal init error:', err);
+      if (this.animationFrameId) {
+        cancelAnimationFrame(this.animationFrameId);
+      }
+
+      const existing = document.getElementById('fatal-error');
+      if (existing) existing.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'fatal-error';
+      overlay.style.cssText = `
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.92);
+        color: #fff;
+        z-index: 20000;
+        padding: 24px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        overflow: auto;
+        white-space: pre-wrap;
+        user-select: text;
+        -webkit-user-select: text;
+      `;
+
+      const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      overlay.textContent =
+        `Fatal error:\n${message}\n\n` +
+        `This build requires WebGPU for water simulation.\n\n` +
+        `Try:\n` +
+        `- Chrome/Edge (recent) with hardware acceleration enabled\n` +
+        `- Ensure WebGPU is enabled (chrome://flags → WebGPU) if needed\n` +
+        `- Safari: use Safari Technology Preview with WebGPU enabled\n`;
+
+      document.body.appendChild(overlay);
+    } catch {
+      // Last resort: do nothing.
     }
   }
 
@@ -252,6 +325,17 @@ class CarvableCaves {
         this.player.update(dt);
       }
     });
+
+    // WebGPU water simulation + rendering (particle state stays on GPU).
+    if (!this.waterGpuCanvas) {
+      throw new Error('[Water] Missing WebGPU overlay canvas');
+    }
+    const initialParams: WaterParticlesParams = { ...DEFAULT_WATER_PARAMS };
+    this.water = new WaterWebGPU(this.waterGpuCanvas, this.densityField, initialParams);
+    await this.water.init();
+    this.physics.getEngine().registerFixedUpdate((dt) => this.water?.fixedUpdate(dt));
+    this.water.setSpawnCenter(actualSpawnX, actualSpawnY - 6);
+    this.water.respawn();
 
     // Start render loop
     this.loop();
@@ -397,6 +481,10 @@ class CarvableCaves {
       this.runAutomatedTest();
     }
 
+    // Keep water spawn point above the player (uses previous-step position)
+    const preStepPlayerPos = this.player.getPosition();
+    this.water?.setSpawnCenter(preStepPlayerPos.x, preStepPlayerPos.y - 6);
+
     // Update physics simulation with fixed timestep (60Hz)
     // Player updates are registered as fixed callbacks inside the physics engine
     this.physics.update(deltaMs);
@@ -435,16 +523,37 @@ class CarvableCaves {
     const playerDirection = this.player.getDirection ? this.player.getDirection() : undefined;
 
     // Render (simple circle player with direction indicator)
-    this.renderer.render(
-      playerPos,
-      this.player.getRadius(),
-      [],
-      physicsDebugDraw,
-      undefined,
-      joystickDraw,
-      playerDirection
-    );
+    if (!this.gpuOnlyWaterDebug) {
+      this.renderer.render(
+        playerPos,
+        this.player.getRadius(),
+        [],
+        physicsDebugDraw,
+        undefined,
+        joystickDraw,
+        playerDirection
+      );
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    this.water?.render(this.camera, dpr, {
+      opaqueBackground: this.gpuOnlyWaterDebug,
+      debugQuad: this.gpuOnlyWaterDebug,
+    });
   };
+
+  private syncWaterOverlaySize(): void {
+    if (!this.waterGpuCanvas) return;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    if (w <= 0 || h <= 0) return;
+    if (this.water) {
+      this.water.setSize(w, h);
+    } else {
+      this.waterGpuCanvas.width = w;
+      this.waterGpuCanvas.height = h;
+    }
+  }
 
   private remesh(): void {
     const stats = this.remeshManager.remesh();
@@ -481,6 +590,20 @@ class CarvableCaves {
       const fpsElement = document.getElementById('fps-value');
       if (fpsElement) {
         fpsElement.textContent = this.fps.toString();
+      }
+
+      // Update water particle count
+      const waterCountElement = document.getElementById('water-count');
+      if (waterCountElement) {
+        const count = this.water ? this.water.getCount() : 0;
+        waterCountElement.textContent = count.toString();
+      }
+
+      // Water sim is on GPU; keep the panel as a copyable status line for now.
+      const waterPerfElement = document.getElementById('water-perf');
+      if (waterPerfElement) {
+        const text = this.water ? `Water sim: WebGPU (alive=${this.water.getCount()})` : 'Water sim: —';
+        waterPerfElement.textContent = text;
       }
     }
   }
@@ -609,6 +732,7 @@ class CarvableCaves {
 
     // Generate new caves with Perlin noise
     this.densityField.generateCaves(params.seed, params.scale, params.octaves, params.threshold);
+    this.water?.uploadDensityField();
 
     // Trigger remesh to update physics bodies before spawning
     this.needsRemesh = true;
@@ -640,6 +764,8 @@ class CarvableCaves {
     // Center camera on spawn
     this.camera.x = actualSpawnX;
     this.camera.y = actualSpawnY;
+
+    this.water?.respawn();
   }
 
   /**
@@ -677,6 +803,65 @@ class CarvableCaves {
 
       this.player.respawn(actualSpawnX, actualSpawnY);
     }
+  }
+
+  respawnWater(): void {
+    this.water?.respawn();
+  }
+
+  setWaterEnabled(enabled: boolean): void {
+    this.water?.updateParams({ enabled });
+    if (enabled) this.water?.respawn();
+    else this.water?.clear();
+  }
+
+  setWaterRadius(radius: number): void {
+    this.water?.updateParams({ particleRadius: radius });
+    this.water?.respawn();
+  }
+
+  setWaterSpawnRate(rate: number): void {
+    this.water?.updateParams({ spawnRate: rate });
+  }
+
+  setWaterSpawnDuration(seconds: number): void {
+    this.water?.updateParams({ spawnDuration: seconds });
+  }
+
+  setWaterMaxParticles(maxParticles: number): void {
+    this.water?.updateParams({ maxParticles });
+  }
+
+  setWaterSeparationEnabled(enabled: boolean): void {
+    this.water?.updateParams({ separationEnabled: enabled });
+  }
+
+  setWaterSeparationIterations(iters: number): void {
+    this.water?.updateParams({ separationIterations: iters });
+  }
+
+  setWaterSeparationStrength(strength: number): void {
+    this.water?.updateParams({ separationStrength: strength });
+  }
+
+  setWaterSubsteps(substeps: number): void {
+    this.water?.updateParams({ substeps });
+  }
+
+  setWaterCollisionIterations(iters: number): void {
+    this.water?.updateParams({ collisionIterations: iters });
+  }
+
+  setWaterCollisionPushStep(step: number): void {
+    this.water?.updateParams({ collisionPushStep: step });
+  }
+
+  setWaterCollisionNormalDamping(damping: number): void {
+    this.water?.updateParams({ collisionNormalDamping: damping });
+  }
+
+  setWaterCollisionTangentDamping(damping: number): void {
+    this.water?.updateParams({ collisionTangentDamping: damping });
   }
 
   /**
@@ -772,6 +957,7 @@ class CarvableCaves {
       this.carveBrush,
       false // false = carve (subtract density)
     );
+    this.water?.uploadDensityField();
 
     // Step-by-step debugging (opt-in, installed only in debug builds)
     if (this.carvingDebugHooks) {
@@ -900,6 +1086,90 @@ debugConsole.onToggleControlMode = (enabled: boolean) => {
 debugConsole.onRespawn = () => {
   if (app) {
     app.respawnPlayer();
+  }
+};
+
+debugConsole.onRespawnWater = () => {
+  if (app) {
+    app.respawnWater();
+  }
+};
+
+debugConsole.onToggleWaterEnabled = (enabled: boolean) => {
+  if (app) {
+    app.setWaterEnabled(enabled);
+  }
+};
+
+debugConsole.onWaterRadiusChange = (radius: number) => {
+  if (app) {
+    app.setWaterRadius(radius);
+  }
+};
+
+debugConsole.onWaterSpawnRateChange = (rate: number) => {
+  if (app) {
+    app.setWaterSpawnRate(rate);
+  }
+};
+
+debugConsole.onWaterSpawnDurationChange = (seconds: number) => {
+  if (app) {
+    app.setWaterSpawnDuration(seconds);
+  }
+};
+
+debugConsole.onWaterMaxParticlesChange = (maxParticles: number) => {
+  if (app) {
+    app.setWaterMaxParticles(maxParticles);
+  }
+};
+
+debugConsole.onToggleWaterSeparation = (enabled: boolean) => {
+  if (app) {
+    app.setWaterSeparationEnabled(enabled);
+  }
+};
+
+debugConsole.onWaterSeparationIterationsChange = (iters: number) => {
+  if (app) {
+    app.setWaterSeparationIterations(iters);
+  }
+};
+
+debugConsole.onWaterSeparationStrengthChange = (strength: number) => {
+  if (app) {
+    app.setWaterSeparationStrength(strength);
+  }
+};
+
+debugConsole.onWaterSubstepsChange = (substeps: number) => {
+  if (app) {
+    app.setWaterSubsteps(substeps);
+  }
+};
+
+debugConsole.onWaterCollisionIterationsChange = (iters: number) => {
+  if (app) {
+    app.setWaterCollisionIterations(iters);
+  }
+};
+
+debugConsole.onWaterCollisionPushStepChange = (step: number) => {
+  if (app) {
+    app.setWaterCollisionPushStep(step);
+  }
+};
+
+debugConsole.onWaterCollisionNormalDampingChange = (damping: number) => {
+  if (app) {
+    app.setWaterCollisionNormalDamping(damping);
+  }
+};
+
+debugConsole.onWaterCollisionTangentDampingChange = (damping: number) => {
+  if (app) {
+    app.setWaterCollisionTangentDamping(damping);
   }
 };
 
