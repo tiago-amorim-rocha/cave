@@ -1,6 +1,5 @@
 import type { AABB, WorldConfig } from './types';
 import { PerlinNoise } from './PerlinNoise';
-import { generateBubbleCaves, type CaveGenParams } from './BubbleGenerator';
 import type { Brush } from './BrushGenerator';
 
 /**
@@ -131,64 +130,6 @@ export class DensityField {
 
     // Add solid rock border to ensure all caves are enclosed
     // This prevents open loops at boundaries
-    // Note: Border width is now configurable via PipelineConfig (default: 5 cells)
-    const borderWidth = 5; // cells - TODO: Pass from PipelineConfig if needed
-
-    let borderCellsSet = 0;
-
-    // Top and bottom borders
-    for (let gx = 0; gx < this.gridWidth; gx++) {
-      for (let by = 0; by < borderWidth; by++) {
-        // Top border
-        if (by < this.gridHeight) {
-          this.data[by * this.gridWidth + gx] = 255;
-          borderCellsSet++;
-        }
-        // Bottom border
-        const bottomY = this.gridHeight - 1 - by;
-        if (bottomY >= 0 && bottomY < this.gridHeight) {
-          this.data[bottomY * this.gridWidth + gx] = 255;
-          borderCellsSet++;
-        }
-      }
-    }
-
-    // Left and right borders
-    for (let gy = 0; gy < this.gridHeight; gy++) {
-      for (let bx = 0; bx < borderWidth; bx++) {
-        // Left border
-        if (bx < this.gridWidth) {
-          this.data[gy * this.gridWidth + bx] = 255;
-          borderCellsSet++;
-        }
-        // Right border
-        const rightX = this.gridWidth - 1 - bx;
-        if (rightX >= 0 && rightX < this.gridWidth) {
-          this.data[gy * this.gridWidth + rightX] = 255;
-          borderCellsSet++;
-        }
-      }
-    }
-
-    this.markAllDirty();
-  }
-
-  /**
-   * Generate caves using noise-based bubble algorithm
-   */
-  generateBubbleCaves(params: CaveGenParams): void {
-    // Generate bubbles
-    const bubbleData = generateBubbleCaves(params);
-
-    // Replace our data with the generated data
-    if (bubbleData.length !== this.data.length) {
-      console.warn(`[BubbleGen] Size mismatch! Expected ${this.data.length} (${this.gridWidth}×${this.gridHeight}), got ${bubbleData.length}. Params: ${params.worldAabb.maxX}×${params.worldAabb.maxY}, h=${params.h}`);
-      return;
-    }
-
-    this.data.set(bubbleData);
-
-    // Add solid rock border (same as Perlin generation)
     // Note: Border width is now configurable via PipelineConfig (default: 5 cells)
     const borderWidth = 5; // cells - TODO: Pass from PipelineConfig if needed
 
