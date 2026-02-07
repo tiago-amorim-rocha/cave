@@ -45,6 +45,9 @@ const CONFIG = {
     enabled: true,
     spawnOffsetY: 6,
   },
+  terrain: {
+    texelsPerMeter: 24,
+  },
 };
 
 class CaveGame {
@@ -104,7 +107,9 @@ class CaveGame {
       CONFIG.perlinThreshold
     );
 
-    this.renderer = new Renderer(this.canvas, this.camera, this.densityField);
+    this.renderer = new Renderer(this.canvas, this.camera, this.densityField, {
+      texelsPerMeter: CONFIG.terrain.texelsPerMeter,
+    });
 
     this.waterGpuCanvas = document.createElement('canvas');
     this.waterGpuCanvas.id = 'water-canvas';
@@ -157,6 +162,7 @@ class CaveGame {
     const spawnX = CONFIG.worldWidth / 2;
     const spawnY = CONFIG.worldHeight / 2;
     this.densityField.stampBrush(spawnX, spawnY, this.spawnBrush, false);
+    this.densityField.clearDirty();
   }
 
   private setupResizeHandling(): void {
@@ -309,7 +315,9 @@ class CaveGame {
     const carveY = pos.y + Math.sin(dir) * CONFIG.carve.offset;
 
     this.densityField.stampBrush(carveX, carveY, this.carveBrush, false);
-    this.renderer.rebuildTerrainTexture();
+    const dirty = this.densityField.getDirtyWorldAABB();
+    this.renderer.updateTerrainTextureDirty(dirty);
+    this.densityField.clearDirty();
     this.water?.uploadDensityField();
   }
 

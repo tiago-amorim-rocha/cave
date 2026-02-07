@@ -6,6 +6,11 @@ export interface BallRenderData {
   circleRadius: number;
 }
 
+export interface RendererOptions {
+  texelsPerMeter?: number;
+  edgeAaMeters?: number;
+}
+
 export interface RenderParams {
   playerPosition?: { x: number; y: number };
   playerRadius?: number;
@@ -22,14 +27,29 @@ export class Renderer {
   private camera: Camera;
   private densityField: DensityField;
 
+  private texelsPerMeter: number;
+  private edgeAaMeters: number;
   private terrainCanvas: HTMLCanvasElement;
   private terrainCtx: CanvasRenderingContext2D;
   private terrainImage: ImageData | null = null;
+  private terrainWidth = 0;
+  private terrainHeight = 0;
+  private sample = { density: 0, gradX: 0, gradY: 0 };
 
-  constructor(canvas: HTMLCanvasElement, camera: Camera, densityField: DensityField) {
+  private readonly rock = { r: 20, g: 20, b: 24 };
+  private readonly cave = { r: 210, g: 205, b: 190 };
+
+  constructor(
+    canvas: HTMLCanvasElement,
+    camera: Camera,
+    densityField: DensityField,
+    options: RendererOptions = {}
+  ) {
     this.canvas = canvas;
     this.camera = camera;
     this.densityField = densityField;
+    this.texelsPerMeter = options.texelsPerMeter ?? 16;
+    this.edgeAaMeters = options.edgeAaMeters ?? 0.5 / this.texelsPerMeter;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get 2D context');
@@ -56,36 +76,89 @@ export class Renderer {
     this.canvas.style.height = `${height}px`;
   }
 
-  rebuildTerrainTexture(): void {
-    const { gridWidth, gridHeight, config, data } = this.densityField;
-    if (this.terrainCanvas.width !== gridWidth || this.terrainCanvas.height !== gridHeight) {
-      this.terrainCanvas.width = gridWidth;
-      this.terrainCanvas.height = gridHeight;
-      this.terrainImage = this.terrainCtx.createImageData(gridWidth, gridHeight);
+  updateTerrainTextureDirty(worldAabb: { minX: number; minY: number; maxX: number; maxY: number } | null): void {
+    if (!worldAabb) {
+      this.rebuildTerrainTexture();
+      return;
     }
 
+    this.ensureTerrainTextureAllocated();
     if (!this.terrainImage) return;
 
-    const pixels = this.terrainImage.data;
-    const iso = config.isoValue;
+    const { config } = this.densityField;
+    const clamped = {
+      minX: Math.max(0, Math.min(config.width, worldAabb.minX)),
+      minY: Math.max(0, Math.min(config.height, worldAabb.minY)),
+      maxX: Math.max(0, Math.min(config.width, worldAabb.maxX)),
+      maxY: Math.max(0, Math.min(config.height, worldAabb.maxY)),
+    };
 
-    for (let i = 0; i < data.length; i++) {
-      const isCave = data[i] < iso;
-      const base = i * 4;
-      if (isCave) {
-        pixels[base + 0] = 210;
-        pixels[base + 1] = 205;
-        pixels[base + 2] = 190;
-        pixels[base + 3] = 255;
-      } else {
-        pixels[base + 0] = 20;
-        pixels[base + 1] = 20;
-        pixels[base + 2] = 24;
+    const padPx = Math.max(2, Math.ceil(this.edgeAaMeters * this.texelsPerMeter) + 2);
+    const x0 = Math.max(0, Math.floor(clamped.minX * this.texelsPerMeter) - padPx);
+    const y0 = Math.max(0, Math.floor(clamped.minY * this.texelsPerMeter) - padPx);
+    const x1 = Math.min(this.terrainWidth, Math.ceil(clamped.maxX * this.texelsPerMeter) + padPx);
+    const y1 = Math.min(this.terrainHeight, Math.ceil(clamped.maxY * this.texelsPerMeter) + padPx);
+
+    if (x1 <= x0 || y1 <= y0) return;
+
+    this.rasterizeTerrainRect(this.terrainImage, x0, y0, x1, y1);
+    this.terrainCtx.putImageData(this.terrainImage, 0, 0, x0, y0, x1 - x0, y1 - y0);
+  }
+
+  rebuildTerrainTexture(): void {
+    this.ensureTerrainTextureAllocated();
+    if (!this.terrainImage) return;
+    this.rasterizeTerrainRect(this.terrainImage, 0, 0, this.terrainWidth, this.terrainHeight);
+    this.terrainCtx.putImageData(this.terrainImage, 0, 0, 0, 0, this.terrainWidth, this.terrainHeight);
+  }
+
+  private ensureTerrainTextureAllocated(): void {
+    const { config } = this.densityField;
+    const texWidth = Math.max(1, Math.round(config.width * this.texelsPerMeter));
+    const texHeight = Math.max(1, Math.round(config.height * this.texelsPerMeter));
+
+    if (this.terrainCanvas.width !== texWidth || this.terrainCanvas.height !== texHeight) {
+      this.terrainCanvas.width = texWidth;
+      this.terrainCanvas.height = texHeight;
+      this.terrainImage = this.terrainCtx.createImageData(texWidth, texHeight);
+      this.terrainWidth = texWidth;
+      this.terrainHeight = texHeight;
+    }
+  }
+
+  private rasterizeTerrainRect(image: ImageData, x0: number, y0: number, x1: number, y1: number): void {
+    const { config } = this.densityField;
+    const pixels = image.data;
+    const iso = config.isoValue;
+    const aa = this.edgeAaMeters;
+    const invTexels = 1 / this.texelsPerMeter;
+
+    const smoothstep = (edge0: number, edge1: number, x: number): number => {
+      const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+      return t * t * (3 - 2 * t);
+    };
+
+    for (let y = y0; y < y1; y++) {
+      const worldY = (y + 0.5) * invTexels;
+      for (let x = x0; x < x1; x++) {
+        const worldX = (x + 0.5) * invTexels;
+        this.densityField.getDensityAndGradientAtWorld(worldX, worldY, this.sample);
+
+        const density = this.sample.density;
+        const gradLen = Math.hypot(this.sample.gradX, this.sample.gradY);
+        let caveAmount = density < iso ? 1 : 0;
+        if (gradLen >= 1e-5) {
+          const phi = (density - iso) / gradLen;
+          caveAmount = 1 - smoothstep(-aa, aa, phi);
+        }
+
+        const base = (y * this.terrainWidth + x) * 4;
+        pixels[base + 0] = Math.round(this.rock.r + (this.cave.r - this.rock.r) * caveAmount);
+        pixels[base + 1] = Math.round(this.rock.g + (this.cave.g - this.rock.g) * caveAmount);
+        pixels[base + 2] = Math.round(this.rock.b + (this.cave.b - this.rock.b) * caveAmount);
         pixels[base + 3] = 255;
       }
     }
-
-    this.terrainCtx.putImageData(this.terrainImage, 0, 0);
   }
 
   render(params: RenderParams): void {
@@ -97,7 +170,8 @@ export class Renderer {
     this.ctx.fillStyle = '#141418';
     this.ctx.fillRect(0, 0, width, height);
 
-    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.imageSmoothingEnabled = true;
+    this.ctx.imageSmoothingQuality = 'high';
     const topLeft = this.camera.worldToScreen(0, 0, width, height);
     const bottomRight = this.camera.worldToScreen(
       this.densityField.config.width,
