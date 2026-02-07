@@ -180,6 +180,60 @@ export class CarvingDebugController implements CarvingDebugHooks {
     const region = this.computePaddedDirtyAabb(expandCells);
     if (!region) return null;
 
+    const pointInAabb = (p: { x: number; y: number }) =>
+      p.x >= region.minX && p.x <= region.maxX && p.y >= region.minY && p.y <= region.maxY;
+
+    const segmentIntersectsAabb = (a: { x: number; y: number }, b: { x: number; y: number }): boolean => {
+      if (pointInAabb(a) || pointInAabb(b)) return true;
+
+      // Quick reject using segment AABB
+      const minX = Math.min(a.x, b.x);
+      const maxX = Math.max(a.x, b.x);
+      const minY = Math.min(a.y, b.y);
+      const maxY = Math.max(a.y, b.y);
+      if (maxX < region.minX || minX > region.maxX || maxY < region.minY || minY > region.maxY) {
+        return false;
+      }
+
+      const cross = (p: { x: number; y: number }, q: { x: number; y: number }, r: { x: number; y: number }) =>
+        (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+      const onSegment = (p: { x: number; y: number }, q: { x: number; y: number }, r: { x: number; y: number }) =>
+        Math.min(p.x, r.x) - 1e-6 <= q.x && q.x <= Math.max(p.x, r.x) + 1e-6 &&
+        Math.min(p.y, r.y) - 1e-6 <= q.y && q.y <= Math.max(p.y, r.y) + 1e-6;
+
+      const segmentsIntersect = (
+        p1: { x: number; y: number },
+        p2: { x: number; y: number },
+        p3: { x: number; y: number },
+        p4: { x: number; y: number }
+      ): boolean => {
+        const o1 = cross(p1, p2, p3);
+        const o2 = cross(p1, p2, p4);
+        const o3 = cross(p3, p4, p1);
+        const o4 = cross(p3, p4, p2);
+
+        if (o1 === 0 && onSegment(p1, p3, p2)) return true;
+        if (o2 === 0 && onSegment(p1, p4, p2)) return true;
+        if (o3 === 0 && onSegment(p3, p1, p4)) return true;
+        if (o4 === 0 && onSegment(p3, p2, p4)) return true;
+
+        return (o1 > 0) !== (o2 > 0) && (o3 > 0) !== (o4 > 0);
+      };
+
+      // Check against each rectangle edge
+      const topLeft = { x: region.minX, y: region.minY };
+      const topRight = { x: region.maxX, y: region.minY };
+      const bottomLeft = { x: region.minX, y: region.maxY };
+      const bottomRight = { x: region.maxX, y: region.maxY };
+
+      return (
+        segmentsIntersect(a, b, topLeft, topRight) ||
+        segmentsIntersect(a, b, topRight, bottomRight) ||
+        segmentsIntersect(a, b, bottomRight, bottomLeft) ||
+        segmentsIntersect(a, b, bottomLeft, topLeft)
+      );
+    };
+
     const canonicalLoops = this.ctx.remeshManager.getCanonicalLoops();
     const affectedCanonicalLoopIds: number[] = [];
     const dirtyRanges: CarveOption2DebugData['dirtyRanges'] = [];
@@ -194,7 +248,14 @@ export class CarvingDebugController implements CarvingDebugHooks {
       const insideFlags: boolean[] = [];
       for (let i = 0; i < nUnique; i++) {
         const v = loop.vertices[i];
-        insideFlags.push(v.x >= region.minX && v.x <= region.maxX && v.y >= region.minY && v.y <= region.maxY);
+        insideFlags.push(pointInAabb(v));
+      }
+      for (let i = 0; i < nUnique; i++) {
+        const j = (i + 1) % nUnique;
+        if (segmentIntersectsAabb(loop.vertices[i], loop.vertices[j])) {
+          insideFlags[i] = true;
+          insideFlags[j] = true;
+        }
       }
 
       // Build contiguous inside runs (cyclic merge supported)

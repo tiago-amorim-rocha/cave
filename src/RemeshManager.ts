@@ -124,6 +124,7 @@ export interface LocalUpdateSession {
     matches: Array<{ oldLoopId: number; newLoopId: number | null }>;
     resultsByOld: LocalUpdateSurgeryResult[];
     remainingNewLoopIds: number[];
+    deletedOldLoopIds: number[];
     replacements: CanonicalLoop[];
     previewLoops?: CanonicalLoop[];
   };
@@ -135,6 +136,7 @@ export interface LocalUpdateSession {
     rebuiltInvalidations: Array<{ loopIndex: number; spans: Array<{ startOpt: number; endOpt: number }> }>;
     rebuiltSegmentDebug: Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }>;
     rebuiltArcs: Array<{ loopIndex: number; span: { startOpt: number; endOpt: number }; arc: OptVertex[] }>;
+    rebuiltFullLoops: Array<{ loopIndex: number; loopId: number; optLoop: OptVertex[] }>;
     splicedOptLoops: OptVertex[][];
     spliceSummary?: Array<{
       oldLoopId: number;
@@ -312,7 +314,17 @@ export class RemeshManager {
     const nUnique = unique.length;
     if (nUnique < 3) return [];
 
+    // A span is "dirty" if either:
+    // - a vertex is inside the region, OR
+    // - an incident edge intersects the region (covers long edges that cross the AABB with no vertices inside).
     const flags = unique.map((v) => this.pointInAabb(v, region));
+    for (let i = 0; i < nUnique; i++) {
+      const j = (i + 1) % nUnique;
+      if (this.segmentIntersectsAabb(unique[i], unique[j], region)) {
+        flags[i] = true;
+        flags[j] = true;
+      }
+    }
 
     const runs: Array<{ startIndex: number; endIndex: number }> = [];
     let runStart = -1;
@@ -392,7 +404,11 @@ export class RemeshManager {
   private resamplePath(points: Point[], count: number): Point[] {
     if (count <= 0) return [];
     if (points.length === 0) return [];
-    if (points.length === 1 || count === 1) return [{ x: points[0].x, y: points[0].y }];
+    if (points.length === 1) {
+      const p = points[0];
+      return Array.from({ length: count }, () => ({ x: p.x, y: p.y }));
+    }
+    if (count === 1) return [{ x: points[0].x, y: points[0].y }];
 
     const cumulative: number[] = [0];
     for (let i = 1; i < points.length; i++) {
@@ -502,13 +518,31 @@ export class RemeshManager {
     const forwardPath = this.extractLoopPath(newUnique, ns, ne, true);
     const backwardPath = this.extractLoopPath(newUnique, ns, ne, false);
 
-    const scorePath = (path: Point[]): number => {
+    const scorePath = (path: Point[]): { inside: number; touch: number; length: number } => {
       let inside = 0;
-      for (const p of path) if (this.pointInAabb(p, region)) inside++;
-      return inside;
+      let touch = 0;
+      let length = 0;
+      for (let i = 0; i < path.length; i++) {
+        const p = path[i];
+        if (this.pointInAabb(p, region)) inside++;
+        if (i > 0) {
+          const a = path[i - 1];
+          const b = p;
+          if (this.segmentIntersectsAabb(a, b, region)) touch++;
+          length += Math.hypot(b.x - a.x, b.y - a.y);
+        }
+      }
+      return { inside, touch, length };
     };
 
-    const chosen = scorePath(forwardPath) >= scorePath(backwardPath) ? forwardPath : backwardPath;
+    const sf = scorePath(forwardPath);
+    const sb = scorePath(backwardPath);
+    // Prefer the path that actually touches the region; if tied, prefer shorter path
+    // to avoid selecting the "long way around" and creating huge chord artifacts.
+    const chooseBackward =
+      sb.inside > sf.inside ||
+      (sb.inside === sf.inside && (sb.touch > sf.touch || (sb.touch === sf.touch && sb.length < sf.length)));
+    const chosen = chooseBackward ? backwardPath : forwardPath;
     const resampled = this.resamplePath(chosen, indices.length);
 
     for (let k = 0; k < indices.length; k++) {
@@ -1038,6 +1072,9 @@ export class RemeshManager {
     };
 
     const affectedCanonicals = this.findAffectedCanonicalLoops(paddedAABB);
+    // Superset (AABB-only) used for recovery matching when `findAffectedCanonicalLoops` misses a loop
+    // but marching squares still produces its replacement (common around near-misses / topology changes).
+    const aabbIntersectingOld = this.canonicalLoops.filter((l) => this.aabbsIntersect(l.aabb, paddedAABB));
 
     const msResults = this.marchingSquares.generateContours(paddedAABB, expandCells);
     const msCleanedLoops: Point[][] = [];
@@ -1049,25 +1086,70 @@ export class RemeshManager {
     }
     const newCanonicalLoops = msCleanedLoops.map(loop => createCanonicalLoop(loop));
 
-    const matches = this.matchNewLoopsToOld(affectedCanonicals, newCanonicalLoops);
+    const matches: Array<{ old: CanonicalLoop; replacement: CanonicalLoop | null }> = this.matchNewLoopsToOld(
+      affectedCanonicals,
+      newCanonicalLoops
+    );
+
+    const affectedSet = new Set<number>(affectedCanonicals.map((l) => l.id));
+    const matchedOld = new Set<number>(matches.map((m) => m.old.id));
+
     const remainingNew = new Set(newCanonicalLoops);
+    for (const m of matches) {
+      if (m.replacement) remainingNew.delete(m.replacement);
+    }
+
+    // Recovery matching pass: if a "new" loop remains but clearly corresponds to an existing old loop
+    // whose AABB overlaps the region (yet it wasn't flagged as affected), match it so we update-in-place
+    // rather than duplicating the loop (which can flip even-odd fill parity elsewhere).
+    const centroidOf = (loop: CanonicalLoop): { x: number; y: number } => computePolygonCentroid(loop.vertices);
+    const newCentroids = new Map<number, { x: number; y: number }>();
+    for (const nl of remainingNew) newCentroids.set(nl.id, centroidOf(nl));
+
+    const candidateOld = aabbIntersectingOld.filter((l) => !matchedOld.has(l.id));
+    const oldCentroids = new Map<number, { x: number; y: number }>();
+    for (const ol of candidateOld) oldCentroids.set(ol.id, centroidOf(ol));
+
+    const usedOld = new Set<number>();
+    for (const nl of [...remainingNew]) {
+      const nc = newCentroids.get(nl.id);
+      if (!nc) continue;
+      let bestOld: CanonicalLoop | null = null;
+      let bestD2 = Infinity;
+      for (const ol of candidateOld) {
+        if (usedOld.has(ol.id)) continue;
+        // Prefer spatial overlap to avoid accidental cross-matching.
+        if (!this.aabbsIntersect(ol.aabb, nl.aabb)) continue;
+        const oc = oldCentroids.get(ol.id);
+        if (!oc) continue;
+        const dx = oc.x - nc.x;
+        const dy = oc.y - nc.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < bestD2) {
+          bestD2 = d2;
+          bestOld = ol;
+        }
+      }
+
+      if (!bestOld) continue;
+      usedOld.add(bestOld.id);
+      remainingNew.delete(nl);
+      matches.push({ old: bestOld, replacement: nl });
+      if (!affectedSet.has(bestOld.id)) {
+        affectedSet.add(bestOld.id);
+        affectedCanonicals.push(bestOld);
+      }
+    }
 
     const resultsByOld: LocalUpdateSurgeryResult[] = [];
     const matchSummary: Array<{ oldLoopId: number; newLoopId: number | null }> = [];
-
     for (const match of matches) {
       matchSummary.push({ oldLoopId: match.old.id, newLoopId: match.replacement?.id ?? null });
-
-      if (!match.replacement) {
-        resultsByOld.push({ oldLoopId: match.old.id, matchedNewLoopId: null, resultLoops: [] });
-        continue;
-      }
       resultsByOld.push({
         oldLoopId: match.old.id,
-        matchedNewLoopId: match.replacement.id,
+        matchedNewLoopId: match.replacement?.id ?? null,
         resultLoops: []
       });
-      remainingNew.delete(match.replacement);
     }
 
     const replacements: CanonicalLoop[] = [...affectedCanonicals, ...remainingNew];
@@ -1084,6 +1166,7 @@ export class RemeshManager {
         matches: matchSummary,
         resultsByOld,
         remainingNewLoopIds: [...remainingNew].map(l => l.id),
+        deletedOldLoopIds: [],
         replacements
       }
     };
@@ -1095,6 +1178,11 @@ export class RemeshManager {
     for (const l of session.newCanonicalLoops) newById.set(l.id, l);
 
     const updatedLoopIds: number[] = [];
+
+    const deletedOldLoopIds = new Set<number>(
+      session.surgery.matches.filter(m => m.newLoopId === null).map(m => m.oldLoopId)
+    );
+    session.surgery.deletedOldLoopIds = [...deletedOldLoopIds];
 
     for (const match of session.surgery.matches) {
       if (!match.newLoopId) continue;
@@ -1119,6 +1207,21 @@ export class RemeshManager {
       updatedLoopIds.push(oldLoop.id);
     }
 
+    // If an affected old loop has no matched replacement, it means topology changed (e.g. a sealed bubble
+    // merged into the main cave). Remove the old loop so it doesn't persist as a phantom collider.
+    if (deletedOldLoopIds.size > 0) {
+      const deletedOptLoops = new Set<OptVertex[]>();
+      for (const loop of session.affectedCanonicals) {
+        if (!deletedOldLoopIds.has(loop.id)) continue;
+        if (loop.optVertices) deletedOptLoops.add(loop.optVertices);
+      }
+
+      this.canonicalLoops = this.canonicalLoops.filter(l => !deletedOldLoopIds.has(l.id));
+      if (deletedOptLoops.size > 0) {
+        this.optimizedOptLoopsDebug = this.optimizedOptLoopsDebug.filter(l => !deletedOptLoops.has(l));
+      }
+    }
+
     // Add any unmatched new loops (new topology inside region)
     const matchedNewIds = new Set(session.surgery.matches.map(m => m.newLoopId).filter((v): v is number => v !== null));
     const newLoopsToAdd: CanonicalLoop[] = [];
@@ -1130,7 +1233,10 @@ export class RemeshManager {
     }
 
     // For downstream steps, treat "replacements" as the loops we will (re)build physics for.
-    session.surgery.replacements = [...session.affectedCanonicals, ...newLoopsToAdd];
+    session.surgery.replacements = [
+      ...session.affectedCanonicals.filter(l => !deletedOldLoopIds.has(l.id)),
+      ...newLoopsToAdd
+    ];
 
     this.assertCanonicalAABBs(this.canonicalLoops);
     this.renderer.setCanonicalLoops(this.canonicalLoops);
@@ -1141,6 +1247,7 @@ export class RemeshManager {
         dirtyAABB: session.paddedAABB,
         affectedLoops: session.affectedCanonicals.length,
         updatedLoopIds,
+        deletedOldLoopIds: session.surgery.deletedOldLoopIds,
         newLoopsAdded: newLoopsToAdd.map(l => l.id)
       });
     }
@@ -1209,6 +1316,7 @@ export class RemeshManager {
       rebuiltInvalidations: [],
       rebuiltSegmentDebug: [],
       rebuiltArcs: [],
+      rebuiltFullLoops: [],
       splicedOptLoops: [],
     };
     session.opt.baseOptLoops = this.optimizedOptLoopsDebug.slice();
@@ -1268,6 +1376,7 @@ export class RemeshManager {
     const rebuiltOptLoops: OptVertex[][] = [];
     const rebuiltSegmentDebug: Array<{ loopId: number; vertices: OptVertex[]; segments: PhysicsSegment[] }> = [];
     const rebuiltArcs: Array<{ loopIndex: number; span: { startOpt: number; endOpt: number }; arc: OptVertex[] }> = [];
+    const rebuiltFullLoops: Array<{ loopIndex: number; loopId: number; optLoop: OptVertex[] }> = [];
 
     session.opt = session.opt ?? {
       baseOptLoops: [],
@@ -1276,6 +1385,7 @@ export class RemeshManager {
       rebuiltInvalidations: [],
       rebuiltSegmentDebug: [],
       rebuiltArcs: [],
+      rebuiltFullLoops: [],
       splicedOptLoops: []
     };
 
@@ -1299,14 +1409,30 @@ export class RemeshManager {
       const spans = invalidByLoopIndex.get(baseIndex) ?? [];
       if (spans.length === 0) continue;
 
-      // For now, rebuild a single span (most carves yield one contiguous invalid span).
-      const targetSpan = spans[0];
       if (spans.length > 1) {
-        console.warn('[LocalOptRebuild] Multiple invalid spans; rebuilding only the first', {
+        // Correctness-first fallback: rebuild the full optimized loop for this canonical.
+        // This happens when the dirty AABB touches the loop in multiple disjoint places.
+        const optResult = this.optimizationPipeline.optimize([canon.vertices], this.optimizationOptions);
+        const optLoop = optResult.finalOptLoops?.[0];
+        if (!optLoop || optLoop.length < 2) continue;
+
+        rebuiltFullLoops.push({ loopIndex: baseIndex, loopId: canon.id, optLoop });
+        rebuiltOptLoops.push(optLoop);
+        rebuiltSegmentDebug.push({
+          loopId: canon.id,
+          vertices: optLoop,
+          segments: buildSegmentsForLoop(canon.id, optLoop, 64, 20, 12, 0.35)
+        });
+
+        console.warn('[LocalOptRebuild] Multiple invalid spans; rebuilt full loop', {
           loopId: canon.id,
           spanCount: spans.length
         });
+        continue;
       }
+
+      // Single invalid span: rebuild only that arc for speed.
+      const targetSpan = spans[0];
 
       const dirtySpans = this.canonicalDirtySpans(canon, session.paddedAABB);
       if (dirtySpans.length === 0) continue;
@@ -1375,6 +1501,7 @@ export class RemeshManager {
     session.opt.rebuiltOptLoops = rebuiltOptLoops;
     session.opt.rebuiltSegmentDebug = rebuiltSegmentDebug;
     session.opt.rebuiltArcs = rebuiltArcs;
+    session.opt.rebuiltFullLoops = rebuiltFullLoops;
     session.opt.rebuiltInvalidations = [];
   }
 
@@ -1386,6 +1513,7 @@ export class RemeshManager {
       rebuiltInvalidations: [],
       rebuiltSegmentDebug: [],
       rebuiltArcs: [],
+      rebuiltFullLoops: [],
       splicedOptLoops: []
     };
     this.computeLocalUpdateOptAabbInvalidation(session);
@@ -1403,6 +1531,30 @@ export class RemeshManager {
       const dReverse = d(prev, segment[segment.length - 1]) + d(next, segment[0]);
       return dReverse < dForward ? segment.slice().reverse() : segment;
     };
+
+    // Apply full-loop rebuilds (multiple invalid spans fallback).
+    for (const rebuilt of session.opt.rebuiltFullLoops) {
+      const baseLoop = splicedOptLoops[rebuilt.loopIndex];
+      if (!baseLoop) continue;
+      splicedOptLoops[rebuilt.loopIndex] = rebuilt.optLoop;
+
+      const canon =
+        session.affectedCanonicals.find(l => l.optVertices === baseLoop) ??
+        session.affectedCanonicals.find(l => l.id === rebuilt.loopId);
+      if (canon) {
+        canon.optVertices = rebuilt.optLoop;
+        canon.segments = buildSegmentsForLoop(canon.id, rebuilt.optLoop, 64, 20, 12, 0.35);
+      }
+
+      spliceSummary.push({
+        oldLoopId: canon?.id ?? rebuilt.loopId,
+        newLoopId: canon?.id ?? rebuilt.loopId,
+        oldSpanCount: 0,
+        newSpanCount: 1,
+        splicedVertexCount: rebuilt.optLoop.length,
+        usedFallback: true
+      });
+    }
 
     // Apply arc rebuilds into existing opt loops (replace only invalidated span)
     for (const rebuilt of session.opt.rebuiltArcs) {

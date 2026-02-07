@@ -1,10 +1,17 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
-export default defineConfig({
-  define: {
-    __CARVE_DEBUG__: JSON.stringify(process.env.CARVE_DEBUG === '1'),
-  },
+export default defineConfig(({ command }) => {
+  // TEMP: force carving step-debug enabled everywhere.
+  // (Previously: enabled by default only for `vite` dev server, and gated in prod via `CARVE_DEBUG=1`.)
+  const carveDebug = true;
+
+  return {
+    define: {
+      __CARVE_DEBUG__: JSON.stringify(carveDebug),
+    },
   base: '/cave/',
   publicDir: 'public',
   server: {
@@ -13,6 +20,47 @@ export default defineConfig({
     }
   },
   plugins: [
+    {
+      name: 'debug-dump-logs',
+      apply: 'serve',
+      configureServer(server) {
+        server.middlewares.use(async (req, res, next) => {
+          if (req.method !== 'POST' || req.url !== '/__debug/dump-logs') {
+            next();
+            return;
+          }
+
+          let body = '';
+          req.setEncoding('utf8');
+          req.on('data', (chunk) => {
+            body += chunk;
+            if (body.length > 2_000_000) {
+              res.statusCode = 413;
+              res.end('Payload too large');
+              req.destroy();
+            }
+          });
+
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const now = new Date();
+              const safeStamp = now.toISOString().replace(/[:.]/g, '-');
+              const filename = `debug-console-${safeStamp}.json`;
+              const outPath = path.resolve(process.cwd(), filename);
+              await fs.writeFile(outPath, JSON.stringify(payload, null, 2), 'utf8');
+              res.statusCode = 200;
+              res.setHeader('content-type', 'application/json');
+              res.end(JSON.stringify({ ok: true, path: filename }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader('content-type', 'application/json');
+              res.end(JSON.stringify({ ok: false, error: String(err?.message ?? err) }));
+            }
+          });
+        });
+      }
+    },
     VitePWA({
       // Workbox's internal Rollup+Terser bundling currently fails under this setup.
       // Using development mode skips Terser for the generated SW bundle (app build remains production-minified).
@@ -82,4 +130,5 @@ export default defineConfig({
     target: 'es2020',
     outDir: 'dist'
   }
+  };
 });

@@ -19,6 +19,7 @@ export class DebugConsole {
   private isTextLogVisible = false;
   private logs: string[] = [];
   private maxLogs = 100;
+  private versionInfo: any | null = null;
 
   // Toggle buttons
   private hamburgerButton: HTMLButtonElement;
@@ -482,6 +483,23 @@ export class DebugConsole {
       align-items: center;
     `;
 
+    // Dump-to-file button (dev server only; posts to Vite middleware)
+    const dumpBtn = document.createElement('button');
+    dumpBtn.textContent = '💾';
+    dumpBtn.style.cssText = `
+      background: none;
+      border: none;
+      color: #FFE0B2;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 2px 4px;
+      opacity: 0.6;
+    `;
+    dumpBtn.title = 'Dump logs to file (dev server)';
+    dumpBtn.onmouseenter = () => dumpBtn.style.opacity = '1';
+    dumpBtn.onmouseleave = () => dumpBtn.style.opacity = '0.6';
+    dumpBtn.onclick = () => this.dumpLogsToFile();
+
     // Copy button
     const copyBtn = document.createElement('button');
     copyBtn.textContent = '📋';
@@ -532,6 +550,7 @@ export class DebugConsole {
     closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.6';
     closeBtn.onclick = () => this.toggleTextLog();
 
+    buttonContainer.appendChild(dumpBtn);
     buttonContainer.appendChild(copyBtn);
     buttonContainer.appendChild(clearBtn);
     buttonContainer.appendChild(closeBtn);
@@ -1392,6 +1411,7 @@ export class DebugConsole {
       });
       if (response.ok) {
         const version = await response.json();
+        this.versionInfo = version;
         const versionSection = document.getElementById('version-info');
         if (versionSection) {
           versionSection.innerHTML = `
@@ -1552,6 +1572,47 @@ export class DebugConsole {
     } catch (error) {
       // console.error('Failed to copy logs:', error);
       alert('Failed to copy logs to clipboard');
+    }
+  }
+
+  private async dumpLogsToFile(): Promise<void> {
+    const payload = {
+      timestamp: Date.now(),
+      isoTime: new Date().toISOString(),
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+      version: this.versionInfo,
+      logs: this.logs
+    };
+
+    try {
+      const response = await fetch('/__debug/dump-logs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json().catch(() => null);
+      const wrotePath = data?.path ? `Wrote ${data.path}` : 'Wrote log file';
+      this.addLog('INFO', [wrotePath], '#0af');
+      return;
+    } catch {
+      // Fallback: download locally (useful on GH Pages / production builds)
+      const text = this.logs.join('\n');
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `debug-console-${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      this.addLog('WARN', ['Dev dump failed; downloaded .log instead'], '#ff0');
     }
   }
 

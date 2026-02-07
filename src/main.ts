@@ -1279,9 +1279,8 @@ try {
       return installCarvingDebug(app as any);
     };
 
-    if (new URLSearchParams(window.location.search).has('carveDebug')) {
-      (window as any).enableCarvingStepDebug();
-    }
+    // TEMP: always enable step-by-step mode so each carve pauses and advances via ▶️.
+    (window as any).enableCarvingStepDebug();
   }
 } catch (error) {
   // console.error('Fatal error during initialization:', error);

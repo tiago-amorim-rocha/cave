@@ -43,7 +43,7 @@ export interface WaterPerfStats {
 }
 
 export const DEFAULT_WATER_PARAMS: WaterParticlesParams = {
-  enabled: true,
+  enabled: false,
 
   particleRadius: 0.12,
   gravityY: 10,
