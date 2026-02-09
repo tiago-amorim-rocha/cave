@@ -1,4 +1,4 @@
-name: Cleanup old Claude branches
+name: Cleanup old agent branches
 
 on:
   schedule:
@@ -18,9 +18,9 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all branches
 
-      - name: Delete old claude branches
+      - name: Delete old claude/codex branches
         run: |
-          echo "Finding claude/** branches older than 24 hours..."
+          echo "Finding claude/** and codex/** branches older than 24 hours..."
 
           # Get current time in seconds since epoch
           NOW=$(date +%s)
@@ -28,10 +28,10 @@ jobs:
 
           # Get all remote claude branches
           git fetch origin
-          BRANCHES=$(git branch -r | grep 'origin/claude/' | sed 's/origin\///' | grep -v HEAD || true)
+          BRANCHES=$(git branch -r | grep -E 'origin/(claude|codex)/' | sed 's/origin\///' | grep -v HEAD || true)
 
           if [ -z "$BRANCHES" ]; then
-            echo "No claude/** branches found"
+            echo "No claude/** or codex/** branches found"
             exit 0
           fi
 
