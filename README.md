@@ -4,6 +4,15 @@ Procedural 2D caves generated from a scalar density field (Perlin noise) and sur
 
 This README is written as “context for future LLM agents”: what matters, where things live, and what invariants to preserve.
 
+## Current Project State (2026-02)
+
+- ✅ **Core gameplay loop is active**: player movement, camera follow, touch joystick, and carve button are all wired through `src/main.ts`.
+- ✅ **Localized carving pipeline is the default path**: brush stamps update a dirty region and run the localized remesh/physics patch in `RemeshManager.localUpdate()`.
+- ✅ **Box2D is the only physics backend**: terrain fixtures and player interaction are fully Box2D-based.
+- ✅ **Debug tooling is available in-app**: debug console toggles, overlays, and optional carving step-debug mode are available.
+- ✅ **GitHub Pages build/deploy remains standard**: Vite builds with base `'/cave/'` and CI deploys the production `dist/` output.
+- ℹ️ **Legacy engine paths were intentionally removed**: use the historical tag `legacy-cold-2025-12-16` if older experiments are needed.
+
 ## What To Read First (Code Map)
 
 - `src/main.ts` — app bootstrap, camera/controls/debug UI wiring, player + carve button, and the call site for localized carving (`carveAroundPlayer()` → `remeshManager.localUpdate()`).
@@ -109,4 +118,3 @@ Files: `src/debug/carving/installCarvingDebug.ts`, `src/debug/carving/CarvingDeb
 ## Historical Note
 
 Legacy experiments were deliberately deleted; there is a pre-cleanup snapshot tag: `legacy-cold-2025-12-16`.
-
