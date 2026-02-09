@@ -1,6 +1,6 @@
 import type { Camera } from '../Camera';
 import type { DensityField } from '../DensityField';
-import type { WaterParticlesParams } from './WaterParticles';
+import type { WaterParticlesParams } from './WaterParams';
 
 type GPUDeviceAny = any;
 type GPUCanvasContextAny = any;
@@ -22,8 +22,11 @@ export class WaterWebGPU {
   private simPipelineSpawn: any | null = null;
   private simPipelineClearGrid: any | null = null;
   private simPipelineIntegrate: any | null = null;
-  private simPipelineSeparate: any | null = null;
+  private simPipelineRebuildGrid: any | null = null;
   private simPipelinePost: any | null = null;
+  private simPipelineViscosity: any | null = null;
+  private simPipelinePbfLambda: any | null = null;
+  private simPipelinePbfApply: any | null = null;
 
   private renderPipeline: any | null = null;
   private debugPipeline: any | null = null;
@@ -45,6 +48,8 @@ export class WaterWebGPU {
   private collidedNBuffer: any | null = null;
   private gridHeadBuffer: any | null = null;
   private gridNextBuffer: any | null = null;
+  private densityBuffer: any | null = null;
+  private lambdaBuffer: any | null = null;
 
   private simBindGroup: any | null = null;
   private renderBindGroup: any | null = null;
@@ -270,16 +275,43 @@ export class WaterWebGPU {
         pass.end();
       }
 
-      // Separation (uses grid from integrate pass)
-      if (this.params.separationEnabled && this.params.separationIterations > 0 && this.simPipelineSeparate) {
-        for (let iter = 0; iter < this.params.separationIterations; iter++) {
-          const pass = encoder.beginComputePass();
-          pass.setPipeline(this.simPipelineSeparate);
-          pass.setBindGroup(0, this.simBindGroup);
-          const wg = 256;
-          const groups = Math.ceil(this.aliveCount / wg);
-          pass.dispatchWorkgroups(groups);
-          pass.end();
+      if (
+        this.params.pbfEnabled &&
+        this.params.pbfIterations > 0 &&
+        this.simPipelinePbfLambda &&
+        this.simPipelinePbfApply &&
+        this.simPipelineClearGrid &&
+        this.simPipelineRebuildGrid
+      ) {
+        const wg = 256;
+        for (let iter = 0; iter < this.params.pbfIterations; iter++) {
+          const passClear = encoder.beginComputePass();
+          passClear.setPipeline(this.simPipelineClearGrid);
+          passClear.setBindGroup(0, this.simBindGroup);
+          const gridGroups = Math.ceil(this.gridCellCount / wg);
+          passClear.dispatchWorkgroups(gridGroups);
+          passClear.end();
+
+          const passBuild = encoder.beginComputePass();
+          passBuild.setPipeline(this.simPipelineRebuildGrid);
+          passBuild.setBindGroup(0, this.simBindGroup);
+          const buildGroups = Math.ceil(this.aliveCount / wg);
+          passBuild.dispatchWorkgroups(buildGroups);
+          passBuild.end();
+
+          const passLambda = encoder.beginComputePass();
+          passLambda.setPipeline(this.simPipelinePbfLambda);
+          passLambda.setBindGroup(0, this.simBindGroup);
+          const lambdaGroups = Math.ceil(this.aliveCount / wg);
+          passLambda.dispatchWorkgroups(lambdaGroups);
+          passLambda.end();
+
+          const passApply = encoder.beginComputePass();
+          passApply.setPipeline(this.simPipelinePbfApply);
+          passApply.setBindGroup(0, this.simBindGroup);
+          const applyGroups = Math.ceil(this.aliveCount / wg);
+          passApply.dispatchWorkgroups(applyGroups);
+          passApply.end();
         }
       }
 
@@ -293,6 +325,31 @@ export class WaterWebGPU {
         const groups = Math.ceil(this.aliveCount / wg);
         pass.dispatchWorkgroups(groups);
         pass.end();
+      }
+
+      if (this.params.viscosityStrength > 0 && this.simPipelineViscosity && this.simPipelineClearGrid && this.simPipelineRebuildGrid) {
+        const wg = 256;
+
+        const passClear = encoder.beginComputePass();
+        passClear.setPipeline(this.simPipelineClearGrid);
+        passClear.setBindGroup(0, this.simBindGroup);
+        const gridGroups = Math.ceil(this.gridCellCount / wg);
+        passClear.dispatchWorkgroups(gridGroups);
+        passClear.end();
+
+        const passBuild = encoder.beginComputePass();
+        passBuild.setPipeline(this.simPipelineRebuildGrid);
+        passBuild.setBindGroup(0, this.simBindGroup);
+        const buildGroups = Math.ceil(this.aliveCount / wg);
+        passBuild.dispatchWorkgroups(buildGroups);
+        passBuild.end();
+
+        const passVisc = encoder.beginComputePass();
+        passVisc.setPipeline(this.simPipelineViscosity);
+        passVisc.setBindGroup(0, this.simBindGroup);
+        const groups = Math.ceil(this.aliveCount / wg);
+        passVisc.dispatchWorkgroups(groups);
+        passVisc.end();
       }
     }
 
@@ -371,8 +428,14 @@ export class WaterWebGPU {
     this.params.particleRadius = clamp(this.params.particleRadius, 0.02, 0.5);
     this.params.gravityY = clamp(this.params.gravityY, -50, 50);
     this.params.linearDamping = clamp(this.params.linearDamping, 0, 10);
-    this.params.separationIterations = Math.floor(clamp(this.params.separationIterations, 0, 20));
-    this.params.separationStrength = clamp(this.params.separationStrength, 0, 1);
+    this.params.viscosityStrength = clamp(this.params.viscosityStrength, 0, 1);
+    this.params.pbfIterations = Math.floor(clamp(this.params.pbfIterations, 0, 10));
+    this.params.pbfRadius = clamp(this.params.pbfRadius, 0.05, 2);
+    this.params.pbfRestDensity = clamp(this.params.pbfRestDensity, 0.1, 1000);
+    this.params.pbfStiffness = clamp(this.params.pbfStiffness, 0, 1);
+    this.params.pbfSCorrK = clamp(this.params.pbfSCorrK, 0, 1);
+    this.params.pbfSCorrN = clamp(this.params.pbfSCorrN, 1, 8);
+    this.params.pbfSCorrDq = clamp(this.params.pbfSCorrDq, 0.01, 1.5);
     this.params.spawnRate = clamp(this.params.spawnRate, 0, 100000);
     this.params.spawnDuration = clamp(this.params.spawnDuration, 0, 60);
     this.params.maxParticles = Math.floor(clamp(this.params.maxParticles, 0, 20000));
@@ -398,6 +461,8 @@ export class WaterWebGPU {
     this.prevPosBuffer?.destroy?.();
     this.collidedNBuffer?.destroy?.();
     this.gridNextBuffer?.destroy?.();
+    this.densityBuffer?.destroy?.();
+    this.lambdaBuffer?.destroy?.();
 
     // Position buffer is written by compute and consumed as an instanced vertex buffer for rendering.
     const posUsage = usageRW | (globalThis as any).GPUBufferUsage.VERTEX;
@@ -406,6 +471,8 @@ export class WaterWebGPU {
     this.prevPosBuffer = this.device.createBuffer({ size: this.capacity * 8, usage: usageRW });
     this.collidedNBuffer = this.device.createBuffer({ size: this.capacity * 8, usage: usageRW });
     this.gridNextBuffer = this.device.createBuffer({ size: this.capacity * 4, usage: usageRWCopy });
+    this.densityBuffer = this.device.createBuffer({ size: this.capacity * 4, usage: usageRW });
+    this.lambdaBuffer = this.device.createBuffer({ size: this.capacity * 4, usage: usageRW });
 
     this.recreateBindGroups();
   }
@@ -413,7 +480,7 @@ export class WaterWebGPU {
   private recomputeGrid(): void {
     const { width, height, gridPitch } = this.densityField.config;
     this.minDist = Math.max(this.params.particleRadius * 2, gridPitch * 0.5);
-    this.cellSize = this.minDist;
+    this.cellSize = Math.max(this.minDist, this.params.pbfRadius);
     this.gridCols = Math.max(1, Math.ceil(width / this.cellSize));
     this.gridRows = Math.max(1, Math.ceil(height / this.cellSize));
     this.gridCellCount = this.gridCols * this.gridRows;
@@ -450,7 +517,7 @@ export class WaterWebGPU {
   private recreateBindGroups(): void {
     if (!this.device) return;
     if (!this.simUniformBuffer || !this.renderUniformBuffer) return;
-    if (!this.posBuffer || !this.velBuffer || !this.prevPosBuffer || !this.gridNextBuffer || !this.gridHeadBuffer || !this.collidedNBuffer) return;
+    if (!this.posBuffer || !this.velBuffer || !this.prevPosBuffer || !this.gridNextBuffer || !this.gridHeadBuffer || !this.collidedNBuffer || !this.densityBuffer || !this.lambdaBuffer) return;
     if (!this.densityTextureView || !this.densitySampler) return;
 
     if (this.simPipelineIntegrate) {
@@ -463,12 +530,14 @@ export class WaterWebGPU {
           { binding: 2, resource: { buffer: this.velBuffer } },
           { binding: 3, resource: { buffer: this.prevPosBuffer } },
           { binding: 4, resource: { buffer: this.collidedNBuffer } },
-          { binding: 5, resource: { buffer: this.gridNextBuffer } },
-          { binding: 6, resource: { buffer: this.gridHeadBuffer } },
-          { binding: 7, resource: this.densityTextureView },
-          { binding: 8, resource: this.densitySampler },
-        ],
-      });
+        { binding: 5, resource: { buffer: this.gridNextBuffer } },
+        { binding: 6, resource: { buffer: this.gridHeadBuffer } },
+        { binding: 7, resource: this.densityTextureView },
+        { binding: 8, resource: this.densitySampler },
+        { binding: 9, resource: { buffer: this.densityBuffer } },
+        { binding: 10, resource: { buffer: this.lambdaBuffer } },
+      ],
+    });
     }
 
     if (this.renderPipeline) {
@@ -484,7 +553,7 @@ export class WaterWebGPU {
 
   private createPipelinesAndBindGroups(): void {
     if (!this.device || !this.format) return;
-    if (!this.posBuffer || !this.velBuffer || !this.prevPosBuffer || !this.gridNextBuffer || !this.gridHeadBuffer || !this.collidedNBuffer) {
+    if (!this.posBuffer || !this.velBuffer || !this.prevPosBuffer || !this.gridNextBuffer || !this.gridHeadBuffer || !this.collidedNBuffer || !this.densityBuffer || !this.lambdaBuffer) {
       throw new Error('[WaterWebGPU] Buffers not allocated');
     }
     if (!this.densityTextureView || !this.densitySampler) {
@@ -496,7 +565,7 @@ struct SimUniforms {
   dt: f32,
   gravityY: f32,
   dampingFactor: f32,
-  separationStrength: f32,
+  _pad0: f32,
 
   worldW: f32,
   worldH: f32,
@@ -521,7 +590,17 @@ struct SimUniforms {
   collisionPushMax: f32,
   collisionNormalDamp: f32,
   collisionTangentDamp: f32,
-  _pad0: f32,
+  viscosityStrength: f32,
+
+  pbfRadius: f32,
+  pbfRestDensity: f32,
+  pbfStiffness: f32,
+  pbfEpsilon: f32,
+
+  pbfSCorrK: f32,
+  pbfSCorrN: f32,
+  pbfSCorrDq: f32,
+  _pad2: f32,
 
   spawnStart: u32,
   spawnCount: u32,
@@ -543,6 +622,8 @@ struct SimUniforms {
 @group(0) @binding(6) var<storage, read_write> gridHead: array<atomic<u32>>;
 @group(0) @binding(7) var densityTex: texture_2d<f32>;
 @group(0) @binding(8) var densitySamp: sampler;
+@group(0) @binding(9) var<storage, read_write> density: array<f32>;
+@group(0) @binding(10) var<storage, read_write> lambda: array<f32>;
 
 fn hash32(x: u32) -> u32 {
   var v = x;
@@ -567,6 +648,39 @@ fn densityAt(p: vec2f) -> f32 {
   return textureSampleLevel(densityTex, densitySamp, uv, 0.0).r * 255.0;
 }
 
+fn poly6(r2: f32, h: f32) -> f32 {
+  let h2 = h * h;
+  if (r2 >= h2) { return 0.0; }
+  let x = h2 - r2;
+  let h4 = h2 * h2;
+  let h8 = h4 * h4;
+  let k = 4.0 / (3.14159265 * h8);
+  return k * x * x * x;
+}
+
+fn spikyGrad(r: vec2f, h: f32) -> vec2f {
+  let r2 = dot(r, r);
+  let h2 = h * h;
+  if (r2 >= h2 || r2 < 1e-12) { return vec2f(0.0); }
+  let rlen = sqrt(r2);
+  let x = h - rlen;
+  let h3 = h2 * h;
+  let h5 = h3 * h2;
+  let k = -30.0 / (3.14159265 * h5);
+  let scale = k * x * x / rlen;
+  return r * scale;
+}
+
+fn clampLen(v: vec2f, maxLen: f32) -> vec2f {
+  let l2 = dot(v, v);
+  let m2 = maxLen * maxLen;
+  if (l2 > m2) {
+    let l = sqrt(l2);
+    return v * (maxLen / max(l, 1e-12));
+  }
+  return v;
+}
+
 fn projectOutOfRock(pIn: vec2f, storeIndex: u32) -> vec2f {
   var p = vec2f(clamp(pIn.x, 0.0, sim.worldW), clamp(pIn.y, 0.0, sim.worldH));
   if (sim.collisionIterations == 0u) {
@@ -576,7 +690,9 @@ fn projectOutOfRock(pIn: vec2f, storeIndex: u32) -> vec2f {
 
   let r = sim.particleRadius;
   let eps = sim.gridPitch;
-  let bias = sim.gridPitch * 0.01;
+  // Scale collision bias slightly with dt so smaller substeps don't inject jittery micro-bounces.
+  let dtScale = clamp(sim.dt * 60.0, 0.25, 2.0);
+  let bias = sim.gridPitch * 0.01 * dtScale;
   var lastN = vec2f(0.0);
   var did = false;
 
@@ -694,16 +810,143 @@ fn integrate(@builtin(global_invocation_id) gid: vec3u) {
 }
 
 @compute @workgroup_size(256)
-fn separate(@builtin(global_invocation_id) gid: vec3u) {
+fn rebuildGrid(@builtin(global_invocation_id) gid: vec3u) {
   let i = gid.x;
   if (i >= sim.aliveCount) { return; }
 
-  var p = pos[i];
+  let p = pos[i];
+  let cx = clamp(u32(floor(p.x * sim.invCellSize)), 0u, sim.gridCols - 1u);
+  let cy = clamp(u32(floor(p.y * sim.invCellSize)), 0u, sim.gridRows - 1u);
+  let cell = cx + cy * sim.gridCols;
+  let prev = atomicExchange(&gridHead[cell], i);
+  gridNext[i] = prev;
+}
+
+@compute @workgroup_size(256)
+fn pbfLambda(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= sim.aliveCount) { return; }
+  if (sim.pbfRadius <= 0.0 || sim.pbfRestDensity <= 0.0) {
+    density[i] = 0.0;
+    lambda[i] = 0.0;
+    return;
+  }
+
+  let p = pos[i];
+  let cx = i32(clamp(u32(floor(p.x * sim.invCellSize)), 0u, sim.gridCols - 1u));
+  let cy = i32(clamp(u32(floor(p.y * sim.invCellSize)), 0u, sim.gridRows - 1u));
+  let h = sim.pbfRadius;
+  let h2 = h * h;
+
+  var rho = 0.0;
+  var gradSum = vec2f(0.0);
+  var sumGrad2 = 0.0;
+
+  for (var oy = -1; oy <= 1; oy++) {
+    let ny = cy + oy;
+    if (ny < 0 || ny >= i32(sim.gridRows)) { continue; }
+    for (var ox = -1; ox <= 1; ox++) {
+      let nx = cx + ox;
+      if (nx < 0 || nx >= i32(sim.gridCols)) { continue; }
+      let cell = u32(nx) + u32(ny) * sim.gridCols;
+      var j = atomicLoad(&gridHead[cell]);
+      while (j != ${SENTINEL}u) {
+        if (j < sim.aliveCount) {
+          let q = pos[j];
+          let r = p - q;
+          let r2 = dot(r, r);
+          if (r2 <= h2) {
+            rho += poly6(r2, h);
+            if (j != i) {
+              let grad = spikyGrad(r, h);
+              gradSum += grad;
+              sumGrad2 += dot(grad, grad);
+            }
+          }
+        }
+        j = gridNext[j];
+      }
+    }
+  }
+
+  let invRest = 1.0 / sim.pbfRestDensity;
+  sumGrad2 = (sumGrad2 + dot(gradSum, gradSum)) * invRest * invRest;
+  let c = rho * invRest - 1.0;
+  let denom = sumGrad2 + sim.pbfEpsilon;
+  lambda[i] = clamp(-sim.pbfStiffness * c / denom, -50.0, 50.0);
+  density[i] = rho;
+}
+
+@compute @workgroup_size(256)
+fn pbfApply(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= sim.aliveCount) { return; }
+  if (sim.pbfRadius <= 0.0 || sim.pbfRestDensity <= 0.0) { return; }
+
+  let p = pos[i];
+  let cx = i32(clamp(u32(floor(p.x * sim.invCellSize)), 0u, sim.gridCols - 1u));
+  let cy = i32(clamp(u32(floor(p.y * sim.invCellSize)), 0u, sim.gridRows - 1u));
+  let h = sim.pbfRadius;
+  let h2 = h * h;
+  let corrK = sim.pbfSCorrK;
+  let corrN = sim.pbfSCorrN;
+  let dq = clamp(sim.pbfSCorrDq, 0.0, h);
+  let wq = poly6(dq * dq, h);
+
+  var delta = vec2f(0.0);
+  let lambdaI = lambda[i];
+
+  for (var oy = -1; oy <= 1; oy++) {
+    let ny = cy + oy;
+    if (ny < 0 || ny >= i32(sim.gridRows)) { continue; }
+    for (var ox = -1; ox <= 1; ox++) {
+      let nx = cx + ox;
+      if (nx < 0 || nx >= i32(sim.gridCols)) { continue; }
+      let cell = u32(nx) + u32(ny) * sim.gridCols;
+      var j = atomicLoad(&gridHead[cell]);
+      while (j != ${SENTINEL}u) {
+        if (j != i && j < sim.aliveCount) {
+          let q = pos[j];
+          let r = p - q;
+          let r2 = dot(r, r);
+          if (r2 <= h2) {
+            let grad = spikyGrad(r, h);
+            var sc = 0.0;
+            if (wq > 0.0) {
+              let w = poly6(r2, h);
+              sc = -corrK * pow(w / wq, corrN);
+            }
+            delta += (lambdaI + lambda[j] + sc) * grad;
+          }
+        }
+        j = gridNext[j];
+      }
+    }
+  }
+
+  let invRest = 1.0 / sim.pbfRestDensity;
+  var dp = delta * invRest;
+  // Keep PBF stable across substeps and avoid large corrections injecting huge velocities.
+  let dtScale = clamp(sim.dt * 60.0, 0.25, 2.0);
+  dp *= dtScale;
+  dp = clampLen(dp, sim.minDist * 0.2);
+  let pNew = vec2f(clamp(p.x + dp.x, 0.0, sim.worldW), clamp(p.y + dp.y, 0.0, sim.worldH));
+  pos[i] = pNew;
+}
+
+@compute @workgroup_size(256)
+fn viscosity(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= sim.aliveCount) { return; }
+  if (sim.viscosityStrength <= 0.0) { return; }
+
+  let p = pos[i];
+  let v0 = vel[i];
   let cx = i32(clamp(u32(floor(p.x * sim.invCellSize)), 0u, sim.gridCols - 1u));
   let cy = i32(clamp(u32(floor(p.y * sim.invCellSize)), 0u, sim.gridRows - 1u));
 
-  var corr = vec2f(0.0);
-  var count = 0.0;
+  var dv = vec2f(0.0);
+  var wsum = 0.0;
   let minDist = sim.minDist;
   let minDistSq = sim.minDistSq;
 
@@ -718,18 +961,14 @@ fn separate(@builtin(global_invocation_id) gid: vec3u) {
       while (j != ${SENTINEL}u) {
         if (j != i && j < sim.aliveCount) {
           let q = pos[j];
-          var dx = q.x - p.x;
-          var dy = q.y - p.y;
+          let dx = q.x - p.x;
+          let dy = q.y - p.y;
           let d2 = dx*dx + dy*dy;
           if (d2 < minDistSq && d2 > 1e-12) {
             let d = sqrt(d2);
-            let invD = 1.0 / d;
-            let nxp = dx * invD;
-            let nyp = dy * invD;
-            let overlap = (minDist - d);
-            // One-sided correction: move i away; scale like the CPU's half-split.
-            corr -= vec2f(nxp, nyp) * (overlap * 0.5);
-            count += 1.0;
+            let w = 1.0 - d / minDist;
+            dv += (vel[j] - v0) * w;
+            wsum += w;
           }
         }
         j = gridNext[j];
@@ -737,10 +976,9 @@ fn separate(@builtin(global_invocation_id) gid: vec3u) {
     }
   }
 
-  if (count > 0.0) {
-    let step = corr * (sim.separationStrength / count);
-    p = vec2f(clamp(p.x + step.x, 0.0, sim.worldW), clamp(p.y + step.y, 0.0, sim.worldH));
-    pos[i] = p;
+  if (wsum > 0.0) {
+    let scale = sim.viscosityStrength / wsum;
+    vel[i] = v0 + dv * scale;
   }
 }
 
@@ -900,7 +1138,7 @@ fn fsMain(in: VSOut) -> @location(0) vec4f {
     this.logCompilationInfo('debug', debugModule);
 
     this.simUniformBuffer = this.device.createBuffer({
-      size: 128,
+      size: 160,
       usage: (globalThis as any).GPUBufferUsage.UNIFORM | (globalThis as any).GPUBufferUsage.COPY_DST,
     });
 
@@ -920,6 +1158,8 @@ fn fsMain(in: VSOut) -> @location(0) vec4f {
         { binding: 6, visibility: (globalThis as any).GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
         { binding: 7, visibility: (globalThis as any).GPUShaderStage.COMPUTE, texture: { sampleType: 'float' } },
         { binding: 8, visibility: (globalThis as any).GPUShaderStage.COMPUTE, sampler: { type: 'filtering' } },
+        { binding: 9, visibility: (globalThis as any).GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+        { binding: 10, visibility: (globalThis as any).GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
       ],
     });
 
@@ -927,8 +1167,11 @@ fn fsMain(in: VSOut) -> @location(0) vec4f {
     this.simPipelineSpawn = this.createComputePipelineChecked('spawn', simLayout, simModule, 'spawn');
     this.simPipelineClearGrid = this.createComputePipelineChecked('clearGrid', simLayout, simModule, 'clearGrid');
     this.simPipelineIntegrate = this.createComputePipelineChecked('integrate', simLayout, simModule, 'integrate');
-    this.simPipelineSeparate = this.createComputePipelineChecked('separate', simLayout, simModule, 'separate');
+    this.simPipelineRebuildGrid = this.createComputePipelineChecked('rebuildGrid', simLayout, simModule, 'rebuildGrid');
     this.simPipelinePost = this.createComputePipelineChecked('post', simLayout, simModule, 'post');
+    this.simPipelineViscosity = this.createComputePipelineChecked('viscosity', simLayout, simModule, 'viscosity');
+    this.simPipelinePbfLambda = this.createComputePipelineChecked('pbfLambda', simLayout, simModule, 'pbfLambda');
+    this.simPipelinePbfApply = this.createComputePipelineChecked('pbfApply', simLayout, simModule, 'pbfApply');
 
     this.simBindGroup = this.device.createBindGroup({
       layout: simBgl,
@@ -942,6 +1185,8 @@ fn fsMain(in: VSOut) -> @location(0) vec4f {
         { binding: 6, resource: { buffer: this.gridHeadBuffer } },
         { binding: 7, resource: this.densityTextureView },
         { binding: 8, resource: this.densitySampler },
+        { binding: 9, resource: { buffer: this.densityBuffer } },
+        { binding: 10, resource: { buffer: this.lambdaBuffer } },
       ],
     });
 
@@ -1006,7 +1251,8 @@ fn fsMain(in: VSOut) -> @location(0) vec4f {
     const texH = this.densityField.gridHeight;
 
     const dt = extra.dt;
-    const ab = new ArrayBuffer(128);
+    const dtScale = clamp(dt * 60, 0.25, 2.0);
+    const ab = new ArrayBuffer(160);
     const dv = new DataView(ab);
 
     let o = 0;
@@ -1016,7 +1262,7 @@ fn fsMain(in: VSOut) -> @location(0) vec4f {
     f32(dt);
     f32(this.params.gravityY);
     f32(extra.dampingFactor);
-    f32(this.params.separationStrength);
+    f32(0);
 
     f32(width);
     f32(height);
@@ -1038,9 +1284,20 @@ fn fsMain(in: VSOut) -> @location(0) vec4f {
     u32(this.gridRows);
     u32(this.params.collisionIterations);
 
-    f32(Math.max(this.params.collisionPushStep, gridPitch * 0.5));
+    f32(Math.max(this.params.collisionPushStep, gridPitch * 0.5) * dtScale);
     f32(this.params.collisionNormalDamping);
     f32(this.params.collisionTangentDamping);
+    f32(this.params.viscosityStrength);
+
+    f32(this.params.pbfRadius);
+    f32(this.params.pbfRestDensity);
+    f32(this.params.pbfStiffness);
+    // Stabilizer for low-neighbor-count cases; PBF denominators can get tiny at the free surface.
+    f32(0.1);
+
+    f32(this.params.pbfSCorrK);
+    f32(this.params.pbfSCorrN);
+    f32(this.params.pbfSCorrDq);
     f32(0);
 
     u32(extra.spawnStart);
