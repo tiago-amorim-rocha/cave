@@ -29,6 +29,8 @@ export class WaterWebGPU {
   private simPipelinePbfApply: any | null = null;
 
   private renderPipeline: any | null = null;
+  private thicknessPipeline: any | null = null;
+  private compositePipeline: any | null = null;
   private debugPipeline: any | null = null;
 
   private simUniformBuffer: any | null = null;
@@ -53,6 +55,13 @@ export class WaterWebGPU {
 
   private simBindGroup: any | null = null;
   private renderBindGroup: any | null = null;
+  private compositeBindGroup: any | null = null;
+
+  private thicknessTexture: any | null = null;
+  private thicknessTextureView: any | null = null;
+  private thicknessSampler: any | null = null;
+  private thicknessW = 0;
+  private thicknessH = 0;
 
   private ready = false;
   private simOk = true;
@@ -148,6 +157,7 @@ export class WaterWebGPU {
 
     this.format = nav.gpu.getPreferredCanvasFormat();
     this.configure();
+    this.createThicknessResources();
 
     this.applyParamClamps();
     this.ensureCapacity(this.params.maxParticles);
@@ -164,7 +174,11 @@ export class WaterWebGPU {
     if (this.canvas.width === widthPx && this.canvas.height === heightPx) return;
     this.canvas.width = widthPx;
     this.canvas.height = heightPx;
-    if (this.ready) this.configure();
+    if (this.ready) {
+      this.configure();
+      this.createThicknessResources();
+      this.recreateBindGroups();
+    }
   }
 
   uploadDensityField(): void {
@@ -360,9 +374,49 @@ export class WaterWebGPU {
     if (!this.ready) return;
     if (!this.device || !this.context) return;
 
+    this.createThicknessResources();
+    this.recreateBindGroups();
+    if (!this.thicknessTextureView || !this.thicknessTexture) return;
+
     const encoder = this.device.createCommandEncoder();
     const view = this.context.getCurrentTexture().createView();
     const opaque = opts?.opaqueBackground ?? false;
+
+    const w = Math.max(1, this.canvas.width);
+    const h = Math.max(1, this.canvas.height);
+    const zoomPx = camera.zoom * dpr;
+
+    // camX, camY, zoomPx, invW, invH, radius, aliveCount(u32), pad
+    const ab = new ArrayBuffer(32);
+    const f = new Float32Array(ab);
+    f[0] = camera.x;
+    f[1] = camera.y;
+    f[2] = zoomPx;
+    f[3] = 1 / w;
+    f[4] = 1 / h;
+    f[5] = this.params.particleRadius;
+    this.device.queue.writeBuffer(this.renderUniformBuffer, 0, ab);
+    this.device.queue.writeBuffer(this.renderUniformBuffer, 24, new Uint32Array([this.aliveCount]));
+
+    const thicknessPass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.thicknessTextureView,
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+
+    if (this.thicknessPipeline && this.renderBindGroup && this.posBuffer) {
+      thicknessPass.setPipeline(this.thicknessPipeline);
+      thicknessPass.setBindGroup(0, this.renderBindGroup);
+      thicknessPass.setVertexBuffer(0, this.posBuffer);
+      thicknessPass.draw(6, this.aliveCount);
+    }
+    thicknessPass.end();
+
     const pass = encoder.beginRenderPass({
       colorAttachments: [
         {
@@ -385,32 +439,15 @@ export class WaterWebGPU {
       return;
     }
 
-    if (!this.renderPipeline || !this.renderBindGroup || !this.renderUniformBuffer || !this.posBuffer) {
+    if (!this.compositeBindGroup || !this.compositePipeline || !this.renderUniformBuffer || !this.posBuffer) {
       pass.end();
       this.device.queue.submit([encoder.finish()]);
       return;
     }
 
-    const w = Math.max(1, this.canvas.width);
-    const h = Math.max(1, this.canvas.height);
-    const zoomPx = camera.zoom * dpr;
-
-    // camX, camY, zoomPx, invW, invH, radius, aliveCount(u32), pad
-    const ab = new ArrayBuffer(32);
-    const f = new Float32Array(ab);
-    f[0] = camera.x;
-    f[1] = camera.y;
-    f[2] = zoomPx;
-    f[3] = 1 / w;
-    f[4] = 1 / h;
-    f[5] = this.params.particleRadius;
-    this.device.queue.writeBuffer(this.renderUniformBuffer, 0, ab);
-    this.device.queue.writeBuffer(this.renderUniformBuffer, 24, new Uint32Array([this.aliveCount]));
-
-    pass.setPipeline(this.renderPipeline);
-    pass.setBindGroup(0, this.renderBindGroup);
-    pass.setVertexBuffer(0, this.posBuffer);
-    pass.draw(6, this.aliveCount);
+    pass.setPipeline(this.compositePipeline);
+    pass.setBindGroup(0, this.compositeBindGroup);
+    pass.draw(3);
     pass.end();
     this.device.queue.submit([encoder.finish()]);
   }
@@ -514,6 +551,31 @@ export class WaterWebGPU {
     });
   }
 
+  private createThicknessResources(): void {
+    if (!this.device) return;
+    const w = Math.max(1, this.canvas.width);
+    const h = Math.max(1, this.canvas.height);
+    if (this.thicknessTexture && this.thicknessW === w && this.thicknessH === h) return;
+
+    this.thicknessTexture?.destroy?.();
+    this.thicknessTexture = this.device.createTexture({
+      size: { width: w, height: h },
+      format: 'rgba16float',
+      usage:
+        (globalThis as any).GPUTextureUsage.RENDER_ATTACHMENT |
+        (globalThis as any).GPUTextureUsage.TEXTURE_BINDING,
+    });
+    this.thicknessTextureView = this.thicknessTexture.createView();
+    this.thicknessW = w;
+    this.thicknessH = h;
+    this.thicknessSampler = this.device.createSampler({
+      magFilter: 'linear',
+      minFilter: 'linear',
+      addressModeU: 'clamp-to-edge',
+      addressModeV: 'clamp-to-edge',
+    });
+  }
+
   private recreateBindGroups(): void {
     if (!this.device) return;
     if (!this.simUniformBuffer || !this.renderUniformBuffer) return;
@@ -540,12 +602,24 @@ export class WaterWebGPU {
     });
     }
 
-    if (this.renderPipeline) {
-      const layout = this.renderPipeline.getBindGroupLayout(0);
+    if (this.thicknessPipeline) {
+      const layout = this.thicknessPipeline.getBindGroupLayout(0);
       this.renderBindGroup = this.device.createBindGroup({
         layout,
         entries: [
           { binding: 0, resource: { buffer: this.renderUniformBuffer } },
+        ],
+      });
+    }
+
+
+    if (this.compositePipeline && this.thicknessTextureView && this.thicknessSampler) {
+      const layout = this.compositePipeline.getBindGroupLayout(0);
+      this.compositeBindGroup = this.device.createBindGroup({
+        layout,
+        entries: [
+          { binding: 0, resource: this.thicknessTextureView },
+          { binding: 1, resource: this.thicknessSampler },
         ],
       });
     }
@@ -1012,7 +1086,7 @@ fn post(@builtin(global_invocation_id) gid: vec3u) {
 }
 `;
 
-    const renderShader = `
+    const thicknessShader = `
 struct RenderUniforms {
   camX: f32,
   camY: f32,
@@ -1054,11 +1128,8 @@ fn vsMain(
     out.local = vec2f(0.0);
     return out;
   }
-  let p = instPos;
-
-  // World->NDC directly (camera is centered).
-  let ndcX = (p.x - uni.camX) * uni.zoomPx * 2.0 * uni.invW;
-  let ndcY = -(p.y - uni.camY) * uni.zoomPx * 2.0 * uni.invH;
+  let ndcX = (instPos.x - uni.camX) * uni.zoomPx * 2.0 * uni.invW;
+  let ndcY = -(instPos.y - uni.camY) * uni.zoomPx * 2.0 * uni.invH;
 
   let local = quadLocal(vid);
   let rx = uni.radius * uni.zoomPx * 2.0 * uni.invW;
@@ -1072,8 +1143,68 @@ fn vsMain(
 fn fsMain(in: VSOut) -> @location(0) vec4f {
   let d2 = dot(in.local, in.local);
   if (d2 > 1.0) { discard; }
-  let alpha = exp(-d2 * 3.5);
-  let color = vec3f(0.20, 0.55, 1.0);
+  let thickness = exp(-d2 * 4.0);
+  return vec4f(thickness, thickness, thickness, thickness);
+}
+`;
+
+    const compositeShader = `
+struct VOut {
+  @builtin(position) pos: vec4f,
+  @location(0) uv: vec2f,
+}
+
+@group(0) @binding(0) var thicknessTex: texture_2d<f32>;
+@group(0) @binding(1) var thicknessSamp: sampler;
+
+fn fullscreenTri(vid: u32) -> vec2f {
+  switch (vid) {
+    case 0u: { return vec2f(-1.0, -1.0); }
+    case 1u: { return vec2f( 3.0, -1.0); }
+    default: { return vec2f(-1.0,  3.0); }
+  }
+}
+
+@vertex
+fn vsMain(@builtin(vertex_index) vid: u32) -> VOut {
+  var out: VOut;
+  let p = fullscreenTri(vid);
+  out.pos = vec4f(p, 0.0, 1.0);
+  out.uv = p * vec2f(0.5, -0.5) + vec2f(0.5, 0.5);
+  return out;
+}
+
+fn sampleThickness(uv: vec2f) -> f32 {
+  return textureSample(thicknessTex, thicknessSamp, clamp(uv, vec2f(0.0), vec2f(1.0))).r;
+}
+
+@fragment
+fn fsMain(in: VOut) -> @location(0) vec4f {
+  let px = vec2f(dpdx(in.uv.x), dpdy(in.uv.y));
+  let stepUv = vec2f(max(abs(px.x), 0.0005), max(abs(px.y), 0.0005));
+
+  let c = sampleThickness(in.uv);
+  let l = sampleThickness(in.uv + vec2f(-stepUv.x, 0.0));
+  let r = sampleThickness(in.uv + vec2f( stepUv.x, 0.0));
+  let u = sampleThickness(in.uv + vec2f(0.0, -stepUv.y));
+  let d = sampleThickness(in.uv + vec2f(0.0,  stepUv.y));
+
+  let smooth = (c * 2.0 + l + r + u + d) / 6.0;
+  let edge = smoothstep(0.08, 0.22, smooth);
+  if (edge <= 0.001) { discard; }
+
+  let grad = vec2f(r - l, d - u);
+  let n = normalize(vec3f(-grad.x * 4.0, -grad.y * 4.0, 1.0));
+  let light = normalize(vec3f(-0.35, -0.5, 0.79));
+  let lit = clamp(dot(n, light), 0.0, 1.0);
+  let fres = pow(1.0 - clamp(n.z, 0.0, 1.0), 2.0);
+
+  let deepColor = vec3f(0.08, 0.32, 0.78);
+  let shallowColor = vec3f(0.30, 0.70, 1.0);
+  let color = mix(shallowColor, deepColor, clamp(smooth * 0.9, 0.0, 1.0));
+  color += 0.2 * lit + 0.35 * fres;
+
+  let alpha = clamp(edge * (0.45 + smooth * 0.75), 0.0, 0.92);
   return vec4f(color * alpha, alpha);
 }
 `;
@@ -1131,10 +1262,12 @@ fn fsMain(in: VSOut) -> @location(0) vec4f {
 `;
 
     const simModule = this.device.createShaderModule({ code: simShader });
-    const renderModule = this.device.createShaderModule({ code: renderShader });
+    const thicknessModule = this.device.createShaderModule({ code: thicknessShader });
+    const compositeModule = this.device.createShaderModule({ code: compositeShader });
     const debugModule = this.device.createShaderModule({ code: debugShader });
     this.logCompilationInfo('sim', simModule);
-    this.logCompilationInfo('render', renderModule);
+    this.logCompilationInfo('thickness', thicknessModule);
+    this.logCompilationInfo('composite', compositeModule);
     this.logCompilationInfo('debug', debugModule);
 
     this.simUniformBuffer = this.device.createBuffer({
@@ -1196,10 +1329,10 @@ fn fsMain(in: VSOut) -> @location(0) vec4f {
       ],
     });
     const renderLayout = this.device.createPipelineLayout({ bindGroupLayouts: [renderBgl] });
-    this.renderPipeline = this.createRenderPipelineChecked('waterRender', {
+    this.thicknessPipeline = this.createRenderPipelineChecked('waterThickness', {
       layout: renderLayout,
       vertex: {
-        module: renderModule,
+        module: thicknessModule,
         entryPoint: 'vsMain',
         buffers: [
           {
@@ -1210,7 +1343,26 @@ fn fsMain(in: VSOut) -> @location(0) vec4f {
         ],
       },
       fragment: {
-        module: renderModule,
+        module: thicknessModule,
+        entryPoint: 'fsMain',
+        targets: [
+          {
+            format: 'rgba16float',
+            blend: {
+              color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+              alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+            },
+          },
+        ],
+      },
+      primitive: { topology: 'triangle-list' },
+    });
+
+    this.compositePipeline = this.createRenderPipelineChecked('waterComposite', {
+      layout: 'auto',
+      vertex: { module: compositeModule, entryPoint: 'vsMain' },
+      fragment: {
+        module: compositeModule,
         entryPoint: 'fsMain',
         targets: [
           {
@@ -1242,6 +1394,17 @@ fn fsMain(in: VSOut) -> @location(0) vec4f {
         { binding: 0, resource: { buffer: this.renderUniformBuffer } },
       ],
     });
+
+    if (this.compositePipeline && this.thicknessTextureView && this.thicknessSampler) {
+      const compositeLayout = this.compositePipeline.getBindGroupLayout(0);
+      this.compositeBindGroup = this.device.createBindGroup({
+        layout: compositeLayout,
+        entries: [
+          { binding: 0, resource: this.thicknessTextureView },
+          { binding: 1, resource: this.thicknessSampler },
+        ],
+      });
+    }
   }
 
   private writeSimUniforms(extra: { dt: number; dampingFactor: number; spawnStart: number; spawnCount: number }): void {
